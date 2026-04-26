@@ -11,4 +11,4 @@ cargo run -p ignispromptd -- \
   --bind "${IGNISPROMPT_BIND:-127.0.0.1:8765}" \
   --model-dir "${IGNISPROMPT_MODEL_DIR:-./config/models}" \
   --audit-log "${IGNISPROMPT_AUDIT_LOG:-./data/audit/events.jsonl}" \
-  --local-only true
+  --local-only
