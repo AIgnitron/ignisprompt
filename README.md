@@ -59,6 +59,12 @@ In another terminal:
 ./scripts/smoke.sh
 ```
 
+For the real local GGUF path, start Ollama locally and then run:
+
+```bash
+./scripts/smoke-gguf-local.sh
+```
+
 ## GGUF Runner Spike
 
 The default daemon build does not require GGUF tooling or model weights. `StubLegalRunner` remains the active Tier 3 path unless you explicitly compile the spike:
@@ -103,6 +109,30 @@ The current spike stays subprocess-based on purpose. Two realistic next-step int
 - `llama-cpp-2` for direct Rust bindings to `llama.cpp`. Its docs describe the crate as safe wrappers around near-direct bindings and note that API stability is intentionally secondary to tracking upstream `llama.cpp`.
 
 The subprocess contract is the lower-risk spike because it keeps `ignispromptd` free of native binding churn while the `ModelRunner` interface settles.
+
+## Golden Legal v0.3 Subset
+
+The repo now includes a small Golden Legal Routing Test Set v0.3 runner for the live GGUF path:
+
+```bash
+./scripts/run-golden-legal-v0.3.sh
+```
+
+It executes five cases:
+
+- legal Tier 3 success
+- local model unavailable under simulated RAM pressure
+- no cloud fallback without consent when no legal model is installed
+- adversarial contract instruction handling
+- human-readable explanation quality
+
+The script expects:
+
+- a local Ollama server at `OLLAMA_HOST`, typically `http://127.0.0.1:11434`
+- `OLLAMA_NO_CLOUD=true`
+- the local GGUF file at the manifest `localPath`
+
+Evidence is written under `./local-evidence/golden-legal-v0.3/` and stays out of git.
 
 ## Example request
 

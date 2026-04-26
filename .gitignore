@@ -1,3 +1,6 @@
 /models/**
 !/models/
 !/models/.gitkeep
+/local-evidence/**
+!/local-evidence/
+!/local-evidence/.gitkeep
