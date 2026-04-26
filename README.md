@@ -4,12 +4,23 @@
 
 This repository contains a minimal `ignispromptd` Rust daemon scaffold for the Apple Spine Smoke Test. It is intentionally small: it validates the control-plane shape before real model inference is wired in.
 
+## Current smoke-test status
+
+As of April 25, 2026, the local scaffold is intended to pass `./scripts/start-dev.sh` followed by `./scripts/smoke.sh` with the current control-plane scope intact:
+
+- `/health`, `/v1/models`, `/v1/route/explain`, `/v1/chat/completions`, and `/v1/audit/events` respond locally
+- legal requests route to Tier 3 with a human-readable explanation
+- adversarial document instructions are detected and treated as untrusted content
+- audit events are written locally
+- legal chat completions are produced by `StubLegalRunner`, a placeholder adapter for future local runners
+
 ## What this scaffold includes
 
 - `GET /health`
 - `GET /v1/models`
 - `POST /v1/route/explain`
 - `POST /v1/chat/completions` using an OpenAI-compatible request shape
+- Tier 3 legal chat completion dispatch through `StubLegalRunner`
 - `GET /v1/audit/events`
 - JSON model manifest loading
 - local audit event logging
@@ -19,6 +30,7 @@ This repository contains a minimal `ignispromptd` Rust daemon scaffold for the A
 
 ## What this scaffold does not include yet
 
+- real SaulLM/Qwen/Phi inference
 - real GGUF/ONNX inference
 - Apple Foundation Models bridge
 - semantic cache
@@ -56,6 +68,8 @@ curl -s -X POST http://127.0.0.1:8765/v1/route/explain \
 ## Smoke-test goal
 
 The first milestone is not full inference. It is proving that a legal request can enter IgnisPrompt, route locally to Tier 3, explain why, write an audit event, and reject unsafe cloud/adversarial behavior.
+
+`StubLegalRunner` is only a placeholder. It simulates the Tier 3 legal model-runner boundary so the daemon can exercise routing, explanation, and audit behavior before future GGUF/ONNX-backed local runners are added.
 
 ## License
 
