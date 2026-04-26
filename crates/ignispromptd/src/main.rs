@@ -12,7 +12,9 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use clap::Parser;
-use model_runner::{ModelRunner, ModelRunnerAdapter, StubLegalRunner};
+#[cfg(feature = "gguf-runner-spike")]
+use model_runner::GgufRunner;
+use model_runner::{ModelRunner, ModelRunnerAdapter, ModelRunnerContext, StubLegalRunner};
 use serde::{Deserialize, Serialize};
 use tokio::{fs, net::TcpListener, sync::RwLock};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
@@ -48,6 +50,16 @@ struct Args {
     /// Simulate RAM pressure for smoke-test fallback cases.
     #[arg(long, env = "IGNISPROMPT_FORCE_RAM_PRESSURE", default_value_t = false)]
     force_ram_pressure: bool,
+
+    #[cfg(feature = "gguf-runner-spike")]
+    /// Optional local GGUF runner binary for Tier 3 legal inference spikes.
+    #[arg(long, env = "IGNISPROMPT_GGUF_RUNNER_BIN")]
+    gguf_runner_bin: Option<PathBuf>,
+
+    #[cfg(feature = "gguf-runner-spike")]
+    /// Maximum completion tokens requested from the GGUF runner spike.
+    #[arg(long, env = "IGNISPROMPT_GGUF_MAX_TOKENS", default_value_t = 256)]
+    gguf_max_tokens: u32,
 }
 
 #[derive(Clone)]
@@ -94,6 +106,10 @@ impl ModelRegistry {
                     && m.domains.iter().any(|d| d.eq_ignore_ascii_case(domain))
             })
             .cloned()
+    }
+
+    fn find_model_by_id(&self, model_id: &str) -> Option<ModelManifest> {
+        self.models.iter().find(|m| m.model_id == model_id).cloned()
     }
 }
 
@@ -235,9 +251,7 @@ async fn main() -> Result<()> {
         started_at: Utc::now(),
         config: args.clone(),
         model_registry: Arc::new(RwLock::new(registry)),
-        model_runners: Arc::new(ModelRunnerAdapter::new(vec![
-            Arc::new(StubLegalRunner) as Arc<dyn ModelRunner>
-        ])),
+        model_runners: Arc::new(configured_model_runners()),
         audit: Arc::new(audit),
     };
 
@@ -371,7 +385,14 @@ async fn chat_completions(
                 warn!(error = %err, "failed to append audit event");
             }
 
-            let response_text = completion_text_for_decision(&state.model_runners, &req, &decision);
+            let selected_model = selected_model_for_decision(&state, &decision).await;
+            let response_text = completion_text_for_decision(
+                &state.model_runners,
+                &state.config,
+                &req,
+                &decision,
+                selected_model.as_ref(),
+            );
 
             (
                 StatusCode::OK,
@@ -423,10 +444,23 @@ async fn chat_completions(
 
 fn completion_text_for_decision(
     model_runners: &ModelRunnerAdapter,
+    config: &Args,
     req: &ChatCompletionRequest,
     decision: &RouteDecision,
+    selected_model: Option<&ModelManifest>,
 ) -> String {
-    match model_runners.generate(req, decision) {
+    #[cfg(not(feature = "gguf-runner-spike"))]
+    let _ = config;
+
+    let context = ModelRunnerContext {
+        #[cfg(feature = "gguf-runner-spike")]
+        config,
+        request: req,
+        decision,
+        model: selected_model,
+    };
+
+    match model_runners.generate(&context) {
         Ok(Some(output)) => output.content,
         Ok(None) => default_completion_text(decision).to_string(),
         Err(err) => {
@@ -439,6 +473,25 @@ fn completion_text_for_decision(
             default_completion_text(decision).to_string()
         }
     }
+}
+
+async fn selected_model_for_decision(
+    state: &AppState,
+    decision: &RouteDecision,
+) -> Option<ModelManifest> {
+    let model_id = decision.model_id.as_deref()?;
+    let registry = state.model_registry.read().await;
+    registry.find_model_by_id(model_id)
+}
+
+fn configured_model_runners() -> ModelRunnerAdapter {
+    let mut runners: Vec<Arc<dyn ModelRunner>> = Vec::new();
+
+    #[cfg(feature = "gguf-runner-spike")]
+    runners.push(Arc::new(GgufRunner) as Arc<dyn ModelRunner>);
+
+    runners.push(Arc::new(StubLegalRunner) as Arc<dyn ModelRunner>);
+    ModelRunnerAdapter::new(runners)
 }
 
 fn default_completion_text(decision: &RouteDecision) -> &'static str {
@@ -477,7 +530,7 @@ async fn route_request(
                 route_code: "LOCAL_MODEL_UNAVAILABLE_RAM_PRESSURE".to_string(),
                 domain,
                 model_id: None,
-                cloud_considered: state.config.local_only == false,
+                cloud_considered: !state.config.local_only,
                 cloud_allowed: false,
                 data_left_device: false,
             };
@@ -508,7 +561,7 @@ async fn route_request(
             route_code: "LEGAL_MODEL_NOT_INSTALLED".to_string(),
             domain,
             model_id: None,
-            cloud_considered: state.config.local_only == false,
+            cloud_considered: !state.config.local_only,
             cloud_allowed: false,
             data_left_device: false,
         };
@@ -608,7 +661,7 @@ mod tests {
     }
 
     fn runner_adapter() -> ModelRunnerAdapter {
-        ModelRunnerAdapter::new(vec![Arc::new(StubLegalRunner) as Arc<dyn ModelRunner>])
+        configured_model_runners()
     }
 
     fn legal_model() -> ModelManifest {
@@ -617,10 +670,10 @@ mod tests {
             display_name: "Legal Saul Placeholder".to_string(),
             tier: 3,
             domains: vec!["legal".to_string()],
-            format: "stub".to_string(),
-            quantization: None,
+            format: "gguf".to_string(),
+            quantization: Some("q4_k_m".to_string()),
             context_window: Some(8192),
-            local_path: Some("./models/legal-saul-placeholder".to_string()),
+            local_path: Some("./models/legal-saul-placeholder.gguf".to_string()),
             sha256: None,
             version: Some("0.1".to_string()),
             installed: true,
@@ -634,19 +687,27 @@ mod tests {
 
         AppState {
             started_at: Utc::now(),
-            config: Args {
-                bind: "127.0.0.1:8765".parse().unwrap(),
-                model_dir: PathBuf::from("./config/models"),
-                audit_log: audit_path.clone(),
-                local_only: true,
-                force_ram_pressure: false,
-            },
+            config: test_args(audit_path.clone()),
             model_registry: Arc::new(RwLock::new(ModelRegistry { models })),
             model_runners: Arc::new(runner_adapter()),
             audit: Arc::new(AuditStore {
                 path: audit_path,
                 events: RwLock::new(Vec::new()),
             }),
+        }
+    }
+
+    fn test_args(audit_path: PathBuf) -> Args {
+        Args {
+            bind: "127.0.0.1:8765".parse().unwrap(),
+            model_dir: PathBuf::from("./config/models"),
+            audit_log: audit_path,
+            local_only: true,
+            force_ram_pressure: false,
+            #[cfg(feature = "gguf-runner-spike")]
+            gguf_runner_bin: None,
+            #[cfg(feature = "gguf-runner-spike")]
+            gguf_max_tokens: 256,
         }
     }
 
@@ -700,7 +761,15 @@ mod tests {
             data_left_device: false,
         };
 
-        let text = completion_text_for_decision(&runner_adapter(), &request, &decision);
+        let model = legal_model();
+        let state = state_with_models(vec![model.clone()]);
+        let text = completion_text_for_decision(
+            &runner_adapter(),
+            &state.config,
+            &request,
+            &decision,
+            Some(&model),
+        );
 
         assert!(text.contains("StubLegalRunner handled this Tier 3 legal request locally"));
         assert!(text.contains("legal-saul-placeholder"));
@@ -708,6 +777,74 @@ mod tests {
             text,
             "[stub] Legal Tier 3 route selected. Real model inference is not wired yet."
         );
+    }
+
+    #[cfg(all(feature = "gguf-runner-spike", unix))]
+    #[test]
+    fn tier_3_completion_uses_gguf_runner_when_configured() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp_dir =
+            std::env::temp_dir().join(format!("ignispromptd-gguf-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let model_path = temp_dir.join("legal.gguf");
+        std::fs::write(&model_path, "gguf-placeholder").unwrap();
+
+        let runner_path = temp_dir.join("fake-gguf-runner.sh");
+        std::fs::write(
+            &runner_path,
+            "#!/bin/sh\nmodel=\"\"\nprompt_file=\"\"\nmax_tokens=\"\"\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    --model) model=\"$2\"; shift 2 ;;\n    --prompt-file) prompt_file=\"$2\"; shift 2 ;;\n    --max-tokens) max_tokens=\"$2\"; shift 2 ;;\n    *) shift ;;\n  esac\ndone\nprompt=\"$(cat \"$prompt_file\")\"\nprintf 'GGUF spike output from %s with %s tokens for %s' \"$model\" \"$max_tokens\" \"$prompt\"\n",
+        )
+        .unwrap();
+        let mut permissions = std::fs::metadata(&runner_path).unwrap().permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&runner_path, permissions).unwrap();
+
+        let model = ModelManifest {
+            model_id: "saullm-gguf-spike".to_string(),
+            display_name: "SaulLM GGUF Spike".to_string(),
+            tier: 3,
+            domains: vec!["legal".to_string()],
+            format: "gguf".to_string(),
+            quantization: Some("q4_k_m".to_string()),
+            context_window: Some(8192),
+            local_path: Some(model_path.display().to_string()),
+            sha256: None,
+            version: Some("0.1-spike".to_string()),
+            installed: true,
+            source: Some("local".to_string()),
+        };
+        let request = req(
+            "Review this indemnification clause in a vendor services agreement.",
+            Some("ignisprompt/legal"),
+        );
+        let decision = RouteDecision {
+            tier: "TIER_3".to_string(),
+            route_code: "DOMAIN_MODEL_SELECTED".to_string(),
+            domain: "legal".to_string(),
+            model_id: Some(model.model_id.clone()),
+            cloud_considered: false,
+            cloud_allowed: false,
+            data_left_device: false,
+        };
+        let mut config = test_args(temp_dir.join("events.jsonl"));
+        config.gguf_runner_bin = Some(runner_path.clone());
+        config.gguf_max_tokens = 64;
+
+        let text = completion_text_for_decision(
+            &runner_adapter(),
+            &config,
+            &request,
+            &decision,
+            Some(&model),
+        );
+
+        assert!(text.contains("GGUF spike output"));
+        assert!(text.contains(model_path.to_str().unwrap()));
+        assert!(text.contains("[user]"));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 
     #[tokio::test]

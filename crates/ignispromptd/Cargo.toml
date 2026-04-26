@@ -7,6 +7,10 @@ authors.workspace = true
 repository.workspace = true
 description = "Minimal IgnisPrompt local inference routing daemon scaffold."
 
+[features]
+default = []
+gguf-runner-spike = []
+
 [dependencies]
 anyhow.workspace = true
 axum.workspace = true
