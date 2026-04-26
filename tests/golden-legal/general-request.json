@@ -1,0 +1,10 @@
+{
+  "model": "ignisprompt",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Summarize the benefits of local-first AI routing in two sentences."
+    }
+  ],
+  "stream": false
+}

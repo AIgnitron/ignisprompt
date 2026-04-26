@@ -1,0 +1,13 @@
+{
+  "model": "ignisprompt/legal",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Review this indemnification clause in a vendor services agreement and return the key risks."
+    }
+  ],
+  "stream": false,
+  "metadata": {
+    "domain": "legal"
+  }
+}
