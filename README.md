@@ -90,8 +90,8 @@ This is a spike, not a production inference stack. Prompt shaping is naive, no s
 
 The placeholder legal manifest already shows the intended reference shape:
 
-- manifest: `config/models/legal-saul-placeholder.json`
-- current `localPath`: `./models/saullm-7b-instruct-q4.gguf`
+- manifest: `config/models/legal-qwen2_5-0_5b-instruct-q4.json`
+- current `localPath`: `./models/qwen2.5-0.5b-instruct-q4_k_m.gguf`
 
 Place a local GGUF file at that path, or update `localPath` in the manifest to wherever you keep the file on disk. Model weights must stay local and are intentionally not committed; the repo ignores `./models/**`.
 
