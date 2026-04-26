@@ -134,6 +134,23 @@ The script expects:
 
 Evidence is written under `./local-evidence/golden-legal-v0.3/` and stays out of git.
 
+## Alpha Legal Bakeoff v0.1
+
+The repo also includes an alpha bakeoff driver that runs the Golden Legal v0.3 subset against a small set of candidate local legal models and records a local comparison summary:
+
+```bash
+./scripts/run-alpha-legal-bakeoff-v0.1.sh
+```
+
+The bakeoff currently knows about these local candidate paths:
+
+- baseline: `./models/qwen2.5-0.5b-instruct-q4_k_m.gguf`
+- larger general candidate: `./models/qwen2.5-7b-instruct-q4_k_m.gguf`
+- legal-domain candidate: `./models/saul-instruct-v1.q4_k_m.gguf`
+- smaller fallback candidate: `./models/Phi-3.5-mini-instruct.q5_k_m.gguf`
+
+If a candidate file is missing, the bakeoff records that candidate as skipped with a local note instead of failing the whole run. The summary is written under `./local-evidence/alpha-legal-bakeoff-v0.1/` and includes per-candidate latency, route correctness, explanation quality, JSON/schema reliability, adversarial handling, and evidence locations.
+
 ## Example request
 
 ```bash

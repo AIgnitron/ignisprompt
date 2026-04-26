@@ -37,10 +37,17 @@ run_json_post() {
   local url="$1"
   local request_file="$2"
   local output_file="$3"
+  local latency_file="${4:-}"
 
-  curl -fsS -X POST "$url" \
-    -H 'content-type: application/json' \
-    --data-binary "@$request_file" >"$output_file"
+  if [ -n "$latency_file" ]; then
+    curl -fsS -o "$output_file" -w '%{time_total}\n' -X POST "$url" \
+      -H 'content-type: application/json' \
+      --data-binary "@$request_file" >"$latency_file"
+  else
+    curl -fsS -X POST "$url" \
+      -H 'content-type: application/json' \
+      --data-binary "@$request_file" >"$output_file"
+  fi
 }
 
 write_summary_entry() {
@@ -98,8 +105,8 @@ run_success_case() {
   local audit_log="$case_dir/audit.jsonl"
 
   start_daemon "$label" "$((BASE_PORT + 0))" "$LEGAL_MODEL_DIR" "$audit_log"
-  run_json_post "$DAEMON_URL/v1/route/explain" "$ROOT_DIR/tests/golden-legal/smoke-legal-request.json" "$case_dir/route_explain.json"
-  run_json_post "$DAEMON_URL/v1/chat/completions" "$ROOT_DIR/tests/golden-legal/smoke-legal-request.json" "$case_dir/chat_completion.json"
+  run_json_post "$DAEMON_URL/v1/route/explain" "$ROOT_DIR/tests/golden-legal/smoke-legal-request.json" "$case_dir/route_explain.json" "$case_dir/route_explain.latency_seconds"
+  run_json_post "$DAEMON_URL/v1/chat/completions" "$ROOT_DIR/tests/golden-legal/smoke-legal-request.json" "$case_dir/chat_completion.json" "$case_dir/chat_completion.latency_seconds"
   curl -fsS "$DAEMON_URL/v1/audit/events" >"$case_dir/audit_events.json"
 
   jq -e '.decision.tier == "TIER_3" and .decision.route_code == "DOMAIN_MODEL_SELECTED"' "$case_dir/route_explain.json" >/dev/null
@@ -117,8 +124,8 @@ run_unavailable_case() {
   local audit_log="$case_dir/audit.jsonl"
 
   start_daemon "$label" "$((BASE_PORT + 1))" "$LEGAL_MODEL_DIR" "$audit_log" --force-ram-pressure
-  run_json_post "$DAEMON_URL/v1/route/explain" "$ROOT_DIR/tests/golden-legal/unavailable-model-request.json" "$case_dir/route_explain.json"
-  run_json_post "$DAEMON_URL/v1/chat/completions" "$ROOT_DIR/tests/golden-legal/unavailable-model-request.json" "$case_dir/chat_completion.json"
+  run_json_post "$DAEMON_URL/v1/route/explain" "$ROOT_DIR/tests/golden-legal/unavailable-model-request.json" "$case_dir/route_explain.json" "$case_dir/route_explain.latency_seconds"
+  run_json_post "$DAEMON_URL/v1/chat/completions" "$ROOT_DIR/tests/golden-legal/unavailable-model-request.json" "$case_dir/chat_completion.json" "$case_dir/chat_completion.latency_seconds"
   curl -fsS "$DAEMON_URL/v1/audit/events" >"$case_dir/audit_events.json"
 
   jq -e '.decision.route_code == "LOCAL_MODEL_UNAVAILABLE_RAM_PRESSURE"' "$case_dir/route_explain.json" >/dev/null
@@ -137,8 +144,8 @@ run_no_cloud_case() {
 
   mkdir -p "$empty_model_dir"
   start_daemon "$label" "$((BASE_PORT + 2))" "$empty_model_dir" "$audit_log"
-  run_json_post "$DAEMON_URL/v1/route/explain" "$ROOT_DIR/tests/golden-legal/no-cloud-without-consent-request.json" "$case_dir/route_explain.json"
-  run_json_post "$DAEMON_URL/v1/chat/completions" "$ROOT_DIR/tests/golden-legal/no-cloud-without-consent-request.json" "$case_dir/chat_completion.json"
+  run_json_post "$DAEMON_URL/v1/route/explain" "$ROOT_DIR/tests/golden-legal/no-cloud-without-consent-request.json" "$case_dir/route_explain.json" "$case_dir/route_explain.latency_seconds"
+  run_json_post "$DAEMON_URL/v1/chat/completions" "$ROOT_DIR/tests/golden-legal/no-cloud-without-consent-request.json" "$case_dir/chat_completion.json" "$case_dir/chat_completion.latency_seconds"
   curl -fsS "$DAEMON_URL/v1/audit/events" >"$case_dir/audit_events.json"
 
   jq -e '.decision.route_code == "LEGAL_MODEL_NOT_INSTALLED"' "$case_dir/route_explain.json" >/dev/null
@@ -155,7 +162,7 @@ run_adversarial_case() {
   local audit_log="$case_dir/audit.jsonl"
 
   start_daemon "$label" "$((BASE_PORT + 3))" "$LEGAL_MODEL_DIR" "$audit_log"
-  run_json_post "$DAEMON_URL/v1/route/explain" "$ROOT_DIR/tests/golden-legal/adversarial-contract-instruction.json" "$case_dir/route_explain.json"
+  run_json_post "$DAEMON_URL/v1/route/explain" "$ROOT_DIR/tests/golden-legal/adversarial-contract-instruction.json" "$case_dir/route_explain.json" "$case_dir/route_explain.latency_seconds"
   curl -fsS "$DAEMON_URL/v1/audit/events" >"$case_dir/audit_events.json"
 
   jq -e '(.warnings | length) >= 1' "$case_dir/route_explain.json" >/dev/null
@@ -172,7 +179,7 @@ run_explanation_case() {
   local audit_log="$case_dir/audit.jsonl"
 
   start_daemon "$label" "$((BASE_PORT + 4))" "$LEGAL_MODEL_DIR" "$audit_log"
-  run_json_post "$DAEMON_URL/v1/route/explain" "$ROOT_DIR/tests/golden-legal/explanation-quality-request.json" "$case_dir/route_explain.json"
+  run_json_post "$DAEMON_URL/v1/route/explain" "$ROOT_DIR/tests/golden-legal/explanation-quality-request.json" "$case_dir/route_explain.json" "$case_dir/route_explain.latency_seconds"
   curl -fsS "$DAEMON_URL/v1/audit/events" >"$case_dir/audit_events.json"
 
   jq -e '.decision.tier == "TIER_3"' "$case_dir/route_explain.json" >/dev/null
