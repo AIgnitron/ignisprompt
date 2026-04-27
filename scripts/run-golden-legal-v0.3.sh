@@ -112,6 +112,8 @@ run_success_case() {
   jq -e '.decision.tier == "TIER_3" and .decision.route_code == "DOMAIN_MODEL_SELECTED"' "$case_dir/route_explain.json" >/dev/null
   jq -e '(.choices[0].message.content | length) > 40' "$case_dir/chat_completion.json" >/dev/null
   jq -e '(.choices[0].message.content | contains("StubLegalRunner handled")) | not' "$case_dir/chat_completion.json" >/dev/null
+  jq -e '(.choices[0].message.content | fromjson | type) == "object"' "$case_dir/chat_completion.json" >/dev/null
+  jq -e '.local_output.legal_json.raw_model_output | length > 0' "$case_dir/chat_completion.json" >/dev/null
   jq -e 'length >= 2' "$case_dir/audit_events.json" >/dev/null
 
   write_summary_entry "$label" "pass" "real GGUF completion returned through Tier 3 legal route"

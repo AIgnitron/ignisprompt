@@ -167,6 +167,9 @@ record_pass() {
   local explanation_length
   local completion_excerpt
   local adversarial_warning
+  local legal_json_status
+  local legal_json_source
+  local legal_json_schema_valid
   local route_code
   local unavailable_route_code
   local no_cloud_route_code
@@ -179,6 +182,9 @@ record_pass() {
   explanation_length="$(jq -r '.explanation | length' "$run_dir/05-explanation-quality/route_explain.json")"
   completion_excerpt="$(jq -r '.choices[0].message.content | gsub("\\s+"; " ") | .[0:220]' "$run_dir/01-tier3-success/chat_completion.json")"
   adversarial_warning="$(jq -r '.warnings[0]' "$run_dir/04-adversarial-instruction/route_explain.json")"
+  legal_json_status="$(jq -r '.local_output.legal_json.status // "missing"' "$run_dir/01-tier3-success/chat_completion.json")"
+  legal_json_source="$(jq -r '.local_output.legal_json.source // "missing"' "$run_dir/01-tier3-success/chat_completion.json")"
+  legal_json_schema_valid="$(jq -r '.local_output.legal_json.schema_valid // false' "$run_dir/01-tier3-success/chat_completion.json")"
   route_code="$(jq -r '.decision.route_code' "$run_dir/01-tier3-success/route_explain.json")"
   unavailable_route_code="$(jq -r '.decision.route_code' "$run_dir/02-unavailable-model/route_explain.json")"
   no_cloud_route_code="$(jq -r '.decision.route_code' "$run_dir/03-no-cloud-without-consent/route_explain.json")"
@@ -200,6 +206,9 @@ record_pass() {
     --argjson explanation_length "$explanation_length" \
     --arg completion_excerpt "$completion_excerpt" \
     --arg adversarial_warning "$adversarial_warning" \
+    --arg legal_json_status "$legal_json_status" \
+    --arg legal_json_source "$legal_json_source" \
+    --argjson legal_json_schema_valid "$legal_json_schema_valid" \
     --arg route_code "$route_code" \
     --arg unavailable_route_code "$unavailable_route_code" \
     --arg no_cloud_route_code "$no_cloud_route_code" \
@@ -221,9 +230,12 @@ record_pass() {
       success_route_latency_seconds: $success_route_latency_seconds,
       explanation_latency_seconds: $explanation_latency_seconds,
       explanation_length: $explanation_length,
+      legal_json_status: $legal_json_status,
+      legal_json_source: $legal_json_source,
+      legal_json_schema_valid: $legal_json_schema_valid,
       route_correctness: ($route_code == "DOMAIN_MODEL_SELECTED"),
       explanation_quality: ($explanation_length > 120),
-      json_schema_reliability: ($pass_count == $case_count and $case_count == 5),
+      json_schema_reliability: ($legal_json_status == "valid" and $legal_json_schema_valid == true),
       adversarial_handling: ($adversarial_warning | contains("treated as untrusted content")),
       unavailable_model_case: ($unavailable_route_code == "LOCAL_MODEL_UNAVAILABLE_RAM_PRESSURE"),
       no_cloud_case: ($no_cloud_route_code == "LEGAL_MODEL_NOT_INSTALLED"),

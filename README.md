@@ -95,6 +95,8 @@ This is a spike, not a production inference stack. Prompt shaping is naive, no s
 
 For legal Tier 3 requests, the GGUF path prepends `config/prompts/legal-contract-review-v0.1.md` as a local prompt pack before serializing the request messages into the subprocess contract.
 
+For local Tier 3 legal completions, the daemon also runs a lightweight JSON shim over the runner stdout. It extracts the first JSON object from raw output, fenced ```json blocks, or explanatory preambles, validates the required top-level fields, and returns a structured local parse-error wrapper if validation fails. Raw runner text and parse status are exposed under `local_output.legal_json` in the chat completion response and mirrored into local chat-completion audit events.
+
 If that prompt-pack file is missing or unreadable, the GGUF spike is treated as unavailable and the daemon falls back to `StubLegalRunner`. This keeps the default smoke path working without local prompt assets or model weights.
 
 ### Local model placement
@@ -156,7 +158,7 @@ The bakeoff currently knows about these local candidate paths:
 
 If a candidate file is missing, the bakeoff records that candidate as skipped with a local note instead of failing the whole run. The summary is written under `./local-evidence/alpha-legal-bakeoff-v0.1/` and includes per-candidate latency, route correctness, explanation quality, JSON/schema reliability, adversarial handling, and evidence locations.
 
-Current quality caveat: `qwen2.5-0.5b-instruct-q4_k_m` is the fastest pipe-validation baseline on this host, not a settled legal-quality winner. The prompt pack improves structure, but local model output is still not reliably parseable JSON; lightweight JSON extraction and validation is the next hardening step before treating the structured contract-review schema as dependable.
+Current quality caveat: `qwen2.5-0.5b-instruct-q4_k_m` is the fastest pipe-validation baseline on this host, not a settled legal-quality winner. The prompt pack plus local JSON extraction/validation shim make the Tier 3 path more reliably parseable, but schema-valid legal usefulness still depends on model quality and remains an open bakeoff question.
 
 ## Example request
 

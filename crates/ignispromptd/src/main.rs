@@ -1,5 +1,6 @@
 use std::{collections::HashMap, net::SocketAddr, path::PathBuf, sync::Arc};
 
+mod legal_json;
 mod model_runner;
 
 use anyhow::{Context, Result};
@@ -14,7 +15,10 @@ use chrono::{DateTime, Utc};
 use clap::Parser;
 #[cfg(feature = "gguf-runner-spike")]
 use model_runner::GgufRunner;
-use model_runner::{ModelRunner, ModelRunnerAdapter, ModelRunnerContext, StubLegalRunner};
+use model_runner::{
+    CompletionOutputMetadata, ModelRunner, ModelRunnerAdapter, ModelRunnerContext,
+    ModelRunnerOutput, StubLegalRunner,
+};
 use serde::{Deserialize, Serialize};
 use tokio::{fs, net::TcpListener, sync::RwLock};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
@@ -145,6 +149,8 @@ struct ChatCompletionResponse {
     model: String,
     route: RouteDecision,
     choices: Vec<ChatChoice>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    local_output: Option<CompletionOutputMetadata>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -195,6 +201,8 @@ struct AuditEvent {
     data_left_device: bool,
     explanation: String,
     warnings: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    completion_output: Option<CompletionOutputMetadata>,
 }
 
 struct AuditStore {
@@ -337,6 +345,7 @@ async fn route_explain(
                 data_left_device: decision.data_left_device,
                 explanation: explanation.clone(),
                 warnings: warnings.clone(),
+                completion_output: None,
             };
             if let Err(err) = state.audit.append(event).await {
                 warn!(error = %err, "failed to append audit event");
@@ -378,6 +387,14 @@ async fn chat_completions(
     match route_request(&state, &req).await {
         Ok((decision, explanation, warnings)) => {
             let request_id = Uuid::new_v4().to_string();
+            let selected_model = selected_model_for_decision(&state, &decision).await;
+            let completion_output = completion_output_for_decision(
+                &state.model_runners,
+                &state.config,
+                &req,
+                &decision,
+                selected_model.as_ref(),
+            );
             let event = AuditEvent {
                 request_id: request_id.clone(),
                 timestamp: Utc::now(),
@@ -389,19 +406,11 @@ async fn chat_completions(
                 data_left_device: decision.data_left_device,
                 explanation: explanation.clone(),
                 warnings,
+                completion_output: completion_output.metadata.clone(),
             };
             if let Err(err) = state.audit.append(event).await {
                 warn!(error = %err, "failed to append audit event");
             }
-
-            let selected_model = selected_model_for_decision(&state, &decision).await;
-            let response_text = completion_text_for_decision(
-                &state.model_runners,
-                &state.config,
-                &req,
-                &decision,
-                selected_model.as_ref(),
-            );
 
             (
                 StatusCode::OK,
@@ -415,10 +424,11 @@ async fn chat_completions(
                         index: 0,
                         message: ChatMessage {
                             role: "assistant".to_string(),
-                            content: response_text.to_string(),
+                            content: completion_output.content,
                         },
                         finish_reason: "stop".to_string(),
                     }],
+                    local_output: completion_output.metadata,
                 }),
             )
         }
@@ -446,18 +456,19 @@ async fn chat_completions(
                     },
                     finish_reason: "error".to_string(),
                 }],
+                local_output: None,
             }),
         ),
     }
 }
 
-fn completion_text_for_decision(
+fn completion_output_for_decision(
     model_runners: &ModelRunnerAdapter,
     config: &Args,
     req: &ChatCompletionRequest,
     decision: &RouteDecision,
     selected_model: Option<&ModelManifest>,
-) -> String {
+) -> ModelRunnerOutput {
     #[cfg(not(feature = "gguf-runner-spike"))]
     let _ = config;
 
@@ -470,8 +481,11 @@ fn completion_text_for_decision(
     };
 
     match model_runners.generate(&context) {
-        Ok(Some(output)) => output.content,
-        Ok(None) => default_completion_text(decision).to_string(),
+        Ok(Some(output)) => output,
+        Ok(None) => ModelRunnerOutput {
+            content: default_completion_text(decision).to_string(),
+            metadata: None,
+        },
         Err(err) => {
             warn!(
                 error = %err,
@@ -479,7 +493,10 @@ fn completion_text_for_decision(
                 route_code = %decision.route_code,
                 "model runner failed; falling back to inline stub"
             );
-            default_completion_text(decision).to_string()
+            ModelRunnerOutput {
+                content: default_completion_text(decision).to_string(),
+                metadata: None,
+            }
         }
     }
 }
@@ -774,7 +791,7 @@ mod tests {
 
         let model = legal_model();
         let state = state_with_models(vec![model.clone()]);
-        let text = completion_text_for_decision(
+        let output = completion_output_for_decision(
             &runner_adapter(),
             &state.config,
             &request,
@@ -782,10 +799,13 @@ mod tests {
             Some(&model),
         );
 
-        assert!(text.contains("StubLegalRunner handled this Tier 3 legal request locally"));
-        assert!(text.contains("legal-saul-placeholder"));
+        assert!(output
+            .content
+            .contains("StubLegalRunner handled this Tier 3 legal request locally"));
+        assert!(output.content.contains("legal-saul-placeholder"));
+        assert!(output.metadata.is_none());
         assert_ne!(
-            text,
+            output.content,
             "[stub] Legal Tier 3 route selected. Real model inference is not wired yet."
         );
     }
@@ -803,9 +823,13 @@ mod tests {
         std::fs::write(&model_path, "gguf-placeholder").unwrap();
 
         let runner_path = temp_dir.join("fake-gguf-runner.sh");
+        let captured_prompt_path = temp_dir.join("captured-prompt.txt");
         std::fs::write(
             &runner_path,
-            "#!/bin/sh\nmodel=\"\"\nprompt_file=\"\"\nmax_tokens=\"\"\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    --model) model=\"$2\"; shift 2 ;;\n    --prompt-file) prompt_file=\"$2\"; shift 2 ;;\n    --max-tokens) max_tokens=\"$2\"; shift 2 ;;\n    *) shift ;;\n  esac\ndone\nprompt=\"$(cat \"$prompt_file\")\"\nprintf 'GGUF spike output from %s with %s tokens for %s' \"$model\" \"$max_tokens\" \"$prompt\"\n",
+            format!(
+                "#!/bin/sh\nmodel=\"\"\nprompt_file=\"\"\nmax_tokens=\"\"\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    --model) model=\"$2\"; shift 2 ;;\n    --prompt-file) prompt_file=\"$2\"; shift 2 ;;\n    --max-tokens) max_tokens=\"$2\"; shift 2 ;;\n    *) shift ;;\n  esac\ndone\ncat \"$prompt_file\" > \"{}\"\nprintf 'Here is the JSON:\\n{{\"clause_type\":\"indemnification\",\"jurisdiction\":\"not specified\",\"key_obligations\":[\"model:%s\"],\"risks\":[],\"missing_information\":[\"prompt captured\"],\"confidence\":\"medium\"}}' \"$model\"\n",
+                captured_prompt_path.display()
+            ),
         )
         .unwrap();
         let mut permissions = std::fs::metadata(&runner_path).unwrap().permissions();
@@ -851,7 +875,7 @@ mod tests {
         config.prompt_dir = prompt_dir;
         config.gguf_max_tokens = 64;
 
-        let text = completion_text_for_decision(
+        let output = completion_output_for_decision(
             &runner_adapter(),
             &config,
             &request,
@@ -859,12 +883,27 @@ mod tests {
             Some(&model),
         );
 
-        assert!(text.contains("GGUF spike output"));
-        assert!(text.contains(model_path.to_str().unwrap()));
-        assert!(text.contains("PROMPT PACK TEST"));
-        assert!(text.contains("Conversation:"));
-        assert!(text.contains("USER:"));
-        assert!(text.contains("ASSISTANT:"));
+        let captured_prompt = std::fs::read_to_string(&captured_prompt_path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&output.content).unwrap();
+        let metadata = output.metadata.unwrap();
+
+        assert_eq!(parsed["clause_type"], "indemnification");
+        assert_eq!(parsed["jurisdiction"], "not specified");
+        assert_eq!(parsed["confidence"], "medium");
+        assert!(parsed["key_obligations"][0]
+            .as_str()
+            .unwrap()
+            .contains(model_path.to_str().unwrap()));
+        assert_eq!(metadata.runner, "gguf-runner-spike");
+        assert_eq!(metadata.legal_json.as_ref().unwrap().status, "valid");
+        assert_eq!(
+            metadata.legal_json.as_ref().unwrap().source,
+            "noisy_preamble"
+        );
+        assert!(captured_prompt.contains("PROMPT PACK TEST"));
+        assert!(captured_prompt.contains("Conversation:"));
+        assert!(captured_prompt.contains("USER:"));
+        assert!(captured_prompt.contains("ASSISTANT:"));
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }

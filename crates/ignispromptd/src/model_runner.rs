@@ -13,11 +13,22 @@ use std::{
 use uuid::Uuid;
 
 #[cfg(feature = "gguf-runner-spike")]
+use crate::legal_json::normalize_legal_json_output;
+use crate::legal_json::LegalJsonMetadata;
+#[cfg(feature = "gguf-runner-spike")]
 use crate::Args;
 use crate::{ChatCompletionRequest, ModelManifest, RouteDecision};
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) struct CompletionOutputMetadata {
+    pub(crate) runner: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) legal_json: Option<LegalJsonMetadata>,
+}
+
 pub(crate) struct ModelRunnerOutput {
     pub(crate) content: String,
+    pub(crate) metadata: Option<CompletionOutputMetadata>,
 }
 
 pub(crate) struct ModelRunnerContext<'a> {
@@ -208,12 +219,20 @@ impl ModelRunner for GgufRunner {
             );
         }
 
-        let content = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if content.is_empty() {
+        let raw_model_output = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if raw_model_output.is_empty() {
             bail!("GGUF runner returned empty stdout");
         }
 
-        Ok(ModelRunnerOutput { content })
+        let normalized = normalize_legal_json_output(&raw_model_output);
+
+        Ok(ModelRunnerOutput {
+            content: normalized.content,
+            metadata: Some(CompletionOutputMetadata {
+                runner: self.name().to_string(),
+                legal_json: Some(normalized.metadata),
+            }),
+        })
     }
 }
 
@@ -263,6 +282,7 @@ impl ModelRunner for StubLegalRunner {
                 "StubLegalRunner handled this Tier 3 legal request locally with placeholder model '{}'. The optional GGUF runner path was unavailable for this request. Request summary: {}.",
                 model_id, summary
             ),
+            metadata: None,
         })
     }
 }
