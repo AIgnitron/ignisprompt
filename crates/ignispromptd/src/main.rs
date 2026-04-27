@@ -57,6 +57,15 @@ struct Args {
     gguf_runner_bin: Option<PathBuf>,
 
     #[cfg(feature = "gguf-runner-spike")]
+    /// Directory containing prompt packs for local GGUF runner spikes.
+    #[arg(
+        long,
+        env = "IGNISPROMPT_PROMPT_DIR",
+        default_value = "./config/prompts"
+    )]
+    prompt_dir: PathBuf,
+
+    #[cfg(feature = "gguf-runner-spike")]
     /// Maximum completion tokens requested from the GGUF runner spike.
     #[arg(long, env = "IGNISPROMPT_GGUF_MAX_TOKENS", default_value_t = 256)]
     gguf_max_tokens: u32,
@@ -707,6 +716,8 @@ mod tests {
             #[cfg(feature = "gguf-runner-spike")]
             gguf_runner_bin: None,
             #[cfg(feature = "gguf-runner-spike")]
+            prompt_dir: PathBuf::from("./config/prompts"),
+            #[cfg(feature = "gguf-runner-spike")]
             gguf_max_tokens: 256,
         }
     }
@@ -830,6 +841,14 @@ mod tests {
         };
         let mut config = test_args(temp_dir.join("events.jsonl"));
         config.gguf_runner_bin = Some(runner_path.clone());
+        let prompt_dir = temp_dir.join("prompts");
+        std::fs::create_dir_all(&prompt_dir).unwrap();
+        std::fs::write(
+            prompt_dir.join("legal-contract-review-v0.1.md"),
+            "PROMPT PACK TEST\nReturn valid JSON only.\n",
+        )
+        .unwrap();
+        config.prompt_dir = prompt_dir;
         config.gguf_max_tokens = 64;
 
         let text = completion_text_for_decision(
@@ -842,7 +861,10 @@ mod tests {
 
         assert!(text.contains("GGUF spike output"));
         assert!(text.contains(model_path.to_str().unwrap()));
-        assert!(text.contains("[user]"));
+        assert!(text.contains("PROMPT PACK TEST"));
+        assert!(text.contains("Conversation:"));
+        assert!(text.contains("USER:"));
+        assert!(text.contains("ASSISTANT:"));
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }

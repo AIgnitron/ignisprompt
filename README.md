@@ -88,9 +88,12 @@ The runner contract is intentionally minimal:
 Environment variables:
 
 - `IGNISPROMPT_GGUF_RUNNER_BIN`: path to the local GGUF runner executable
+- `IGNISPROMPT_PROMPT_DIR`: directory containing prompt-pack markdown files, defaults to `./config/prompts`
 - `IGNISPROMPT_GGUF_MAX_TOKENS`: max tokens requested from the runner, defaults to `256`
 
 This is a spike, not a production inference stack. Prompt shaping is naive, no streaming is implemented, and no built-in llama.cpp or ONNX bridge ships in the daemon yet.
+
+For legal Tier 3 requests, the GGUF path prepends `config/prompts/legal-contract-review-v0.1.md` as a local prompt pack before serializing the request messages into the subprocess contract.
 
 ### Local model placement
 

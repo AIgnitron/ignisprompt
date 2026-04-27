@@ -78,6 +78,8 @@ pub(crate) struct GgufRunner;
 
 #[cfg(feature = "gguf-runner-spike")]
 impl GgufRunner {
+    const LEGAL_PROMPT_PACK_FILE: &'static str = "legal-contract-review-v0.1.md";
+
     fn local_model_path(model: &ModelManifest) -> Option<&str> {
         model
             .local_path
@@ -85,13 +87,39 @@ impl GgufRunner {
             .filter(|path| !path.trim().is_empty())
     }
 
-    fn render_prompt(request: &ChatCompletionRequest) -> String {
-        request
-            .messages
-            .iter()
-            .map(|message| format!("[{}]\n{}", message.role, message.content.trim()))
-            .collect::<Vec<_>>()
-            .join("\n\n")
+    fn prompt_pack_path(config: &Args) -> PathBuf {
+        config.prompt_dir.join(Self::LEGAL_PROMPT_PACK_FILE)
+    }
+
+    fn legal_prompt_pack(config: &Args) -> Result<String> {
+        let path = Self::prompt_pack_path(config);
+        fs::read_to_string(&path)
+            .with_context(|| format!("failed to read legal prompt pack {}", path.display()))
+    }
+
+    fn render_prompt(context: &ModelRunnerContext<'_>) -> Result<String> {
+        let mut sections = Vec::new();
+
+        if context.decision.domain.eq_ignore_ascii_case("legal") {
+            let prompt_pack = Self::legal_prompt_pack(context.config)?;
+            sections.push(prompt_pack.trim().to_string());
+            sections.push(
+                "Apply the rules above to the most recent user-provided contract excerpt and respond with one JSON object only."
+                    .to_string(),
+            );
+        }
+
+        sections.push("Conversation:".to_string());
+        sections.extend(context.request.messages.iter().map(|message| {
+            format!(
+                "{}:\n{}",
+                message.role.to_ascii_uppercase(),
+                message.content.trim()
+            )
+        }));
+        sections.push("ASSISTANT:".to_string());
+
+        Ok(sections.join("\n\n"))
     }
 
     fn prompt_file_path() -> PathBuf {
@@ -148,7 +176,7 @@ impl ModelRunner for GgufRunner {
         let model_path = Self::local_model_path(model)
             .ok_or_else(|| anyhow!("selected GGUF model manifest does not declare localPath"))?;
 
-        let prompt = Self::render_prompt(context.request);
+        let prompt = Self::render_prompt(context)?;
         let prompt_file = Self::write_prompt_file(&prompt)?;
         let output = Command::new(runner_bin)
             .arg("--model")
