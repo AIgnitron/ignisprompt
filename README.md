@@ -176,6 +176,22 @@ curl -s -X POST http://127.0.0.1:8765/v1/route/explain \
   --data-binary @tests/golden-legal/smoke-legal-request.json | jq .
 ```
 
+## Demo flow
+
+To run a single end-to-end local legal demo against the current Qwen 2.5 0.5B GGUF path:
+
+```bash
+./scripts/demo-local-legal-review.sh
+```
+
+The demo script expects:
+
+- a local Ollama server at `OLLAMA_HOST`, typically `http://127.0.0.1:11434`
+- `OLLAMA_NO_CLOUD=true`
+- the local GGUF file at `./models/qwen2.5-0.5b-instruct-q4_k_m.gguf`
+
+It starts `ignispromptd` with `--features gguf-runner-spike`, sends the existing contract-review fixture, prints the route decision, explanation, `legal_json.status`, `schema_valid`, parsed legal JSON, and saved audit-event path, then writes the evidence bundle under `./local-evidence/demo-local-legal-review/`.
+
 ## Smoke-test goal
 
 The first milestone is still proving the control-plane spine: a legal request enters IgnisPrompt, routes locally to Tier 3, explains why, writes an audit event, and rejects unsafe cloud/adversarial behavior. The GGUF runner path is an early local execution spike layered on top of that control plane, not a finished inference backend.
