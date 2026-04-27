@@ -12,9 +12,9 @@ use std::{
 #[cfg(feature = "gguf-runner-spike")]
 use uuid::Uuid;
 
-#[cfg(feature = "gguf-runner-spike")]
-use crate::legal_json::normalize_legal_json_output;
 use crate::legal_json::LegalJsonMetadata;
+#[cfg(feature = "gguf-runner-spike")]
+use crate::legal_json::{contract_review_response_schema_json, normalize_legal_json_output};
 #[cfg(feature = "gguf-runner-spike")]
 use crate::Args;
 use crate::{ChatCompletionRequest, ModelManifest, RouteDecision};
@@ -98,12 +98,18 @@ impl GgufRunner {
             .filter(|path| !path.trim().is_empty())
     }
 
-    fn prompt_pack_path(config: &Args) -> PathBuf {
-        config.prompt_dir.join(Self::LEGAL_PROMPT_PACK_FILE)
+    fn prompt_pack_name(model: Option<&ModelManifest>) -> &str {
+        model
+            .and_then(|manifest| manifest.prompt_pack.as_deref())
+            .unwrap_or(Self::LEGAL_PROMPT_PACK_FILE)
     }
 
-    fn legal_prompt_pack(config: &Args) -> Result<String> {
-        let path = Self::prompt_pack_path(config);
+    fn prompt_pack_path(config: &Args, model: Option<&ModelManifest>) -> PathBuf {
+        config.prompt_dir.join(Self::prompt_pack_name(model))
+    }
+
+    fn legal_prompt_pack(config: &Args, model: Option<&ModelManifest>) -> Result<String> {
+        let path = Self::prompt_pack_path(config, model);
         fs::read_to_string(&path)
             .with_context(|| format!("failed to read legal prompt pack {}", path.display()))
     }
@@ -112,7 +118,7 @@ impl GgufRunner {
         let mut sections = Vec::new();
 
         if context.decision.domain.eq_ignore_ascii_case("legal") {
-            let prompt_pack = Self::legal_prompt_pack(context.config)?;
+            let prompt_pack = Self::legal_prompt_pack(context.config, context.model)?;
             sections.push(prompt_pack.trim().to_string());
             sections.push(
                 "Apply the rules above to the most recent user-provided contract excerpt and respond with one JSON object only."
@@ -142,6 +148,14 @@ impl GgufRunner {
         fs::write(&path, prompt)
             .with_context(|| format!("failed to write GGUF prompt file {}", path.display()))?;
         Ok(path)
+    }
+
+    fn response_format(model: &ModelManifest) -> &str {
+        model
+            .response_format
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or("none")
     }
 }
 
@@ -189,13 +203,30 @@ impl ModelRunner for GgufRunner {
 
         let prompt = Self::render_prompt(context)?;
         let prompt_file = Self::write_prompt_file(&prompt)?;
-        let output = Command::new(runner_bin)
+        let mut command = Command::new(runner_bin);
+        command
             .arg("--model")
             .arg(model_path)
             .arg("--prompt-file")
             .arg(&prompt_file)
             .arg("--max-tokens")
-            .arg(context.config.gguf_max_tokens.to_string())
+            .arg(context.config.gguf_max_tokens.to_string());
+
+        match Self::response_format(model) {
+            "json" => {
+                command.env("IGNISPROMPT_OLLAMA_FORMAT_MODE", "json");
+            }
+            "schema" => {
+                command.env("IGNISPROMPT_OLLAMA_FORMAT_MODE", "schema");
+                command.env(
+                    "IGNISPROMPT_OLLAMA_JSON_SCHEMA",
+                    contract_review_response_schema_json(),
+                );
+            }
+            _ => {}
+        }
+
+        let output = command
             .output()
             .with_context(|| format!("failed to execute GGUF runner {}", runner_bin.display()));
 

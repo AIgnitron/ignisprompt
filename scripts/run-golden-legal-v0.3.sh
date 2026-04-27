@@ -113,6 +113,8 @@ run_success_case() {
   jq -e '(.choices[0].message.content | length) > 40' "$case_dir/chat_completion.json" >/dev/null
   jq -e '(.choices[0].message.content | contains("StubLegalRunner handled")) | not' "$case_dir/chat_completion.json" >/dev/null
   jq -e '(.choices[0].message.content | fromjson | type) == "object"' "$case_dir/chat_completion.json" >/dev/null
+  jq -e '.local_output.legal_json.status == "ok"' "$case_dir/chat_completion.json" >/dev/null
+  jq -e '.local_output.legal_json.schema_valid == true' "$case_dir/chat_completion.json" >/dev/null
   jq -e '.local_output.legal_json.raw_model_output | length > 0' "$case_dir/chat_completion.json" >/dev/null
   jq -e 'length >= 2' "$case_dir/audit_events.json" >/dev/null
 

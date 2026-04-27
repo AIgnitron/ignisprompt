@@ -98,6 +98,10 @@ struct ModelManifest {
     context_window: Option<u32>,
     #[serde(rename = "localPath")]
     local_path: Option<String>,
+    #[serde(rename = "promptPack", default)]
+    prompt_pack: Option<String>,
+    #[serde(rename = "responseFormat", default)]
+    response_format: Option<String>,
     sha256: Option<String>,
     version: Option<String>,
     installed: bool,
@@ -700,6 +704,8 @@ mod tests {
             quantization: Some("q4_k_m".to_string()),
             context_window: Some(8192),
             local_path: Some("./models/legal-saul-placeholder.gguf".to_string()),
+            prompt_pack: Some("legal-contract-review-compact-v0.1.md".to_string()),
+            response_format: Some("schema".to_string()),
             sha256: None,
             version: Some("0.1".to_string()),
             installed: true,
@@ -824,11 +830,15 @@ mod tests {
 
         let runner_path = temp_dir.join("fake-gguf-runner.sh");
         let captured_prompt_path = temp_dir.join("captured-prompt.txt");
+        let captured_format_path = temp_dir.join("captured-format.txt");
+        let captured_schema_path = temp_dir.join("captured-schema.json");
         std::fs::write(
             &runner_path,
             format!(
-                "#!/bin/sh\nmodel=\"\"\nprompt_file=\"\"\nmax_tokens=\"\"\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    --model) model=\"$2\"; shift 2 ;;\n    --prompt-file) prompt_file=\"$2\"; shift 2 ;;\n    --max-tokens) max_tokens=\"$2\"; shift 2 ;;\n    *) shift ;;\n  esac\ndone\ncat \"$prompt_file\" > \"{}\"\nprintf 'Here is the JSON:\\n{{\"clause_type\":\"indemnification\",\"jurisdiction\":\"not specified\",\"key_obligations\":[\"model:%s\"],\"risks\":[],\"missing_information\":[\"prompt captured\"],\"confidence\":\"medium\"}}' \"$model\"\n",
-                captured_prompt_path.display()
+                "#!/bin/sh\nmodel=\"\"\nprompt_file=\"\"\nmax_tokens=\"\"\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    --model) model=\"$2\"; shift 2 ;;\n    --prompt-file) prompt_file=\"$2\"; shift 2 ;;\n    --max-tokens) max_tokens=\"$2\"; shift 2 ;;\n    *) shift ;;\n  esac\ndone\ncat \"$prompt_file\" > \"{}\"\nprintf '%s' \"$IGNISPROMPT_OLLAMA_FORMAT_MODE\" > \"{}\"\nprintf '%s' \"$IGNISPROMPT_OLLAMA_JSON_SCHEMA\" > \"{}\"\nprintf 'Here is the JSON:\\n{{\"clause_type\":\"indemnification\",\"jurisdiction\":\"not specified\",\"key_obligations\":[\"model:%s\"],\"risks\":[],\"missing_information\":[\"prompt captured\"],\"confidence\":\"medium\"}}' \"$model\"\n",
+                captured_prompt_path.display(),
+                captured_format_path.display(),
+                captured_schema_path.display()
             ),
         )
         .unwrap();
@@ -845,6 +855,8 @@ mod tests {
             quantization: Some("q4_k_m".to_string()),
             context_window: Some(8192),
             local_path: Some(model_path.display().to_string()),
+            prompt_pack: Some("legal-contract-review-compact-v0.1.md".to_string()),
+            response_format: Some("schema".to_string()),
             sha256: None,
             version: Some("0.1-spike".to_string()),
             installed: true,
@@ -872,6 +884,11 @@ mod tests {
             "PROMPT PACK TEST\nReturn valid JSON only.\n",
         )
         .unwrap();
+        std::fs::write(
+            prompt_dir.join("legal-contract-review-compact-v0.1.md"),
+            "COMPACT PROMPT PACK TEST\nJSON only.\n",
+        )
+        .unwrap();
         config.prompt_dir = prompt_dir;
         config.gguf_max_tokens = 64;
 
@@ -884,6 +901,8 @@ mod tests {
         );
 
         let captured_prompt = std::fs::read_to_string(&captured_prompt_path).unwrap();
+        let captured_format = std::fs::read_to_string(&captured_format_path).unwrap();
+        let captured_schema = std::fs::read_to_string(&captured_schema_path).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&output.content).unwrap();
         let metadata = output.metadata.unwrap();
 
@@ -895,12 +914,14 @@ mod tests {
             .unwrap()
             .contains(model_path.to_str().unwrap()));
         assert_eq!(metadata.runner, "gguf-runner-spike");
-        assert_eq!(metadata.legal_json.as_ref().unwrap().status, "valid");
+        assert_eq!(metadata.legal_json.as_ref().unwrap().status, "ok");
         assert_eq!(
             metadata.legal_json.as_ref().unwrap().source,
             "noisy_preamble"
         );
-        assert!(captured_prompt.contains("PROMPT PACK TEST"));
+        assert_eq!(captured_format, "schema");
+        assert!(captured_schema.contains("\"required\""));
+        assert!(captured_prompt.contains("COMPACT PROMPT PACK TEST"));
         assert!(captured_prompt.contains("Conversation:"));
         assert!(captured_prompt.contains("USER:"));
         assert!(captured_prompt.contains("ASSISTANT:"));

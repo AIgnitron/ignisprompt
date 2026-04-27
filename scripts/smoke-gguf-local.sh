@@ -13,6 +13,7 @@ echo "$response" | jq -e '.route.tier == "TIER_3"' >/dev/null
 echo "$response" | jq -e '(.choices[0].message.content | length) > 40' >/dev/null
 echo "$response" | jq -e '(.choices[0].message.content | contains("StubLegalRunner handled")) | not' >/dev/null
 echo "$response" | jq -e '(.choices[0].message.content | fromjson | type) == "object"' >/dev/null
-echo "$response" | jq -e '.local_output.legal_json.status == "valid" or .local_output.legal_json.status == "error"' >/dev/null
+echo "$response" | jq -e '.local_output.legal_json.status == "ok"' >/dev/null
+echo "$response" | jq -e '.local_output.legal_json.schema_valid == true' >/dev/null
 
 echo "[OK] GGUF local smoke completed"

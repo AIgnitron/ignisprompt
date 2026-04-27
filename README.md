@@ -93,9 +93,15 @@ Environment variables:
 
 This is a spike, not a production inference stack. Prompt shaping is naive, no streaming is implemented, and no built-in llama.cpp or ONNX bridge ships in the daemon yet.
 
-For legal Tier 3 requests, the GGUF path prepends `config/prompts/legal-contract-review-v0.1.md` as a local prompt pack before serializing the request messages into the subprocess contract.
+For legal Tier 3 requests, the GGUF path prepends a prompt pack before serializing the request messages into the subprocess contract. By default it uses `config/prompts/legal-contract-review-v0.1.md`, but a manifest can override this with `promptPack`, for example `legal-contract-review-compact-v0.1.md` for smaller local models.
 
 For local Tier 3 legal completions, the daemon also runs a lightweight JSON shim over the runner stdout. It extracts the first JSON object from raw output, fenced ```json blocks, or explanatory preambles, validates the required top-level fields, and returns a structured local parse-error wrapper if validation fails. Raw runner text and parse status are exposed under `local_output.legal_json` in the chat completion response and mirrored into local chat-completion audit events.
+
+When a local runner supports constrained output, a manifest can also opt into `responseFormat`. The current Ollama-backed wrapper supports:
+
+- `responseFormat: "none"`: no structured output hint
+- `responseFormat: "json"`: JSON-mode output hint
+- `responseFormat: "schema"`: JSON schema constraint for the contract-review shape
 
 If that prompt-pack file is missing or unreadable, the GGUF spike is treated as unavailable and the daemon falls back to `StubLegalRunner`. This keeps the default smoke path working without local prompt assets or model weights.
 
@@ -105,6 +111,8 @@ The placeholder legal manifest already shows the intended reference shape:
 
 - manifest: `config/models/legal-qwen2_5-0_5b-instruct-q4.json`
 - current `localPath`: `./models/qwen2.5-0.5b-instruct-q4_k_m.gguf`
+- current `promptPack`: `legal-contract-review-compact-v0.1.md`
+- current `responseFormat`: `schema`
 
 Place a local GGUF file at that path, or update `localPath` in the manifest to wherever you keep the file on disk. Model weights must stay local and are intentionally not committed; the repo ignores `./models/**`.
 
@@ -158,7 +166,7 @@ The bakeoff currently knows about these local candidate paths:
 
 If a candidate file is missing, the bakeoff records that candidate as skipped with a local note instead of failing the whole run. The summary is written under `./local-evidence/alpha-legal-bakeoff-v0.1/` and includes per-candidate latency, route correctness, explanation quality, JSON/schema reliability, adversarial handling, and evidence locations.
 
-Current quality caveat: `qwen2.5-0.5b-instruct-q4_k_m` is the fastest pipe-validation baseline on this host, not a settled legal-quality winner. The prompt pack plus local JSON extraction/validation shim make the Tier 3 path more reliably parseable, but schema-valid legal usefulness still depends on model quality and remains an open bakeoff question.
+Current quality caveat: `qwen2.5-0.5b-instruct-q4_k_m` is the fastest pipe-validation baseline on this host, not a settled legal-quality winner. The prompt packs, constrained runner output, and local JSON extraction/validation shim make the Tier 3 path more reliably parseable, but legal usefulness still depends on model quality and remains an open bakeoff question.
 
 ## Example request
 

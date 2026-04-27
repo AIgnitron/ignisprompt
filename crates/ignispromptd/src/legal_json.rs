@@ -33,6 +33,59 @@ pub(crate) struct LegalJsonNormalization {
     pub(crate) metadata: LegalJsonMetadata,
 }
 
+#[cfg(feature = "gguf-runner-spike")]
+pub(crate) fn contract_review_response_schema_json() -> String {
+    serde_json::to_string(&json!({
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "clause_type": {"type": "string"},
+            "jurisdiction": {"type": "string"},
+            "key_obligations": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "risks": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "risk_type": {
+                            "type": "string",
+                            "enum": ["legal", "business", "operational", "unclear"]
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["low", "medium", "high"]
+                        },
+                        "finding": {"type": "string"},
+                        "supporting_text": {"type": "string"},
+                        "recommended_review": {"type": "string"}
+                    },
+                    "required": [
+                        "risk_type",
+                        "severity",
+                        "finding",
+                        "supporting_text",
+                        "recommended_review"
+                    ]
+                }
+            },
+            "missing_information": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "confidence": {
+                "type": "string",
+                "enum": ["low", "medium", "high"]
+            }
+        },
+        "required": REQUIRED_TOP_LEVEL_FIELDS
+    }))
+    .expect("serializing legal response schema should not fail")
+}
+
 pub(crate) fn normalize_legal_json_output(raw_model_output: &str) -> LegalJsonNormalization {
     let trimmed = raw_model_output.trim();
 
@@ -42,7 +95,7 @@ pub(crate) fn normalize_legal_json_output(raw_model_output: &str) -> LegalJsonNo
                 content: serde_json::to_string_pretty(&extracted.value)
                     .expect("serializing validated legal JSON should not fail"),
                 metadata: LegalJsonMetadata {
-                    status: "valid".to_string(),
+                    status: "ok".to_string(),
                     source: extracted.source.to_string(),
                     schema_valid: true,
                     error_code: None,
@@ -277,7 +330,7 @@ mod tests {
     fn normalizes_clean_json() {
         let normalized = normalize_legal_json_output(valid_legal_json());
 
-        assert_eq!(normalized.metadata.status, "valid");
+        assert_eq!(normalized.metadata.status, "ok");
         assert_eq!(normalized.metadata.source, "raw_json");
         let parsed: Value = serde_json::from_str(&normalized.content).unwrap();
         assert_eq!(parsed["clause_type"], "indemnification");
@@ -288,7 +341,7 @@ mod tests {
         let raw = format!("```json\n{}\n```", valid_legal_json());
         let normalized = normalize_legal_json_output(&raw);
 
-        assert_eq!(normalized.metadata.status, "valid");
+        assert_eq!(normalized.metadata.status, "ok");
         assert_eq!(normalized.metadata.source, "fenced_json");
         let parsed: Value = serde_json::from_str(&normalized.content).unwrap();
         assert_eq!(parsed["jurisdiction"], "not specified");
@@ -299,7 +352,7 @@ mod tests {
         let raw = format!("Here is the JSON:\n{}\n", valid_legal_json());
         let normalized = normalize_legal_json_output(&raw);
 
-        assert_eq!(normalized.metadata.status, "valid");
+        assert_eq!(normalized.metadata.status, "ok");
         assert_eq!(normalized.metadata.source, "noisy_preamble");
         let parsed: Value = serde_json::from_str(&normalized.content).unwrap();
         assert_eq!(parsed["confidence"], "medium");

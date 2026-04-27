@@ -87,6 +87,8 @@ write_candidate_manifest() {
   local sha256_value="$7"
   local version="$8"
   local source="$9"
+  local prompt_pack="${10}"
+  local response_format="${11}"
 
   jq -n \
     --arg model_id "$model_id" \
@@ -97,6 +99,8 @@ write_candidate_manifest() {
     --arg sha256_value "$sha256_value" \
     --arg version "$version" \
     --arg source "$source" \
+    --arg prompt_pack "$prompt_pack" \
+    --arg response_format "$response_format" \
     '{
       modelId: $model_id,
       displayName: $display_name,
@@ -106,6 +110,8 @@ write_candidate_manifest() {
       quantization: $quantization,
       contextWindow: $context_window,
       localPath: $local_path,
+      promptPack: $prompt_pack,
+      responseFormat: $response_format,
       sha256: $sha256_value,
       version: $version,
       installed: true,
@@ -146,6 +152,42 @@ record_skip() {
 
   append_summary_json "$result_file"
   append_summary_markdown "$candidate_id" "skipped" "n/a" "$note" "$candidate_dir"
+}
+
+record_fail() {
+  local candidate_dir="$1"
+  local candidate_id="$2"
+  local display_name="$3"
+  local license="$4"
+  local source_url="$5"
+  local model_path="$6"
+  local note="$7"
+  local evidence_dir="$8"
+
+  local result_file="$candidate_dir/result.json"
+  mkdir -p "$candidate_dir"
+
+  jq -n \
+    --arg candidate_id "$candidate_id" \
+    --arg display_name "$display_name" \
+    --arg license "$license" \
+    --arg source_url "$source_url" \
+    --arg model_path "$model_path" \
+    --arg note "$note" \
+    --arg evidence_dir "$evidence_dir" \
+    '{
+      candidate_id: $candidate_id,
+      display_name: $display_name,
+      status: "fail",
+      license: $license,
+      source_url: $source_url,
+      model_path: $model_path,
+      note: $note,
+      evidence_dir: $evidence_dir
+    }' >"$result_file"
+
+  append_summary_json "$result_file"
+  append_summary_markdown "$candidate_id" "fail" "n/a" "$note" "$evidence_dir"
 }
 
 record_pass() {
@@ -235,7 +277,7 @@ record_pass() {
       legal_json_schema_valid: $legal_json_schema_valid,
       route_correctness: ($route_code == "DOMAIN_MODEL_SELECTED"),
       explanation_quality: ($explanation_length > 120),
-      json_schema_reliability: ($legal_json_status == "valid" and $legal_json_schema_valid == true),
+      json_schema_reliability: ($legal_json_status == "ok" and $legal_json_schema_valid == true),
       adversarial_handling: ($adversarial_warning | contains("treated as untrusted content")),
       unavailable_model_case: ($unavailable_route_code == "LOCAL_MODEL_UNAVAILABLE_RAM_PRESSURE"),
       no_cloud_case: ($no_cloud_route_code == "LEGAL_MODEL_NOT_INSTALLED"),
@@ -260,6 +302,8 @@ run_candidate() {
   local source_url="$9"
   local note="${10}"
   local skip_note="${11}"
+  local prompt_pack="${12}"
+  local response_format="${13}"
 
   local candidate_dir="$EVIDENCE_ROOT/${ordinal}-${slug}"
   local run_dir="$candidate_dir/golden-legal-v0.3"
@@ -281,31 +325,42 @@ run_candidate() {
   mkdir -p "$manifest_dir"
   sha256_value="$(shasum -a 256 "$model_path" | awk '{print $1}')"
   file_size="$(file_size_bytes "$model_path")"
-  write_candidate_manifest "$manifest_path" "$candidate_id" "$display_name" "$quantization" "$context_window" "$model_path" "$sha256_value" "$slug" "local-gguf"
+  write_candidate_manifest "$manifest_path" "$candidate_id" "$display_name" "$quantization" "$context_window" "$model_path" "$sha256_value" "$slug" "local-gguf" "$prompt_pack" "$response_format"
 
   start_seconds="$(date +%s)"
-  IGNISPROMPT_GGUF_RUNNER_BIN="$GGUF_RUNNER_BIN" \
-  IGNISPROMPT_GGUF_MODEL_PATH="$model_path" \
-  IGNISPROMPT_GOLDEN_MODEL_DIR="$manifest_dir" \
-  IGNISPROMPT_GOLDEN_EVIDENCE_DIR="$run_dir" \
-  OLLAMA_HOST="$OLLAMA_HOST" \
-  OLLAMA_NO_CLOUD="$OLLAMA_NO_CLOUD" \
-  "$GOLDEN_SCRIPT"
-  end_seconds="$(date +%s)"
-  suite_elapsed_seconds="$((end_seconds - start_seconds))"
+  if IGNISPROMPT_GGUF_RUNNER_BIN="$GGUF_RUNNER_BIN" \
+    IGNISPROMPT_GGUF_MODEL_PATH="$model_path" \
+    IGNISPROMPT_GOLDEN_MODEL_DIR="$manifest_dir" \
+    IGNISPROMPT_GOLDEN_EVIDENCE_DIR="$run_dir" \
+    OLLAMA_HOST="$OLLAMA_HOST" \
+    OLLAMA_NO_CLOUD="$OLLAMA_NO_CLOUD" \
+    "$GOLDEN_SCRIPT"; then
+    end_seconds="$(date +%s)"
+    suite_elapsed_seconds="$((end_seconds - start_seconds))"
 
-  record_pass \
-    "$candidate_dir" \
-    "$candidate_id" \
-    "$display_name" \
-    "$license" \
-    "$source_url" \
-    "$model_path" \
-    "$file_size" \
-    "$sha256_value" \
-    "$note" \
-    "$run_dir" \
-    "$suite_elapsed_seconds"
+    record_pass \
+      "$candidate_dir" \
+      "$candidate_id" \
+      "$display_name" \
+      "$license" \
+      "$source_url" \
+      "$model_path" \
+      "$file_size" \
+      "$sha256_value" \
+      "$note" \
+      "$run_dir" \
+      "$suite_elapsed_seconds"
+  else
+    record_fail \
+      "$candidate_dir" \
+      "$candidate_id" \
+      "$display_name" \
+      "$license" \
+      "$source_url" \
+      "$model_path" \
+      "Golden Legal subset failed for this candidate. Inspect the saved evidence bundle for the failing case." \
+      "$run_dir"
+  fi
 }
 
 require_cmd cargo
@@ -356,7 +411,9 @@ run_candidate \
   "apache-2.0" \
   "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF" \
   "Pipe baseline for the current local legal path." \
-  "baseline model is missing at $BASELINE_MODEL_PATH."
+  "baseline model is missing at $BASELINE_MODEL_PATH." \
+  "legal-contract-review-compact-v0.1.md" \
+  "schema"
 
 run_candidate \
   "02" \
@@ -369,7 +426,9 @@ run_candidate \
   "apache-2.0" \
   "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF" \
   "Larger general instruct candidate for the alpha legal path." \
-  "candidate file is missing at $QWEN_7B_MODEL_PATH. Official Qwen2.5 7B GGUF lists Q4_K_M at 4.68 GB, which is marginal on this 8 GB host, so this candidate was not auto-downloaded."
+  "candidate file is missing at $QWEN_7B_MODEL_PATH. Official Qwen2.5 7B GGUF lists Q4_K_M at 4.68 GB, which is marginal on this 8 GB host, so this candidate was not auto-downloaded." \
+  "legal-contract-review-v0.1.md" \
+  "schema"
 
 run_candidate \
   "03" \
@@ -382,7 +441,9 @@ run_candidate \
   "mit" \
   "https://huggingface.co/koesn/Saul-Instruct-v1-GGUF" \
   "Domain-specific legal candidate when a reviewed GGUF conversion is available locally." \
-  "candidate file is missing at $SAUL_7B_MODEL_PATH. The upstream Saul instruct model is MIT-licensed, but the available GGUF path here is a third-party conversion and its Q4_K_M file is 4.37 GB, so this candidate was left skipped until a reviewed local copy is staged."
+  "candidate file is missing at $SAUL_7B_MODEL_PATH. The upstream Saul instruct model is MIT-licensed, but the available GGUF path here is a third-party conversion and its Q4_K_M file is 4.37 GB, so this candidate was left skipped until a reviewed local copy is staged." \
+  "legal-contract-review-v0.1.md" \
+  "schema"
 
 run_candidate \
   "04" \
@@ -395,9 +456,13 @@ run_candidate \
   "mit" \
   "https://huggingface.co/AI-Engine/Phi-3.5-mini-instruct-GGUF" \
   "Smaller fallback candidate chosen because the selected public GGUF repo exposes a 2.82 GB Q5_K_M quant." \
-  "candidate file is missing at $PHI_SMALL_MODEL_PATH. The selected public GGUF repo exposes a 2.82 GB Q5_K_M quant, so this candidate can be added locally for a second bakeoff pass on this host."
+  "candidate file is missing at $PHI_SMALL_MODEL_PATH. The selected public GGUF repo exposes a 2.82 GB Q5_K_M quant, so this candidate can be added locally for a second bakeoff pass on this host." \
+  "legal-contract-review-compact-v0.1.md" \
+  "schema"
 
 echo "Saved alpha legal model bakeoff evidence to $EVIDENCE_ROOT"
 echo "Summary files:"
 echo "  - $SUMMARY_JSONL"
 echo "  - $SUMMARY_MARKDOWN"
+
+jq -s 'map(select(.status == "pass")) | length > 0' "$SUMMARY_JSONL" >/dev/null

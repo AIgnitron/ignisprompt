@@ -44,6 +44,8 @@ fi
 
 export OLLAMA_HOST="${OLLAMA_HOST:-http://127.0.0.1:11434}"
 export OLLAMA_NO_CLOUD="${OLLAMA_NO_CLOUD:-true}"
+export IGNISPROMPT_OLLAMA_FORMAT_MODE="${IGNISPROMPT_OLLAMA_FORMAT_MODE:-none}"
+export IGNISPROMPT_OLLAMA_JSON_SCHEMA="${IGNISPROMPT_OLLAMA_JSON_SCHEMA:-}"
 
 tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/ignisprompt-ollama-XXXXXX")"
 cleanup() {
@@ -64,6 +66,8 @@ jq -Rn \
   --arg model "$model_name" \
   --rawfile prompt "$prompt_file" \
   --argjson max_tokens "$max_tokens" \
+  --arg format_mode "$IGNISPROMPT_OLLAMA_FORMAT_MODE" \
+  --arg schema_json "$IGNISPROMPT_OLLAMA_JSON_SCHEMA" \
   '{
     model: $model,
     prompt: $prompt,
@@ -72,7 +76,14 @@ jq -Rn \
       num_predict: $max_tokens,
       temperature: 0
     }
-  }' \
+  }
+  | if $format_mode == "json" then
+      . + {format: "json"}
+    elif $format_mode == "schema" and ($schema_json | length) > 0 then
+      . + {format: ($schema_json | fromjson)}
+    else
+      .
+    end' \
   | curl -fsS "$OLLAMA_HOST/api/generate" \
       -H 'content-type: application/json' \
       --data-binary @- \
