@@ -15,6 +15,10 @@ As of April 25, 2026, the local scaffold is intended to pass `./scripts/start-de
 - legal chat completions default to `StubLegalRunner`
 - an opt-in `GgufRunner` spike can invoke a local GGUF runner binary when both the runner executable and the configured `.gguf` model file are present
 
+## CI status
+
+The repository now includes a default GitHub Actions workflow at `.github/workflows/ci.yml` for the no-model daemon path on `main`. It runs `cargo build`, `cargo test`, and `./scripts/smoke.sh` against the default local scaffold without requiring Ollama, GGUF model weights, or any cloud access.
+
 ## What this scaffold includes
 
 - `GET /health`

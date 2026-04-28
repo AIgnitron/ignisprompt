@@ -1,0 +1,49 @@
+name: CI
+
+"on":
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  default-path:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo build
+        run: cargo build
+
+      - name: cargo test
+        run: cargo test
+
+      - name: Run default smoke test
+        run: |
+          set -euo pipefail
+
+          ./scripts/start-dev.sh > /tmp/ignispromptd.log 2>&1 &
+          daemon_pid=$!
+
+          cleanup() {
+            if kill -0 "$daemon_pid" >/dev/null 2>&1; then
+              kill "$daemon_pid" >/dev/null 2>&1 || true
+              wait "$daemon_pid" >/dev/null 2>&1 || true
+            fi
+          }
+
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8765/health >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+
+          curl -fsS http://127.0.0.1:8765/health >/dev/null
+          ./scripts/smoke.sh
