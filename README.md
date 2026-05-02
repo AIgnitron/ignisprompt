@@ -125,7 +125,7 @@ This is a spike, not a production inference stack. Prompt shaping is naive, no s
 
 For legal Tier 3 requests, the GGUF path prepends a prompt pack before serializing the request messages into the subprocess contract. By default it uses `config/prompts/legal-contract-review-v0.1.md`, but a manifest can override this with `promptPack`, for example `legal-contract-review-compact-v0.1.md` for smaller local models.
 
-For local Tier 3 legal completions, the daemon also runs a lightweight JSON shim over the runner stdout. It extracts the first JSON object from raw output, fenced ```json blocks, or explanatory preambles, validates the required top-level fields, and returns a structured local parse-error wrapper if validation fails. Raw runner text and parse status are exposed under `local_output.legal_json` in the chat completion response and mirrored into local chat-completion audit events.
+For local Tier 3 legal completions, the daemon also runs a lightweight JSON shim over the runner stdout. It extracts schema-valid JSON from raw output, fenced ```json blocks, explanatory preambles, or common local response/content wrappers. It validates the required top-level fields, nested `risks` objects, enum values, and disallows additional schema fields. If validation fails, the daemon returns a structured local parse-error wrapper instead of hiding the failure. Raw runner text and parse status are exposed under `local_output.legal_json` in the chat completion response and mirrored into local chat-completion audit events.
 
 When a local runner supports constrained output, a manifest can also opt into `responseFormat`. The current Ollama-backed wrapper supports:
 
@@ -163,13 +163,14 @@ The repo now includes a small Golden Legal Routing Test Set v0.3 runner for the 
 ./scripts/run-golden-legal-v0.3.sh
 ```
 
-It executes five cases:
+It executes six cases:
 
 - legal Tier 3 success
 - local model unavailable under simulated RAM pressure
 - no cloud fallback without consent when no legal model is installed
 - adversarial contract instruction handling
 - human-readable explanation quality
+- subtle legal-language routing instruction handling
 
 The script expects:
 
@@ -178,6 +179,8 @@ The script expects:
 - the local GGUF file at the manifest `localPath`
 
 Evidence is written under `./local-evidence/golden-legal-v0.3/` and stays out of git.
+
+Current local reliability note as of May 2, 2026: the latest local Golden Legal v0.3 evidence available in this workspace records all six control-plane cases as passing with the Qwen2.5 0.5B pipe baseline. The Tier 3 success case records `legal_json.status = "ok"` and `schema_valid = true`. This is a local schema and routing reliability signal only; it is not legal advice, a legal-accuracy result, production readiness, or compliance certification.
 
 ## Alpha Legal Bakeoff v0.1
 
@@ -196,7 +199,7 @@ The bakeoff currently knows about these local candidate paths:
 
 If a candidate file is missing, the bakeoff records that candidate as skipped with a local note instead of failing the whole run. The summary is written under `./local-evidence/alpha-legal-bakeoff-v0.1/` and includes per-candidate latency, route correctness, explanation quality, JSON/schema reliability, adversarial handling, and evidence locations.
 
-Current quality caveat: `qwen2.5-0.5b-instruct-q4_k_m` is the fastest pipe-validation baseline on this host, not a settled legal-quality winner. The prompt packs, constrained runner output, and local JSON extraction/validation shim make the Tier 3 path more reliably parseable, but legal usefulness still depends on model quality and remains an open bakeoff question.
+Current quality caveat: `qwen2.5-0.5b-instruct-q4_k_m` is the fastest pipe-validation baseline on this host, not a settled legal-quality winner. The prompt packs, constrained runner output, and local JSON extraction/validation shim make the Tier 3 path more reliably parseable and stricter about schema failures, but legal usefulness still depends on model quality and remains an open bakeoff question.
 
 ## Example request
 
