@@ -48,6 +48,8 @@ This default path intentionally avoids Ollama, GGUF model weights, and cloud acc
 The `gguf-runner-spike` feature is optional. Feature-gated tests can be run with:
 
 ```bash
+cargo build --features gguf-runner-spike
+cargo test --features gguf-runner-spike
 cargo test --all-features
 ```
 
@@ -69,6 +71,8 @@ These scripts require local Ollama and local model files:
 
 They write evidence under `./local-evidence/`. Do not commit evidence bundles.
 
+Current local reliability note as of May 2, 2026: the latest local Golden Legal v0.3 evidence available in this workspace records all six control-plane cases as passing with the Qwen2.5 0.5B pipe baseline. The Tier 3 success case records `legal_json.status = "ok"` and `schema_valid = true`. This does not prove legal accuracy, production readiness, enterprise attestation, or compliance certification.
+
 ## What tests assert today
 
 - Legal requests route to Tier 3 when a legal manifest is installed.
@@ -78,6 +82,7 @@ They write evidence under `./local-evidence/`. Do not commit evidence bundles.
 - Route explanations remain human-readable.
 - Chat completions append audit events.
 - The default Tier 3 path uses `StubLegalRunner` unless the feature-gated GGUF runner is explicitly available.
+- The legal JSON normalizer accepts realistic local noisy output forms and records schema failures as structured local failures.
 
 ## What tests do not prove
 

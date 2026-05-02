@@ -80,7 +80,9 @@ Evidence is written under `./local-evidence/demo-local-legal-review/`. Do not co
 
 ## Golden and bakeoff demos
 
-`./scripts/run-golden-legal-v0.3.sh` runs a five-case local subset against the live GGUF path. It writes evidence under `./local-evidence/golden-legal-v0.3/`.
+`./scripts/run-golden-legal-v0.3.sh` runs a six-case local subset against the live GGUF path. It includes the Tier 3 success case, fail-closed local-only cases, adversarial document-instruction handling, explanation quality, and a subtle legal-language routing-instruction case. It writes evidence under `./local-evidence/golden-legal-v0.3/`.
+
+Current local reliability note as of May 2, 2026: the latest local Golden Legal v0.3 evidence available in this workspace records all six control-plane cases as passing with the Qwen2.5 0.5B pipe baseline, and the Tier 3 success case has `legal_json.status = "ok"` and `schema_valid = true`. This is not a legal-accuracy result, production readiness, enterprise attestation, or compliance certification.
 
 `./scripts/run-alpha-legal-bakeoff-v0.1.sh` runs that subset across locally staged candidate model files and writes comparison output under `./local-evidence/alpha-legal-bakeoff-v0.1/`.
 
