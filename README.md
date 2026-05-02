@@ -19,6 +19,24 @@ As of April 25, 2026, the local scaffold is intended to pass `./scripts/start-de
 
 The repository now includes a default GitHub Actions workflow at `.github/workflows/ci.yml` for the no-model daemon path on `main`. It runs `cargo build`, `cargo test`, and `./scripts/smoke.sh` against the default local scaffold without requiring Ollama, GGUF model weights, or any cloud access.
 
+## Documentation
+
+The docs set under `docs/` describes the current scaffold and clearly separates implemented behavior from planned work:
+
+- [Docs index](docs/README.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Demo flows](docs/DEMO.md)
+- [Testing](docs/TESTING.md)
+- [Models](docs/MODELS.md)
+- [Security model](docs/SECURITY_MODEL.md)
+- [Threat model](docs/THREAT_MODEL.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Release checklist](docs/RELEASE_CHECKLIST.md)
+- [Developer contributing notes](docs/CONTRIBUTING_DEV.md)
+- [Enterprise notes](docs/ENTERPRISE.md)
+- [Attestation report template](docs/ATTESTATION_REPORT_TEMPLATE.md)
+- [Compliance notes](docs/COMPLIANCE_NOTES.md)
+
 ## What this scaffold includes
 
 - `GET /health`
