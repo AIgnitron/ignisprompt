@@ -4,6 +4,16 @@ The default test path must pass without Ollama, GGUF tooling, local model weight
 
 ## Required default checks
 
+For the default one-command developer check:
+
+```bash
+./scripts/dev-check.sh
+```
+
+This wrapper runs `cargo build`, `cargo test`, starts `./scripts/start-dev.sh` in the background, waits for `/health`, runs `./scripts/smoke.sh`, and stops the daemon on exit, including failure paths. It intentionally uses the default local-only scaffold and does not require Ollama, GGUF tooling, local model weights, network access, cloud access, or cloud credentials.
+
+The same checks can still be run separately:
+
 ```bash
 cargo build
 cargo test
