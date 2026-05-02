@@ -107,7 +107,7 @@ When a local runner supports constrained output, a manifest can also opt into `r
 - `responseFormat: "json"`: JSON-mode output hint
 - `responseFormat: "schema"`: JSON schema constraint for the contract-review shape
 
-If that prompt-pack file is missing or unreadable, the GGUF spike is treated as unavailable and the daemon falls back to `StubLegalRunner`. This keeps the default smoke path working without local prompt assets or model weights.
+If that prompt-pack file is missing or unreadable, the daemon emits a warning with the configured prompt-pack path, treats the GGUF spike as unavailable, and falls back to `StubLegalRunner`. This keeps the default smoke path working without local prompt assets or model weights.
 
 ### Local model placement
 

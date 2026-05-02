@@ -929,6 +929,86 @@ mod tests {
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
 
+    #[cfg(all(feature = "gguf-runner-spike", unix))]
+    #[test]
+    fn tier_3_completion_falls_back_to_stub_when_prompt_pack_is_missing() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp_dir = std::env::temp_dir().join(format!(
+            "ignispromptd-gguf-missing-prompt-test-{}",
+            Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let model_path = temp_dir.join("legal.gguf");
+        std::fs::write(&model_path, "gguf-placeholder").unwrap();
+
+        let runner_path = temp_dir.join("fake-gguf-runner.sh");
+        let runner_invoked_path = temp_dir.join("runner-invoked.txt");
+        std::fs::write(
+            &runner_path,
+            format!(
+                "#!/bin/sh\nprintf invoked > \"{}\"\nprintf '{{\"clause_type\":\"test\",\"jurisdiction\":\"not specified\",\"key_obligations\":[],\"risks\":[],\"missing_information\":[],\"confidence\":\"low\"}}'\n",
+                runner_invoked_path.display()
+            ),
+        )
+        .unwrap();
+        let mut permissions = std::fs::metadata(&runner_path).unwrap().permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&runner_path, permissions).unwrap();
+
+        let model = ModelManifest {
+            model_id: "saullm-gguf-spike".to_string(),
+            display_name: "SaulLM GGUF Spike".to_string(),
+            tier: 3,
+            domains: vec!["legal".to_string()],
+            format: "gguf".to_string(),
+            quantization: Some("q4_k_m".to_string()),
+            context_window: Some(8192),
+            local_path: Some(model_path.display().to_string()),
+            prompt_pack: Some("missing-legal-prompt-pack.md".to_string()),
+            response_format: Some("schema".to_string()),
+            sha256: None,
+            version: Some("0.1-spike".to_string()),
+            installed: true,
+            source: Some("local".to_string()),
+        };
+        let request = req(
+            "Review this indemnification clause in a vendor services agreement.",
+            Some("ignisprompt/legal"),
+        );
+        let decision = RouteDecision {
+            tier: "TIER_3".to_string(),
+            route_code: "DOMAIN_MODEL_SELECTED".to_string(),
+            domain: "legal".to_string(),
+            model_id: Some(model.model_id.clone()),
+            cloud_considered: false,
+            cloud_allowed: false,
+            data_left_device: false,
+        };
+        let mut config = test_args(temp_dir.join("events.jsonl"));
+        config.gguf_runner_bin = Some(runner_path);
+        let prompt_dir = temp_dir.join("prompts");
+        std::fs::create_dir_all(&prompt_dir).unwrap();
+        config.prompt_dir = prompt_dir;
+
+        let output = completion_output_for_decision(
+            &runner_adapter(),
+            &config,
+            &request,
+            &decision,
+            Some(&model),
+        );
+
+        assert!(output
+            .content
+            .contains("StubLegalRunner handled this Tier 3 legal request locally"));
+        assert!(output.metadata.is_none());
+        assert!(!runner_invoked_path.exists());
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
     #[tokio::test]
     async fn routes_legal_requests_to_tier_3_when_model_is_installed() {
         let state = state_with_models(vec![legal_model()]);
