@@ -67,6 +67,14 @@ The docs set under `docs/` describes the current scaffold and clearly separates 
 
 Requires Rust and Cargo.
 
+Run the default developer check:
+
+```bash
+./scripts/dev-check.sh
+```
+
+This runs `cargo build`, `cargo test`, starts the local-only daemon, waits for `/health`, runs `./scripts/smoke.sh`, and stops the daemon on exit. It uses the default no-model path and does not require Ollama, GGUF tooling, local model weights, cloud access, or cloud credentials.
+
 ```bash
 cargo run -p ignispromptd -- \
   --bind 127.0.0.1:8765 \
