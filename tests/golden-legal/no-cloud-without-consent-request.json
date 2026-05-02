@@ -1,0 +1,13 @@
+{
+  "model": "ignisprompt/legal",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Review this merger agreement confidentiality covenant and summarize the main risks without sending the text to any external service."
+    }
+  ],
+  "stream": false,
+  "metadata": {
+    "domain": "legal"
+  }
+}

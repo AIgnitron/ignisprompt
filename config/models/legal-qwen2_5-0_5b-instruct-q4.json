@@ -1,0 +1,16 @@
+{
+  "modelId": "legal-qwen2.5-0.5b-instruct-q4-k-m-local",
+  "displayName": "Qwen2.5 0.5B Instruct Q4_K_M Local Legal Adapter",
+  "tier": 3,
+  "domains": ["legal", "contracts", "compliance"],
+  "format": "gguf",
+  "quantization": "q4_k_m",
+  "contextWindow": 8192,
+  "localPath": "./models/qwen2.5-0.5b-instruct-q4_k_m.gguf",
+  "promptPack": "legal-contract-review-compact-v0.1.md",
+  "responseFormat": "schema",
+  "sha256": "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db",
+  "version": "qwen2.5-0.5b-instruct-q4_k_m",
+  "installed": true,
+  "source": "local-gguf"
+}

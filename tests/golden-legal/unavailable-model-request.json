@@ -1,0 +1,13 @@
+{
+  "model": "ignisprompt/legal",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Review this governing law and venue clause and identify the key operational risk."
+    }
+  ],
+  "stream": false,
+  "metadata": {
+    "domain": "legal"
+  }
+}

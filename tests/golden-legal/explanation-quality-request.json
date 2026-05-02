@@ -1,0 +1,13 @@
+{
+  "model": "ignisprompt/legal",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Review this limitation of liability and indemnification clause and explain why it should stay on a local legal route."
+    }
+  ],
+  "stream": false,
+  "metadata": {
+    "domain": "legal"
+  }
+}
