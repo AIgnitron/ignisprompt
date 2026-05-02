@@ -206,13 +206,22 @@ curl -s -X POST http://127.0.0.1:8765/v1/route/explain \
   --data-binary @tests/golden-legal/smoke-legal-request.json | jq .
 ```
 
-## Demo flow
+## Public demo: local legal review
 
-To run a single end-to-end local legal demo against the current Qwen 2.5 0.5B GGUF path:
+For a public-facing local demo, run the convenience legal-review flow. It shows the local Tier 3 routing path, structured JSON parsing, schema validation, route explanation, and local audit evidence without sending request data to a cloud service. See [Demo flows](docs/DEMO.md) for the default smoke demo and optional GGUF setup details.
 
 ```bash
 ./scripts/demo-local-legal-review.sh
 ```
+
+A healthy demo run should show these signals:
+
+- route tier = `TIER_3`
+- route_code = `DOMAIN_MODEL_SELECTED`
+- data_left_device = `false`
+- legal_json.status = `ok`
+- schema_valid = `true`
+- audit evidence saved under `./local-evidence/`
 
 The demo script expects:
 
@@ -221,6 +230,24 @@ The demo script expects:
 - the local GGUF file at `./models/qwen2.5-0.5b-instruct-q4_k_m.gguf`
 
 It starts `ignispromptd` with `--features gguf-runner-spike`, sends the existing contract-review fixture, prints the route decision, explanation, `legal_json.status`, `schema_valid`, parsed legal JSON, and saved audit-event path, then writes the evidence bundle under `./local-evidence/demo-local-legal-review/`.
+
+Demo caveats:
+
+- this is not legal advice
+- this is not production compliance certification
+- Qwen2.5 0.5B is the pipe/demo baseline, not a settled legal model winner
+
+For the default no-model scaffold path, run:
+
+```bash
+./scripts/start-dev.sh
+```
+
+In another terminal:
+
+```bash
+./scripts/smoke.sh
+```
 
 ## Smoke-test goal
 
