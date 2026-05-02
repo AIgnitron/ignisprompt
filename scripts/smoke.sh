@@ -7,6 +7,12 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 echo "[S01] health"
 curl -fsS "$BASE_URL/health" | jq .
 
+echo "[S01b] models"
+curl -fsS "$BASE_URL/v1/models" | jq -e '
+  (.models | type == "array") and
+  ([.models[]? | select((.tier == 3) and ((.domains // []) | map(ascii_downcase) | index("legal")))] | length >= 1)
+'
+
 echo "[S02/S04/S05] legal route explain"
 curl -fsS -X POST "$BASE_URL/v1/route/explain" \
   -H 'content-type: application/json' \
