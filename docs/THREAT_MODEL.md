@@ -28,6 +28,7 @@ There is no implemented cloud trust boundary today because cloud routing is not 
 Prompt or document attempts to change routing:
 
 - Current mitigation: known instruction strings are detected and returned as warnings.
+- Golden coverage includes direct override language and subtler legal-language clauses that ask for unrestricted, most-capable, or external cloud analysis; these clauses are treated as document content and must not change local-only routing or audit behavior.
 - Gap: this is pattern matching, not a complete adversarial robustness system.
 
 Silent cloud exfiltration:
