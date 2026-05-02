@@ -10,6 +10,8 @@ use std::{
     process::Command,
 };
 #[cfg(feature = "gguf-runner-spike")]
+use tracing::warn;
+#[cfg(feature = "gguf-runner-spike")]
 use uuid::Uuid;
 
 use crate::legal_json::LegalJsonMetadata;
@@ -111,6 +113,15 @@ impl GgufRunner {
     fn legal_prompt_pack(config: &Args, model: Option<&ModelManifest>) -> Result<String> {
         let path = Self::prompt_pack_path(config, model);
         fs::read_to_string(&path)
+            .map_err(|err| {
+                warn!(
+                    prompt_pack = %Self::prompt_pack_name(model),
+                    path = %path.display(),
+                    error = %err,
+                    "failed to read legal prompt pack; falling back to next legal runner"
+                );
+                err
+            })
             .with_context(|| format!("failed to read legal prompt pack {}", path.display()))
     }
 
