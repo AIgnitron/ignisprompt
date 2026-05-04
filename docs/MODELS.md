@@ -71,3 +71,17 @@ Missing candidate files are recorded as skipped instead of being downloaded or c
 ## Model selection status
 
 No model is currently certified or declared production legal-quality. Model choice remains an open local bakeoff question. Docs, demos, PR descriptions, and release notes must not claim legal advice quality, legal accuracy solved, enterprise compliance certification, or enterprise attestation.
+
+## Candidate manifest templates
+
+Example GGUF model manifests live under `config/models/examples/`.
+
+To try one locally, copy a template into `config/models/`:
+
+    cp config/models/examples/qwen2.5-0.5b-gguf.example.json config/models/qwen2.5-0.5b-local.json
+
+Then edit `localPath` to point to a model file under `./models/`.
+
+Do not commit model weights. The `models/` directory is ignored by git and should stay local-only.
+
+The Qwen2.5 0.5B template is a pipe/demo baseline only, not a settled legal-quality model winner. Qwen2.5 7B, SaulLM 7B, and Phi 3.5 Mini are candidate templates that require operator review for licensing, hardware, runtime, and quality.

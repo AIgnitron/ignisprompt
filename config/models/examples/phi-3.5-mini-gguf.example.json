@@ -1,0 +1,14 @@
+{
+  "modelId": "phi-3.5-mini-instruct-gguf",
+  "displayName": "Phi 3.5 Mini Instruct GGUF",
+  "tier": 3,
+  "domains": ["legal"],
+  "format": "gguf",
+  "localPath": "./models/phi-3.5-mini-instruct.gguf",
+  "contextWindow": 128000,
+  "quantization": "operator-selected",
+  "promptPack": "legal-contract-review-compact-v0.1.md",
+  "responseFormat": "legal-contract-review-v0.1",
+  "licenseReviewStatus": "review-required",
+  "notes": "Previously observed as slower or non-winning depending on host/run conditions. Candidate only. Do not commit model weights."
+}
