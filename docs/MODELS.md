@@ -85,3 +85,21 @@ Then edit `localPath` to point to a model file under `./models/`.
 Do not commit model weights. The `models/` directory is ignored by git and should stay local-only.
 
 The Qwen2.5 0.5B template is a pipe/demo baseline only, not a settled legal-quality model winner. Qwen2.5 7B, SaulLM 7B, and Phi 3.5 Mini are candidate templates that require operator review for licensing, hardware, runtime, and quality.
+
+## Alpha legal bakeoff scoring
+
+The alpha bakeoff script compares locally staged GGUF candidates against the Golden Legal v0.3 subset:
+
+    ./scripts/run-alpha-legal-bakeoff-v0.1.sh
+
+The script writes evidence under `local-evidence/alpha-legal-bakeoff-v0.1/<timestamp>/`, which must not be committed.
+
+Each candidate is recorded as `pass`, `fail`, or `skipped`. Missing model files are recorded as skipped instead of aborting the whole run. Candidate failures are recorded honestly with a pointer to the evidence bundle.
+
+The script emits:
+
+- `summary.jsonl` for machine-readable scoring.
+- `summary.md` for human review.
+- A terminal summary table for quick comparison.
+
+A successful run requires at least one passing candidate. If no candidate passes, the script exits non-zero after writing the skip/failure evidence.
