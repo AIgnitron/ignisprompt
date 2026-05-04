@@ -1,0 +1,14 @@
+{
+  "modelId": "qwen2.5-7b-instruct-gguf",
+  "displayName": "Qwen2.5 7B Instruct GGUF",
+  "tier": 3,
+  "domains": ["legal"],
+  "format": "gguf",
+  "localPath": "./models/qwen2.5-7b-instruct.gguf",
+  "contextWindow": 32768,
+  "quantization": "operator-selected",
+  "promptPack": "legal-contract-review-compact-v0.1.md",
+  "responseFormat": "legal-contract-review-v0.1",
+  "licenseReviewStatus": "review-required",
+  "notes": "Future/skip candidate until hardware, conversion, licensing, and runtime requirements are settled. Do not commit model weights."
+}

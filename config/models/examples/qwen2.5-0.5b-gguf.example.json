@@ -1,0 +1,14 @@
+{
+  "modelId": "qwen2.5-0.5b-instruct-q4-k-m",
+  "displayName": "Qwen2.5 0.5B Instruct GGUF",
+  "tier": 3,
+  "domains": ["legal"],
+  "format": "gguf",
+  "localPath": "./models/qwen2.5-0.5b-instruct-q4_k_m.gguf",
+  "contextWindow": 32768,
+  "quantization": "Q4_K_M",
+  "promptPack": "legal-contract-review-compact-v0.1.md",
+  "responseFormat": "legal-contract-review-v0.1",
+  "licenseReviewStatus": "review-required",
+  "notes": "Pipe/demo baseline only. Not the settled legal-quality model. Do not commit model weights."
+}

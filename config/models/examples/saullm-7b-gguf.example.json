@@ -1,0 +1,14 @@
+{
+  "modelId": "saullm-7b-gguf",
+  "displayName": "SaulLM 7B GGUF",
+  "tier": 3,
+  "domains": ["legal"],
+  "format": "gguf",
+  "localPath": "./models/saullm-7b.gguf",
+  "contextWindow": 8192,
+  "quantization": "operator-selected",
+  "promptPack": "legal-contract-review-compact-v0.1.md",
+  "responseFormat": "legal-contract-review-v0.1",
+  "licenseReviewStatus": "review-required",
+  "notes": "Future/skip legal candidate until hardware, conversion, licensing, and runtime requirements are settled. Do not commit model weights."
+}
