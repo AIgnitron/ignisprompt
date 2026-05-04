@@ -465,4 +465,26 @@ echo "Summary files:"
 echo "  - $SUMMARY_JSONL"
 echo "  - $SUMMARY_MARKDOWN"
 
-jq -s 'map(select(.status == "pass")) | length > 0' "$SUMMARY_JSONL" >/dev/null
+echo
+echo "Bakeoff summary:"
+jq -r '
+  ["status", "candidate_id", "legal_json", "schema_valid", "latency_s", "note"],
+  (.[] | [
+    .status,
+    .candidate_id,
+    ((.legal_json_status // "n/a") | tostring),
+    ((.legal_json_schema_valid // "n/a") | tostring),
+    ((.success_completion_latency_seconds // "n/a") | tostring),
+    (.note // "")
+  ])
+  | @tsv
+' "$SUMMARY_JSONL" | column -t -s $'\t'
+
+if jq -e -s 'map(select(.status == "pass")) | length > 0' "$SUMMARY_JSONL" >/dev/null; then
+  echo
+  echo "At least one candidate passed. Bakeoff evidence saved to $EVIDENCE_ROOT"
+else
+  echo
+  echo "No candidate passed. Skips/failures were recorded honestly in $SUMMARY_JSONL and $SUMMARY_MARKDOWN." >&2
+  exit 1
+fi
