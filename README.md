@@ -6,7 +6,7 @@ This repository contains a minimal `ignispromptd` Rust daemon scaffold for the A
 
 ## Current smoke-test status
 
-As of April 25, 2026, the local scaffold is intended to pass `./scripts/start-dev.sh` followed by `./scripts/smoke.sh` with the current control-plane scope intact:
+For manual debugging, you can still run `./scripts/start-dev.sh` in one terminal and `./scripts/smoke.sh` in another. `./scripts/dev-check.sh` is the recommended one-command developer path.
 
 - `/health`, `/v1/models`, `/v1/route/explain`, `/v1/chat/completions`, and `/v1/audit/events` respond locally
 - legal requests route to Tier 3 with a human-readable explanation
