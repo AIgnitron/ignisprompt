@@ -27,10 +27,19 @@ use model_runner::{
     ModelRunnerOutput, StubLegalRunner,
 };
 use serde::{Deserialize, Serialize};
-use tokio::{fs, net::TcpListener, sync::RwLock};
+use serde_json::{json, Value};
+use tokio::{
+    fs,
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    net::TcpListener,
+    sync::RwLock,
+};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::{info, warn};
 use uuid::Uuid;
+
+const MCP_PROTOCOL_VERSION: &str = "2025-06-18";
+const MCP_ROUTE_EXPLAIN_TOOL_NAME: &str = "route_explain";
 
 #[derive(Debug, Parser, Clone)]
 #[command(
@@ -73,6 +82,14 @@ struct Args {
     /// Simulate RAM pressure for smoke-test fallback cases.
     #[arg(long, env = "IGNISPROMPT_FORCE_RAM_PRESSURE", default_value_t = false)]
     force_ram_pressure: bool,
+
+    /// Run the experimental stdio MCP stub instead of the default HTTP daemon.
+    #[arg(
+        long,
+        env = "IGNISPROMPT_EXPERIMENTAL_MCP_STDIO",
+        default_value_t = false
+    )]
+    experimental_mcp_stdio: bool,
 
     #[cfg(feature = "gguf-runner-spike")]
     /// Optional local GGUF runner binary for Tier 3 legal inference spikes.
@@ -393,17 +410,68 @@ impl AuditStore {
     }
 }
 
+#[derive(Debug, Default)]
+struct McpSessionState {
+    initialize_seen: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct McpRouteExplainArgs {
+    model: Option<String>,
+    messages: Vec<McpRouteExplainMessage>,
+    stream: Option<bool>,
+    #[serde(default)]
+    metadata: HashMap<String, Value>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct McpRouteExplainMessage {
+    role: String,
+    content: String,
+}
+
+impl From<McpRouteExplainArgs> for ChatCompletionRequest {
+    fn from(value: McpRouteExplainArgs) -> Self {
+        Self {
+            model: value.model,
+            messages: value
+                .messages
+                .into_iter()
+                .map(|message| ChatMessage {
+                    role: message.role,
+                    content: message.content,
+                })
+                .collect(),
+            stream: value.stream.or(Some(false)),
+            metadata: value.metadata,
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "ignispromptd=info,tower_http=info".into()),
-        )
-        .json()
-        .init();
-
     let args = Args::parse();
+    if args.experimental_mcp_stdio {
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| "ignispromptd=info,tower_http=info".into()),
+            )
+            .with_writer(std::io::stderr)
+            .json()
+            .init();
+    } else {
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| "ignispromptd=info,tower_http=info".into()),
+            )
+            .json()
+            .init();
+    }
+
     #[cfg(feature = "gguf-runner-spike")]
     log_gguf_runner_configuration(&args);
     let registry = load_model_registry(&args.model_dir)
@@ -425,6 +493,16 @@ async fn main() -> Result<()> {
         audit: Arc::new(audit),
     };
 
+    if args.experimental_mcp_stdio {
+        run_mcp_stdio(state).await?;
+        return Ok(());
+    }
+
+    run_http_daemon(state, args.bind).await?;
+    Ok(())
+}
+
+async fn run_http_daemon(state: AppState, bind: SocketAddr) -> Result<()> {
     let app = Router::new()
         .route("/health", get(health))
         .route("/v1/models", get(list_models))
@@ -435,9 +513,31 @@ async fn main() -> Result<()> {
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
-    let listener = TcpListener::bind(args.bind).await?;
-    info!(%args.bind, "ignispromptd listening");
+    let listener = TcpListener::bind(bind).await?;
+    info!(%bind, "ignispromptd listening");
     axum::serve(listener, app).await?;
+    Ok(())
+}
+
+async fn run_mcp_stdio(state: AppState) -> Result<()> {
+    let mut session = McpSessionState::default();
+    let mut lines = BufReader::new(tokio::io::stdin()).lines();
+    let mut stdout = tokio::io::stdout();
+
+    while let Some(line) = lines.next_line().await? {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        if let Some(response) = handle_mcp_line(&state, &mut session, trimmed).await {
+            let encoded = serde_json::to_string(&response)?;
+            stdout.write_all(encoded.as_bytes()).await?;
+            stdout.write_all(b"\n").await?;
+            stdout.flush().await?;
+        }
+    }
+
     Ok(())
 }
 
@@ -484,54 +584,8 @@ async fn route_explain(
     State(state): State<AppState>,
     Json(req): Json<ChatCompletionRequest>,
 ) -> impl IntoResponse {
-    match route_request(&state, &req).await {
-        Ok((decision, explanation, warnings)) => {
-            let request_id = Uuid::new_v4().to_string();
-            let event = AuditEvent {
-                request_id: request_id.clone(),
-                timestamp: Utc::now(),
-                event_type: "route_explain".to_string(),
-                route_code: decision.route_code.clone(),
-                tier: decision.tier.clone(),
-                domain: decision.domain.clone(),
-                model_id: decision.model_id.clone(),
-                data_left_device: decision.data_left_device,
-                explanation: explanation.clone(),
-                warnings: warnings.clone(),
-                cache: None,
-                completion_output: None,
-            };
-            if let Err(err) = state.audit.append(event).await {
-                warn!(error = %err, "failed to append audit event");
-            }
-            (
-                StatusCode::OK,
-                Json(RouteExplainResponse {
-                    request_id,
-                    decision,
-                    explanation,
-                    warnings,
-                }),
-            )
-        }
-        Err(err) => (
-            StatusCode::BAD_REQUEST,
-            Json(RouteExplainResponse {
-                request_id: Uuid::new_v4().to_string(),
-                decision: RouteDecision {
-                    tier: "ERR".to_string(),
-                    route_code: "PREFLIGHT_REJECTED".to_string(),
-                    domain: "unknown".to_string(),
-                    model_id: None,
-                    cloud_considered: false,
-                    cloud_allowed: false,
-                    data_left_device: false,
-                },
-                explanation: err.to_string(),
-                warnings: vec![],
-            }),
-        ),
-    }
+    let (status, response) = route_explain_response_for_request(&state, &req).await;
+    (status, Json(response))
 }
 
 async fn chat_completions(
@@ -965,6 +1019,66 @@ async fn list_audit_events(State(state): State<AppState>) -> Json<Vec<AuditEvent
     Json(state.audit.list().await)
 }
 
+async fn route_explain_response_for_request(
+    state: &AppState,
+    req: &ChatCompletionRequest,
+) -> (StatusCode, RouteExplainResponse) {
+    match route_request(state, req).await {
+        Ok((decision, explanation, warnings)) => {
+            let response = RouteExplainResponse {
+                request_id: Uuid::new_v4().to_string(),
+                decision,
+                explanation,
+                warnings,
+            };
+            append_route_explain_audit_event(state, &response).await;
+            (StatusCode::OK, response)
+        }
+        Err(err) => (
+            StatusCode::BAD_REQUEST,
+            preflight_rejected_route_explain_response(err.to_string()),
+        ),
+    }
+}
+
+async fn append_route_explain_audit_event(state: &AppState, response: &RouteExplainResponse) {
+    let event = AuditEvent {
+        request_id: response.request_id.clone(),
+        timestamp: Utc::now(),
+        event_type: "route_explain".to_string(),
+        route_code: response.decision.route_code.clone(),
+        tier: response.decision.tier.clone(),
+        domain: response.decision.domain.clone(),
+        model_id: response.decision.model_id.clone(),
+        data_left_device: response.decision.data_left_device,
+        explanation: response.explanation.clone(),
+        warnings: response.warnings.clone(),
+        cache: None,
+        completion_output: None,
+    };
+
+    if let Err(err) = state.audit.append(event).await {
+        warn!(error = %err, "failed to append audit event");
+    }
+}
+
+fn preflight_rejected_route_explain_response(explanation: String) -> RouteExplainResponse {
+    RouteExplainResponse {
+        request_id: Uuid::new_v4().to_string(),
+        decision: RouteDecision {
+            tier: "ERR".to_string(),
+            route_code: "PREFLIGHT_REJECTED".to_string(),
+            domain: "unknown".to_string(),
+            model_id: None,
+            cloud_considered: false,
+            cloud_allowed: false,
+            data_left_device: false,
+        },
+        explanation,
+        warnings: vec![],
+    }
+}
+
 async fn route_request(
     state: &AppState,
     req: &ChatCompletionRequest,
@@ -1099,6 +1213,241 @@ fn detect_adversarial_document_instructions(combined: &str) -> Vec<String> {
     }
 }
 
+async fn handle_mcp_line(
+    state: &AppState,
+    session: &mut McpSessionState,
+    line: &str,
+) -> Option<Value> {
+    let message = match serde_json::from_str::<Value>(line) {
+        Ok(message) => message,
+        Err(err) => {
+            return Some(mcp_error_response(
+                None,
+                -32700,
+                format!("Failed to parse JSON-RPC message: {err}"),
+            ));
+        }
+    };
+
+    handle_mcp_message(state, session, message).await
+}
+
+async fn handle_mcp_message(
+    state: &AppState,
+    session: &mut McpSessionState,
+    message: Value,
+) -> Option<Value> {
+    let Some(object) = message.as_object() else {
+        return Some(mcp_error_response(
+            None,
+            -32600,
+            "Invalid request: expected a JSON object.",
+        ));
+    };
+
+    let id = object.get("id").cloned();
+
+    if object.get("jsonrpc").and_then(Value::as_str) != Some("2.0") {
+        return Some(mcp_error_response(
+            id,
+            -32600,
+            "Invalid request: jsonrpc must be \"2.0\".",
+        ));
+    }
+
+    let Some(method) = object.get("method").and_then(Value::as_str) else {
+        return Some(mcp_error_response(
+            id,
+            -32600,
+            "Invalid request: missing method.",
+        ));
+    };
+
+    let params = object.get("params").cloned();
+
+    match method {
+        "initialize" => {
+            session.initialize_seen = true;
+            id.map(|id| {
+                mcp_success_response(
+                    id,
+                    json!({
+                        "protocolVersion": MCP_PROTOCOL_VERSION,
+                        "capabilities": {
+                            "tools": {
+                                "listChanged": false,
+                            }
+                        },
+                        "serverInfo": {
+                            "name": "ignispromptd",
+                            "title": "IgnisPrompt Experimental MCP Stub",
+                            "version": env!("CARGO_PKG_VERSION"),
+                        },
+                        "instructions": "Experimental local-only stdio MCP stub. It currently exposes one route_explain tool and does not replace the default HTTP daemon behavior.",
+                    }),
+                )
+            })
+        }
+        "notifications/initialized" => None,
+        "ping" => id.map(|id| mcp_success_response(id, json!({}))),
+        "tools/list" => {
+            if !session.initialize_seen {
+                return id.map(|id| {
+                    mcp_error_response(
+                        Some(id),
+                        -32600,
+                        "Invalid request: initialize must be sent before tools/list.",
+                    )
+                });
+            }
+
+            id.map(|id| {
+                mcp_success_response(
+                    id,
+                    json!({
+                        "tools": [
+                            mcp_route_explain_tool_definition(),
+                        ]
+                    }),
+                )
+            })
+        }
+        "tools/call" => {
+            if !session.initialize_seen {
+                return id.map(|id| {
+                    mcp_error_response(
+                        Some(id),
+                        -32600,
+                        "Invalid request: initialize must be sent before tools/call.",
+                    )
+                });
+            }
+
+            let Some(id) = id else {
+                return None;
+            };
+
+            Some(handle_mcp_tool_call(state, id, params).await)
+        }
+        _ => id.map(|id| {
+            mcp_error_response(
+                Some(id),
+                -32601,
+                format!("Method not found: {method}"),
+            )
+        }),
+    }
+}
+
+async fn handle_mcp_tool_call(state: &AppState, id: Value, params: Option<Value>) -> Value {
+    let Some(params) = params else {
+        return mcp_error_response(Some(id), -32602, "Missing tools/call params.");
+    };
+
+    let Some(name) = params.get("name").and_then(Value::as_str) else {
+        return mcp_error_response(
+            Some(id),
+            -32602,
+            "Missing tool name in tools/call params.",
+        );
+    };
+
+    match name {
+        MCP_ROUTE_EXPLAIN_TOOL_NAME => {
+            let arguments = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
+            let request: McpRouteExplainArgs = match serde_json::from_value(arguments) {
+                Ok(arguments) => arguments,
+                Err(err) => {
+                    return mcp_error_response(
+                        Some(id),
+                        -32602,
+                        format!("Invalid arguments for {MCP_ROUTE_EXPLAIN_TOOL_NAME}: {err}"),
+                    );
+                }
+            };
+
+            let (status, response) =
+                route_explain_response_for_request(state, &request.into()).await;
+            let is_error = !status.is_success();
+            mcp_success_response(id, mcp_tool_result(&response, is_error))
+        }
+        _ => mcp_error_response(Some(id), -32602, format!("Unknown tool: {name}")),
+    }
+}
+
+fn mcp_route_explain_tool_definition() -> Value {
+    json!({
+        "name": MCP_ROUTE_EXPLAIN_TOOL_NAME,
+        "title": "IgnisPrompt Route Explain",
+        "description": "Experimental local-only route explanation tool. Reuses the daemon's existing legal/general routing policy and local audit behavior without cloud calls.",
+        "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "model": {
+                    "type": "string",
+                    "description": "Optional model hint, such as ignisprompt/legal."
+                },
+                "messages": {
+                    "type": "array",
+                    "description": "OpenAI-compatible chat messages used for local route classification.",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                            "role": {"type": "string"},
+                            "content": {"type": "string"}
+                        },
+                        "required": ["role", "content"]
+                    }
+                },
+                "stream": {
+                    "type": "boolean",
+                    "description": "Accepted for request-shape compatibility but ignored by route_explain."
+                },
+                "metadata": {
+                    "type": "object",
+                    "description": "Optional request metadata forwarded to the local router."
+                }
+            },
+            "required": ["messages"]
+        }
+    })
+}
+
+fn mcp_tool_result(response: &RouteExplainResponse, is_error: bool) -> Value {
+    json!({
+        "content": [
+            {
+                "type": "text",
+                "text": serde_json::to_string_pretty(response)
+                    .unwrap_or_else(|_| "{\"error\":\"serialization failed\"}".to_string()),
+            }
+        ],
+        "structuredContent": response,
+        "isError": is_error,
+    })
+}
+
+fn mcp_success_response(id: Value, result: Value) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": result,
+    })
+}
+
+fn mcp_error_response(id: Option<Value>, code: i64, message: impl Into<String>) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": id.unwrap_or(Value::Null),
+        "error": {
+            "code": code,
+            "message": message.into(),
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1205,6 +1554,7 @@ mod tests {
             exact_match_cache: true,
             exact_match_cache_max_entries: 128,
             force_ram_pressure: false,
+            experimental_mcp_stdio: false,
             #[cfg(feature = "gguf-runner-spike")]
             gguf_runner_bin: None,
             #[cfg(feature = "gguf-runner-spike")]
@@ -1309,6 +1659,14 @@ mod tests {
         chat_completions(State(state.clone()), Json(request))
             .await
             .into_response()
+    }
+
+    async fn call_mcp_message(
+        state: &AppState,
+        session: &mut McpSessionState,
+        message: Value,
+    ) -> Option<Value> {
+        handle_mcp_message(state, session, message).await
     }
 
     fn sse_data_events(body: &str) -> Vec<&str> {
@@ -2111,6 +2469,152 @@ mod tests {
             assert_explanation_mentions(&explanation, case.explanation_fragments);
             assert_warning_state(&warnings, case.expect_warning);
         }
+    }
+
+    #[tokio::test]
+    async fn mcp_initialize_advertises_tools_capability() {
+        let state = state_with_models(vec![legal_model()]);
+        let mut session = McpSessionState::default();
+
+        let response = call_mcp_message(
+            &state,
+            &mut session,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": MCP_PROTOCOL_VERSION,
+                    "capabilities": {},
+                    "clientInfo": {
+                        "name": "test-client",
+                        "version": "0.1.0"
+                    }
+                }
+            }),
+        )
+        .await
+        .expect("initialize should return a response");
+
+        assert!(session.initialize_seen);
+        assert_eq!(response["result"]["protocolVersion"], MCP_PROTOCOL_VERSION);
+        assert_eq!(response["result"]["capabilities"]["tools"]["listChanged"], false);
+        assert_eq!(response["result"]["serverInfo"]["name"], "ignispromptd");
+    }
+
+    #[tokio::test]
+    async fn mcp_tools_list_exposes_route_explain_only() {
+        let state = state_with_models(vec![legal_model()]);
+        let mut session = McpSessionState {
+            initialize_seen: true,
+        };
+
+        let response = call_mcp_message(
+            &state,
+            &mut session,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/list",
+                "params": {}
+            }),
+        )
+        .await
+        .expect("tools/list should return a response");
+
+        let tools = response["result"]["tools"]
+            .as_array()
+            .expect("tools/list should return an array");
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0]["name"], MCP_ROUTE_EXPLAIN_TOOL_NAME);
+        assert_eq!(tools[0]["inputSchema"]["required"][0], "messages");
+    }
+
+    #[tokio::test]
+    async fn mcp_route_explain_tool_reuses_local_routing_and_audit_behavior() {
+        let state = state_with_models(vec![legal_model()]);
+        let mut session = McpSessionState {
+            initialize_seen: true,
+        };
+
+        let response = call_mcp_message(
+            &state,
+            &mut session,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {
+                    "name": MCP_ROUTE_EXPLAIN_TOOL_NAME,
+                    "arguments": {
+                        "model": "ignisprompt/legal",
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": "Review this indemnification clause in a vendor services agreement."
+                            }
+                        ],
+                        "metadata": {
+                            "domain": "legal"
+                        }
+                    }
+                }
+            }),
+        )
+        .await
+        .expect("tools/call should return a response");
+
+        assert_eq!(response["result"]["isError"], false);
+        assert_eq!(
+            response["result"]["structuredContent"]["decision"]["tier"],
+            "TIER_3"
+        );
+        assert_eq!(
+            response["result"]["structuredContent"]["decision"]["route_code"],
+            "DOMAIN_MODEL_SELECTED"
+        );
+        assert_eq!(
+            response["result"]["structuredContent"]["decision"]["data_left_device"],
+            false
+        );
+
+        let audit_events = state.audit.list().await;
+        assert_eq!(audit_events.len(), 1);
+        assert_eq!(audit_events[0].event_type, "route_explain");
+        assert_eq!(audit_events[0].route_code, "DOMAIN_MODEL_SELECTED");
+    }
+
+    #[tokio::test]
+    async fn mcp_route_explain_tool_reports_preflight_rejections_as_tool_errors() {
+        let state = state_with_models(vec![legal_model()]);
+        let mut session = McpSessionState {
+            initialize_seen: true,
+        };
+
+        let response = call_mcp_message(
+            &state,
+            &mut session,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "tools/call",
+                "params": {
+                    "name": MCP_ROUTE_EXPLAIN_TOOL_NAME,
+                    "arguments": {
+                        "messages": []
+                    }
+                }
+            }),
+        )
+        .await
+        .expect("tools/call should return a response");
+
+        assert_eq!(response["result"]["isError"], true);
+        assert_eq!(
+            response["result"]["structuredContent"]["decision"]["route_code"],
+            "PREFLIGHT_REJECTED"
+        );
+        assert!(state.audit.list().await.is_empty());
     }
 
     #[tokio::test]

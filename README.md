@@ -15,6 +15,7 @@ This repository contains a minimal `ignispromptd` Rust daemon scaffold for the A
 - legal chat completions default to `StubLegalRunner`
 - `stream: false` or a missing `stream` field keeps the current JSON completion shape, while `stream: true` returns a basic SSE-compatible scaffold
 - an opt-in `GgufRunner` spike can invoke a local GGUF runner binary when both the runner executable and the configured `.gguf` model file are present
+- an experimental stdio MCP stub can expose the existing local `route_explain` logic without changing the default HTTP daemon path
 
 ## CI status
 
@@ -45,6 +46,7 @@ The docs set under `docs/` describes the current scaffold and clearly separates 
 - `POST /v1/route/explain`
 - `POST /v1/chat/completions` using an OpenAI-compatible request shape
 - basic SSE-compatible chat-completion scaffolding when `stream: true`
+- experimental stdio MCP stub with one `route_explain` tool
 - optional feature-gated Tier 3 legal GGUF runner spike via a local subprocess contract
 - Tier 3 legal chat completion dispatch through `StubLegalRunner`
 - `GET /v1/audit/events`
@@ -60,7 +62,7 @@ The docs set under `docs/` describes the current scaffold and clearly separates 
 - production-grade GGUF/ONNX inference
 - Apple Foundation Models bridge
 - semantic cache
-- MCP server
+- production-grade MCP server surface beyond the experimental stdio `route_explain` stub
 - production-grade token-by-token streaming
 - real hardware RAM/thermal telemetry
 - signed Local-Only Attestation Report generation
@@ -109,6 +111,37 @@ For the real local GGUF path, start Ollama locally and then run:
 ```bash
 ./scripts/smoke-gguf-local.sh
 ```
+
+## Experimental MCP Stub
+
+The repo now includes an experimental stdio MCP stub inside `ignispromptd`. It does not change default daemon startup, default CI, or the fallback to `StubLegalRunner`.
+
+Current scope:
+
+- transport: newline-delimited stdio JSON-RPC 2.0
+- handshake methods: `initialize`, `notifications/initialized`, and `ping`
+- tool methods: `tools/list` and `tools/call`
+- tools exposed: `route_explain` only
+- behavior reused: existing local route classification, human-readable explanation text, adversarial warning handling, and local audit appends
+
+Manual example:
+
+```bash
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"manual","version":"0.1.0"}}}' \
+  '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+  '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"route_explain","arguments":{"model":"ignisprompt/legal","messages":[{"role":"user","content":"Review this indemnification clause in a vendor services agreement and return the key risks."}],"metadata":{"domain":"legal"}}}}' \
+  | cargo run -p ignispromptd -- --experimental-mcp-stdio
+```
+
+Limitations:
+
+- experimental and manual-only
+- no MCP HTTP transport
+- no prompts, resources, sampling, or completions
+- no cloud calls
+- intended for local tool-surface validation, not broad MCP client compatibility claims
 
 ## GGUF Runner Spike
 
