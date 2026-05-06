@@ -16,6 +16,7 @@ This repository contains a minimal `ignispromptd` Rust daemon scaffold for the A
 - `stream: false` or a missing `stream` field keeps the current JSON completion shape, while `stream: true` returns a basic SSE-compatible scaffold
 - an opt-in `GgufRunner` spike can invoke a local GGUF runner binary when both the runner executable and the configured `.gguf` model file are present
 - an experimental stdio MCP stub can expose the existing local `route_explain` logic without changing the default HTTP daemon path
+- a developer local-only evidence script can capture health, route, audit, binary-hash, and ignore-safety evidence under ignored `./local-evidence/attestation/`
 
 ## CI status
 
