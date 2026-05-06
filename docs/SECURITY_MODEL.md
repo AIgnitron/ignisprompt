@@ -37,6 +37,18 @@ Current limitations:
 - `GET /v1/audit/events` returns events accumulated in the current process memory
 - the JSONL audit file location is controlled by local config
 
+## Local exact-match cache
+
+The Tier 1 cache is local, in-memory, and exact-match only. It is limited to safe chat completions that stay on device and does not implement semantic caching, embeddings, cross-user reuse, or cross-process persistence.
+
+Current safeguards:
+
+- adversarial document-instruction requests are not cached
+- preflight-rejected requests are not cached
+- fail-closed responses are not cached
+- cache hits preserve `data_left_device: false`
+- cache hits preserve the underlying local route metadata and audit behavior
+
 ## Model and evidence handling
 
 Model weights belong outside git. Local model files are expected under `./models/`, which is ignored.

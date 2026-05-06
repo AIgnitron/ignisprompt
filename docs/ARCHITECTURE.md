@@ -9,6 +9,7 @@ The architecture is intentionally small. It validates the local routing control 
 - CLI config: bind address, model manifest directory, audit log path, local-only mode, RAM-pressure simulation, and optional GGUF spike settings.
 - Model registry: loads JSON manifests from `config/models`.
 - Router: classifies requests as legal or general and chooses a local route decision.
+- Tier 1 exact-match cache: optional in-memory cache for safe chat completions with identical request and route inputs.
 - Audit store: keeps in-memory events for the process and appends JSONL events to the configured local audit log.
 - Model runner adapter: tries configured model runners in order and falls back safely.
 - `StubLegalRunner`: default Tier 3 legal completion path.
@@ -32,8 +33,9 @@ Streaming is rejected in preflight. The daemon does not implement an MCP server,
 4. It scans for known document-contained instructions such as attempts to ignore routing rules, disable audit logging, or route to cloud.
 5. For legal requests, it selects an installed Tier 3 legal manifest when one is present.
 6. If no local legal model is eligible, or simulated RAM pressure is enabled, it fails closed without cloud fallback.
-7. For general requests, it returns a Tier 2 route decision with stubbed OS-native dispatch.
-8. Route explanations and chat completions append local audit events.
+7. For safe chat completions only, it may reuse an in-memory Tier 1 exact-match cache entry when the request messages, model or domain hints, selected route inputs, and relevant local policy flags match exactly.
+8. For general requests, it returns a Tier 2 route decision with stubbed OS-native dispatch.
+9. Route explanations and chat completions append local audit events.
 
 ## Route decisions
 
@@ -57,6 +59,13 @@ General request:
 - `route_code: "OS_NATIVE_LOCAL_SELECTED"`
 - The OS-native bridge itself is not implemented.
 
+Tier 1 exact-match cache behavior:
+
+- Exact-match cache hits are chat-completion-only and do not change `route_code`.
+- The original safe local route decision remains in `route`.
+- Chat completion responses and audit events add explicit cache metadata for hits.
+- Adversarial, rejected, fail-closed, or non-local responses are not cached.
+
 ## Runner behavior
 
 The default build registers `StubLegalRunner` only. For Tier 3 legal requests, it returns a clearly marked local stub response and no `local_output` metadata.
@@ -73,12 +82,14 @@ If the GGUF path is unavailable or fails, the daemon falls back to `StubLegalRun
 
 ## Audit events
 
-The daemon appends JSONL audit events to the configured audit log path and stores events in memory for `GET /v1/audit/events`. Events include route code, tier, domain, model id, route explanation, warnings, and whether data left the device.
+The daemon appends JSONL audit events to the configured audit log path and stores events in memory for `GET /v1/audit/events`. Events include route code, tier, domain, model id, route explanation, warnings, whether data left the device, and cache-hit metadata when a local exact-match entry is reused.
 
 Audit events are local process records. They are not currently signed, tamper-evident, replicated, encrypted by the daemon, or certified as enterprise audit evidence.
 
 ## Data locality
 
 The daemon contains no default cloud provider calls. The current routes set `data_left_device: false`. Optional GGUF flows call local subprocesses and local Ollama when explicitly configured by the operator.
+
+The Tier 1 cache is process-local and in-memory only. It is exact-match only, not semantic caching, not distributed, and not shared across daemon restarts.
 
 Cloud BYOK, Tier 5, and enterprise provider routing are not implemented.
