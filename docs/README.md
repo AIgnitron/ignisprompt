@@ -18,6 +18,7 @@ The default path does not require Ollama, GGUF tooling, model weights, or networ
 ## Docs map
 
 - [Architecture](ARCHITECTURE.md): daemon shape, endpoints, route flow, runner fallback behavior, and non-implemented tiers.
+- [Runner Providers](RUNNER_PROVIDERS.md): `ModelRunner` trait, `ModelRunnerContext`, provider ordering, and rules for adding new local runners.
 - [Demo](DEMO.md): default smoke flow and optional GGUF/Ollama demo flow.
 - [Testing](TESTING.md): build, test, smoke, feature-gated, and local evidence test guidance.
 - [Models](MODELS.md): manifest fields, local model placement, and Qwen2.5 0.5B baseline caveat.
