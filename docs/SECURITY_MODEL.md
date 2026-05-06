@@ -39,13 +39,14 @@ Current limitations:
 
 ## Local exact-match cache
 
-The Tier 1 cache is local, in-memory, and exact-match only. It is limited to safe chat completions that stay on device and does not implement semantic caching, embeddings, cross-user reuse, or cross-process persistence.
+The Tier 1 cache is local, in-memory, and exact-match only. It is limited to safe chat completions that stay on device and does not implement semantic caching, embeddings, cross-user reuse, or cross-process persistence. It is bounded to `128` entries by default and can be tightened or expanded locally with `IGNISPROMPT_EXACT_MATCH_CACHE_MAX_ENTRIES` or `--exact-match-cache-max-entries`.
 
 Current safeguards:
 
 - adversarial document-instruction requests are not cached
 - preflight-rejected requests are not cached
 - fail-closed responses are not cached
+- parse-error legal JSON outputs are not cached as successful entries
 - cache hits preserve `data_left_device: false`
 - cache hits preserve the underlying local route metadata and audit behavior
 

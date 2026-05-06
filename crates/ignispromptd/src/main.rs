@@ -1,4 +1,9 @@
-use std::{collections::HashMap, net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{
+    collections::{HashMap, VecDeque},
+    net::SocketAddr,
+    path::PathBuf,
+    sync::Arc,
+};
 
 mod legal_json;
 mod model_runner;
@@ -58,6 +63,14 @@ struct Args {
         default_value_t = true
     )]
     exact_match_cache: bool,
+
+    /// Maximum number of local Tier 1 exact-match cache entries retained in memory.
+    #[arg(
+        long,
+        env = "IGNISPROMPT_EXACT_MATCH_CACHE_MAX_ENTRIES",
+        default_value_t = 128
+    )]
+    exact_match_cache_max_entries: usize,
 
     /// Simulate RAM pressure for smoke-test fallback cases.
     #[arg(long, env = "IGNISPROMPT_FORCE_RAM_PRESSURE", default_value_t = false)]
@@ -239,22 +252,59 @@ struct ExactMatchCacheEntry {
 }
 
 #[derive(Default)]
+struct ExactMatchCacheState {
+    entries: HashMap<ExactMatchCacheKey, ExactMatchCacheEntry>,
+    insertion_order: VecDeque<ExactMatchCacheKey>,
+}
+
 struct ExactMatchCache {
-    entries: RwLock<HashMap<ExactMatchCacheKey, ExactMatchCacheEntry>>,
+    max_entries: usize,
+    state: RwLock<ExactMatchCacheState>,
 }
 
 impl ExactMatchCache {
+    fn new(max_entries: usize) -> Self {
+        Self {
+            max_entries,
+            state: RwLock::new(ExactMatchCacheState::default()),
+        }
+    }
+
     async fn get(&self, key: &ExactMatchCacheKey) -> Option<ExactMatchCacheEntry> {
-        self.entries.read().await.get(key).cloned()
+        self.state.read().await.entries.get(key).cloned()
     }
 
     async fn insert(&self, key: ExactMatchCacheKey, entry: ExactMatchCacheEntry) {
-        self.entries.write().await.insert(key, entry);
+        if self.max_entries == 0 {
+            return;
+        }
+
+        let mut state = self.state.write().await;
+        if state.entries.contains_key(&key) {
+            state.entries.insert(key, entry);
+            return;
+        }
+
+        while state.entries.len() >= self.max_entries {
+            if let Some(evicted_key) = state.insertion_order.pop_front() {
+                state.entries.remove(&evicted_key);
+            } else {
+                break;
+            }
+        }
+
+        state.insertion_order.push_back(key.clone());
+        state.entries.insert(key, entry);
     }
 
     #[cfg(test)]
     async fn len(&self) -> usize {
-        self.entries.read().await.len()
+        self.state.read().await.entries.len()
+    }
+
+    #[cfg(test)]
+    async fn contains_key(&self, key: &ExactMatchCacheKey) -> bool {
+        self.state.read().await.entries.contains_key(key)
     }
 }
 
@@ -340,7 +390,7 @@ async fn main() -> Result<()> {
         config: args.clone(),
         model_registry: Arc::new(RwLock::new(registry)),
         model_runners: Arc::new(configured_model_runners()),
-        completion_cache: Arc::new(ExactMatchCache::default()),
+        completion_cache: Arc::new(ExactMatchCache::new(args.exact_match_cache_max_entries)),
         audit: Arc::new(audit),
     };
 
@@ -523,7 +573,8 @@ async fn chat_completions(
                 &decision,
                 selected_model.as_ref(),
             );
-            if let Some(key) = cache_key {
+            if let Some(key) = cache_key.filter(|_| completion_output_is_cacheable(&completion_output))
+            {
                 state
                     .completion_cache
                     .insert(
@@ -675,6 +726,15 @@ fn completion_cache_is_eligible(
         && !decision.data_left_device
         && !decision.cloud_considered
         && !decision.cloud_allowed
+}
+
+fn completion_output_is_cacheable(output: &ModelRunnerOutput) -> bool {
+    output
+        .metadata
+        .as_ref()
+        .and_then(|metadata| metadata.legal_json.as_ref())
+        .map(|legal_json| legal_json.status == "ok")
+        .unwrap_or(true)
 }
 
 fn completion_cache_key_for_request(
@@ -944,17 +1004,26 @@ mod tests {
     }
 
     fn state_with_models_and_cache(models: Vec<ModelManifest>, exact_match_cache: bool) -> AppState {
+        state_with_models_and_cache_limit(models, exact_match_cache, 128)
+    }
+
+    fn state_with_models_and_cache_limit(
+        models: Vec<ModelManifest>,
+        exact_match_cache: bool,
+        exact_match_cache_max_entries: usize,
+    ) -> AppState {
         let audit_path =
             std::env::temp_dir().join(format!("ignispromptd-test-{}.jsonl", Uuid::new_v4()));
         let mut config = test_args(audit_path.clone());
         config.exact_match_cache = exact_match_cache;
+        config.exact_match_cache_max_entries = exact_match_cache_max_entries;
 
         AppState {
             started_at: Utc::now(),
             config,
             model_registry: Arc::new(RwLock::new(ModelRegistry { models })),
             model_runners: Arc::new(runner_adapter()),
-            completion_cache: Arc::new(ExactMatchCache::default()),
+            completion_cache: Arc::new(ExactMatchCache::new(exact_match_cache_max_entries)),
             audit: Arc::new(AuditStore {
                 path: audit_path,
                 events: RwLock::new(Vec::new()),
@@ -969,6 +1038,7 @@ mod tests {
             audit_log: audit_path,
             local_only: true,
             exact_match_cache: true,
+            exact_match_cache_max_entries: 128,
             force_ram_pressure: false,
             #[cfg(feature = "gguf-runner-spike")]
             gguf_runner_bin: None,
@@ -1067,6 +1137,15 @@ mod tests {
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let parsed: ChatCompletionResponse = serde_json::from_slice(&body).unwrap();
         (status, parsed)
+    }
+
+    fn exact_match_cache_key_for_test(
+        state: &AppState,
+        request: &ChatCompletionRequest,
+        decision: &RouteDecision,
+        selected_model: Option<&ModelManifest>,
+    ) -> ExactMatchCacheKey {
+        completion_cache_key_for_request(&state.config, request, decision, selected_model)
     }
 
     #[test]
@@ -1284,6 +1363,86 @@ mod tests {
         assert_cache_state(first.cache.as_ref(), false);
         assert_cache_state(second.cache.as_ref(), false);
         assert_eq!(state.completion_cache.len().await, 0);
+    }
+
+    #[tokio::test]
+    async fn exact_match_cache_evicts_oldest_entries_when_max_entries_is_reached() {
+        let model = legal_model();
+        let state = state_with_models_and_cache_limit(vec![model.clone()], true, 2);
+        let request_a = req(
+            "Review this indemnification clause in a vendor services agreement.",
+            Some("ignisprompt/legal"),
+        );
+        let request_b = req(
+            "Review this governing law clause in a vendor services agreement.",
+            Some("ignisprompt/legal"),
+        );
+        let request_c = req(
+            "Review this termination clause in a vendor services agreement.",
+            Some("ignisprompt/legal"),
+        );
+
+        let (_, response_a) = call_chat_completions(&state, request_a.clone()).await;
+        let (_, response_b) = call_chat_completions(&state, request_b.clone()).await;
+        let (_, response_c) = call_chat_completions(&state, request_c.clone()).await;
+
+        assert_cache_state(response_a.cache.as_ref(), false);
+        assert_cache_state(response_b.cache.as_ref(), false);
+        assert_cache_state(response_c.cache.as_ref(), false);
+        assert_eq!(state.completion_cache.len().await, 2);
+
+        let key_a = exact_match_cache_key_for_test(&state, &request_a, &response_a.route, Some(&model));
+        let key_b = exact_match_cache_key_for_test(&state, &request_b, &response_b.route, Some(&model));
+        let key_c = exact_match_cache_key_for_test(&state, &request_c, &response_c.route, Some(&model));
+
+        assert!(!state.completion_cache.contains_key(&key_a).await);
+        assert!(state.completion_cache.contains_key(&key_b).await);
+        assert!(state.completion_cache.contains_key(&key_c).await);
+
+        let (_, response_b_again) = call_chat_completions(&state, request_b).await;
+        let (_, response_a_again) = call_chat_completions(&state, request_a).await;
+
+        assert_cache_state(response_b_again.cache.as_ref(), true);
+        assert_cache_state(response_a_again.cache.as_ref(), false);
+        assert_eq!(state.completion_cache.len().await, 2);
+    }
+
+    #[tokio::test]
+    async fn disabled_exact_match_cache_never_inserts_or_hits() {
+        let state = state_with_models_and_cache_limit(vec![legal_model()], false, 2);
+        let request = req(
+            "Review this indemnification clause in a vendor services agreement and return the key risks.",
+            Some("ignisprompt/legal"),
+        );
+
+        let (_, first) = call_chat_completions(&state, request.clone()).await;
+        let (_, second) = call_chat_completions(&state, request).await;
+
+        assert_cache_state(first.cache.as_ref(), false);
+        assert_cache_state(second.cache.as_ref(), false);
+        assert_eq!(state.completion_cache.len().await, 0);
+    }
+
+    #[test]
+    fn parse_error_outputs_are_not_cacheable_as_success_entries() {
+        let output = ModelRunnerOutput {
+            content: "{\"error\":\"invalid\"}".to_string(),
+            metadata: Some(CompletionOutputMetadata {
+                runner: "gguf-runner-spike".to_string(),
+                legal_json: Some(crate::legal_json::LegalJsonMetadata {
+                    status: "error".to_string(),
+                    source: "raw".to_string(),
+                    schema_valid: false,
+                    error_code: Some("LEGAL_JSON_SCHEMA_INVALID".to_string()),
+                    error_message: Some("schema invalid".to_string()),
+                    missing_fields: vec!["clause_type".to_string()],
+                    invalid_fields: vec![],
+                    raw_model_output: "{\"error\":\"invalid\"}".to_string(),
+                }),
+            }),
+        };
+
+        assert!(!completion_output_is_cacheable(&output));
     }
 
     #[test]
