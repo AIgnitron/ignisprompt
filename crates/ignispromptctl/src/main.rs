@@ -65,10 +65,25 @@ fn cmd_health(base_url: &str) {
     match ureq::get(&url).call() {
         Ok(resp) => {
             let body = parse_response(resp);
-            println!("status: ok");
-            if let Some(v) = body.get("version") {
-                println!("version: {}", v);
-            }
+            println!(
+                "status:  {}",
+                body.get("status").and_then(|v| v.as_str()).unwrap_or("ok")
+            );
+            println!(
+                "version: {}",
+                body.get("version").and_then(|v| v.as_str()).unwrap_or("-")
+            );
+            println!(
+                "service: {}",
+                body.get("service").and_then(|v| v.as_str()).unwrap_or("-")
+            );
+            println!(
+                "local_only: {}",
+                body.get("local_only")
+                    .and_then(|v| v.as_bool())
+                    .map(|b| if b { "true" } else { "false" })
+                    .unwrap_or("-")
+            );
         }
         Err(e) => {
             eprintln!("error: daemon not reachable — {}", e);
@@ -78,19 +93,35 @@ fn cmd_health(base_url: &str) {
 }
 
 fn cmd_models(base_url: &str) {
+    // Daemon returns ModelRegistry: { models: [{ model_id, display_name, tier, domains, ... }] }
     let url = format!("{}/v1/models", base_url);
     match ureq::get(&url).call() {
         Ok(resp) => {
             let body = parse_response(resp);
-            if let Some(models) = body.get("data").and_then(|d| d.as_array()) {
+            if let Some(models) = body.get("models").and_then(|d| d.as_array()) {
                 if models.is_empty() {
                     println!("no models found");
+                    return;
                 }
                 for m in models {
-                    let id = m.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
-                    let tier = m.get("tier").and_then(|v| v.as_str()).unwrap_or("-");
-                    let domain = m.get("domain").and_then(|v| v.as_str()).unwrap_or("-");
-                    println!("{:<40} tier={} domain={}", id, tier, domain);
+                    let id = m.get("model_id").and_then(|v| v.as_str()).unwrap_or("unknown");
+                    let tier = m.get("tier").and_then(|v| v.as_u64())
+                        .map(|t| format!("TIER_{}", t))
+                        .unwrap_or_else(|| "-".to_string());
+                    let domains = m.get("domains")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|d| d.as_str())
+                                .collect::<Vec<_>>()
+                                .join(",")
+                        })
+                        .unwrap_or_else(|| "-".to_string());
+                    let installed = m.get("installed")
+                        .and_then(|v| v.as_bool())
+                        .map(|b| if b { "installed" } else { "missing" })
+                        .unwrap_or("-");
+                    println!("{:<45} {}  domains={}  {}", id, tier, domains, installed);
                 }
             } else {
                 println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
@@ -111,6 +142,9 @@ fn cmd_route_explain(base_url: &str, file: &str) {
             process::exit(1);
         }
     };
+    // Daemon returns RouteExplainResponse:
+    // { request_id, decision: { tier, route_code, domain, model_id,
+    //   cloud_considered, cloud_allowed, data_left_device }, explanation, warnings }
     let url = format!("{}/v1/route/explain", base_url);
     match ureq::post(&url)
         .set("content-type", "application/json")
@@ -118,27 +152,48 @@ fn cmd_route_explain(base_url: &str, file: &str) {
     {
         Ok(resp) => {
             let data = parse_response(resp);
+            let decision = data.get("decision").cloned().unwrap_or(Value::Null);
             println!(
-                "tier:             {}",
-                data.get("tier").and_then(|v| v.as_str()).unwrap_or("-")
+                "tier:               {}",
+                decision.get("tier").and_then(|v| v.as_str()).unwrap_or("-")
             );
             println!(
-                "route_code:       {}",
-                data.get("route_code").and_then(|v| v.as_str()).unwrap_or("-")
+                "route_code:         {}",
+                decision.get("route_code").and_then(|v| v.as_str()).unwrap_or("-")
             );
             println!(
-                "data_left_device: {}",
-                data.get("data_left_device")
+                "domain:             {}",
+                decision.get("domain").and_then(|v| v.as_str()).unwrap_or("-")
+            );
+            println!(
+                "model_id:           {}",
+                decision.get("model_id").and_then(|v| v.as_str()).unwrap_or("-")
+            );
+            println!(
+                "data_left_device:   {}",
+                decision.get("data_left_device")
                     .and_then(|v| v.as_bool())
                     .map(|b| if b { "true" } else { "false" })
                     .unwrap_or("-")
             );
             println!(
-                "explanation:      {}",
-                data.get("human_readable_explanation")
-                    .and_then(|v| v.as_str())
+                "cloud_considered:   {}",
+                decision.get("cloud_considered")
+                    .and_then(|v| v.as_bool())
+                    .map(|b| if b { "true" } else { "false" })
                     .unwrap_or("-")
             );
+            println!(
+                "explanation:        {}",
+                data.get("explanation").and_then(|v| v.as_str()).unwrap_or("-")
+            );
+            if let Some(warnings) = data.get("warnings").and_then(|v| v.as_array()) {
+                for w in warnings {
+                    if let Some(s) = w.as_str() {
+                        println!("warning:            {}", s);
+                    }
+                }
+            }
         }
         Err(e) => {
             eprintln!("error: {}", e);
@@ -174,6 +229,8 @@ fn cmd_audit_tail(base_url: &str) {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     #[test]
     fn health_url_format() {
         let url = format!("{}/health", "http://127.0.0.1:8765");
@@ -196,5 +253,44 @@ mod tests {
     fn audit_tail_url_format() {
         let url = format!("{}/v1/audit/events", "http://127.0.0.1:8765");
         assert_eq!(url, "http://127.0.0.1:8765/v1/audit/events");
+    }
+
+    #[test]
+    fn route_explain_reads_decision_nested_fields() {
+        let response = json!({
+            "request_id": "abc",
+            "decision": {
+                "tier": "TIER_3",
+                "route_code": "DOMAIN_MODEL_SELECTED",
+                "domain": "legal",
+                "model_id": "legal-qwen2.5",
+                "cloud_considered": false,
+                "cloud_allowed": false,
+                "data_left_device": false
+            },
+            "explanation": "Routed to local legal model.",
+            "warnings": []
+        });
+        let decision = response.get("decision").unwrap();
+        assert_eq!(decision.get("tier").and_then(|v| v.as_str()).unwrap(), "TIER_3");
+        assert_eq!(decision.get("route_code").and_then(|v| v.as_str()).unwrap(), "DOMAIN_MODEL_SELECTED");
+        assert_eq!(decision.get("data_left_device").and_then(|v| v.as_bool()).unwrap(), false);
+    }
+
+    #[test]
+    fn models_reads_correct_fields() {
+        let response = json!({
+            "models": [
+                {
+                    "model_id": "legal-qwen2.5-0.5b",
+                    "tier": 3,
+                    "domains": ["legal"],
+                    "installed": true
+                }
+            ]
+        });
+        let models = response.get("models").and_then(|d| d.as_array()).unwrap();
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].get("model_id").and_then(|v| v.as_str()).unwrap(), "legal-qwen2.5-0.5b");
     }
 }
