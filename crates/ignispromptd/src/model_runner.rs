@@ -10,7 +10,7 @@ use std::{
     process::Command,
 };
 #[cfg(feature = "gguf-runner-spike")]
-use tracing::warn;
+use tracing::{info, warn};
 #[cfg(feature = "gguf-runner-spike")]
 use uuid::Uuid;
 
@@ -93,6 +93,25 @@ pub(crate) struct GgufRunner;
 impl GgufRunner {
     const LEGAL_PROMPT_PACK_FILE: &'static str = "legal-contract-review-v0.1.md";
 
+    fn has_explicit_runner_path(path: &Path) -> bool {
+        path.is_absolute() || path.components().count() > 1
+    }
+
+    fn configured_runner_bin(config: &Args) -> Result<&Path> {
+        let runner_bin = config
+            .gguf_runner_bin
+            .as_deref()
+            .ok_or_else(|| anyhow!("GGUF runner binary is not configured"))?;
+
+        if !Self::has_explicit_runner_path(runner_bin) {
+            bail!(
+                "GGUF runner binary path must be explicit. Configure --gguf-runner-bin or IGNISPROMPT_GGUF_RUNNER_BIN with an absolute path or a relative path such as ./scripts/ollama-gguf-runner.sh. Bare executable names are not allowed."
+            );
+        }
+
+        Ok(runner_bin)
+    }
+
     fn local_model_path(model: &ModelManifest) -> Option<&str> {
         model
             .local_path
@@ -171,6 +190,26 @@ impl GgufRunner {
 }
 
 #[cfg(feature = "gguf-runner-spike")]
+pub(crate) fn log_gguf_runner_configuration(config: &Args) {
+    match config.gguf_runner_bin.as_deref() {
+        None => info!(
+            "GGUF runner binary path is not configured; the optional subprocess path remains disabled and StubLegalRunner stays available as the fallback."
+        ),
+        Some(runner_bin) => match GgufRunner::configured_runner_bin(config) {
+            Ok(validated_path) => info!(
+                runner_bin = %validated_path.display(),
+                "GGUF runner binary configured as a local operator-managed subprocess dependency"
+            ),
+            Err(err) => warn!(
+                runner_bin = %runner_bin.display(),
+                error = %err,
+                "GGUF runner binary configuration is invalid; the optional subprocess path will be skipped until an explicit local path is configured"
+            ),
+        },
+    }
+}
+
+#[cfg(feature = "gguf-runner-spike")]
 impl ModelRunner for GgufRunner {
     fn name(&self) -> &'static str {
         "gguf-runner-spike"
@@ -189,7 +228,7 @@ impl ModelRunner for GgufRunner {
             return false;
         }
 
-        let Some(runner_bin) = context.config.gguf_runner_bin.as_ref() else {
+        let Ok(runner_bin) = Self::configured_runner_bin(context.config) else {
             return false;
         };
 
@@ -201,11 +240,7 @@ impl ModelRunner for GgufRunner {
     }
 
     fn run(&self, context: &ModelRunnerContext<'_>) -> Result<ModelRunnerOutput> {
-        let runner_bin = context
-            .config
-            .gguf_runner_bin
-            .as_ref()
-            .ok_or_else(|| anyhow!("GGUF runner binary is not configured"))?;
+        let runner_bin = Self::configured_runner_bin(context.config)?;
         let model = context
             .model
             .ok_or_else(|| anyhow!("no model manifest was selected for the GGUF runner"))?;
@@ -326,5 +361,64 @@ impl ModelRunner for StubLegalRunner {
             ),
             metadata: None,
         })
+    }
+}
+
+#[cfg(all(test, feature = "gguf-runner-spike"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gguf_runner_rejects_bare_executable_names() {
+        let config = Args {
+            bind: "127.0.0.1:8765".parse().unwrap(),
+            model_dir: PathBuf::from("./config/models"),
+            audit_log: PathBuf::from("./data/audit/events.jsonl"),
+            local_only: true,
+            exact_match_cache: true,
+            exact_match_cache_max_entries: 128,
+            force_ram_pressure: false,
+            gguf_runner_bin: Some(PathBuf::from("ollama-gguf-runner.sh")),
+            prompt_dir: PathBuf::from("./config/prompts"),
+            gguf_max_tokens: 256,
+        };
+
+        let err = GgufRunner::configured_runner_bin(&config).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("GGUF runner binary path must be explicit"));
+    }
+
+    #[test]
+    fn gguf_runner_accepts_relative_and_absolute_paths() {
+        let relative = Args {
+            bind: "127.0.0.1:8765".parse().unwrap(),
+            model_dir: PathBuf::from("./config/models"),
+            audit_log: PathBuf::from("./data/audit/events.jsonl"),
+            local_only: true,
+            exact_match_cache: true,
+            exact_match_cache_max_entries: 128,
+            force_ram_pressure: false,
+            gguf_runner_bin: Some(PathBuf::from("./scripts/ollama-gguf-runner.sh")),
+            prompt_dir: PathBuf::from("./config/prompts"),
+            gguf_max_tokens: 256,
+        };
+        let absolute = Args {
+            gguf_runner_bin: Some(PathBuf::from("/tmp/ollama-gguf-runner.sh")),
+            ..relative.clone()
+        };
+
+        assert_eq!(
+            GgufRunner::configured_runner_bin(&relative)
+                .unwrap()
+                .to_string_lossy(),
+            "./scripts/ollama-gguf-runner.sh"
+        );
+        assert_eq!(
+            GgufRunner::configured_runner_bin(&absolute)
+                .unwrap()
+                .to_string_lossy(),
+            "/tmp/ollama-gguf-runner.sh"
+        );
     }
 }

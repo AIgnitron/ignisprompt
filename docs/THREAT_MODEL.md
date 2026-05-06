@@ -53,8 +53,18 @@ Audit tampering:
 
 Subprocess runner compromise:
 
-- Current mitigation: GGUF runner is feature-gated and opt-in.
-- Gap: no subprocess sandbox, binary allowlist, seccomp profile, or filesystem isolation is implemented.
+- Current mitigation: GGUF runner is feature-gated, opt-in, and requires an explicit local binary path from operator configuration. The daemon does not silently fall back to a bare executable name resolved from `PATH`.
+- Current mitigation: startup logs record the configured local runner path when present, or note that the subprocess path is disabled when not configured.
+- Current mitigation: if the configured path is invalid, missing, or otherwise unusable, the daemon skips the subprocess path and falls back to `StubLegalRunner`.
+- Gap: no subprocess sandbox, binary allowlist, signature verification, seccomp profile, or filesystem isolation is implemented.
+- Gap: operators are still responsible for deciding whether the configured local runner binary is trusted, patched, and scoped to local-only dependencies.
+
+Untrusted local runner binary risks:
+
+- A local runner binary can read prompt files, model paths, prompt packs, environment variables, and any other filesystem locations available to the daemon user.
+- A local runner binary can emit malformed or misleading output; the daemon records structured parse failures when legal JSON normalization fails, but it cannot prove the runner behaved honestly.
+- A local runner binary can ignore local-only expectations if the operator wires it to other tools or endpoints outside this repository's defaults.
+- A local runner binary can inherit the daemon's local privileges. Treat it as operator-managed code, not as a trusted component shipped and sandboxed by IgnisPrompt.
 
 Unauthenticated local API access:
 

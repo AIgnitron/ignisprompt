@@ -76,11 +76,14 @@ When built with `--features gguf-runner-spike`, the adapter tries `GgufRunner` b
 
 - The selected route is Tier 3 legal.
 - The selected manifest has `format: "gguf"`.
-- `IGNISPROMPT_GGUF_RUNNER_BIN` or `--gguf-runner-bin` points to an existing local executable.
+- `IGNISPROMPT_GGUF_RUNNER_BIN` or `--gguf-runner-bin` supplies an explicit local binary path, not a bare executable name.
+- That configured local runner path points to an existing local executable.
 - The selected manifest `localPath` points to an existing local `.gguf` file.
 - The configured prompt pack can be read.
 
-If the GGUF path is unavailable or fails, the daemon falls back to `StubLegalRunner`. This keeps the default smoke path independent of Ollama, GGUF tooling, and local model weights.
+At startup, the daemon logs whether the optional GGUF subprocess path is configured and, when it is configured correctly, which local binary path will be used.
+
+If the GGUF path is unavailable, configured with a non-explicit runner name, or fails at runtime, the daemon falls back to `StubLegalRunner`. This keeps the default smoke path independent of Ollama, GGUF tooling, and local model weights.
 
 ## Audit events
 

@@ -19,6 +19,8 @@ use axum::{
 use chrono::{DateTime, Utc};
 use clap::Parser;
 #[cfg(feature = "gguf-runner-spike")]
+use model_runner::log_gguf_runner_configuration;
+#[cfg(feature = "gguf-runner-spike")]
 use model_runner::GgufRunner;
 use model_runner::{
     CompletionOutputMetadata, ModelRunner, ModelRunnerAdapter, ModelRunnerContext,
@@ -57,11 +59,7 @@ struct Args {
     local_only: bool,
 
     /// Enable the local in-memory Tier 1 exact-match cache for safe chat completions.
-    #[arg(
-        long,
-        env = "IGNISPROMPT_EXACT_MATCH_CACHE",
-        default_value_t = true
-    )]
+    #[arg(long, env = "IGNISPROMPT_EXACT_MATCH_CACHE", default_value_t = true)]
     exact_match_cache: bool,
 
     /// Maximum number of local Tier 1 exact-match cache entries retained in memory.
@@ -375,6 +373,8 @@ async fn main() -> Result<()> {
         .init();
 
     let args = Args::parse();
+    #[cfg(feature = "gguf-runner-spike")]
+    log_gguf_runner_configuration(&args);
     let registry = load_model_registry(&args.model_dir)
         .await
         .with_context(|| {
@@ -573,7 +573,8 @@ async fn chat_completions(
                 &decision,
                 selected_model.as_ref(),
             );
-            if let Some(key) = cache_key.filter(|_| completion_output_is_cacheable(&completion_output))
+            if let Some(key) =
+                cache_key.filter(|_| completion_output_is_cacheable(&completion_output))
             {
                 state
                     .completion_cache
@@ -705,7 +706,9 @@ async fn selected_model_for_decision(
 }
 
 fn request_model_name(req: &ChatCompletionRequest) -> String {
-    req.model.clone().unwrap_or_else(|| "ignisprompt".to_string())
+    req.model
+        .clone()
+        .unwrap_or_else(|| "ignisprompt".to_string())
 }
 
 fn declared_domain(req: &ChatCompletionRequest) -> Option<String> {
@@ -1003,7 +1006,10 @@ mod tests {
         state_with_models_and_cache(models, true)
     }
 
-    fn state_with_models_and_cache(models: Vec<ModelManifest>, exact_match_cache: bool) -> AppState {
+    fn state_with_models_and_cache(
+        models: Vec<ModelManifest>,
+        exact_match_cache: bool,
+    ) -> AppState {
         state_with_models_and_cache_limit(models, exact_match_cache, 128)
     }
 
@@ -1227,7 +1233,10 @@ mod tests {
             },
         );
         assert_cache_state(second.cache.as_ref(), true);
-        assert_eq!(first.choices[0].message.content, second.choices[0].message.content);
+        assert_eq!(
+            first.choices[0].message.content,
+            second.choices[0].message.content
+        );
         assert_eq!(state.completion_cache.len().await, 1);
         assert!(!second.route.data_left_device);
         assert!(!second.route.cloud_considered);
@@ -1391,9 +1400,12 @@ mod tests {
         assert_cache_state(response_c.cache.as_ref(), false);
         assert_eq!(state.completion_cache.len().await, 2);
 
-        let key_a = exact_match_cache_key_for_test(&state, &request_a, &response_a.route, Some(&model));
-        let key_b = exact_match_cache_key_for_test(&state, &request_b, &response_b.route, Some(&model));
-        let key_c = exact_match_cache_key_for_test(&state, &request_c, &response_c.route, Some(&model));
+        let key_a =
+            exact_match_cache_key_for_test(&state, &request_a, &response_a.route, Some(&model));
+        let key_b =
+            exact_match_cache_key_for_test(&state, &request_b, &response_b.route, Some(&model));
+        let key_c =
+            exact_match_cache_key_for_test(&state, &request_c, &response_c.route, Some(&model));
 
         assert!(!state.completion_cache.contains_key(&key_a).await);
         assert!(state.completion_cache.contains_key(&key_b).await);
@@ -1675,6 +1687,66 @@ mod tests {
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
 
+    #[cfg(all(feature = "gguf-runner-spike", unix))]
+    #[test]
+    fn tier_3_completion_falls_back_to_stub_when_runner_bin_path_is_not_explicit() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "ignispromptd-gguf-bare-runner-test-{}",
+            Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let model_path = temp_dir.join("legal.gguf");
+        std::fs::write(&model_path, "gguf-placeholder").unwrap();
+
+        let model = ModelManifest {
+            model_id: "saullm-gguf-spike".to_string(),
+            display_name: "SaulLM GGUF Spike".to_string(),
+            tier: 3,
+            domains: vec!["legal".to_string()],
+            format: "gguf".to_string(),
+            quantization: Some("q4_k_m".to_string()),
+            context_window: Some(8192),
+            local_path: Some(model_path.display().to_string()),
+            prompt_pack: Some("legal-contract-review-compact-v0.1.md".to_string()),
+            response_format: Some("schema".to_string()),
+            sha256: None,
+            version: Some("0.1-spike".to_string()),
+            installed: true,
+            source: Some("local".to_string()),
+        };
+        let request = req(
+            "Review this indemnification clause in a vendor services agreement.",
+            Some("ignisprompt/legal"),
+        );
+        let decision = RouteDecision {
+            tier: "TIER_3".to_string(),
+            route_code: "DOMAIN_MODEL_SELECTED".to_string(),
+            domain: "legal".to_string(),
+            model_id: Some(model.model_id.clone()),
+            cloud_considered: false,
+            cloud_allowed: false,
+            data_left_device: false,
+        };
+        let mut config = test_args(temp_dir.join("events.jsonl"));
+        config.gguf_runner_bin = Some(PathBuf::from("fake-gguf-runner.sh"));
+
+        let output = completion_output_for_decision(
+            &runner_adapter(),
+            &config,
+            &request,
+            &decision,
+            Some(&model),
+        );
+
+        assert!(output
+            .content
+            .contains("StubLegalRunner handled this Tier 3 legal request locally"));
+        assert!(output.metadata.is_none());
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
     #[tokio::test]
     async fn route_policy_matrix_locks_down_core_legal_routing_guarantees() {
         // Matrix cases:
@@ -1817,7 +1889,10 @@ mod tests {
             normal.decision.cloud_considered,
             adversarial.decision.cloud_considered
         );
-        assert_eq!(normal.decision.cloud_allowed, adversarial.decision.cloud_allowed);
+        assert_eq!(
+            normal.decision.cloud_allowed,
+            adversarial.decision.cloud_allowed
+        );
         assert_eq!(
             normal.decision.data_left_device,
             adversarial.decision.data_left_device
@@ -1837,7 +1912,10 @@ mod tests {
         assert_eq!(normal_event.tier, normal.decision.tier);
         assert_eq!(adversarial_event.tier, adversarial.decision.tier);
         assert_eq!(normal_event.route_code, normal.decision.route_code);
-        assert_eq!(adversarial_event.route_code, adversarial.decision.route_code);
+        assert_eq!(
+            adversarial_event.route_code,
+            adversarial.decision.route_code
+        );
         assert_eq!(normal_event.domain, normal.decision.domain);
         assert_eq!(adversarial_event.domain, adversarial.decision.domain);
         assert_eq!(normal_event.model_id, normal.decision.model_id);

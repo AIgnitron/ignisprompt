@@ -15,7 +15,7 @@ This document describes the current scaffold security posture. It is not a certi
 
 The daemon has no default cloud provider calls. Current route decisions report `data_left_device: false`. Legal requests either route to a local Tier 3 path or fail closed.
 
-Optional GGUF flows are local operator-controlled integrations. The included Ollama wrapper targets `OLLAMA_HOST`, which should be a local host such as `http://127.0.0.1:11434`, and sets `OLLAMA_NO_CLOUD=true` by default.
+Optional GGUF flows are local operator-controlled integrations. The included Ollama wrapper targets `OLLAMA_HOST`, which should be a local host such as `http://127.0.0.1:11434`, and sets `OLLAMA_NO_CLOUD=true` by default. The daemon only accepts an explicit configured runner binary path for the GGUF subprocess path; it does not implicitly resolve a bare executable name from `PATH`.
 
 Cloud BYOK routing is not implemented. Tier 5 cloud routing is not implemented.
 
@@ -63,7 +63,7 @@ Demo, golden, and bakeoff outputs belong under `./local-evidence/`, which is ign
 - No signed attestation report generation.
 - No tamper-evident audit log chain.
 - No complete prompt-injection defense.
-- No sandbox around the optional GGUF subprocess.
+- No sandbox, signature verification, or allowlist around the optional GGUF subprocess.
 - No enterprise policy engine.
 - No production secrets manager integration.
 
