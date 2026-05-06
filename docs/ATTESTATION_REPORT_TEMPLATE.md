@@ -1,8 +1,10 @@
 # Local-Only Attestation Report Template
 
-This is a manual template only. IgnisPrompt does not currently generate, sign, verify, or publish Local-Only Attestation Reports.
+This is a developer evidence template only. IgnisPrompt does not currently generate, sign, verify, or publish Local-Only Attestation Reports.
 
-Do not describe this template as an implemented attestation feature.
+Do not describe this template as an implemented attestation feature, formal certification, enterprise compliance certification, or production attestation.
+
+The helper script `./scripts/generate-local-only-attestation.sh` can generate a local evidence bundle under `./local-evidence/attestation/<timestamp>/`. That bundle is for developer review only and is not a signed or certified attestation artifact.
 
 ## Report metadata
 
@@ -20,9 +22,12 @@ Do not describe this template as an implemented attestation feature.
 - `cargo build` result:
 - `cargo test` result:
 - Default daemon smoke result:
+- Local-only evidence script result:
 - Optional `cargo test --all-features` result:
 - Optional GGUF smoke result:
 - Evidence directory:
+- Built binary path:
+- Built binary SHA-256:
 
 ## Runtime configuration
 
@@ -80,12 +85,15 @@ For each sampled request:
 - No cloud provider endpoint configured:
 - No cloud credentials configured:
 - No unexpected outbound network calls observed:
+- `models/**` ignore confirmed:
+- `local-evidence/**` ignore confirmed:
 - Legal unavailable case failed closed:
 - Adversarial document-instruction warning observed:
 
 ## Known limitations
 
 - The daemon does not generate signed attestation reports.
+- The helper script generates developer evidence only.
 - Audit events are not tamper-evident.
 - The local API has no built-in authentication.
 - Qwen2.5 0.5B, when used, is a pipe/demo baseline and not a settled legal-quality model.

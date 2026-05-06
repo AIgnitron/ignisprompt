@@ -97,6 +97,10 @@ That script expects the daemon to already be running with `--features gguf-runne
 
 ## Local evidence scripts
 
+This repo includes one default-path developer evidence script that does not require Ollama, GGUF tooling, or local model weights:
+
+- `./scripts/generate-local-only-attestation.sh`
+
 These scripts require local Ollama and local model files:
 
 - `./scripts/demo-local-legal-review.sh`
@@ -104,6 +108,8 @@ These scripts require local Ollama and local model files:
 - `./scripts/run-alpha-legal-bakeoff-v0.1.sh`
 
 They write evidence under `./local-evidence/`. Do not commit evidence bundles.
+
+`./scripts/generate-local-only-attestation.sh` writes a developer-generated evidence bundle under `./local-evidence/attestation/<timestamp>/`. It captures git SHA, build mode, built binary path and hash, `/health`, legal route explanation, audit snapshot, `data_left_device=false` evidence, and git-ignore safety for `models/**` and `local-evidence/**`. It is not a signed attestation report or compliance certification.
 
 Current local reliability note as of May 2, 2026: the latest local Golden Legal v0.3 evidence available in this workspace records all six control-plane cases as passing with the Qwen2.5 0.5B pipe baseline. The Tier 3 success case records `legal_json.status = "ok"` and `schema_valid = true`. This does not prove legal accuracy, production readiness, enterprise attestation, or compliance certification.
 
