@@ -98,6 +98,7 @@ Current local reliability note as of May 2, 2026: the latest local Golden Legal 
 - The exact-match cache stays bounded and evicts old entries when its local entry limit is exceeded.
 - Adversarial, rejected, and fail-closed chat completions are not cached.
 - The default Tier 3 path uses `StubLegalRunner` unless the feature-gated GGUF runner is explicitly available.
+- The feature-gated GGUF tests require an explicit local runner path and reject bare executable names.
 - The legal JSON normalizer accepts realistic local noisy output forms and records schema failures as structured local failures.
 
 ## What tests do not prove
