@@ -847,7 +847,11 @@ fn streaming_content_fragments(content: &str) -> Vec<String> {
         return vec![String::new()];
     }
 
-    let midpoint = content.len() / 2;
+    let midpoint = content
+        .char_indices()
+        .map(|(idx, _)| idx)
+        .nth(content.chars().count() / 2)
+        .unwrap_or(content.len());
     let split = content[midpoint..]
         .char_indices()
         .find(|(_, ch)| ch.is_whitespace())
@@ -1311,6 +1315,13 @@ mod tests {
         body.lines()
             .filter_map(|line| line.strip_prefix("data: "))
             .collect()
+    }
+
+    #[test]
+    fn streaming_content_fragments_handle_utf8_without_panicking() {
+        let content = "abc🚀def";
+        let fragments = streaming_content_fragments(content);
+        assert_eq!(fragments.concat(), content);
     }
 
     fn exact_match_cache_key_for_test(
