@@ -56,6 +56,27 @@ The `route-explain` command reads a JSON request file. For a legal route example
 
 This default path intentionally avoids Ollama, GGUF model weights, and cloud access.
 
+## Experimental MCP stub
+
+The experimental MCP path is manual-only and is not part of default CI. It can be exercised locally with newline-delimited JSON-RPC over stdio:
+
+```bash
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"manual","version":"0.1.0"}}}' \
+  '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+  '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"route_explain","arguments":{"model":"ignisprompt/legal","messages":[{"role":"user","content":"Review this indemnification clause in a vendor services agreement and return the key risks."}],"metadata":{"domain":"legal"}}}}' \
+  | cargo run -p ignispromptd -- --experimental-mcp-stdio
+```
+
+Current scope:
+
+- `initialize`, `notifications/initialized`, and `ping`
+- `tools/list` and `tools/call`
+- one experimental tool: `route_explain`
+
+This path must stay local-only and must not require Ollama, GGUF tooling, model weights, network access, or cloud access.
+
 ## Feature-gated GGUF checks
 
 The `gguf-runner-spike` feature is optional. Feature-gated tests can be run with:
@@ -102,6 +123,7 @@ Current local reliability note as of May 2, 2026: the latest local Golden Legal 
 - The default Tier 3 path uses `StubLegalRunner` unless the feature-gated GGUF runner is explicitly available.
 - The feature-gated GGUF tests require an explicit local runner path and reject bare executable names.
 - The legal JSON normalizer accepts realistic local noisy output forms and records schema failures as structured local failures.
+- The experimental MCP stub can initialize, list tools, and call `route_explain` while reusing the existing local route and audit behavior.
 
 ## What tests do not prove
 
@@ -109,6 +131,6 @@ Current local reliability note as of May 2, 2026: the latest local Golden Legal 
 - Enterprise compliance certification.
 - Signed attestation.
 - Tamper-evident audit storage.
-- MCP compatibility.
+- Broad MCP client compatibility beyond the experimental stdio `route_explain` stub.
 - Dashboard behavior.
 - Tier 4 or Tier 5 routing.

@@ -6,12 +6,13 @@ The architecture is intentionally small. It validates the local routing control 
 
 ## Runtime components
 
-- CLI config: bind address, model manifest directory, audit log path, local-only mode, RAM-pressure simulation, and optional GGUF spike settings.
+- CLI config: bind address, model manifest directory, audit log path, local-only mode, RAM-pressure simulation, optional experimental MCP stdio mode, and optional GGUF spike settings.
 - Model registry: loads JSON manifests from `config/models`.
 - Router: classifies requests as legal or general and chooses a local route decision.
 - Tier 1 exact-match cache: optional in-memory cache for safe chat completions with identical request and route inputs.
 - Audit store: keeps in-memory events for the process and appends JSONL events to the configured local audit log.
 - Model runner adapter: tries configured model runners in order and falls back safely.
+- Experimental MCP stdio stub: optional newline-delimited JSON-RPC loop exposing one local `route_explain` tool.
 - `StubLegalRunner`: default Tier 3 legal completion path.
 - `GgufRunner`: optional subprocess runner behind the `gguf-runner-spike` Cargo feature.
 
@@ -23,7 +24,19 @@ The architecture is intentionally small. It validates the local routing control 
 - `POST /v1/chat/completions`: accepts an OpenAI-compatible request shape, preserves the current JSON response when `stream` is missing or `false`, and returns a basic SSE-compatible scaffold when `stream` is `true`.
 - `GET /v1/audit/events`: returns audit events accumulated in the current daemon process.
 
-The daemon does not implement an MCP server, dashboard, Tier 4 edge dispatch, Tier 5 cloud dispatch, or signed attestation generation. Its `stream: true` path is a compatibility scaffold that formats an already-produced local completion as SSE chunks; it is not a full incremental token streaming engine.
+The default daemon path does not implement a full MCP server surface, dashboard, Tier 4 edge dispatch, Tier 5 cloud dispatch, or signed attestation generation. Its `stream: true` path is a compatibility scaffold that formats an already-produced local completion as SSE chunks; it is not a full incremental token streaming engine.
+
+## Experimental MCP stdio stub
+
+`ignispromptd` can optionally run an experimental MCP-compatible stdio loop instead of the default HTTP daemon when `--experimental-mcp-stdio` is set.
+
+- Transport: newline-delimited stdio JSON-RPC 2.0.
+- Lifecycle handled: `initialize`, `notifications/initialized`, and `ping`.
+- Tool surface: `tools/list` and `tools/call`.
+- Tool exposed: `route_explain` only.
+- Reused behavior: existing local route classification, route explanation text, adversarial warning detection, and local audit append behavior.
+
+This stub is intentionally narrow. It is not a full MCP implementation, does not expose prompts or resources, does not implement MCP HTTP transport, and is documented as experimental rather than production-ready interoperability.
 
 ## Request flow
 
@@ -90,7 +103,7 @@ If the GGUF path is unavailable, configured with a non-explicit runner name, or 
 
 The daemon appends JSONL audit events to the configured audit log path and stores events in memory for `GET /v1/audit/events`. Events include route code, tier, domain, model id, route explanation, warnings, whether data left the device, and cache-hit metadata when a local exact-match entry is reused.
 
-Audit events are local process records. They are not currently signed, tamper-evident, replicated, encrypted by the daemon, or certified as enterprise audit evidence.
+Audit events are local process records. They are not currently signed, tamper-evident, replicated, encrypted by the daemon, or certified as enterprise audit evidence. Successful MCP `route_explain` tool calls reuse the same local audit append path as the HTTP route-explain surface.
 
 ## Data locality
 
