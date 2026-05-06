@@ -32,7 +32,7 @@ The default path does not require Ollama, GGUF tooling, model weights, or networ
 
 ## Explicit non-claims
 
-The repository does not currently implement an MCP server, a dashboard, streaming responses, production legal inference, production GGUF or ONNX inference, Apple Foundation Models integration, Tier 4 edge dispatch, Tier 5 cloud dispatch, enterprise compliance certification, or signed Local-Only Attestation Report generation.
+The repository does not currently implement an MCP server, a dashboard, production-grade token-by-token streaming, production legal inference, production GGUF or ONNX inference, Apple Foundation Models integration, Tier 4 edge dispatch, Tier 5 cloud dispatch, enterprise compliance certification, or signed Local-Only Attestation Report generation.
 
 Qwen2.5 0.5B is documented here only as a pipe/demo baseline for validating the local GGUF path. It is not the settled legal-quality model.
 

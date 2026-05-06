@@ -94,6 +94,8 @@ Current local reliability note as of May 2, 2026: the latest local Golden Legal 
 - Adversarial document instructions are treated as untrusted content.
 - Route explanations remain human-readable.
 - Chat completions append audit events.
+- `stream: false` and missing `stream` preserve the current JSON chat-completion shape.
+- `stream: true` returns a basic SSE-compatible chat-completion scaffold ending in `data: [DONE]`.
 - Safe identical chat completions can reuse a local in-memory exact-match cache entry.
 - The exact-match cache stays bounded and evicts old entries when its local entry limit is exceeded.
 - Adversarial, rejected, and fail-closed chat completions are not cached.

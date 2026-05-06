@@ -11,8 +11,8 @@ mod model_runner;
 use anyhow::{Context, Result};
 use axum::{
     extract::State,
-    http::StatusCode,
-    response::IntoResponse,
+    http::{header, StatusCode},
+    response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
@@ -184,6 +184,37 @@ struct ChatChoice {
     index: u32,
     message: ChatMessage,
     finish_reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ChatCompletionChunk {
+    id: String,
+    object: String,
+    created: i64,
+    model: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    route: Option<RouteDecision>,
+    choices: Vec<ChatChunkChoice>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache: Option<CacheMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    local_output: Option<CompletionOutputMetadata>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ChatChunkChoice {
+    index: u32,
+    delta: ChatChunkDelta,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    finish_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct ChatChunkDelta {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    role: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -506,7 +537,7 @@ async fn route_explain(
 async fn chat_completions(
     State(state): State<AppState>,
     Json(req): Json<ChatCompletionRequest>,
-) -> impl IntoResponse {
+) -> Response {
     match route_request(&state, &req).await {
         Ok((decision, explanation, warnings)) => {
             let request_id = Uuid::new_v4().to_string();
@@ -543,9 +574,10 @@ async fn chat_completions(
                         warn!(error = %err, "failed to append audit event");
                     }
 
-                    return (
+                    return chat_completion_http_response(
+                        &req,
                         StatusCode::OK,
-                        Json(ChatCompletionResponse {
+                        ChatCompletionResponse {
                             id: request_id,
                             object: "chat.completion".to_string(),
                             created: Utc::now().timestamp(),
@@ -561,7 +593,7 @@ async fn chat_completions(
                             }],
                             cache,
                             local_output: cached.local_output,
-                        }),
+                        },
                     );
                 }
             }
@@ -605,9 +637,10 @@ async fn chat_completions(
                 warn!(error = %err, "failed to append audit event");
             }
 
-            (
+            chat_completion_http_response(
+                &req,
                 StatusCode::OK,
-                Json(ChatCompletionResponse {
+                ChatCompletionResponse {
                     id: request_id,
                     object: "chat.completion".to_string(),
                     created: Utc::now().timestamp(),
@@ -623,12 +656,13 @@ async fn chat_completions(
                     }],
                     cache: None,
                     local_output: completion_output.metadata,
-                }),
+                },
             )
         }
-        Err(err) => (
+        Err(err) => chat_completion_http_response(
+            &req,
             StatusCode::BAD_REQUEST,
-            Json(ChatCompletionResponse {
+            ChatCompletionResponse {
                 id: Uuid::new_v4().to_string(),
                 object: "chat.completion".to_string(),
                 created: Utc::now().timestamp(),
@@ -652,8 +686,20 @@ async fn chat_completions(
                 }],
                 cache: None,
                 local_output: None,
-            }),
+            },
         ),
+    }
+}
+
+fn chat_completion_http_response(
+    req: &ChatCompletionRequest,
+    status: StatusCode,
+    response: ChatCompletionResponse,
+) -> Response {
+    if req.stream.unwrap_or(false) {
+        streaming_chat_completion_response(status, response)
+    } else {
+        (status, Json(response)).into_response()
     }
 }
 
@@ -709,6 +755,115 @@ fn request_model_name(req: &ChatCompletionRequest) -> String {
     req.model
         .clone()
         .unwrap_or_else(|| "ignisprompt".to_string())
+}
+
+fn streaming_chat_completion_response(
+    status: StatusCode,
+    response: ChatCompletionResponse,
+) -> Response {
+    let body = render_sse_chat_completion(&response);
+    (
+        status,
+        [
+            (header::CONTENT_TYPE, "text/event-stream; charset=utf-8"),
+            (header::CACHE_CONTROL, "no-cache"),
+        ],
+        body,
+    )
+        .into_response()
+}
+
+fn render_sse_chat_completion(response: &ChatCompletionResponse) -> String {
+    let choice = &response.choices[0];
+    let content_fragments = streaming_content_fragments(&choice.message.content);
+    let mut events = Vec::new();
+
+    let first_chunk = ChatCompletionChunk {
+        id: response.id.clone(),
+        object: "chat.completion.chunk".to_string(),
+        created: response.created,
+        model: response.model.clone(),
+        route: Some(response.route.clone()),
+        choices: vec![ChatChunkChoice {
+            index: choice.index,
+            delta: ChatChunkDelta {
+                role: Some(choice.message.role.clone()),
+                content: content_fragments.first().cloned(),
+            },
+            finish_reason: None,
+        }],
+        cache: response.cache.clone(),
+        local_output: response.local_output.clone(),
+    };
+    events.push(first_chunk);
+
+    for fragment in content_fragments.iter().skip(1) {
+        events.push(ChatCompletionChunk {
+            id: response.id.clone(),
+            object: "chat.completion.chunk".to_string(),
+            created: response.created,
+            model: response.model.clone(),
+            route: None,
+            choices: vec![ChatChunkChoice {
+                index: choice.index,
+                delta: ChatChunkDelta {
+                    role: None,
+                    content: Some(fragment.clone()),
+                },
+                finish_reason: None,
+            }],
+            cache: None,
+            local_output: None,
+        });
+    }
+
+    events.push(ChatCompletionChunk {
+        id: response.id.clone(),
+        object: "chat.completion.chunk".to_string(),
+        created: response.created,
+        model: response.model.clone(),
+        route: None,
+        choices: vec![ChatChunkChoice {
+            index: choice.index,
+            delta: ChatChunkDelta::default(),
+            finish_reason: Some(choice.finish_reason.clone()),
+        }],
+        cache: None,
+        local_output: None,
+    });
+
+    let mut rendered = String::new();
+    for event in events {
+        rendered.push_str("data: ");
+        rendered.push_str(&serde_json::to_string(&event).unwrap_or_else(|_| "{}".to_string()));
+        rendered.push_str("\n\n");
+    }
+    rendered.push_str("data: [DONE]\n\n");
+    rendered
+}
+
+fn streaming_content_fragments(content: &str) -> Vec<String> {
+    if content.is_empty() {
+        return vec![String::new()];
+    }
+
+    let midpoint = content.len() / 2;
+    let split = content[midpoint..]
+        .char_indices()
+        .find(|(_, ch)| ch.is_whitespace())
+        .map(|(offset, _)| midpoint + offset)
+        .or_else(|| {
+            content[..midpoint]
+                .char_indices()
+                .rev()
+                .find(|(_, ch)| ch.is_whitespace())
+                .map(|(idx, _)| idx)
+        });
+
+    match split.filter(|idx| *idx > 0 && *idx < content.len()) {
+        Some(idx) => vec![content[..idx].to_string(), content[idx..].to_string()],
+        None => vec![content.to_string()],
+    }
 }
 
 fn declared_domain(req: &ChatCompletionRequest) -> Option<String> {
@@ -888,9 +1043,6 @@ fn preflight(req: &ChatCompletionRequest) -> Result<()> {
     if req.messages.iter().all(|m| m.content.trim().is_empty()) {
         anyhow::bail!("Preflight rejected the request because all message content is empty.");
     }
-    if req.stream.unwrap_or(false) {
-        anyhow::bail!("Streaming is not implemented in the minimal daemon scaffold.");
-    }
     Ok(())
 }
 
@@ -946,7 +1098,10 @@ fn detect_adversarial_document_instructions(combined: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{body::to_bytes, response::IntoResponse};
+    use axum::{
+        body::to_bytes,
+        response::{IntoResponse, Response},
+    };
 
     struct ExpectedRoute<'a> {
         tier: &'a str,
@@ -1136,13 +1291,26 @@ mod tests {
         state: &AppState,
         request: ChatCompletionRequest,
     ) -> (StatusCode, ChatCompletionResponse) {
-        let response = chat_completions(State(state.clone()), Json(request))
-            .await
-            .into_response();
+        let response = call_chat_completions_response(state, request).await;
         let status = response.status();
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let parsed: ChatCompletionResponse = serde_json::from_slice(&body).unwrap();
         (status, parsed)
+    }
+
+    async fn call_chat_completions_response(
+        state: &AppState,
+        request: ChatCompletionRequest,
+    ) -> Response {
+        chat_completions(State(state.clone()), Json(request))
+            .await
+            .into_response()
+    }
+
+    fn sse_data_events(body: &str) -> Vec<&str> {
+        body.lines()
+            .filter_map(|line| line.strip_prefix("data: "))
+            .collect()
     }
 
     fn exact_match_cache_key_for_test(
@@ -1191,6 +1359,101 @@ mod tests {
         assert!(err
             .to_string()
             .contains("Preflight rejected the request because messages is empty."));
+    }
+
+    #[tokio::test]
+    async fn chat_completion_json_shape_is_preserved_when_stream_is_false_or_missing() {
+        let state = state_with_models_and_cache(vec![legal_model()], false);
+        let request = req(
+            "Review this indemnification clause in a vendor services agreement and return the key risks.",
+            Some("ignisprompt/legal"),
+        );
+        let mut missing_stream_request = request.clone();
+        missing_stream_request.stream = None;
+
+        let false_stream_response = call_chat_completions_response(&state, request.clone()).await;
+        assert_eq!(false_stream_response.status(), StatusCode::OK);
+        assert_eq!(
+            false_stream_response.headers()[header::CONTENT_TYPE],
+            "application/json"
+        );
+        let false_stream_body = to_bytes(false_stream_response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let false_stream_parsed: ChatCompletionResponse =
+            serde_json::from_slice(&false_stream_body).unwrap();
+
+        let missing_stream_response =
+            call_chat_completions_response(&state, missing_stream_request).await;
+        assert_eq!(missing_stream_response.status(), StatusCode::OK);
+        assert_eq!(
+            missing_stream_response.headers()[header::CONTENT_TYPE],
+            "application/json"
+        );
+        let missing_stream_body = to_bytes(missing_stream_response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let missing_stream_parsed: ChatCompletionResponse =
+            serde_json::from_slice(&missing_stream_body).unwrap();
+
+        assert_eq!(false_stream_parsed.object, "chat.completion");
+        assert_eq!(missing_stream_parsed.object, "chat.completion");
+        assert_eq!(
+            false_stream_parsed.choices[0].message.role,
+            "assistant".to_string()
+        );
+        assert_eq!(
+            missing_stream_parsed.choices[0].message.role,
+            "assistant".to_string()
+        );
+        assert_eq!(false_stream_parsed.route.tier, "TIER_3");
+        assert_eq!(missing_stream_parsed.route.tier, "TIER_3");
+        assert_eq!(false_stream_parsed.cache, None);
+        assert_eq!(missing_stream_parsed.cache, None);
+        assert_eq!(
+            false_stream_parsed.choices[0].message.content,
+            missing_stream_parsed.choices[0].message.content
+        );
+    }
+
+    #[tokio::test]
+    async fn chat_completion_stream_true_returns_sse_compatible_chunks() {
+        let state = state_with_models_and_cache(vec![legal_model()], false);
+        let mut request = req(
+            "Review this indemnification clause in a vendor services agreement and return the key risks.",
+            Some("ignisprompt/legal"),
+        );
+        request.stream = Some(true);
+
+        let response = call_chat_completions_response(&state, request).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers()[header::CONTENT_TYPE],
+            "text/event-stream; charset=utf-8"
+        );
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body_text = String::from_utf8(body.to_vec()).unwrap();
+        let events = sse_data_events(&body_text);
+
+        assert!(
+            events.len() >= 3,
+            "expected at least a role/content chunk, a finish chunk, and [DONE]"
+        );
+        assert_eq!(events.last().copied(), Some("[DONE]"));
+
+        let first_chunk: serde_json::Value = serde_json::from_str(events[0]).unwrap();
+        assert_eq!(first_chunk["object"], "chat.completion.chunk");
+        assert_eq!(first_chunk["route"]["tier"], "TIER_3");
+        assert_eq!(first_chunk["choices"][0]["delta"]["role"], "assistant");
+        assert!(
+            first_chunk["choices"][0]["delta"].get("content").is_some(),
+            "expected the first streaming chunk to include content"
+        );
+
+        let final_chunk: serde_json::Value =
+            serde_json::from_str(events[events.len() - 2]).unwrap();
+        assert_eq!(final_chunk["object"], "chat.completion.chunk");
+        assert_eq!(final_chunk["choices"][0]["finish_reason"], "stop");
     }
 
     #[tokio::test]

@@ -20,14 +20,14 @@ The architecture is intentionally small. It validates the local routing control 
 - `GET /health`: returns daemon status, package version, start time, local-only flag, and model count.
 - `GET /v1/models`: returns loaded model manifests.
 - `POST /v1/route/explain`: returns a route decision, human-readable explanation, and warnings.
-- `POST /v1/chat/completions`: accepts a non-streaming OpenAI-compatible request shape and returns a local response with route metadata.
+- `POST /v1/chat/completions`: accepts an OpenAI-compatible request shape, preserves the current JSON response when `stream` is missing or `false`, and returns a basic SSE-compatible scaffold when `stream` is `true`.
 - `GET /v1/audit/events`: returns audit events accumulated in the current daemon process.
 
-Streaming is rejected in preflight. The daemon does not implement an MCP server, dashboard, Tier 4 edge dispatch, Tier 5 cloud dispatch, or signed attestation generation.
+The daemon does not implement an MCP server, dashboard, Tier 4 edge dispatch, Tier 5 cloud dispatch, or signed attestation generation. Its `stream: true` path is a compatibility scaffold that formats an already-produced local completion as SSE chunks; it is not a full incremental token streaming engine.
 
 ## Request flow
 
-1. The daemon validates that messages are present, non-empty, and non-streaming.
+1. The daemon validates that messages are present and non-empty.
 2. It combines message text for lightweight classification.
 3. It infers `legal` when the model name contains `legal`, metadata declares `domain: "legal"`, or the prompt contains legal keywords such as contract, clause, indemnification, governing law, NDA, or termination.
 4. It scans for known document-contained instructions such as attempts to ignore routing rules, disable audit logging, or route to cloud.
@@ -36,6 +36,7 @@ Streaming is rejected in preflight. The daemon does not implement an MCP server,
 7. For safe chat completions only, it may reuse an in-memory Tier 1 exact-match cache entry when the request messages, model or domain hints, selected route inputs, and relevant local policy flags match exactly.
 8. For general requests, it returns a Tier 2 route decision with stubbed OS-native dispatch.
 9. Route explanations and chat completions append local audit events.
+10. When `stream: true`, the daemon reuses the same completion result and emits it as SSE-framed JSON chunks ending in `data: [DONE]`.
 
 ## Route decisions
 
