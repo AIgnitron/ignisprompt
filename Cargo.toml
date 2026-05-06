@@ -1,6 +1,7 @@
 [workspace]
 members = [
-    "crates/ignispromptd"
+    "crates/ignispromptd",
+    "crates/ignispromptctl",
 ]
 resolver = "2"
 
@@ -22,3 +23,4 @@ tower-http = { version = "0.6", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 uuid = { version = "1", features = ["v4", "serde"] }
+ureq = "2"
