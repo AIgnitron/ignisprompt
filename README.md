@@ -6,7 +6,7 @@ This repository contains a minimal `ignispromptd` Rust daemon scaffold for the A
 
 ## Current smoke-test status
 
-For manual debugging, you can still run `./scripts/start-dev.sh` in one terminal and `./scripts/smoke.sh` in another. `./scripts/dev-check.sh` is the recommended one-command developer path.
+`./scripts/dev-check.sh` is the recommended one-command developer path. `./scripts/start-dev.sh` plus `./scripts/smoke.sh` remains available as the lower-level manual debugging path when you want to inspect a running daemon directly.
 
 - `/health`, `/v1/models`, `/v1/route/explain`, `/v1/chat/completions`, and `/v1/audit/events` respond locally
 - legal requests route to Tier 3 with a human-readable explanation
@@ -75,6 +75,8 @@ Run the default developer check:
 
 This runs `cargo build`, `cargo test`, starts the local-only daemon, waits for `/health`, runs `./scripts/smoke.sh`, and stops the daemon on exit. It uses the default no-model path and does not require Ollama, GGUF tooling, local model weights, cloud access, or cloud credentials.
 
+For low-level manual debugging, start the daemon directly:
+
 ```bash
 cargo run -p ignispromptd -- \
   --bind 127.0.0.1:8765 \
@@ -88,6 +90,17 @@ In another terminal:
 ```bash
 ./scripts/smoke.sh
 ```
+
+While the daemon is running, `ignispromptctl` provides a local CLI for inspecting its state:
+
+```bash
+cargo run -p ignispromptctl -- health
+cargo run -p ignispromptctl -- models
+cargo run -p ignispromptctl -- route-explain --file ./tests/golden-legal/smoke-legal-request.json
+cargo run -p ignispromptctl -- audit tail
+```
+
+`route-explain` reads a JSON request file. For a legal route example, use a file that already carries legal context such as `./tests/golden-legal/smoke-legal-request.json`, which sets `model` to `ignisprompt/legal`.
 
 For the real local GGUF path, start Ollama locally and then run:
 
@@ -240,7 +253,13 @@ Demo caveats:
 - this is not production compliance certification
 - Qwen2.5 0.5B is the pipe/demo baseline, not a settled legal model winner
 
-For the default no-model scaffold path, run:
+For the default no-model scaffold path, the recommended check is still:
+
+```bash
+./scripts/dev-check.sh
+```
+
+If you need the lower-level manual debugging path instead, run:
 
 ```bash
 ./scripts/start-dev.sh

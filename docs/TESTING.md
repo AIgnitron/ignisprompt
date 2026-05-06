@@ -19,7 +19,7 @@ cargo build
 cargo test
 ```
 
-For the daemon smoke path:
+For the lower-level manual daemon smoke path:
 
 ```bash
 ./scripts/start-dev.sh
@@ -32,6 +32,19 @@ In another terminal:
 ```
 
 `./scripts/smoke.sh` assumes the daemon is already listening at `IGNISPROMPT_BASE_URL`, defaulting to `http://127.0.0.1:8765`.
+
+## ignispromptctl smoke
+
+With the daemon already running, `ignispromptctl` can be used for quick local inspection:
+
+```bash
+cargo run -p ignispromptctl -- health
+cargo run -p ignispromptctl -- models
+cargo run -p ignispromptctl -- route-explain --file ./tests/golden-legal/smoke-legal-request.json
+cargo run -p ignispromptctl -- audit tail
+```
+
+The `route-explain` command reads a JSON request file. For a legal route example, use a request file that already carries legal context such as `./tests/golden-legal/smoke-legal-request.json`, which sets `model` to `ignisprompt/legal`.
 
 ## CI path
 
