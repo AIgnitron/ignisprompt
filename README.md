@@ -13,6 +13,7 @@ This repository contains a minimal `ignispromptd` Rust daemon scaffold for the A
 - adversarial document instructions are detected and treated as untrusted content
 - audit events are written locally
 - legal chat completions default to `StubLegalRunner`
+- `stream: false` or a missing `stream` field keeps the current JSON completion shape, while `stream: true` returns a basic SSE-compatible scaffold
 - an opt-in `GgufRunner` spike can invoke a local GGUF runner binary when both the runner executable and the configured `.gguf` model file are present
 
 ## CI status
@@ -43,6 +44,7 @@ The docs set under `docs/` describes the current scaffold and clearly separates 
 - `GET /v1/models`
 - `POST /v1/route/explain`
 - `POST /v1/chat/completions` using an OpenAI-compatible request shape
+- basic SSE-compatible chat-completion scaffolding when `stream: true`
 - optional feature-gated Tier 3 legal GGUF runner spike via a local subprocess contract
 - Tier 3 legal chat completion dispatch through `StubLegalRunner`
 - `GET /v1/audit/events`
@@ -59,7 +61,7 @@ The docs set under `docs/` describes the current scaffold and clearly separates 
 - Apple Foundation Models bridge
 - semantic cache
 - MCP server
-- streaming responses
+- production-grade token-by-token streaming
 - real hardware RAM/thermal telemetry
 - signed Local-Only Attestation Report generation
 
@@ -134,7 +136,7 @@ Environment variables:
 - `IGNISPROMPT_PROMPT_DIR`: directory containing prompt-pack markdown files, defaults to `./config/prompts`
 - `IGNISPROMPT_GGUF_MAX_TOKENS`: max tokens requested from the runner, defaults to `256`
 
-This is a spike, not a production inference stack. Prompt shaping is naive, no streaming is implemented, and no built-in llama.cpp or ONNX bridge ships in the daemon yet.
+This is a spike, not a production inference stack. Prompt shaping is naive, the `stream: true` path is only an SSE compatibility scaffold rather than a full incremental streaming engine, and no built-in llama.cpp or ONNX bridge ships in the daemon yet.
 
 For legal Tier 3 requests, the GGUF path prepends a prompt pack before serializing the request messages into the subprocess contract. By default it uses `config/prompts/legal-contract-review-v0.1.md`, but a manifest can override this with `promptPack`, for example `legal-contract-review-compact-v0.1.md` for smaller local models.
 
