@@ -84,6 +84,8 @@ Tier 1 exact-match cache behavior:
 
 ## Runner behavior
 
+See [Runner providers](RUNNER_PROVIDERS.md) for the current `ModelRunner` trait, `ModelRunnerContext`, provider ordering, and local integration rules.
+
 The default build registers `StubLegalRunner` only. For Tier 3 legal requests, it returns a clearly marked local stub response and no `local_output` metadata.
 
 When built with `--features gguf-runner-spike`, the adapter tries `GgufRunner` before `StubLegalRunner`. `GgufRunner` only supports a request when all of these are true:
