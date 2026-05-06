@@ -65,6 +65,8 @@ Tier 1 exact-match cache behavior:
 - The original safe local route decision remains in `route`.
 - Chat completion responses and audit events add explicit cache metadata for hits.
 - Adversarial, rejected, fail-closed, or non-local responses are not cached.
+- The in-memory cache is bounded to `128` entries by default and evicts the oldest retained entry first when full.
+- Operators can change the bound with `IGNISPROMPT_EXACT_MATCH_CACHE_MAX_ENTRIES` or `--exact-match-cache-max-entries`.
 
 ## Runner behavior
 
@@ -90,6 +92,6 @@ Audit events are local process records. They are not currently signed, tamper-ev
 
 The daemon contains no default cloud provider calls. The current routes set `data_left_device: false`. Optional GGUF flows call local subprocesses and local Ollama when explicitly configured by the operator.
 
-The Tier 1 cache is process-local and in-memory only. It is exact-match only, not semantic caching, not distributed, and not shared across daemon restarts.
+The Tier 1 cache is process-local and in-memory only. It is exact-match only, not semantic caching, not distributed, and not shared across daemon restarts. The default bound is `128` entries.
 
 Cloud BYOK, Tier 5, and enterprise provider routing are not implemented.
