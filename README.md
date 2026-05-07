@@ -33,6 +33,7 @@ The docs set under `docs/` describes the current scaffold and clearly separates 
 - [Runner providers](docs/RUNNER_PROVIDERS.md)
 - [Demo flows](docs/DEMO.md)
 - [Testing](docs/TESTING.md)
+- [Packaging](docs/PACKAGING.md)
 - [Models](docs/MODELS.md)
 - [Security model](docs/SECURITY_MODEL.md)
 - [Threat model](docs/THREAT_MODEL.md)
@@ -107,6 +108,8 @@ make clean-local-evidence
 ```
 
 The `gguf-*`, `golden`, `bakeoff`, and `demo` targets still require the same local Ollama and model-file prerequisites as the underlying scripts. `make clean-local-evidence` only removes generated content under ignored `./local-evidence/` and does not delete model weights under `./models/`.
+
+For current source install, release-build, and manual release-artifact notes, see [docs/PACKAGING.md](docs/PACKAGING.md). That guide is conservative on purpose: it documents today's source-first workflow and a future Homebrew plan, but it does not claim that Homebrew or published packages are available yet.
 
 For low-level manual debugging, start the daemon directly:
 

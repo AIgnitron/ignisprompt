@@ -21,6 +21,7 @@ The default path does not require Ollama, GGUF tooling, model weights, or networ
 - [Runner Providers](RUNNER_PROVIDERS.md): `ModelRunner` trait, `ModelRunnerContext`, provider ordering, and rules for adding new local runners.
 - [Demo](DEMO.md): default smoke flow and optional GGUF/Ollama demo flow.
 - [Testing](TESTING.md): build, test, smoke, feature-gated, and local evidence test guidance.
+- [Packaging](PACKAGING.md): current source install/build/run paths and the future Homebrew formula plan.
 - [Models](MODELS.md): manifest fields, local model placement, and Qwen2.5 0.5B baseline caveat.
 - [Security Model](SECURITY_MODEL.md): current local-only security boundaries and known gaps.
 - [Threat Model](THREAT_MODEL.md): assets, trust boundaries, threat cases, and mitigations.
