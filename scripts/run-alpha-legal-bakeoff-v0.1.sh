@@ -467,7 +467,7 @@ echo "  - $SUMMARY_MARKDOWN"
 
 echo
 echo "Bakeoff summary:"
-jq -r '
+jq -r -s '
   ["status", "candidate_id", "legal_json", "schema_valid", "latency_s", "note"],
   (.[] | [
     .status,
