@@ -88,15 +88,14 @@ run_json_post() {
 }
 
 start_daemon() {
-  if [ "$BUILD_MODE" = "release" ]; then
-    echo "release build mode is only used for binary capture; daemon startup still uses the default local launcher path" >>"$DAEMON_LOG"
-  fi
+  echo "launching attested daemon binary: $BINARY_PATH" >"$DAEMON_LOG"
 
-  IGNISPROMPT_BIND="127.0.0.1:$ATTESTATION_PORT" \
-  IGNISPROMPT_MODEL_DIR="$MODEL_DIR" \
-  IGNISPROMPT_AUDIT_LOG="$DAEMON_AUDIT_LOG" \
   RUST_LOG="${RUST_LOG:-ignispromptd=info,tower_http=info}" \
-  "$ROOT_DIR/scripts/start-dev.sh" >"$DAEMON_LOG" 2>&1 &
+  "$BINARY_PATH" \
+    --bind "127.0.0.1:$ATTESTATION_PORT" \
+    --model-dir "$MODEL_DIR" \
+    --audit-log "$DAEMON_AUDIT_LOG" \
+    --local-only >>"$DAEMON_LOG" 2>&1 &
 
   DAEMON_PID=$!
   BASE_URL="http://127.0.0.1:$ATTESTATION_PORT"
