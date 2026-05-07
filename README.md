@@ -22,6 +22,8 @@ This repository contains a minimal `ignispromptd` Rust daemon scaffold for the A
 
 The repository now includes a default GitHub Actions workflow at `.github/workflows/ci.yml` for the no-model daemon path on `main`. It runs `cargo build`, `cargo test`, and `./scripts/smoke.sh` against the default local scaffold without requiring Ollama, GGUF model weights, or any cloud access.
 
+An experimental manual-only release workflow now also lives at `.github/workflows/release-draft.yml`. It runs only through GitHub Actions `workflow_dispatch`, builds the default `ignispromptd` Linux x86_64 release binary, and uploads it as a downloadable workflow artifact. It does not publish a GitHub Release automatically, and it does not bundle model weights or local evidence.
+
 ## Documentation
 
 The docs set under `docs/` describes the current scaffold and clearly separates implemented behavior from planned work:
