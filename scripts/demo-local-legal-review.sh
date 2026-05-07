@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EVIDENCE_ROOT="${IGNISPROMPT_DEMO_EVIDENCE_DIR:-$ROOT_DIR/local-evidence/demo-local-legal-review/$(date -u +%Y%m%dT%H%M%SZ)}"
 GGUF_RUNNER_BIN="${IGNISPROMPT_GGUF_RUNNER_BIN:-$ROOT_DIR/scripts/ollama-gguf-runner.sh}"
-GGUF_MAX_TOKENS="${IGNISPROMPT_GGUF_MAX_TOKENS:-96}"
+GGUF_MAX_TOKENS="${IGNISPROMPT_GGUF_MAX_TOKENS:-256}"
 OLLAMA_HOST="${OLLAMA_HOST:-http://127.0.0.1:11434}"
 OLLAMA_NO_CLOUD="${OLLAMA_NO_CLOUD:-true}"
 MODEL_PATH="${IGNISPROMPT_GGUF_MODEL_PATH:-$ROOT_DIR/models/qwen2.5-0.5b-instruct-q4_k_m.gguf}"
