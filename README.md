@@ -81,6 +81,31 @@ Run the default developer check:
 
 This runs `cargo build`, `cargo test`, starts the local-only daemon, waits for `/health`, runs `./scripts/smoke.sh`, and stops the daemon on exit. It uses the default no-model path and does not require Ollama, GGUF tooling, local model weights, cloud access, or cloud credentials.
 
+If you prefer a repo-level command runner, the new `Makefile` wraps the same local flows:
+
+```bash
+make help
+make build
+make test
+make smoke
+make dev-check
+```
+
+The default safe targets stay on the no-model local path. Optional local-prerequisite targets are also available for the existing GGUF and evidence scripts:
+
+```bash
+make gguf-build
+make gguf-test
+make gguf-smoke
+make golden
+make bakeoff
+make demo
+make attestation
+make clean-local-evidence
+```
+
+The `gguf-*`, `golden`, `bakeoff`, and `demo` targets still require the same local Ollama and model-file prerequisites as the underlying scripts. `make clean-local-evidence` only removes generated content under ignored `./local-evidence/` and does not delete model weights under `./models/`.
+
 For low-level manual debugging, start the daemon directly:
 
 ```bash
