@@ -291,7 +291,7 @@ curl -s -X POST http://127.0.0.1:8765/v1/route/explain \
 
 ## Public demo: local legal review
 
-For a public-facing local demo, run the convenience legal-review flow. It shows the local Tier 3 routing path, structured JSON parsing, schema validation, route explanation, and local audit evidence without sending request data to a cloud service. See [Demo flows](docs/DEMO.md) for the default smoke demo and optional GGUF setup details.
+For a public-facing local demo, run the convenience legal-review flow. It uses a fully synthetic contract-review fixture and shows the local Tier 3 routing path, structured JSON parsing, schema validation, route explanation, and local audit evidence without sending request data to a cloud service. See [Demo flows](docs/DEMO.md) for the default smoke demo and optional GGUF setup details.
 
 ```bash
 ./scripts/demo-local-legal-review.sh
@@ -312,13 +312,14 @@ The demo script expects:
 - `OLLAMA_NO_CLOUD=true`
 - the local GGUF file at `./models/qwen2.5-0.5b-instruct-q4_k_m.gguf`
 
-It starts `ignispromptd` with `--features gguf-runner-spike`, sends the existing contract-review fixture, prints the route decision, explanation, `legal_json.status`, `schema_valid`, parsed legal JSON, and saved audit-event path, then writes the evidence bundle under `./local-evidence/demo-local-legal-review/`.
+It starts `ignispromptd` with `--features gguf-runner-spike`, sends `tests/golden-legal/demo-synthetic-contract-request.json`, prints the route decision, explanation, `legal_json.status`, `schema_valid`, parsed legal JSON, and saved audit-event path, then writes the evidence bundle under `./local-evidence/demo-local-legal-review/`.
 
 Demo caveats:
 
 - this is not legal advice
 - this is not production compliance certification
 - Qwen2.5 0.5B is the pipe/demo baseline, not a settled legal model winner
+- never use real customer contracts, confidential legal text, personal data, or production matter materials in a demo
 
 For the default no-model scaffold path, the recommended check is still:
 
