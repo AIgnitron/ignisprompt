@@ -2,6 +2,8 @@
 
 IgnisPrompt has two practical demo paths today: the default scaffold smoke demo and an optional local GGUF/Ollama legal-review demo.
 
+Before a public or stakeholder demo, run through the [Demo Readiness Checklist](DEMO_READINESS_CHECKLIST.md).
+
 ## Default smoke demo
 
 This path requires Rust, Cargo, `curl`, and `jq`. It does not require Ollama, GGUF tooling, network access, or model weights.
