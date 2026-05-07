@@ -2,7 +2,7 @@
 
 Overall result: **PASS WITH GAPS**
 
-This audit covers commit `46f083ced5b440aa033de1653ce86da2787fd56e` on `main`. The default no-model local scaffold path passed build, test, smoke, and main CI. Optional live GGUF, golden, bakeoff, and local legal-review demo paths were not rerun because the local Ollama server was not reachable at `http://127.0.0.1:11434`.
+This audit covers commit `46f083ced5b440aa033de1653ce86da2787fd56e` on `main`, with a post-audit optional validation rerun after PR #34 on commit `d546e27af16b77910c1eb13467029bb0bbe1961e`. The default no-model local scaffold path passed build, test, smoke, and main CI. Optional live GGUF, golden, bakeoff, and local legal-review demo paths were rerun with local Ollama reachable at `http://127.0.0.1:11434`.
 
 This report is conservative. It is not a production readiness claim, legal advice quality claim, compliance certification, formal attestation, or enterprise readiness statement.
 
@@ -12,8 +12,10 @@ None for the default no-model local scaffold path.
 
 ## Non-blocking improvements
 
-- Live GGUF demo validation depends on local Ollama being started and kept local-only with `OLLAMA_NO_CLOUD=true`.
+- Live GGUF validation now runs when local Ollama is started and kept local-only with `OLLAMA_NO_CLOUD=true`, but this remains an operator-managed local prerequisite.
 - The bakeoff host has `models/qwen2.5-0.5b-instruct-q4_k_m.gguf` and `models/Phi-3.5-mini-instruct.q5_k_m.gguf`, but not `models/qwen2.5-7b-instruct-q4_k_m.gguf` or `models/saul-instruct-v1.q4_k_m.gguf`.
+- The Phi 3.5 mini candidate failed the Golden Legal subset in the post-audit bakeoff rerun.
+- The local legal-review demo captured route, audit, and local-only evidence, but the demo model output failed legal JSON schema validation with `LEGAL_JSON_VALIDATION_FAILED`.
 - GitHub Actions main CI still reports the recurring `actions/checkout@v4` Node.js 20 deprecation annotation. This is CI maintenance, not a current test failure.
 - `cargo build --features gguf-runner-spike` completed but emitted local macOS SDK discovery warnings from `xcrun`.
 
@@ -26,6 +28,11 @@ None for the default no-model local scaffold path.
 - `make smoke`: passed; verified `/health`, `/v1/models`, route explanation, chat completion, adversarial document-instruction handling, and local audit events.
 - `./scripts/demo-transcript.sh`: passed against existing ignored demo evidence.
 - `make attestation`: passed after rerunning outside the sandbox; the first sandboxed run could not start the built daemon binary and logged `Operation not permitted`.
+- Post-audit `make gguf-smoke`: passed with route `TIER_3` / `DOMAIN_MODEL_SELECTED`, `data_left_device=false`, `legal_json.status=ok`, and `schema_valid=true`.
+- Post-audit `make golden`: passed with 6 Golden Legal v0.3 cases. Evidence was written under ignored `local-evidence/golden-legal-v0.3/20260507T141541Z`.
+- Post-audit `make bakeoff`: completed with at least one passing candidate. Qwen2.5 0.5B passed; Qwen2.5 7B and Saul 7B were skipped because local model files were not staged; Phi 3.5 mini failed the Golden subset. Evidence was written under ignored `local-evidence/alpha-legal-bakeoff-v0.1/20260507T141553Z`.
+- Post-audit `make demo`: completed and captured route/audit/local-only evidence with route `TIER_3` / `DOMAIN_MODEL_SELECTED` and `data_left_device=false`; legal JSON remained invalid with `legal_json.status=error`, `schema_valid=false`, `source=noisy_preamble`, and `error_code=LEGAL_JSON_VALIDATION_FAILED`. Evidence was written under ignored `local-evidence/demo-local-legal-review/20260507T141729Z`.
+- Post-audit `./scripts/demo-transcript.sh`: passed and saved a transcript under ignored `local-evidence/demo-local-legal-review/20260507T141729Z/transcript.md`; the transcript explicitly reports the legal JSON error and does not present invalid output as valid.
 - `git status --short --ignored models local-evidence`: confirmed generated model/evidence paths are ignored.
 - `git diff --check`: passed.
 - `git ls-files models local-evidence data/audit`: only placeholders are tracked: `models/.gitkeep`, `local-evidence/.gitkeep`, and `data/audit/.gitkeep`.
@@ -34,10 +41,7 @@ None for the default no-model local scaffold path.
 
 ## Commands skipped
 
-- `make gguf-smoke`: skipped because the local Ollama server is not reachable at `http://127.0.0.1:11434`; the GGUF runner wrapper is executable and the baseline local model file is present.
-- `make golden`: skipped for the same missing local Ollama prerequisite.
-- `make bakeoff`: skipped for the same missing local Ollama prerequisite. Additional optional candidate files `models/qwen2.5-7b-instruct-q4_k_m.gguf` and `models/saul-instruct-v1.q4_k_m.gguf` are also not present.
-- `make demo`: skipped for the same missing local Ollama prerequisite.
+None in the post-audit optional validation rerun. Gaps remain because two bakeoff candidate model files were not staged locally and one staged candidate failed the Golden subset.
 
 ## Files changed
 
@@ -54,11 +58,11 @@ The repository still ignores generated local artifacts and model weights:
 
 ## CI Status
 
-Main CI is green for `46f083ced5b440aa033de1653ce86da2787fd56e`.
+Main CI is green for `d546e27af16b77910c1eb13467029bb0bbe1961e`.
 
 Latest relevant main CI run:
 
-- `25498620447`: `docs: add demo readiness checklist (#32)`, status `completed`, conclusion `success`.
+- `25501225147`: `fix: stabilize optional validation scripts (#34)`, status `completed`, conclusion `success`.
 
 ## Current Limitations
 
