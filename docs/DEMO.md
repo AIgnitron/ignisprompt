@@ -78,6 +78,22 @@ Requirements:
 
 Evidence is written under `./local-evidence/demo-local-legal-review/`. Do not commit it.
 
+To turn the latest evidence bundle into a shareable local transcript, run:
+
+```bash
+./scripts/demo-transcript.sh
+```
+
+The transcript generator reads the latest complete bundle under `./local-evidence/demo-local-legal-review/` by default and writes `transcript.md` into that same ignored bundle directory. It prints the request summary, route decision, route explanation, `legal_json` status, a parsed JSON excerpt, and the audit evidence path.
+
+If no complete bundle exists and the local GGUF prerequisites are available, the transcript script can run the demo first:
+
+```bash
+./scripts/demo-transcript.sh --generate
+```
+
+This is still a local-only demo path. It does not make cloud calls, does not use real customer or legal data, and does not produce legal advice, production readiness evidence, formal attestation, or compliance certification.
+
 ## Golden and bakeoff demos
 
 `./scripts/run-golden-legal-v0.3.sh` runs a six-case local subset against the live GGUF path. It includes the Tier 3 success case, fail-closed local-only cases, adversarial document-instruction handling, explanation quality, and a subtle legal-language routing-instruction case. It writes evidence under `./local-evidence/golden-legal-v0.3/`.
