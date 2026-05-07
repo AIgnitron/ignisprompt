@@ -8,7 +8,7 @@ IGNISPROMPT_BASE_URL ?= http://127.0.0.1:8765
 IGNISPROMPT_MODEL_DIR ?= ./config/models
 IGNISPROMPT_AUDIT_LOG ?= ./data/audit/events.jsonl
 
-.PHONY: help build test smoke dev-check gguf-build gguf-test gguf-smoke golden bakeoff demo attestation clean-local-evidence
+.PHONY: help build test smoke dev-check gguf-build gguf-test gguf-smoke golden bakeoff demo demo-transcript attestation clean-local-evidence
 
 help:
 	printf '%s\n' \
@@ -23,6 +23,7 @@ help:
 	  '  golden                run ./scripts/run-golden-legal-v0.3.sh (requires local GGUF prerequisites)' \
 	  '  bakeoff               run ./scripts/run-alpha-legal-bakeoff-v0.1.sh (requires local GGUF prerequisites)' \
 	  '  demo                  run ./scripts/demo-local-legal-review.sh (requires local GGUF prerequisites)' \
+	  '  demo-transcript       write transcript.md from the latest ignored demo evidence bundle' \
 	  '  attestation           run ./scripts/generate-local-only-attestation.sh' \
 	  '  clean-local-evidence  remove generated evidence under ./local-evidence/ only'
 
@@ -70,6 +71,9 @@ bakeoff:
 
 demo:
 	./scripts/demo-local-legal-review.sh
+
+demo-transcript:
+	./scripts/demo-transcript.sh
 
 attestation:
 	./scripts/generate-local-only-attestation.sh
