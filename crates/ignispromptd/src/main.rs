@@ -1246,47 +1246,52 @@ async fn handle_mcp_message(
     };
 
     let id = object.get("id").cloned();
+    let has_request_id = object.contains_key("id");
 
     if object.get("jsonrpc").and_then(Value::as_str) != Some("2.0") {
-        return Some(mcp_error_response(
+        return mcp_error_response_for_request(
+            has_request_id,
             id,
             -32600,
             "Invalid request: jsonrpc must be \"2.0\".",
-        ));
+        );
     }
 
     let Some(method) = object.get("method").and_then(Value::as_str) else {
-        return Some(mcp_error_response(
+        return mcp_error_response_for_request(
+            has_request_id,
             id,
             -32600,
             "Invalid request: missing method.",
-        ));
+        );
     };
 
     let params = object.get("params").cloned();
 
     match method {
         "initialize" => {
+            let Some(id) = id else {
+                return None;
+            };
+
             session.initialize_seen = true;
-            id.map(|id| {
-                mcp_success_response(
-                    id,
-                    json!({
-                        "protocolVersion": MCP_PROTOCOL_VERSION,
-                        "capabilities": {
-                            "tools": {
-                                "listChanged": false,
-                            }
-                        },
-                        "serverInfo": {
-                            "name": "ignispromptd",
-                            "title": "IgnisPrompt Experimental MCP Stub",
-                            "version": env!("CARGO_PKG_VERSION"),
-                        },
-                        "instructions": "Experimental local-only stdio MCP stub. It currently exposes one route_explain tool and does not replace the default HTTP daemon behavior.",
-                    }),
-                )
-            })
+            Some(mcp_success_response(
+                id,
+                json!({
+                    "protocolVersion": MCP_PROTOCOL_VERSION,
+                    "capabilities": {
+                        "tools": {
+                            "listChanged": false,
+                        }
+                    },
+                    "serverInfo": {
+                        "name": "ignispromptd",
+                        "title": "IgnisPrompt Experimental MCP Stub",
+                        "version": env!("CARGO_PKG_VERSION"),
+                    },
+                    "instructions": "Experimental local-only stdio MCP stub. It currently exposes one route_explain tool and does not replace the default HTTP daemon behavior.",
+                }),
+            ))
         }
         "notifications/initialized" => None,
         "ping" => id.map(|id| mcp_success_response(id, json!({}))),
@@ -1435,6 +1440,19 @@ fn mcp_success_response(id: Value, result: Value) -> Value {
         "id": id,
         "result": result,
     })
+}
+
+fn mcp_error_response_for_request(
+    has_request_id: bool,
+    id: Option<Value>,
+    code: i64,
+    message: impl Into<String>,
+) -> Option<Value> {
+    if !has_request_id {
+        return None;
+    }
+
+    Some(mcp_error_response(id, code, message))
 }
 
 fn mcp_error_response(id: Option<Value>, code: i64, message: impl Into<String>) -> Value {
@@ -2500,6 +2518,51 @@ mod tests {
         assert_eq!(response["result"]["protocolVersion"], MCP_PROTOCOL_VERSION);
         assert_eq!(response["result"]["capabilities"]["tools"]["listChanged"], false);
         assert_eq!(response["result"]["serverInfo"]["name"], "ignispromptd");
+    }
+
+    #[tokio::test]
+    async fn mcp_initialize_notification_does_not_advance_session_state() {
+        let state = state_with_models(vec![legal_model()]);
+        let mut session = McpSessionState::default();
+
+        let response = call_mcp_message(
+            &state,
+            &mut session,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": MCP_PROTOCOL_VERSION,
+                    "capabilities": {},
+                    "clientInfo": {
+                        "name": "test-client",
+                        "version": "0.1.0"
+                    }
+                }
+            }),
+        )
+        .await;
+
+        assert!(response.is_none());
+        assert!(!session.initialize_seen);
+    }
+
+    #[tokio::test]
+    async fn mcp_invalid_notification_does_not_emit_an_error_response() {
+        let state = state_with_models(vec![legal_model()]);
+        let mut session = McpSessionState::default();
+
+        let response = call_mcp_message(
+            &state,
+            &mut session,
+            json!({
+                "jsonrpc": "2.0"
+            }),
+        )
+        .await;
+
+        assert!(response.is_none());
+        assert!(!session.initialize_seen);
     }
 
     #[tokio::test]
