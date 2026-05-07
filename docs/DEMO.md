@@ -90,6 +90,8 @@ To turn the latest evidence bundle into a shareable local transcript, run:
 
 The transcript generator reads the latest complete bundle under `./local-evidence/demo-local-legal-review/` by default and writes `transcript.md` into that same ignored bundle directory. It prints the request summary, route decision, route explanation, `legal_json` status, a parsed JSON excerpt, and the audit evidence path.
 
+If the local model returns invalid legal JSON, the demo and transcript keep the failure visible with `legal_json.status`, `schema_valid`, source, and error details. Local route and audit evidence can still be useful, but invalid legal JSON is not a valid legal answer.
+
 If no complete bundle exists and the local GGUF prerequisites are available, the transcript script can run the demo first:
 
 ```bash

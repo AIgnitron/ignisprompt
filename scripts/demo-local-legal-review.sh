@@ -117,8 +117,6 @@ curl -fsS "$BASE_URL/v1/audit/events" >"$EVIDENCE_ROOT/audit_events.json"
 
 jq -e '.decision.tier == "TIER_3" and .decision.route_code == "DOMAIN_MODEL_SELECTED"' "$EVIDENCE_ROOT/route_explain.json" >/dev/null
 jq -e '(.choices[0].message.content | fromjson | type) == "object"' "$EVIDENCE_ROOT/chat_completion.json" >/dev/null
-jq -e '.local_output.legal_json.status == "ok"' "$EVIDENCE_ROOT/chat_completion.json" >/dev/null
-jq -e '.local_output.legal_json.schema_valid == true' "$EVIDENCE_ROOT/chat_completion.json" >/dev/null
 
 jq -n \
   --slurpfile route "$EVIDENCE_ROOT/route_explain.json" \
@@ -128,11 +126,15 @@ jq -n \
   '{
     route_decision: $route[0].decision,
     explanation: $route[0].explanation,
-    legal_json_status: $completion[0].local_output.legal_json.status,
-    schema_valid: $completion[0].local_output.legal_json.schema_valid,
+    legal_json_status: ($completion[0].local_output.legal_json.status // "missing"),
+    schema_valid: ($completion[0].local_output.legal_json.schema_valid // false),
+    legal_json_source: ($completion[0].local_output.legal_json.source // "missing"),
+    legal_json_error_code: ($completion[0].local_output.legal_json.error_code // null),
+    legal_json_error_message: ($completion[0].local_output.legal_json.error_message // null),
     parsed_legal_json: ($completion[0].choices[0].message.content | fromjson),
     audit_event_location: $audit_path,
-    evidence_root: $evidence_root
+    evidence_root: $evidence_root,
+    demo_status: (if ($completion[0].local_output.legal_json.status == "ok" and $completion[0].local_output.legal_json.schema_valid == true) then "ok" else "legal_json_invalid" end)
   }' >"$EVIDENCE_ROOT/demo-summary.json"
 
 echo "Route decision:"
@@ -147,6 +149,18 @@ echo
 echo "schema_valid:"
 jq -r '.schema_valid' "$EVIDENCE_ROOT/demo-summary.json"
 echo
+echo "legal_json.source:"
+jq -r '.legal_json_source' "$EVIDENCE_ROOT/demo-summary.json"
+echo
+if [ "$(jq -r '.demo_status' "$EVIDENCE_ROOT/demo-summary.json")" != "ok" ]; then
+  echo "Demo captured local route and audit evidence, but legal JSON did not validate."
+  echo "legal_json.error_code:"
+  jq -r '.legal_json_error_code // "missing"' "$EVIDENCE_ROOT/demo-summary.json"
+  echo
+  echo "legal_json.error_message:"
+  jq -r '.legal_json_error_message // "missing"' "$EVIDENCE_ROOT/demo-summary.json"
+  echo
+fi
 echo "Parsed legal JSON:"
 jq '.parsed_legal_json' "$EVIDENCE_ROOT/demo-summary.json"
 echo

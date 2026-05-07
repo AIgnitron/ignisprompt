@@ -90,10 +90,10 @@ cargo test --all-features
 Live GGUF smoke requires a local model file and local runner configuration:
 
 ```bash
-./scripts/smoke-gguf-local.sh
+make gguf-smoke
 ```
 
-That script expects the daemon to already be running with `--features gguf-runner-spike`, a configured `IGNISPROMPT_GGUF_RUNNER_BIN`, and a local manifest `localPath` that exists.
+The `make gguf-smoke` target starts a feature-gated local daemon, waits for `/health`, runs `./scripts/smoke-gguf-local.sh`, and stops the daemon. If you run `./scripts/smoke-gguf-local.sh` directly, it expects the daemon to already be running with `--features gguf-runner-spike`, a configured `IGNISPROMPT_GGUF_RUNNER_BIN`, and a local manifest `localPath` that exists.
 
 ## Local evidence scripts
 

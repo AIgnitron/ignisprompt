@@ -138,16 +138,20 @@ fi
   jq -r '
     "- status: `\(.local_output.legal_json.status // "missing")`",
     "- schema_valid: `\(.local_output.legal_json.schema_valid // false)`",
-    "- source: `\(.local_output.legal_json.source // "missing")`"
+    "- source: `\(.local_output.legal_json.source // "missing")`",
+    if ((.local_output.legal_json.status // "missing") != "ok" or (.local_output.legal_json.schema_valid // false) != true) then
+      "- error_code: `\(.local_output.legal_json.error_code // "missing")`",
+      "- error_message: \(.local_output.legal_json.error_message // "missing" | @json)"
+    else empty end
   ' "$EVIDENCE_DIR/chat_completion.json"
   printf '\n'
 
   printf '## Parsed JSON Excerpt\n\n'
   printf '```json\n'
   jq '
-    .choices[0].message.content
-    | fromjson
-    | {
+    . as $completion
+    | (.choices[0].message.content | fromjson) as $parsed
+    | if (($completion.local_output.legal_json.status // "missing") == "ok" and ($completion.local_output.legal_json.schema_valid // false) == true) then $parsed | {
         clause_type,
         confidence,
         jurisdiction,
@@ -161,6 +165,15 @@ fi
           recommended_review
         }))
       }
+    else {
+        parse_status: ($parsed.parse_status // "error"),
+        error_code: ($parsed.error_code // $completion.local_output.legal_json.error_code // "missing"),
+        error_message: ($parsed.error_message // $completion.local_output.legal_json.error_message // "missing"),
+        source: ($parsed.source // $completion.local_output.legal_json.source // "missing"),
+        missing_fields: ($parsed.missing_fields // $completion.local_output.legal_json.missing_fields // []),
+        invalid_fields: ($parsed.invalid_fields // $completion.local_output.legal_json.invalid_fields // [])
+      }
+    end
   ' "$EVIDENCE_DIR/chat_completion.json"
   printf '```\n\n'
 
