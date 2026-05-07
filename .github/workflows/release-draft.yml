@@ -1,0 +1,57 @@
+name: Release Draft Artifact
+
+"on":
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux-x86_64-daemon:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release daemon binary
+        run: cargo build --release -p ignispromptd
+
+      - name: Prepare release artifact
+        run: |
+          set -euo pipefail
+
+          mkdir -p dist
+          cp target/release/ignispromptd dist/ignispromptd
+          sha256sum dist/ignispromptd > dist/ignispromptd.sha256
+
+          cat > dist/release-metadata.txt <<EOF
+          artifact_name=ignispromptd-linux-x86_64
+          workflow=release-draft
+          commit_sha=${GITHUB_SHA}
+          package=ignispromptd
+          target=x86_64-unknown-linux-gnu
+          notes=Manual workflow_dispatch artifact only. Does not publish a GitHub Release.
+          exclusions=models/**,local-evidence/**
+          EOF
+
+      - name: Verify artifact staging excludes local-only assets
+        run: |
+          set -euo pipefail
+
+          test -f dist/ignispromptd
+          test ! -e dist/models
+          test ! -e dist/local-evidence
+          test ! -e dist/data
+
+      - name: Upload daemon artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ignispromptd-linux-x86_64
+          path: |
+            dist/ignispromptd
+            dist/ignispromptd.sha256
+            dist/release-metadata.txt
+          if-no-files-found: error
