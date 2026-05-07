@@ -63,7 +63,7 @@ Qwen2.5 0.5B is only a pipe/demo baseline for this flow. Passing this smoke test
 
 ## Local legal review demo
 
-The convenience script starts a feature-gated daemon, sends the contract-review fixture, and writes local evidence:
+The convenience script starts a feature-gated daemon, sends a fully synthetic contract-review fixture, and writes local evidence:
 
 ```bash
 ./scripts/demo-local-legal-review.sh
@@ -77,6 +77,8 @@ Requirements:
 - local GGUF file at `./models/qwen2.5-0.5b-instruct-q4_k_m.gguf`, or `IGNISPROMPT_GGUF_MODEL_PATH` pointing to another local file
 
 Evidence is written under `./local-evidence/demo-local-legal-review/`. Do not commit it.
+
+Use `tests/golden-legal/demo-synthetic-contract-request.json` for public demos. Never demo with real customer contracts, confidential legal text, personal data, or production matter materials.
 
 To turn the latest evidence bundle into a shareable local transcript, run:
 

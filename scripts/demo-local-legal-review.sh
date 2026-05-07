@@ -9,7 +9,7 @@ OLLAMA_HOST="${OLLAMA_HOST:-http://127.0.0.1:11434}"
 OLLAMA_NO_CLOUD="${OLLAMA_NO_CLOUD:-true}"
 MODEL_PATH="${IGNISPROMPT_GGUF_MODEL_PATH:-$ROOT_DIR/models/qwen2.5-0.5b-instruct-q4_k_m.gguf}"
 LEGAL_MODEL_DIR="${IGNISPROMPT_DEMO_MODEL_DIR:-$ROOT_DIR/config/models}"
-REQUEST_FILE="${IGNISPROMPT_DEMO_REQUEST_FILE:-$ROOT_DIR/tests/golden-legal/smoke-legal-request.json}"
+REQUEST_FILE="${IGNISPROMPT_DEMO_REQUEST_FILE:-$ROOT_DIR/tests/golden-legal/demo-synthetic-contract-request.json}"
 DEMO_PORT="${IGNISPROMPT_DEMO_PORT:-8886}"
 
 require_cmd() {
@@ -98,6 +98,7 @@ curl -fsS "$OLLAMA_HOST/api/tags" >/dev/null 2>&1 || {
 }
 
 mkdir -p "$EVIDENCE_ROOT"
+cp "$REQUEST_FILE" "$EVIDENCE_ROOT/request.json"
 AUDIT_LOG="$EVIDENCE_ROOT/audit.jsonl"
 DAEMON_LOG="$EVIDENCE_ROOT/daemon.log"
 DAEMON_PID=""

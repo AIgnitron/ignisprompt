@@ -3,7 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EVIDENCE_BASE="${IGNISPROMPT_DEMO_EVIDENCE_BASE:-$ROOT_DIR/local-evidence/demo-local-legal-review}"
-REQUEST_FILE="${IGNISPROMPT_DEMO_REQUEST_FILE:-$ROOT_DIR/tests/golden-legal/smoke-legal-request.json}"
+REQUEST_FILE="${IGNISPROMPT_DEMO_REQUEST_FILE:-$ROOT_DIR/tests/golden-legal/demo-synthetic-contract-request.json}"
+LEGACY_REQUEST_FILE="$ROOT_DIR/tests/golden-legal/smoke-legal-request.json"
 MODE="${1:-}"
 
 require_cmd() {
@@ -99,6 +100,11 @@ esac
 }
 
 TRANSCRIPT_PATH="$EVIDENCE_DIR/transcript.md"
+if [ -f "$EVIDENCE_DIR/request.json" ]; then
+  TRANSCRIPT_REQUEST_FILE="$EVIDENCE_DIR/request.json"
+else
+  TRANSCRIPT_REQUEST_FILE="$LEGACY_REQUEST_FILE"
+fi
 AUDIT_PATH="$EVIDENCE_DIR/audit_events.json"
 if [ -f "$EVIDENCE_DIR/demo-summary.json" ]; then
   AUDIT_PATH="$(jq -r --arg fallback "$AUDIT_PATH" '.audit_event_location // $fallback' "$EVIDENCE_DIR/demo-summary.json")"
@@ -107,7 +113,7 @@ fi
 {
   printf '# Local Legal Review Demo Transcript\n\n'
   printf '%s\n' "- evidence bundle: \`$EVIDENCE_DIR\`"
-  printf '%s\n' "- request fixture: \`$REQUEST_FILE\`"
+  printf '%s\n' "- request fixture: \`$TRANSCRIPT_REQUEST_FILE\`"
   printf '%s\n\n' "- audit evidence path: \`$AUDIT_PATH\`"
 
   printf '## Request Summary\n\n'
@@ -116,7 +122,7 @@ fi
     "- stream: `\(.stream // false)`",
     "- declared domain: `\(.metadata.domain // "unspecified")`",
     "- user prompt excerpt: \((.messages[] | select(.role == "user") | .content)[0:220] | @json)"
-  ' "$REQUEST_FILE"
+  ' "$TRANSCRIPT_REQUEST_FILE"
   printf '\n'
 
   printf '## Route Decision\n\n'
