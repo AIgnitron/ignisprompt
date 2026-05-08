@@ -35,7 +35,7 @@ test:
 
 smoke:
 	@set -eu -o pipefail; \
-	log_file="$$(mktemp -t ignisprompt-smoke)"; \
+	log_file="$$(mktemp "$${TMPDIR:-/tmp}/ignisprompt-smoke.XXXXXX")"; \
 	daemon_pid=""; \
 	trap 'if [ -n "$$daemon_pid" ] && kill -0 "$$daemon_pid" >/dev/null 2>&1; then kill "$$daemon_pid" >/dev/null 2>&1 || true; wait "$$daemon_pid" >/dev/null 2>&1 || true; fi' EXIT; \
 	IGNISPROMPT_BIND="$(IGNISPROMPT_BIND)" IGNISPROMPT_MODEL_DIR="$(IGNISPROMPT_MODEL_DIR)" IGNISPROMPT_AUDIT_LOG="$(IGNISPROMPT_AUDIT_LOG)" ./scripts/start-dev.sh >"$$log_file" 2>&1 & \
@@ -62,7 +62,7 @@ gguf-test:
 
 gguf-smoke:
 	@set -eu -o pipefail; \
-	log_file="$$(mktemp -t ignisprompt-gguf-smoke)"; \
+	log_file="$$(mktemp "$${TMPDIR:-/tmp}/ignisprompt-gguf-smoke.XXXXXX")"; \
 	daemon_pid=""; \
 	trap 'if [ -n "$$daemon_pid" ] && kill -0 "$$daemon_pid" >/dev/null 2>&1; then kill "$$daemon_pid" >/dev/null 2>&1 || true; wait "$$daemon_pid" >/dev/null 2>&1 || true; fi' EXIT; \
 	IGNISPROMPT_GGUF_RUNNER_BIN="$${IGNISPROMPT_GGUF_RUNNER_BIN:-./scripts/ollama-gguf-runner.sh}" \
