@@ -3,7 +3,7 @@
   "messages": [
     {
       "role": "user",
-      "content": "Review this fully synthetic demo contract clause and return the key risks. Clause: Vendor may suspend the service for any operational reason with immediate effect, may retain all prepaid fees after suspension, and Customer must indemnify Vendor for third-party claims arising from Customer data even when Vendor's own security controls contributed to the claim. This fixture uses fictional generic parties only and is not based on a real customer contract."
+      "content": "Review this fully synthetic demo contract clause and return one concise business risk about prepaid fees. Use short clause-specific values. Use jurisdiction \"not specified\". Do not use placeholder values. For supporting_text, copy this exact phrase from the clause: \"may retain all prepaid fees after suspension\". Clause: Vendor may suspend the service for any operational reason with immediate effect, may retain all prepaid fees after suspension, and Customer must indemnify Vendor for third-party claims arising from Customer data even when Vendor's own security controls contributed to the claim. This fixture uses fictional generic parties only and is not based on a real customer contract."
     }
   ],
   "stream": false,

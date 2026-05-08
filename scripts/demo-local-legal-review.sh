@@ -137,6 +137,14 @@ jq -n \
     demo_status: (if ($completion[0].local_output.legal_json.status == "ok" and $completion[0].local_output.legal_json.schema_valid == true) then "ok" else "legal_json_invalid" end)
   }' >"$EVIDENCE_ROOT/demo-summary.json"
 
+if [ "$(jq -r '.demo_status' "$EVIDENCE_ROOT/demo-summary.json")" = "ok" ] &&
+  jq -e '.metadata.fixture == "synthetic_public_demo"' "$REQUEST_FILE" >/dev/null &&
+  jq -e '.. | strings | select(ascii_downcase == "string")' "$EVIDENCE_ROOT/demo-summary.json" >/dev/null; then
+  echo "Demo produced schema-valid legal JSON, but the synthetic fixture output still contains placeholder string values." >&2
+  echo "Treating this as a demo quality failure rather than presenting placeholder output as useful." >&2
+  exit 1
+fi
+
 echo "Route decision:"
 jq '.route_decision' "$EVIDENCE_ROOT/demo-summary.json"
 echo
