@@ -4,7 +4,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EVIDENCE_BASE="${IGNISPROMPT_DEMO_EVIDENCE_BASE:-$ROOT_DIR/local-evidence/demo-local-legal-review}"
 REQUEST_FILE="${IGNISPROMPT_DEMO_REQUEST_FILE:-$ROOT_DIR/tests/golden-legal/demo-synthetic-contract-request.json}"
-LEGACY_REQUEST_FILE="$ROOT_DIR/tests/golden-legal/smoke-legal-request.json"
 MODE="${1:-}"
 
 require_cmd() {
@@ -54,10 +53,18 @@ latest_bundle() {
 run_demo() {
   local before=""
   local after=""
+  local generated_dir=""
 
   before="$(latest_bundle 2>/dev/null || true)"
-  "$ROOT_DIR/scripts/demo-local-legal-review.sh" >/dev/null
-  after="$(latest_bundle)"
+  generated_dir="$EVIDENCE_BASE/$(date -u +%Y%m%dT%H%M%SZ)"
+  if ! IGNISPROMPT_DEMO_EVIDENCE_DIR="$generated_dir" "$ROOT_DIR/scripts/demo-local-legal-review.sh" >/dev/null; then
+    echo "demo run failed before creating a complete evidence bundle under $EVIDENCE_BASE" >&2
+    exit 1
+  fi
+  if ! after="$(latest_bundle)"; then
+    echo "demo run did not create a complete evidence bundle under $EVIDENCE_BASE" >&2
+    exit 1
+  fi
 
   if [ -n "$before" ] && [ "$before" = "$after" ]; then
     echo "demo run did not create a new complete evidence bundle under $EVIDENCE_BASE" >&2
@@ -103,7 +110,7 @@ TRANSCRIPT_PATH="$EVIDENCE_DIR/transcript.md"
 if [ -f "$EVIDENCE_DIR/request.json" ]; then
   TRANSCRIPT_REQUEST_FILE="$EVIDENCE_DIR/request.json"
 else
-  TRANSCRIPT_REQUEST_FILE="$LEGACY_REQUEST_FILE"
+  TRANSCRIPT_REQUEST_FILE="$REQUEST_FILE"
 fi
 AUDIT_PATH="$EVIDENCE_DIR/audit_events.json"
 if [ -f "$EVIDENCE_DIR/demo-summary.json" ]; then
