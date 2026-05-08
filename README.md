@@ -28,6 +28,8 @@ An experimental manual-only release workflow now also lives at `.github/workflow
 
 The docs set under `docs/` describes the current scaffold and clearly separates implemented behavior from planned work:
 
+- [Codex/agent instructions](AGENTS.md) for contributors and AI coding agents working in this repo
+- [Current Codex handoff](docs/CODEX_HANDOFF.md) for current-state context and post-MVP follow-up work
 - [Docs index](docs/README.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Runner providers](docs/RUNNER_PROVIDERS.md)
@@ -43,6 +45,8 @@ The docs set under `docs/` describes the current scaffold and clearly separates 
 - [Enterprise notes](docs/ENTERPRISE.md)
 - [Attestation report template](docs/ATTESTATION_REPORT_TEMPLATE.md)
 - [Compliance notes](docs/COMPLIANCE_NOTES.md)
+
+Contributors and AI coding agents should read `AGENTS.md` before making changes. For current repo state, known gaps, and recommended next tasks, also read `docs/CODEX_HANDOFF.md`.
 
 ## What this scaffold includes
 
