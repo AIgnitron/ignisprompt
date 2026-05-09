@@ -4,6 +4,16 @@
 
 This repository contains a minimal `ignispromptd` Rust daemon scaffold for the Apple Spine Smoke Test. It is intentionally small: it validates the control-plane shape before real model inference is wired in.
 
+## MVP status: v0.1.0-mvp
+
+`v0.1.0-mvp` is a technical MVP snapshot with a conservative **PASS WITH GAPS** readiness result.
+
+It proves that the local-first control-plane scaffold works: the daemon can run locally, expose the core HTTP surfaces, explain routing decisions, treat adversarial document instructions as untrusted content, record local audit events, and exercise the default no-model smoke path in CI.
+
+It does not prove production model quality, legal accuracy, enterprise compliance, certification, design-partner readiness, production-grade streaming, production-grade MCP support, or packaged distribution. Current gaps are intentionally documented rather than hidden.
+
+For details, see the [demo flows](docs/DEMO.md), [testing notes](docs/TESTING.md), [packaging notes](docs/PACKAGING.md), [runner provider notes](docs/RUNNER_PROVIDERS.md), [attestation report template](docs/ATTESTATION_REPORT_TEMPLATE.md), and [current Codex handoff](docs/CODEX_HANDOFF.md).
+
 ## Current smoke-test status
 
 `./scripts/dev-check.sh` is the recommended one-command developer path. `./scripts/start-dev.sh` plus `./scripts/smoke.sh` remains available as the lower-level manual debugging path when you want to inspect a running daemon directly.
