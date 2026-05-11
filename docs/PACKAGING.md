@@ -6,7 +6,7 @@ IgnisPrompt is currently source-first. The supported install and run path today 
 
 - supported today: build and run from source
 - supported today: local `cargo install --path ...` from this repository
-- supported today: manual GitHub Actions release-draft artifact build for `ignispromptd` on Linux x86_64
+- supported today: manual GitHub Actions release-draft artifact build for `ignispromptd` on Linux x86_64 and experimental macOS arm64
 - not available yet: Homebrew formula
 - not available yet: published package manager distribution
 
@@ -115,11 +115,12 @@ The repository now includes an experimental manual GitHub Actions workflow at `.
 Current scope:
 
 - manual trigger only: `workflow_dispatch`
-- builds `ignispromptd` for Linux x86_64
+- builds `ignispromptd` for Linux x86_64 and experimental macOS arm64
 - uploads a workflow artifact containing:
   - `ignispromptd`
   - `ignispromptd.sha256`
   - release metadata text
+- creates separate artifacts per target platform
 
 Current limitations:
 
