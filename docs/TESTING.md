@@ -56,6 +56,20 @@ The `route-explain` command reads a JSON request file. For a legal route example
 
 This default path intentionally avoids Ollama, GGUF model weights, and cloud access.
 
+## Aethra scaffold checks
+
+The planned Aethra dashboard scaffold lives under `apps/aethra/` and is isolated from the default Rust daemon path. It uses synthetic fixtures only in the first scaffold and does not require a running `ignispromptd`, Ollama, GGUF tooling, model weights, cloud access, or cloud credentials.
+
+When changing Aethra files, run its local checks from the app directory:
+
+```bash
+cd apps/aethra
+npm ci
+npm run build
+```
+
+Do not make `make dev-check` depend on Node tooling unless a future task explicitly changes the repository-wide verification policy.
+
 ## Experimental MCP stub
 
 The experimental MCP path is manual-only and is not part of default CI. It can be exercised locally with newline-delimited JSON-RPC over stdio:
