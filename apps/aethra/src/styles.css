@@ -118,9 +118,16 @@ a {
   font-size: 1.7rem;
 }
 
+.status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -221,6 +228,56 @@ a {
   font-weight: 700;
 }
 
+.fact-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 18px 0;
+}
+
+.fact-columns h4 {
+  margin: 0 0 8px;
+  color: #40545c;
+  font-size: 0.9rem;
+}
+
+.fact-columns ul,
+.warning-list,
+.state-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  color: #40545c;
+}
+
+.fact-columns ul,
+.warning-list {
+  padding-left: 20px;
+}
+
+.state-list {
+  margin-top: 18px;
+}
+
+.state-list div {
+  display: grid;
+  gap: 2px;
+}
+
+.state-list dt {
+  color: #172026;
+  font-weight: 700;
+}
+
+.state-list dd {
+  margin: 0;
+  color: #40545c;
+}
+
+.warning-list {
+  margin-top: 18px;
+}
+
 @media (max-width: 900px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -236,7 +293,8 @@ a {
 
   .metric-grid,
   .definition-grid,
-  .two-column {
+  .two-column,
+  .fact-columns {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -257,7 +315,8 @@ a {
   .nav-list,
   .metric-grid,
   .definition-grid,
-  .two-column {
+  .two-column,
+  .fact-columns {
     grid-template-columns: 1fr;
   }
 }
