@@ -66,6 +66,7 @@ When changing Aethra files, run its local checks from the app directory:
 cd apps/aethra
 npm ci
 npm run build
+npm test
 ```
 
 Do not make `make dev-check` depend on Node tooling unless a future task explicitly changes the repository-wide verification policy.
