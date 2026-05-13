@@ -24,6 +24,10 @@ a {
   text-decoration: none;
 }
 
+button {
+  font: inherit;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
@@ -65,17 +69,25 @@ a {
   gap: 8px;
 }
 
-.nav-list a,
+.nav-list button,
 .nav-list span {
   display: block;
+  width: 100%;
   padding: 10px 12px;
   border: 1px solid rgb(255 255 255 / 12%);
   border-radius: 8px;
+  background: transparent;
   color: #d7e0e2;
+  cursor: default;
   font-size: 0.92rem;
+  text-align: left;
 }
 
-.nav-list a {
+.nav-list button {
+  cursor: pointer;
+}
+
+.nav-list button[aria-current="page"] {
   background: rgb(255 255 255 / 8%);
   color: #ffffff;
 }
@@ -278,6 +290,92 @@ a {
   margin-top: 18px;
 }
 
+.audit-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.9fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.audit-table-panel {
+  min-width: 0;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  margin-top: 18px;
+}
+
+.audit-table {
+  width: 100%;
+  min-width: 960px;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.audit-table th,
+.audit-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e8ea;
+  text-align: left;
+  vertical-align: top;
+}
+
+.audit-table th {
+  color: #607176;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+}
+
+.audit-table td {
+  color: #25353b;
+}
+
+.selected-row td {
+  background: #eef8f5;
+}
+
+.table-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #17643a;
+  cursor: pointer;
+  font-weight: 700;
+  text-align: left;
+}
+
+.detail-panel {
+  position: sticky;
+  top: 28px;
+}
+
+.detail-section {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.detail-section h4 {
+  margin: 0;
+  color: #40545c;
+  font-size: 0.9rem;
+}
+
+.raw-json {
+  max-height: 280px;
+  margin: 0;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid #d9e1e3;
+  border-radius: 8px;
+  background: #f5f7f8;
+  color: #25353b;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 @media (max-width: 900px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -296,6 +394,14 @@ a {
   .two-column,
   .fact-columns {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .audit-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-panel {
+    position: static;
   }
 }
 
@@ -316,7 +422,8 @@ a {
   .metric-grid,
   .definition-grid,
   .two-column,
-  .fact-columns {
+  .fact-columns,
+  .audit-layout {
     grid-template-columns: 1fr;
   }
 }
