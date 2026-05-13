@@ -42,6 +42,7 @@ The docs set under `docs/` describes the current scaffold and clearly separates 
 - [Current Codex handoff](docs/CODEX_HANDOFF.md) for current-state context and post-MVP follow-up work
 - [Docs index](docs/README.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Aethra MVP plan](docs/AETHRA.md)
 - [Runner providers](docs/RUNNER_PROVIDERS.md)
 - [Demo flows](docs/DEMO.md)
 - [Testing](docs/TESTING.md)

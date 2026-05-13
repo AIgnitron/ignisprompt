@@ -20,6 +20,7 @@ The default path does not require Ollama, GGUF tooling, model weights, or networ
 - [Codex/Agent Instructions](../AGENTS.md): permanent rules for contributors and AI coding agents working in this repository.
 - [Codex Handoff](CODEX_HANDOFF.md): current MVP state, known gaps, open post-MVP issues, and recommended next tasks.
 - [Architecture](ARCHITECTURE.md): daemon shape, endpoints, route flow, runner fallback behavior, and non-implemented tiers.
+- [Aethra MVP Plan](AETHRA.md): conservative read-only dashboard scope, available IgnisPrompt data, API gaps, and first implementation path.
 - [Runner Providers](RUNNER_PROVIDERS.md): `ModelRunner` trait, `ModelRunnerContext`, provider ordering, and rules for adding new local runners.
 - [Demo](DEMO.md): default smoke flow and optional GGUF/Ollama demo flow.
 - [Demo Readiness Checklist](DEMO_READINESS_CHECKLIST.md): short pre-demo checks for local-only behavior, synthetic data, evidence handling, and optional GGUF runs.
