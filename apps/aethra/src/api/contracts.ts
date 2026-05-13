@@ -13,15 +13,15 @@ export type ModelManifest = {
   tier: number;
   domains: string[];
   format: string;
-  quantization?: string;
-  contextWindow?: number;
-  localPath?: string;
-  promptPack?: string;
-  responseFormat?: string;
-  sha256?: string;
-  version?: string;
+  quantization?: string | null;
+  contextWindow?: number | null;
+  localPath?: string | null;
+  promptPack?: string | null;
+  responseFormat?: string | null;
+  sha256?: string | null;
+  version?: string | null;
   installed: boolean;
-  source?: string;
+  source?: string | null;
 };
 
 export type ModelRegistry = {
@@ -115,6 +115,11 @@ const isOptionalNullableString = (
 const isOptionalNumber = (value: unknown): value is number | undefined =>
   value === undefined || isNumber(value);
 
+const isOptionalNullableNumber = (
+  value: unknown,
+): value is number | null | undefined =>
+  value === undefined || value === null || isNumber(value);
+
 export function isHealthResponse(value: unknown): value is HealthResponse {
   return (
     isRecord(value) &&
@@ -135,15 +140,15 @@ export function isModelManifest(value: unknown): value is ModelManifest {
     isNumber(value.tier) &&
     isStringArray(value.domains) &&
     isString(value.format) &&
-    isOptionalString(value.quantization) &&
-    isOptionalNumber(value.contextWindow) &&
-    isOptionalString(value.localPath) &&
-    isOptionalString(value.promptPack) &&
-    isOptionalString(value.responseFormat) &&
-    isOptionalString(value.sha256) &&
-    isOptionalString(value.version) &&
+    isOptionalNullableString(value.quantization) &&
+    isOptionalNullableNumber(value.contextWindow) &&
+    isOptionalNullableString(value.localPath) &&
+    isOptionalNullableString(value.promptPack) &&
+    isOptionalNullableString(value.responseFormat) &&
+    isOptionalNullableString(value.sha256) &&
+    isOptionalNullableString(value.version) &&
     isBoolean(value.installed) &&
-    isOptionalString(value.source)
+    isOptionalNullableString(value.source)
   );
 }
 

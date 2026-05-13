@@ -175,8 +175,8 @@ function AuditEventDetail({ event }: AuditEventDetailProps) {
         <h4>Warnings</h4>
         {event.warnings.length > 0 ? (
           <ul className="warning-list">
-            {event.warnings.map((warning) => (
-              <li key={warning}>{warning}</li>
+            {event.warnings.map((warning, index) => (
+              <li key={`${event.request_id}-${index}`}>{warning}</li>
             ))}
           </ul>
         ) : (

@@ -7,6 +7,7 @@ import {
   buildRouteExplainRequest,
   buildRouteFixtureScenarios,
   describeRouteExplainError,
+  isWarningRouteDecision,
   sampleRoutePrompt,
   validateRoutePrompt,
 } from "./routeExplainSummary";
@@ -237,7 +238,9 @@ type RouteExplainResultProps = {
 function RouteExplainResult({ result }: RouteExplainResultProps) {
   const tone = result.errorMessage
     ? "warning"
-    : result.response && result.response.warnings.length > 0
+    : result.response &&
+        (result.response.warnings.length > 0 ||
+          isWarningRouteDecision(result.response))
       ? "warning"
       : "ok";
   const response = result.response;
@@ -309,8 +312,8 @@ function RouteExplainResult({ result }: RouteExplainResultProps) {
             <h4>Warnings</h4>
             {response.warnings.length > 0 ? (
               <ul className="warning-list">
-                {response.warnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
+                {response.warnings.map((warning, index) => (
+                  <li key={`${response.request_id}-${index}`}>{warning}</li>
                 ))}
               </ul>
             ) : (

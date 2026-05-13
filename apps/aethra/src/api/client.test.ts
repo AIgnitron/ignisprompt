@@ -42,6 +42,34 @@ describe("IgnisPromptClient", () => {
     await expect(client.auditEvents()).resolves.toEqual(auditEventFixtures);
   });
 
+  it("accepts null optional model manifest fields from the daemon", async () => {
+    const manifestWithNullOptionFields = {
+      modelId: "fixture-null-option-fields",
+      displayName: "Fixture Null Option Fields",
+      tier: 1,
+      domains: ["general"],
+      format: "stub",
+      quantization: null,
+      contextWindow: null,
+      localPath: null,
+      promptPack: null,
+      responseFormat: null,
+      sha256: null,
+      version: null,
+      installed: false,
+      source: null,
+    };
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({ models: [manifestWithNullOptionFields] }),
+    );
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.models()).resolves.toEqual({
+      models: [manifestWithNullOptionFields],
+    });
+  });
+
+
   it("sends route explain as an explicit POST action", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse(routeExplainFixture));
     const client = new IgnisPromptClient({ fetchImpl });

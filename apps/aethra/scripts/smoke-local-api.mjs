@@ -237,7 +237,7 @@ function assertNumber(value, label) {
 
 function assertLocalBaseUrl(urlString) {
   const url = new URL(urlString);
-  const localHosts = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+  const localHosts = new Set(["127.0.0.1", "localhost", "::1"]);
   if (!localHosts.has(url.hostname)) {
     throw new Error(
       `refusing non-local IGNISPROMPT_BASE_URL host: ${url.hostname}`,
@@ -247,7 +247,9 @@ function assertLocalBaseUrl(urlString) {
 
 function bindFromBaseUrl(urlString) {
   const url = new URL(urlString);
-  return `${url.hostname}:${url.port || "8765"}`;
+  const bindHost = url.hostname === "localhost" ? "127.0.0.1" : url.hostname;
+  const socketHost = bindHost.includes(":") ? `[${bindHost}]` : bindHost;
+  return `${socketHost}:${url.port || "8765"}`;
 }
 
 function normalizeBaseUrl(urlString) {

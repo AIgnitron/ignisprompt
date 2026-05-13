@@ -58,6 +58,27 @@ describe("sustainability proxy summaries", () => {
     ).toBe(1);
   });
 
+  it("de-duplicates rejected route records shared by route and audit sources", () => {
+    const requestId = "fixture-rejected-shared-001";
+    const rejectedAuditEvent = {
+      ...auditEventFixtures[0],
+      request_id: requestId,
+      route_code: "REJECTED_EMPTY_MESSAGES",
+    };
+    const rejectedRoute = {
+      ...routeExplainFixture,
+      request_id: requestId,
+      decision: {
+        ...routeExplainFixture.decision,
+        route_code: "REJECTED_EMPTY_MESSAGES",
+      },
+    };
+
+    expect(
+      countFailClosedOrRejectedRecords([rejectedAuditEvent], [rejectedRoute]),
+    ).toBe(1);
+  });
+
   it("builds avoided cloud call proxy only from local metadata", () => {
     expect(
       buildAvoidedCloudCallProxyCount(auditEventFixtures, [routeExplainFixture]),

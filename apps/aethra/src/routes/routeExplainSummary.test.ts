@@ -5,6 +5,7 @@ import {
   buildRouteExplainRequest,
   buildRouteFixtureScenarios,
   describeRouteExplainError,
+  isWarningRouteDecision,
   validateRoutePrompt,
 } from "./routeExplainSummary";
 
@@ -74,5 +75,31 @@ describe("route explain helpers", () => {
       "REJECTED_EMPTY_MESSAGES",
     );
     expect(scenarios[3].errorMessage).toContain("non-sensitive text");
+  });
+
+  it("marks rejected and error route decisions as warning decisions", () => {
+    expect(isWarningRouteDecision(routeExplainFixture)).toBe(false);
+    expect(
+      isWarningRouteDecision({
+        ...routeExplainFixture,
+        decision: {
+          ...routeExplainFixture.decision,
+          tier: "ERR",
+          route_code: "LEGAL_MODEL_UNAVAILABLE",
+        },
+        warnings: [],
+      }),
+    ).toBe(true);
+    expect(
+      isWarningRouteDecision({
+        ...routeExplainFixture,
+        decision: {
+          ...routeExplainFixture.decision,
+          tier: "REJECTED",
+          route_code: "REJECTED_EMPTY_MESSAGES",
+        },
+        warnings: [],
+      }),
+    ).toBe(true);
   });
 });

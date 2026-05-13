@@ -16,7 +16,8 @@ export type SustainabilitySummary = {
   methodologyLabels: string[];
 };
 
-const rejectedRouteCodePattern = /REJECT|FAIL_CLOSED|FAIL-?CLOSED/i;
+const rejectedRouteCodePattern =
+  /ERR|ERROR|REJECT|FAIL|FAIL_CLOSED|FAIL-?CLOSED|UNAVAILABLE|RAM_PRESSURE|MEMORY_PRESSURE/i;
 
 export function buildSustainabilitySummary(
   health: HealthResponse,
@@ -67,14 +68,24 @@ export function countFailClosedOrRejectedRecords(
   auditEvents: AuditEvent[],
   routeResponses: RouteExplainResponse[],
 ): number {
-  const rejectedAuditEvents = auditEvents.filter((event) =>
-    rejectedRouteCodePattern.test(event.route_code),
-  ).length;
-  const rejectedRouteResponses = routeResponses.filter((response) =>
-    rejectedRouteCodePattern.test(response.decision.route_code),
-  ).length;
+  const rejectedRequestIds = new Set<string>();
 
-  return rejectedAuditEvents + rejectedRouteResponses;
+  for (const event of auditEvents) {
+    if (isRejectedRouteCode(event.route_code)) {
+      rejectedRequestIds.add(event.request_id);
+    }
+  }
+
+  for (const response of routeResponses) {
+    if (
+      isRejectedRouteCode(response.decision.route_code) ||
+      isRejectedRouteCode(response.decision.tier)
+    ) {
+      rejectedRequestIds.add(response.request_id);
+    }
+  }
+
+  return rejectedRequestIds.size;
 }
 
 export function buildAvoidedCloudCallProxyCount(
@@ -94,6 +105,10 @@ export function buildAvoidedCloudCallProxyCount(
   ).length;
 
   return localRouteAuditEvents + cloudDisallowedLocalRoutes;
+}
+
+function isRejectedRouteCode(routeCode: string): boolean {
+  return rejectedRouteCodePattern.test(routeCode);
 }
 
 export function getSustainabilityMethodologyLabels(): string[] {
