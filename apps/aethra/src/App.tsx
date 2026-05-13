@@ -3,12 +3,14 @@ import { AuditEvents } from "./routes/AuditEvents";
 import { ModelRunnerStatus } from "./routes/ModelRunnerStatus";
 import { Overview } from "./routes/Overview";
 import { RoutingExplorer } from "./routes/RoutingExplorer";
+import { SustainabilityPreview } from "./routes/SustainabilityPreview";
 
 type AethraRoute =
   | "overview"
   | "routing-explorer"
   | "audit-events"
-  | "model-runner-status";
+  | "model-runner-status"
+  | "sustainability-preview";
 
 export default function App() {
   const [activeRoute, setActiveRoute] = useState<AethraRoute>("overview");
@@ -53,7 +55,15 @@ export default function App() {
           >
             Model / Runner Status
           </button>
-          <span>Sustainability Preview</span>
+          <button
+            type="button"
+            aria-current={
+              activeRoute === "sustainability-preview" ? "page" : undefined
+            }
+            onClick={() => setActiveRoute("sustainability-preview")}
+          >
+            Sustainability Preview
+          </button>
         </nav>
       </aside>
 
@@ -71,6 +81,9 @@ export default function App() {
         {activeRoute === "routing-explorer" ? <RoutingExplorer /> : null}
         {activeRoute === "audit-events" ? <AuditEvents /> : null}
         {activeRoute === "model-runner-status" ? <ModelRunnerStatus /> : null}
+        {activeRoute === "sustainability-preview" ? (
+          <SustainabilityPreview />
+        ) : null}
       </main>
     </div>
   );
