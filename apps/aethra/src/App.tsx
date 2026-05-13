@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { AuditEvents } from "./routes/AuditEvents";
+import { ModelRunnerStatus } from "./routes/ModelRunnerStatus";
 import { Overview } from "./routes/Overview";
 
-type AethraRoute = "overview" | "audit-events";
+type AethraRoute = "overview" | "audit-events" | "model-runner-status";
 
 export default function App() {
   const [activeRoute, setActiveRoute] = useState<AethraRoute>("overview");
@@ -30,7 +31,15 @@ export default function App() {
           >
             Audit Events
           </button>
-          <span>Model / Runner Status</span>
+          <button
+            type="button"
+            aria-current={
+              activeRoute === "model-runner-status" ? "page" : undefined
+            }
+            onClick={() => setActiveRoute("model-runner-status")}
+          >
+            Model / Runner Status
+          </button>
           <span>Sustainability Preview</span>
         </nav>
       </aside>
@@ -45,7 +54,9 @@ export default function App() {
           </span>
         </section>
 
-        {activeRoute === "overview" ? <Overview /> : <AuditEvents />}
+        {activeRoute === "overview" ? <Overview /> : null}
+        {activeRoute === "audit-events" ? <AuditEvents /> : null}
+        {activeRoute === "model-runner-status" ? <ModelRunnerStatus /> : null}
       </main>
     </div>
   );
