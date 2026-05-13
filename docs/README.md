@@ -22,6 +22,7 @@ The default path does not require Ollama, GGUF tooling, model weights, or networ
 - [Architecture](ARCHITECTURE.md): daemon shape, endpoints, route flow, runner fallback behavior, and non-implemented tiers.
 - [Aethra MVP Plan](AETHRA.md): conservative read-only dashboard scope, available IgnisPrompt data, API gaps, and first implementation path.
 - [Aethra Architecture Plan](AETHRA_ARCHITECTURE.md): proposed dashboard boundary, local-only client shape, screens, contracts, fixtures, and test strategy.
+- [Aethra MVP Checkpoint](AETHRA_MVP_CHECKPOINT.md): current local-first dashboard checkpoint, fixture-backed screens, local touchpoints, non-claims, and run/check commands.
 - [Runner Providers](RUNNER_PROVIDERS.md): `ModelRunner` trait, `ModelRunnerContext`, provider ordering, and rules for adding new local runners.
 - [Demo](DEMO.md): default smoke flow and optional GGUF/Ollama demo flow.
 - [Demo Readiness Checklist](DEMO_READINESS_CHECKLIST.md): short pre-demo checks for local-only behavior, synthetic data, evidence handling, and optional GGUF runs.

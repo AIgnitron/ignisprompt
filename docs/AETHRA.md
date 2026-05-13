@@ -4,7 +4,7 @@ Aethra is the planned standalone dashboard and observatory for IgnisPrompt. The 
 
 This plan is intentionally conservative. It describes a read-only MVP that can be built from today's IgnisPrompt surfaces plus a small set of future API additions.
 
-For a deeper proposed technical shape, see the [Aethra architecture plan](AETHRA_ARCHITECTURE.md).
+For a deeper proposed technical shape, see the [Aethra architecture plan](AETHRA_ARCHITECTURE.md). For the current implemented dashboard checkpoint, see the [Aethra MVP checkpoint](AETHRA_MVP_CHECKPOINT.md).
 
 ## MVP Responsibilities
 
