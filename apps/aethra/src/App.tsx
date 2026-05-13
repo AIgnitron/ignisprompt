@@ -1,6 +1,12 @@
+import { useState } from "react";
+import { AuditEvents } from "./routes/AuditEvents";
 import { Overview } from "./routes/Overview";
 
+type AethraRoute = "overview" | "audit-events";
+
 export default function App() {
+  const [activeRoute, setActiveRoute] = useState<AethraRoute>("overview");
+
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Aethra sections">
@@ -9,11 +15,21 @@ export default function App() {
           <h1>Local observability scaffold</h1>
         </div>
         <nav className="nav-list">
-          <a href="#overview" aria-current="page">
+          <button
+            type="button"
+            aria-current={activeRoute === "overview" ? "page" : undefined}
+            onClick={() => setActiveRoute("overview")}
+          >
             Overview
-          </a>
+          </button>
           <span>Routing Explorer</span>
-          <span>Audit Events</span>
+          <button
+            type="button"
+            aria-current={activeRoute === "audit-events" ? "page" : undefined}
+            onClick={() => setActiveRoute("audit-events")}
+          >
+            Audit Events
+          </button>
           <span>Model / Runner Status</span>
           <span>Sustainability Preview</span>
         </nav>
@@ -29,7 +45,7 @@ export default function App() {
           </span>
         </section>
 
-        <Overview />
+        {activeRoute === "overview" ? <Overview /> : <AuditEvents />}
       </main>
     </div>
   );
