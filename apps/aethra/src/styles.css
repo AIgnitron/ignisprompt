@@ -297,8 +297,16 @@ button {
   align-items: start;
 }
 
-.audit-table-panel {
+.audit-table-panel,
+.model-table-panel {
   min-width: 0;
+}
+
+.model-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(340px, 0.9fr);
+  gap: 14px;
+  align-items: start;
 }
 
 .table-scroll {
@@ -362,6 +370,22 @@ button {
   font-size: 0.9rem;
 }
 
+.status-hint-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+  color: #40545c;
+}
+
+.compact-state-list {
+  margin-top: 0;
+}
+
+.compact-state-list dd {
+  overflow-wrap: anywhere;
+}
+
 .raw-json {
   max-height: 280px;
   margin: 0;
@@ -396,7 +420,8 @@ button {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .audit-layout {
+  .audit-layout,
+  .model-layout {
     grid-template-columns: 1fr;
   }
 
@@ -423,7 +448,8 @@ button {
   .definition-grid,
   .two-column,
   .fact-columns,
-  .audit-layout {
+  .audit-layout,
+  .model-layout {
     grid-template-columns: 1fr;
   }
 }
