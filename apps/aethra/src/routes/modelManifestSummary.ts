@@ -30,7 +30,7 @@ export function toModelManifestRows(
       format: model.format,
       quantization: model.quantization ?? "not declared",
       contextWindow:
-        model.contextWindow === undefined
+        model.contextWindow == null
           ? "not declared"
           : String(model.contextWindow),
       localPath: model.localPath ?? "not declared",
@@ -55,20 +55,20 @@ export function countInstalledManifestHints(models: ModelManifest[]): number {
 }
 
 export function countDeclaredLocalPaths(models: ModelManifest[]): number {
-  return models.filter((model) => model.localPath !== undefined).length;
+  return models.filter((model) => model.localPath != null).length;
 }
 
 export function countDeclaredPromptPacks(models: ModelManifest[]): number {
-  return models.filter((model) => model.promptPack !== undefined).length;
+  return models.filter((model) => model.promptPack != null).length;
 }
 
 export function getManifestStatusHints(model: ModelManifest): string[] {
   return [
     "Manifest loaded",
-    model.localPath === undefined
+    model.localPath == null
       ? "Local path not declared"
       : "Local path declared",
-    model.promptPack === undefined
+    model.promptPack == null
       ? "Prompt pack not declared"
       : "Prompt pack declared",
     "Runner readiness unknown",

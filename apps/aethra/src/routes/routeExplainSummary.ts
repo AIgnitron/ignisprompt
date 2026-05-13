@@ -12,6 +12,9 @@ export type RouteExplainFixtureScenario = {
 export const sampleRoutePrompt =
   "Review this synthetic indemnification clause excerpt and identify which local routing tier IgnisPrompt would choose.";
 
+const warningDecisionPattern =
+  /ERR|ERROR|REJECT|FAIL|UNAVAILABLE|RAM_PRESSURE|MEMORY_PRESSURE/i;
+
 export function buildRouteExplainRequest(
   prompt: string,
   model: string,
@@ -54,6 +57,15 @@ export function describeRouteExplainError(error: unknown): string {
   }
 
   return "The local route-explain request failed.";
+}
+
+export function isWarningRouteDecision(
+  response: RouteExplainResponse,
+): boolean {
+  return (
+    warningDecisionPattern.test(response.decision.tier) ||
+    warningDecisionPattern.test(response.decision.route_code)
+  );
 }
 
 export function buildRouteFixtureScenarios(

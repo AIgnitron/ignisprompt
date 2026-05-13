@@ -143,8 +143,8 @@ export function Overview() {
           </div>
           {warningExamples.length > 0 ? (
             <ul className="warning-list">
-              {warningExamples.map((warning) => (
-                <li key={warning}>{warning}</li>
+              {warningExamples.map((warning, index) => (
+                <li key={`${index}-${warning}`}>{warning}</li>
               ))}
             </ul>
           ) : (

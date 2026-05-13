@@ -83,4 +83,43 @@ describe("model manifest fixture summaries", () => {
       "File existence not verified by Aethra in fixture mode",
     ]);
   });
+
+  it("handles null optional manifest fields from daemon responses", () => {
+    const nullOptionManifest: ModelManifest = {
+      modelId: "fixture-null-option-model",
+      displayName: "Fixture Null Option Model",
+      tier: 1,
+      domains: [],
+      format: "stub",
+      quantization: null,
+      contextWindow: null,
+      localPath: null,
+      promptPack: null,
+      responseFormat: null,
+      sha256: null,
+      version: null,
+      installed: false,
+      source: null,
+    };
+
+    expect(toModelManifestRows([nullOptionManifest])[0]).toMatchObject({
+      quantization: "not declared",
+      contextWindow: "not declared",
+      localPath: "not declared",
+      promptPack: "not declared",
+      responseFormat: "not declared",
+      source: "not declared",
+      sha256: "not declared",
+      version: "not declared",
+    });
+    expect(countDeclaredLocalPaths([nullOptionManifest])).toBe(0);
+    expect(countDeclaredPromptPacks([nullOptionManifest])).toBe(0);
+    expect(getManifestStatusHints(nullOptionManifest)).toEqual([
+      "Manifest loaded",
+      "Local path not declared",
+      "Prompt pack not declared",
+      "Runner readiness unknown",
+      "File existence not verified by Aethra in fixture mode",
+    ]);
+  });
 });
