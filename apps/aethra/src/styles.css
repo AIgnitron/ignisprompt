@@ -53,7 +53,7 @@ textarea:focus {
 
 .app-shell {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  grid-template-columns: minmax(236px, 280px) minmax(0, 1fr);
   min-height: 100vh;
 }
 
@@ -116,28 +116,32 @@ textarea:focus {
 }
 
 .workspace {
-  padding: 28px;
+  width: 100%;
+  max-width: 1440px;
+  padding: 28px 36px 40px;
 }
 
 .notice {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  padding: 12px 14px;
-  border: 1px solid #bfd9d2;
+  max-width: 1160px;
+  padding: 10px 12px;
+  border: 1px solid #d7e5e1;
   border-radius: 8px;
-  background: #eef8f5;
+  background: #f7fbfa;
   color: #19362f;
+  font-size: 0.9rem;
 }
 
 .notice span {
-  color: #35534c;
+  color: #526a64;
 }
 
 .page-section {
   display: grid;
-  gap: 22px;
-  max-width: 1120px;
+  gap: 20px;
+  max-width: 1160px;
   margin-top: 26px;
 }
 
@@ -162,8 +166,8 @@ textarea:focus {
 
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 12px;
 }
 
 .metric-card,
@@ -177,8 +181,8 @@ textarea:focus {
 .metric-card {
   display: grid;
   gap: 4px;
-  min-height: 126px;
-  padding: 18px;
+  min-height: 116px;
+  padding: 16px;
 }
 
 .metric-card p,
@@ -195,7 +199,7 @@ textarea:focus {
 }
 
 .panel {
-  padding: 20px;
+  padding: 18px;
 }
 
 .status-badge {
@@ -315,7 +319,7 @@ textarea:focus {
 
 .audit-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.9fr);
+  grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.85fr);
   gap: 14px;
   align-items: start;
 }
@@ -327,7 +331,7 @@ textarea:focus {
 
 .model-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(340px, 0.9fr);
+  grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.85fr);
   gap: 14px;
   align-items: start;
 }
@@ -410,25 +414,31 @@ textarea:focus {
 
 .table-scroll {
   overflow-x: auto;
-  margin-top: 18px;
+  margin: 16px -18px -18px;
+  border-top: 1px solid #e2e8ea;
+  border-radius: 0 0 8px 8px;
 }
 
 .audit-table {
   width: 100%;
-  min-width: 960px;
+  min-width: 900px;
   border-collapse: collapse;
-  font-size: 0.86rem;
+  font-size: 0.82rem;
 }
 
 .audit-table th,
 .audit-table td {
-  padding: 10px 12px;
+  padding: 9px 11px;
   border-bottom: 1px solid #e2e8ea;
   text-align: left;
   vertical-align: top;
 }
 
 .audit-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f7fafb;
   color: #607176;
   font-size: 0.74rem;
   text-transform: uppercase;
@@ -436,6 +446,11 @@ textarea:focus {
 
 .audit-table td {
   color: #25353b;
+  overflow-wrap: anywhere;
+}
+
+.audit-table tbody tr:hover td {
+  background: #f7fbfa;
 }
 
 .selected-row td {
@@ -521,6 +536,10 @@ textarea:focus {
   .two-column,
   .fact-columns {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workspace {
+    padding: 24px;
   }
 
   .audit-layout,

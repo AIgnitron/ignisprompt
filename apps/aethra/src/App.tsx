@@ -20,7 +20,7 @@ export default function App() {
       <aside className="sidebar" aria-label="Aethra sections">
         <div>
           <p className="eyebrow">Aethra</p>
-          <h1>Local observability scaffold</h1>
+          <h1>Local AI Routing Observatory</h1>
         </div>
         <nav className="nav-list">
           <button
