@@ -68,6 +68,14 @@ The current `scripts/ollama-gguf-runner.sh` wrapper creates a local Ollama model
 
 Missing candidate files are recorded as skipped instead of being downloaded or committed.
 
+### Current local candidate notes
+
+As of the local issue #43 review run, `legal-saul-7b-instruct-q4-k-m-local` has local bakeoff evidence from an operator-staged GGUF at `./models/saul-instruct-v1.q4_k_m.gguf`.
+
+The Saul 7B candidate passed the Golden Legal v0.3 subset with `legal_json: ok` and `schema_valid: true`, but its Tier 3 completion latency was high on the reviewed 8 GB CPU-only host. Treat this as evidence that the candidate is runnable and schema-compatible in the local bakeoff path, not as a production legal-quality claim.
+
+The Qwen2.5 7B candidate remains skipped until a reviewed local GGUF is staged at `./models/qwen2.5-7b-instruct-q4_k_m.gguf`.
+
 ## Model selection status
 
 No model is currently certified or declared production legal-quality. Model choice remains an open local bakeoff question. Docs, demos, PR descriptions, and release notes must not claim legal advice quality, legal accuracy solved, enterprise compliance certification, or enterprise attestation.
