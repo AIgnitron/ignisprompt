@@ -20,7 +20,15 @@ type RouteResultState =
     errorMessage?: string;
   };
 
-export function RoutingExplorer() {
+type RoutingExplorerProps = {
+  localBaseUrl: string;
+  localBaseUrlError?: string;
+};
+
+export function RoutingExplorer({
+  localBaseUrl,
+  localBaseUrlError,
+}: RoutingExplorerProps) {
   const fixtureScenarios = useMemo(
     () => buildRouteFixtureScenarios(routeExplainFixture),
     [],
@@ -54,6 +62,15 @@ export function RoutingExplorer() {
   async function runLiveRouteExplain(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    if (localBaseUrlError) {
+      setResult({
+        source: "live",
+        label: "Local URL blocked",
+        errorMessage: localBaseUrlError,
+      });
+      return;
+    }
+
     const validationError = validateRoutePrompt(prompt);
     if (validationError) {
       setResult({
@@ -66,7 +83,7 @@ export function RoutingExplorer() {
 
     setIsLiveRequestRunning(true);
     try {
-      const client = createIgnisPromptClient();
+      const client = createIgnisPromptClient({ baseUrl: localBaseUrl });
       const response = await client.routeExplain(
         buildRouteExplainRequest(prompt, model, domain),
       );
@@ -107,6 +124,8 @@ export function RoutingExplorer() {
           domain={domain}
           fixtureScenarios={fixtureScenarios}
           selectedFixtureId={selectedFixtureId}
+          localBaseUrl={localBaseUrl}
+          localBaseUrlError={localBaseUrlError}
           isLiveRequestRunning={isLiveRequestRunning}
           onPromptChange={setPrompt}
           onModelChange={setModel}
@@ -127,6 +146,8 @@ type RouteExplainFormProps = {
   domain: string;
   fixtureScenarios: ReturnType<typeof buildRouteFixtureScenarios>;
   selectedFixtureId: string;
+  localBaseUrl: string;
+  localBaseUrlError?: string;
   isLiveRequestRunning: boolean;
   onPromptChange: (prompt: string) => void;
   onModelChange: (model: string) => void;
@@ -142,6 +163,8 @@ function RouteExplainForm({
   domain,
   fixtureScenarios,
   selectedFixtureId,
+  localBaseUrl,
+  localBaseUrlError,
   isLiveRequestRunning,
   onPromptChange,
   onModelChange,
@@ -159,6 +182,12 @@ function RouteExplainForm({
             Use synthetic or non-sensitive text. This is not legal advice.
           </p>
         </div>
+      </div>
+
+      <div className="route-base-url">
+        <span>Local route-explain URL</span>
+        <strong>{localBaseUrlError ? "blocked" : localBaseUrl}</strong>
+        {localBaseUrlError ? <p className="muted">{localBaseUrlError}</p> : null}
       </div>
 
       <label className="form-field">
@@ -214,7 +243,7 @@ function RouteExplainForm({
         <button
           type="submit"
           className="primary-button"
-          disabled={isLiveRequestRunning}
+          disabled={isLiveRequestRunning || Boolean(localBaseUrlError)}
         >
           {isLiveRequestRunning
             ? "Running local route explanation"
