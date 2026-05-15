@@ -93,7 +93,7 @@ fn cmd_health(base_url: &str) {
 }
 
 fn cmd_models(base_url: &str) {
-    // Daemon returns ModelRegistry: { models: [{ model_id, display_name, tier, domains, ... }] }
+    // Daemon returns ModelRegistry: { models: [{ modelId, displayName, tier, domains, ... }] }
     let url = format!("{}/v1/models", base_url);
     match ureq::get(&url).call() {
         Ok(resp) => {
@@ -104,24 +104,7 @@ fn cmd_models(base_url: &str) {
                     return;
                 }
                 for m in models {
-                    let id = m.get("model_id").and_then(|v| v.as_str()).unwrap_or("unknown");
-                    let tier = m.get("tier").and_then(|v| v.as_u64())
-                        .map(|t| format!("TIER_{}", t))
-                        .unwrap_or_else(|| "-".to_string());
-                    let domains = m.get("domains")
-                        .and_then(|v| v.as_array())
-                        .map(|arr| {
-                            arr.iter()
-                                .filter_map(|d| d.as_str())
-                                .collect::<Vec<_>>()
-                                .join(",")
-                        })
-                        .unwrap_or_else(|| "-".to_string());
-                    let installed = m.get("installed")
-                        .and_then(|v| v.as_bool())
-                        .map(|b| if b { "installed" } else { "missing" })
-                        .unwrap_or("-");
-                    println!("{:<45} {}  domains={}  {}", id, tier, domains, installed);
+                    println!("{}", format_model_manifest_line(m));
                 }
             } else {
                 println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
@@ -132,6 +115,32 @@ fn cmd_models(base_url: &str) {
             process::exit(1);
         }
     }
+}
+
+fn format_model_manifest_line(model: &Value) -> String {
+    let id = string_field(model, &["modelId", "model_id"]).unwrap_or("unknown");
+    let tier = model.get("tier").and_then(|v| v.as_u64())
+        .map(|t| format!("TIER_{}", t))
+        .unwrap_or_else(|| "-".to_string());
+    let domains = model.get("domains")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|d| d.as_str())
+                .collect::<Vec<_>>()
+                .join(",")
+        })
+        .unwrap_or_else(|| "-".to_string());
+    let installed = model.get("installed")
+        .and_then(|v| v.as_bool())
+        .map(|b| if b { "installed" } else { "missing" })
+        .unwrap_or("-");
+
+    format!("{:<45} {}  domains={}  {}", id, tier, domains, installed)
+}
+
+fn string_field<'a>(value: &'a Value, keys: &[&str]) -> Option<&'a str> {
+    keys.iter().find_map(|key| value.get(*key).and_then(|v| v.as_str()))
 }
 
 fn cmd_route_explain(base_url: &str, file: &str) {
@@ -229,6 +238,7 @@ fn cmd_audit_tail(base_url: &str) {
 
 #[cfg(test)]
 mod tests {
+    use super::{format_model_manifest_line, string_field};
     use serde_json::json;
 
     #[test]
@@ -282,7 +292,8 @@ mod tests {
         let response = json!({
             "models": [
                 {
-                    "model_id": "legal-qwen2.5-0.5b",
+                    "modelId": "legal-qwen2.5-0.5b",
+                    "displayName": "Qwen2.5 0.5B Instruct",
                     "tier": 3,
                     "domains": ["legal"],
                     "installed": true
@@ -291,6 +302,30 @@ mod tests {
         });
         let models = response.get("models").and_then(|d| d.as_array()).unwrap();
         assert_eq!(models.len(), 1);
-        assert_eq!(models[0].get("model_id").and_then(|v| v.as_str()).unwrap(), "legal-qwen2.5-0.5b");
+        assert_eq!(
+            string_field(&models[0], &["modelId", "model_id"]).unwrap(),
+            "legal-qwen2.5-0.5b"
+        );
+        let line = format_model_manifest_line(&models[0]);
+        assert!(line.starts_with("legal-qwen2.5-0.5b"));
+        assert!(line.contains("TIER_3"));
+        assert!(line.contains("domains=legal"));
+        assert!(line.ends_with("installed"));
+    }
+
+    #[test]
+    fn models_keeps_legacy_snake_case_fallback() {
+        let model = json!({
+            "model_id": "legacy-legal-model",
+            "tier": 1,
+            "domains": ["legal", "contracts"],
+            "installed": false
+        });
+
+        let line = format_model_manifest_line(&model);
+        assert!(line.starts_with("legacy-legal-model"));
+        assert!(line.contains("TIER_1"));
+        assert!(line.contains("domains=legal,contracts"));
+        assert!(line.ends_with("missing"));
     }
 }
