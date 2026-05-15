@@ -4,11 +4,13 @@ import { StatusBadge } from "./components/StatusBadge";
 import { createIgnisPromptClient } from "./api/client";
 import type {
   AethraDataMode,
+  LiveAuditEventsState,
   LiveHealthState,
   LiveModelsState,
 } from "./dataSource";
 import {
   DEFAULT_AETHRA_BASE_URL,
+  describeAuditEventsLoadError,
   describeHealthLoadError,
   describeModelsLoadError,
   validateLocalBaseUrl,
@@ -35,6 +37,10 @@ export default function App() {
   const [liveModelsState, setLiveModelsState] = useState<LiveModelsState>({
     status: "not-loaded",
   });
+  const [liveAuditEventsState, setLiveAuditEventsState] =
+    useState<LiveAuditEventsState>({
+      status: "not-loaded",
+    });
   const baseUrlValidation = validateLocalBaseUrl(baseUrlInput);
   const localBaseUrl = baseUrlValidation.ok
     ? baseUrlValidation.baseUrl
@@ -93,6 +99,33 @@ export default function App() {
       setLiveModelsState({
         status: "error",
         ...describeModelsLoadError(error),
+      });
+    }
+  }
+
+  async function loadLiveAuditEvents() {
+    if (baseUrlError) {
+      setLiveAuditEventsState({
+        status: "error",
+        label: "Local URL blocked",
+        message: baseUrlError,
+      });
+      return;
+    }
+
+    setLiveAuditEventsState({ status: "loading" });
+    try {
+      const client = createIgnisPromptClient({ baseUrl: localBaseUrl });
+      const events = await client.auditEvents();
+      setLiveAuditEventsState({
+        status: "loaded",
+        events,
+        loadedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      setLiveAuditEventsState({
+        status: "error",
+        ...describeAuditEventsLoadError(error),
       });
     }
   }
@@ -161,7 +194,7 @@ export default function App() {
             <p>
               {dataMode === "fixture"
                 ? "Live local actions are explicit and local. Aethra observes IgnisPrompt state without changing routing, runners, models, or audit policy."
-                : "Live local health and model metadata loading is manual and read-only. Audit event metadata fetching comes later."}
+                : "Live local metadata loading is manual and read-only for health, models, and audit events."}
             </p>
           </div>
           <div className="mode-badges" aria-label="Aethra mode guarantees">
@@ -202,7 +235,13 @@ export default function App() {
             localBaseUrlError={baseUrlError}
           />
         ) : null}
-        {activeRoute === "audit-events" ? <AuditEvents /> : null}
+        {activeRoute === "audit-events" ? (
+          <AuditEvents
+            dataMode={dataMode}
+            liveAuditEventsState={liveAuditEventsState}
+            onLoadLiveAuditEvents={loadLiveAuditEvents}
+          />
+        ) : null}
         {activeRoute === "model-runner-status" ? (
           <ModelRunnerStatus
             dataMode={dataMode}
@@ -279,7 +318,7 @@ function DataSourceControl({
         </StatusBadge>
         <p className="muted">
           {baseUrlError ??
-            "Fixture screens use bundled data until live local health is manually loaded."}
+            "Fixture screens use bundled data until live local metadata is manually loaded on each screen."}
         </p>
       </div>
 

@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AuditEvent } from "../api/contracts";
 import { auditEventFixtures } from "../api/fixtures";
+import type { AethraDataMode, LiveAuditEventsState } from "../dataSource";
 import { MetricCard } from "../components/MetricCard";
 import { StatusBadge } from "../components/StatusBadge";
 import {
@@ -13,43 +14,91 @@ import {
 const initialSelectedRequestId = toAuditEventRows(auditEventFixtures)[0]
   ?.requestId;
 
-export function AuditEvents() {
-  const [selectedRequestId, setSelectedRequestId] = useState(
+type AuditEventsProps = {
+  dataMode: AethraDataMode;
+  liveAuditEventsState: LiveAuditEventsState;
+  onLoadLiveAuditEvents: () => void;
+};
+
+export function AuditEvents({
+  dataMode,
+  liveAuditEventsState,
+  onLoadLiveAuditEvents,
+}: AuditEventsProps) {
+  const [selectedRequestId, setSelectedRequestId] = useState<
+    string | undefined
+  >(
     initialSelectedRequestId,
   );
-  const rows = useMemo(() => toAuditEventRows(auditEventFixtures), []);
+  const isLiveAuditLoaded =
+    dataMode === "live-local" && liveAuditEventsState.status === "loaded";
+  const events = isLiveAuditLoaded
+    ? liveAuditEventsState.events
+    : auditEventFixtures;
+  const rows = useMemo(() => toAuditEventRows(events), [events]);
   const selectedEvent =
     selectedRequestId === undefined
       ? undefined
-      : findAuditEventByRequestId(auditEventFixtures, selectedRequestId);
+      : findAuditEventByRequestId(events, selectedRequestId);
+  const sourceLabel = isLiveAuditLoaded
+    ? "Live local metadata"
+    : dataMode === "live-local"
+      ? "Fixture fallback"
+      : "Fixture mode";
+
+  useEffect(() => {
+    if (rows.length === 0) {
+      setSelectedRequestId(undefined);
+      return;
+    }
+
+    if (
+      selectedRequestId === undefined ||
+      !rows.some((row) => row.requestId === selectedRequestId)
+    ) {
+      setSelectedRequestId(rows[0].requestId);
+    }
+  }, [rows, selectedRequestId]);
 
   return (
     <section id="audit-events" className="page-section">
       <header className="page-header">
         <div>
           <p className="eyebrow">Audit Events</p>
-          <h2>Fixture-backed local audit records</h2>
+          <h2>Local audit records</h2>
         </div>
-        <div className="status-strip" aria-label="Audit fixture status">
-          <StatusBadge tone="neutral">Fixture mode</StatusBadge>
+        <div className="status-strip" aria-label="Audit metadata status">
+          <StatusBadge tone={isLiveAuditLoaded ? "ok" : "neutral"}>
+            {sourceLabel}
+          </StatusBadge>
           <StatusBadge tone="neutral">Read-only</StatusBadge>
         </div>
       </header>
 
-      <div className="metric-grid" aria-label="Audit fixture metrics">
+      <AuditMetadataPanel
+        dataMode={dataMode}
+        liveAuditEventsState={liveAuditEventsState}
+        onLoadLiveAuditEvents={onLoadLiveAuditEvents}
+      />
+
+      <div className="metric-grid" aria-label="Audit metadata metrics">
         <MetricCard
-          label="Fixture events"
-          value={auditEventFixtures.length}
-          detail="Synthetic local process records"
+          label={isLiveAuditLoaded ? "Live events" : "Fixture events"}
+          value={events.length}
+          detail={
+            isLiveAuditLoaded
+              ? "Local daemon records returned by GET /v1/audit/events"
+              : "Synthetic local process records"
+          }
         />
         <MetricCard
           label="Warnings"
-          value={countAuditWarnings(auditEventFixtures)}
-          detail="Warnings across fixture events"
+          value={countAuditWarnings(events)}
+          detail="Warnings across displayed records"
         />
         <MetricCard
           label="Cache hits"
-          value={countAuditCacheHits(auditEventFixtures)}
+          value={countAuditCacheHits(events)}
           detail="Events with cache.hit=true"
         />
       </div>
@@ -57,23 +106,145 @@ export function AuditEvents() {
       <div className="audit-layout">
         <AuditEventTable
           rows={rows}
+          sourceLabel={sourceLabel}
           selectedRequestId={selectedRequestId}
           onSelect={setSelectedRequestId}
         />
-        <AuditEventDetail event={selectedEvent} />
+        <AuditEventDetail
+          event={selectedEvent}
+          isLiveEvent={isLiveAuditLoaded}
+        />
       </div>
+    </section>
+  );
+}
+
+type AuditMetadataPanelProps = {
+  dataMode: AethraDataMode;
+  liveAuditEventsState: LiveAuditEventsState;
+  onLoadLiveAuditEvents: () => void;
+};
+
+function AuditMetadataPanel({
+  dataMode,
+  liveAuditEventsState,
+  onLoadLiveAuditEvents,
+}: AuditMetadataPanelProps) {
+  const isLiveMode = dataMode === "live-local";
+
+  return (
+    <section className="panel" aria-label="Audit metadata source">
+      <div className="panel-heading">
+        <div>
+          <h3>Audit event metadata</h3>
+          <p className="muted">
+            {isLiveMode
+              ? "Manual read-only GET /v1/audit/events from the configured local daemon."
+              : "Fixture mode uses bundled synthetic audit event metadata."}
+          </p>
+        </div>
+        <StatusBadge
+          tone={
+            liveAuditEventsState.status === "error"
+              ? "warning"
+              : liveAuditEventsState.status === "loaded" && isLiveMode
+                ? "ok"
+                : "neutral"
+          }
+        >
+          {getAuditEventsStateLabel(dataMode, liveAuditEventsState)}
+        </StatusBadge>
+      </div>
+
+      {isLiveMode && liveAuditEventsState.status === "not-loaded" ? (
+        <p className="explanation">
+          Live local audit events are not loaded yet. Aethra is showing fixture
+          records until you manually refresh.
+        </p>
+      ) : null}
+
+      {isLiveMode && liveAuditEventsState.status === "loading" ? (
+        <p className="explanation">
+          Loading read-only audit event metadata from the configured local
+          daemon.
+        </p>
+      ) : null}
+
+      {isLiveMode && liveAuditEventsState.status === "loaded" &&
+      liveAuditEventsState.events.length === 0 ? (
+        <p className="explanation">
+          The local daemon returned a valid empty audit event list.
+        </p>
+      ) : null}
+
+      {isLiveMode && liveAuditEventsState.status === "error" ? (
+        <p className="explanation">
+          {liveAuditEventsState.label}: {liveAuditEventsState.message} Fixture
+          audit records remain clearly labeled below.
+        </p>
+      ) : null}
+
+      <dl className="definition-grid audit-metadata-grid">
+        <div>
+          <dt>Source</dt>
+          <dd>
+            {isLiveMode && liveAuditEventsState.status === "loaded"
+              ? "Live local metadata"
+              : isLiveMode
+                ? "Fixture fallback"
+                : "Fixture metadata"}
+          </dd>
+        </div>
+        <div>
+          <dt>Endpoint</dt>
+          <dd>{isLiveMode ? "GET /v1/audit/events" : "fixture records"}</dd>
+        </div>
+        <div>
+          <dt>Event records</dt>
+          <dd>
+            {liveAuditEventsState.status === "loaded" && isLiveMode
+              ? liveAuditEventsState.events.length
+              : auditEventFixtures.length}
+          </dd>
+        </div>
+        <div>
+          <dt>Loaded at</dt>
+          <dd>
+            {liveAuditEventsState.status === "loaded" && isLiveMode
+              ? formatTimestamp(liveAuditEventsState.loadedAt)
+              : "not loaded"}
+          </dd>
+        </div>
+      </dl>
+
+      {isLiveMode ? (
+        <div className="button-row audit-action-row">
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={liveAuditEventsState.status === "loading"}
+            onClick={onLoadLiveAuditEvents}
+          >
+            {liveAuditEventsState.status === "loading"
+              ? "Loading audit events"
+              : "Refresh live audit events"}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }
 
 type AuditEventTableProps = {
   rows: ReturnType<typeof toAuditEventRows>;
+  sourceLabel: string;
   selectedRequestId?: string;
   onSelect: (requestId: string) => void;
 };
 
 function AuditEventTable({
   rows,
+  sourceLabel,
   selectedRequestId,
   onSelect,
 }: AuditEventTableProps) {
@@ -81,7 +252,7 @@ function AuditEventTable({
     return (
       <section className="panel" aria-label="Audit event table">
         <h3>Recent audit events</h3>
-        <p className="muted">No synthetic audit events are available.</p>
+        <p className="muted">No audit events are available from {sourceLabel}.</p>
       </section>
     );
   }
@@ -91,7 +262,7 @@ function AuditEventTable({
       <div className="panel-heading">
         <div>
           <h3>Recent audit events</h3>
-          <p className="muted">Newest synthetic fixture events first</p>
+          <p className="muted">Newest records first from {sourceLabel}</p>
         </div>
       </div>
       <div className="table-scroll">
@@ -145,14 +316,15 @@ function AuditEventTable({
 
 type AuditEventDetailProps = {
   event?: AuditEvent;
+  isLiveEvent: boolean;
 };
 
-function AuditEventDetail({ event }: AuditEventDetailProps) {
+function AuditEventDetail({ event, isLiveEvent }: AuditEventDetailProps) {
   if (!event) {
     return (
       <aside className="panel detail-panel" aria-label="Audit event detail">
         <h3>Event detail</h3>
-        <p className="muted">Select a synthetic audit event to inspect it.</p>
+        <p className="muted">Select an audit event to inspect it.</p>
       </aside>
     );
   }
@@ -180,7 +352,7 @@ function AuditEventDetail({ event }: AuditEventDetailProps) {
             ))}
           </ul>
         ) : (
-          <p className="muted">No warnings are present in this fixture event.</p>
+          <p className="muted">No warnings are present in this audit event.</p>
         )}
       </section>
 
@@ -215,11 +387,34 @@ function AuditEventDetail({ event }: AuditEventDetailProps) {
       </section>
 
       <p className="muted">
-        This is synthetic fixture data. It is not signed, immutable, encrypted,
-        replicated, or certified audit evidence.
+        This is {isLiveEvent ? "a local daemon record" : "synthetic fixture data"}.
+        It is not signed, immutable, tamper-evident, encrypted, replicated,
+        certified, or compliance evidence.
       </p>
     </aside>
   );
+}
+
+function getAuditEventsStateLabel(
+  dataMode: AethraDataMode,
+  liveAuditEventsState: LiveAuditEventsState,
+): string {
+  if (dataMode === "fixture") {
+    return "Fixture audit events";
+  }
+
+  switch (liveAuditEventsState.status) {
+    case "not-loaded":
+      return "Live audit events not loaded";
+    case "loading":
+      return "Loading live audit events";
+    case "loaded":
+      return liveAuditEventsState.events.length === 0
+        ? "No live audit events"
+        : "Live audit events loaded";
+    case "error":
+      return liveAuditEventsState.label;
+  }
 }
 
 function formatTimestamp(timestamp: string): string {

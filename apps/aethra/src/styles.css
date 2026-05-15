@@ -329,6 +329,10 @@ textarea:focus {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.audit-metadata-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .definition-grid div {
   min-width: 0;
 }
@@ -532,6 +536,10 @@ textarea:focus {
 }
 
 .model-action-row {
+  margin-top: 18px;
+}
+
+.audit-action-row {
   margin-top: 18px;
 }
 
