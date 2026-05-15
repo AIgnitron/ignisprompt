@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AuditEvents } from "./routes/AuditEvents";
+import { StatusBadge } from "./components/StatusBadge";
 import { ModelRunnerStatus } from "./routes/ModelRunnerStatus";
 import { Overview } from "./routes/Overview";
 import { RoutingExplorer } from "./routes/RoutingExplorer";
@@ -68,13 +69,25 @@ export default function App() {
       </aside>
 
       <main className="workspace">
-        <section className="notice" aria-label="Fixture mode notice">
-          <strong>Fixture mode by default.</strong>
-          <span>
-            Most screens use synthetic local fixtures. Routing Explorer can make
-            one explicit local route-explain request when selected; no cloud
-            services, telemetry, analytics, or model providers are contacted.
-          </span>
+        <section className="mode-strip" aria-label="Aethra data mode boundaries">
+          <div className="mode-copy">
+            <p className="eyebrow">Data mode</p>
+            <h2>fixture-backed by default</h2>
+            <p>
+              Live local actions are explicit and local. Aethra observes
+              IgnisPrompt state without changing routing, runners, models, or
+              audit policy.
+            </p>
+          </div>
+          <div className="mode-badges" aria-label="Aethra mode guarantees">
+            <StatusBadge tone="neutral">read-only</StatusBadge>
+            <StatusBadge tone="neutral">no telemetry</StatusBadge>
+            <StatusBadge tone="neutral">no cloud calls by default</StatusBadge>
+            <StatusBadge tone="neutral">model and runner status hints</StatusBadge>
+            <StatusBadge tone="warning">
+              proxy-only sustainability indicators
+            </StatusBadge>
+          </div>
         </section>
 
         {activeRoute === "overview" ? <Overview /> : null}
