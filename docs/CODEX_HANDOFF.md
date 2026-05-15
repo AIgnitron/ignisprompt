@@ -9,7 +9,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - MVP tag: `v0.1.0-mvp`
 - Final readiness result: **PASS WITH GAPS**
 - Public feedback issue: https://github.com/AIgnitron/ignisprompt/issues/56
-- Latest known main commit: `5bbd39c fix: parse current model manifest fields in ignispromptctl (#81)`
+- Latest known main commit: `5871d49 feat: add Aethra live audit events loading (#88)`
 - Open PRs at this handoff: none
 - Open issues at this handoff: #56 only
 
@@ -19,6 +19,11 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - PR #79: documented Saul 7B local bakeoff status and evidence summary.
 - PR #80: documented Qwen2.5 7B local bakeoff status and evidence summary.
 - PR #81: fixed `ignispromptctl models` so it reads current `/v1/models` manifest fields such as `modelId`, with a legacy `model_id` fallback.
+- PR #84: added the Aethra live read-only mode design.
+- PR #85: added explicit Aethra data source state for fixture vs live local mode.
+- PR #86: added manual read-only live local `/health` metadata loading.
+- PR #87: added manual read-only live local `/v1/models` metadata loading.
+- PR #88: added manual read-only live local `/v1/audit/events` metadata loading.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
 - Issue #43 is closed after Saul 7B local legal candidate evidence was documented.
 
@@ -48,7 +53,15 @@ Current Aethra boundaries:
 - model and runner status hints
 - proxy-only sustainability indicators
 
-Aethra currently provides fixture-backed screens for Overview, Routing Explorer, Audit Events, Model / Runner Status, and Sustainability Preview. Its live local touchpoints remain explicit and local: the typed API client, the Routing Explorer route-explain action, and the opt-in local API smoke command. `POST /v1/route/explain` is local and inspection-oriented, but it appends a local audit event; use synthetic or non-sensitive text when exercising it.
+Aethra currently provides fixture-backed screens for Overview, Routing Explorer, Audit Events, Model / Runner Status, and Sustainability Preview. Fixture mode remains the default. Live local mode is explicit and manual, with read-only local metadata loading for:
+
+- `GET /health`
+- `GET /v1/models`
+- `GET /v1/audit/events`
+
+The live metadata controls use the configured loopback/local daemon base URL. They do not poll, do not persist state in local storage or session storage, do not add telemetry, and do not make cloud calls by default. The rollout did not add model or runner controls and did not change route-explain behavior.
+
+`POST /v1/route/explain` remains local and inspection-oriented, but it appends a local audit event; use synthetic or non-sensitive text when exercising it.
 
 Aethra observes IgnisPrompt state. IgnisPrompt still owns routing decisions, route explanations, audit events, local-only behavior, model manifests, runner/provider selection, and fail-closed behavior.
 
@@ -106,11 +119,9 @@ Add `--include-route-explain` only when you intentionally want to append a local
 ## Recommended Next Tasks
 
 1. Follow up on public feedback in issue #56.
-2. Improve Aethra fixture/live mode clarity while keeping fixture-backed behavior as the default.
-3. Add read-only live data loading paths for local `/health`, `/v1/models`, and `/v1/audit/events`, with clear daemon-unreachable and invalid-response states.
-4. Add a configurable localhost daemon base URL for Aethra without storing prompt text or adding telemetry.
-5. Improve Aethra daemon error states and empty states for live local metadata.
-6. Keep any future model and runner status work limited to hints unless IgnisPrompt adds a dedicated local status endpoint.
+2. Add an explicit confirmation step for live local route-explain requests, because that endpoint appends a local audit event.
+3. Improve Aethra daemon error and empty-state copy as the live local metadata screens receive operator feedback.
+4. Keep any future model and runner status work limited to hints unless IgnisPrompt adds a dedicated local status endpoint.
 
 Avoid cloud telemetry, analytics, auth providers, a SaaS backend, model install/delete controls, and production/legal/compliance/sustainability overclaims unless a future task explicitly scopes and reviews those changes.
 

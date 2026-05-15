@@ -2,7 +2,19 @@
 
 ## 1. Status
 
-Status: design proposal only.
+Status: rollout partially implemented through PR #88.
+
+Completed:
+
+- PR #84: design doc.
+- PR #85: local base URL and explicit fixture/live mode state.
+- PR #86: manual read-only `/health` live local metadata.
+- PR #87: manual read-only `/v1/models` live local metadata.
+- PR #88: manual read-only `/v1/audit/events` live local metadata.
+
+Not complete:
+
+- PR #89 or later: explicit route-explain confirmation before any live local request that appends a local audit event.
 
 Aethra currently exists as the Local AI Routing Observatory for IgnisPrompt. The MVP is fixture-backed by default, read-only, and local-first. This document describes a conservative path for optional live local metadata from an operator-managed `ignispromptd` instance. It does not implement the mode, change daemon behavior, change routing policy, add telemetry, add cloud calls, add a SaaS backend, or add model control features.
 
@@ -212,14 +224,14 @@ Do not use model bakeoffs for this UI metadata work.
 
 ## 12. Rollout Plan
 
-Recommended small future PRs:
+Rollout progress:
 
-1. PR 1: design doc only.
-2. PR 2: local base URL and explicit fixture/live mode state.
-3. PR 3: read-only `/health` live metadata.
-4. PR 4: read-only `/v1/models` live metadata.
-5. PR 5: read-only `/v1/audit/events` live metadata.
-6. PR 6: explicit route-explain confirmation before any request that appends an audit event.
+1. PR 1: design doc only - complete in #84.
+2. PR 2: local base URL and explicit fixture/live mode state - complete in #85.
+3. PR 3: read-only `/health` live metadata - complete in #86.
+4. PR 4: read-only `/v1/models` live metadata - complete in #87.
+5. PR 5: read-only `/v1/audit/events` live metadata - complete in #88.
+6. PR 6: explicit route-explain confirmation before any request that appends an audit event - not complete.
 
 Each implementation PR should keep fixture mode as the default and should be reversible without affecting IgnisPrompt routing, model runners, audit append behavior, or local-only policy.
 
