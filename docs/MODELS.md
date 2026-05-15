@@ -74,7 +74,9 @@ As of the local issue #43 review run, `legal-saul-7b-instruct-q4-k-m-local` has 
 
 The Saul 7B candidate passed the Golden Legal v0.3 subset with `legal_json: ok` and `schema_valid: true`, but its Tier 3 completion latency was high on the reviewed 8 GB CPU-only host. Treat this as evidence that the candidate is runnable and schema-compatible in the local bakeoff path, not as a production legal-quality claim.
 
-The Qwen2.5 7B candidate remains skipped until a reviewed local GGUF is staged at `./models/qwen2.5-7b-instruct-q4_k_m.gguf`.
+As of the local issue #42 review run, `legal-qwen2.5-7b-instruct-q4-k-m-local` also has local bakeoff evidence from an operator-staged GGUF at `./models/qwen2.5-7b-instruct-q4_k_m.gguf`.
+
+The upstream Qwen2.5 7B Q4_K_M GGUF was staged locally from split GGUF files and merged with `llama-gguf-split --merge`. The merged candidate passed the Golden Legal v0.3 subset with `legal_json: ok` and `schema_valid: true` on the reviewed 8 GB CPU-only host. Treat this as evidence that the candidate is runnable and schema-compatible in the local bakeoff path, not as a production legal-quality claim.
 
 ## Model selection status
 
