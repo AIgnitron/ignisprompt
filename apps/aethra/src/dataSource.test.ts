@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { AethraApiError } from "./api/errors";
 import {
   DEFAULT_AETHRA_BASE_URL,
+  describeAuditEventsLoadError,
   describeHealthLoadError,
   describeModelsLoadError,
   normalizeLocalBaseUrl,
@@ -104,6 +105,37 @@ describe("Aethra data source helpers", () => {
       label: "Unsupported schema",
       message:
         "The local daemon returned JSON that did not match the expected model manifest schema.",
+    });
+  });
+
+  it("describes daemon unreachable audit event metadata load failures", () => {
+    expect(
+      describeAuditEventsLoadError(
+        new AethraApiError("unreachable-daemon", "unreachable"),
+      ),
+    ).toEqual({
+      label: "Daemon unreachable",
+      message:
+        "Aethra could not reach the configured local IgnisPrompt daemon.",
+    });
+  });
+
+  it("describes invalid JSON and unsupported audit event schema failures", () => {
+    expect(
+      describeAuditEventsLoadError(
+        new AethraApiError("invalid-json", "bad json"),
+      ),
+    ).toMatchObject({
+      label: "Invalid JSON",
+    });
+    expect(
+      describeAuditEventsLoadError(
+        new AethraApiError("unexpected-shape", "bad schema"),
+      ),
+    ).toEqual({
+      label: "Unsupported schema",
+      message:
+        "The local daemon returned JSON that did not match the expected audit event schema.",
     });
   });
 });

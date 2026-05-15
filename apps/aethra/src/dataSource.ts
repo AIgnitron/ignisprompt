@@ -1,4 +1,4 @@
-import type { HealthResponse, ModelManifest } from "./api/contracts";
+import type { AuditEvent, HealthResponse, ModelManifest } from "./api/contracts";
 import { AethraApiError } from "./api/errors";
 
 export type AethraDataMode = "fixture" | "live-local";
@@ -43,6 +43,24 @@ export type LiveModelsState =
   | {
       status: "loaded";
       models: ModelManifest[];
+      loadedAt: string;
+    }
+  | {
+      status: "error";
+      label: string;
+      message: string;
+    };
+
+export type LiveAuditEventsState =
+  | {
+      status: "not-loaded";
+    }
+  | {
+      status: "loading";
+    }
+  | {
+      status: "loaded";
+      events: AuditEvent[];
       loadedAt: string;
     }
   | {
@@ -120,14 +138,26 @@ export function describeModelsLoadError(error: unknown): {
   return describeEndpointLoadError(error, "models");
 }
 
+export function describeAuditEventsLoadError(error: unknown): {
+  label: string;
+  message: string;
+} {
+  return describeEndpointLoadError(error, "audit-events");
+}
+
 function describeEndpointLoadError(
   error: unknown,
-  endpoint: "health" | "models",
+  endpoint: "health" | "models" | "audit-events",
 ): {
   label: string;
   message: string;
 } {
-  const noun = endpoint === "health" ? "health" : "model manifest";
+  const noun =
+    endpoint === "health"
+      ? "health"
+      : endpoint === "models"
+        ? "model manifest"
+        : "audit event";
 
   if (error instanceof AethraApiError) {
     switch (error.kind) {
@@ -162,7 +192,12 @@ function describeEndpointLoadError(
   }
 
   return {
-    label: endpoint === "health" ? "Health load failed" : "Models load failed",
+    label:
+      endpoint === "health"
+        ? "Health load failed"
+        : endpoint === "models"
+          ? "Models load failed"
+          : "Audit events load failed",
     message: `Aethra could not load live local ${noun} metadata.`,
   };
 }
