@@ -121,21 +121,42 @@ textarea:focus {
   padding: 28px 36px 40px;
 }
 
-.notice {
+.mode-strip {
   display: flex;
-  gap: 10px;
-  align-items: center;
+  gap: 18px;
+  align-items: flex-start;
+  justify-content: space-between;
   max-width: 1160px;
-  padding: 10px 12px;
+  padding: 14px 16px;
   border: 1px solid #d7e5e1;
   border-radius: 8px;
   background: #f7fbfa;
   color: #19362f;
+}
+
+.mode-copy {
+  max-width: 620px;
+}
+
+.mode-copy h2 {
+  margin: 0;
+  color: #172026;
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+
+.mode-copy p:last-child {
+  margin: 6px 0 0;
+  color: #526a64;
   font-size: 0.9rem;
 }
 
-.notice span {
-  color: #526a64;
+.mode-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  max-width: 460px;
 }
 
 .page-section {
@@ -560,11 +581,16 @@ textarea:focus {
     padding: 20px;
   }
 
-  .notice,
+  .mode-strip,
   .page-header,
   .panel-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .mode-badges {
+    justify-content: flex-start;
+    max-width: none;
   }
 
   .nav-list,
