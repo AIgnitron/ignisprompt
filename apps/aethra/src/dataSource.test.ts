@@ -3,6 +3,7 @@ import { AethraApiError } from "./api/errors";
 import {
   DEFAULT_AETHRA_BASE_URL,
   describeHealthLoadError,
+  describeModelsLoadError,
   normalizeLocalBaseUrl,
   validateLocalBaseUrl,
 } from "./dataSource";
@@ -74,6 +75,35 @@ describe("Aethra data source helpers", () => {
       ),
     ).toMatchObject({
       label: "Unsupported schema",
+    });
+  });
+
+  it("describes daemon unreachable model metadata load failures", () => {
+    expect(
+      describeModelsLoadError(
+        new AethraApiError("unreachable-daemon", "unreachable"),
+      ),
+    ).toEqual({
+      label: "Daemon unreachable",
+      message:
+        "Aethra could not reach the configured local IgnisPrompt daemon.",
+    });
+  });
+
+  it("describes invalid JSON and unsupported model schema failures", () => {
+    expect(
+      describeModelsLoadError(new AethraApiError("invalid-json", "bad json")),
+    ).toMatchObject({
+      label: "Invalid JSON",
+    });
+    expect(
+      describeModelsLoadError(
+        new AethraApiError("unexpected-shape", "bad schema"),
+      ),
+    ).toEqual({
+      label: "Unsupported schema",
+      message:
+        "The local daemon returned JSON that did not match the expected model manifest schema.",
     });
   });
 });
