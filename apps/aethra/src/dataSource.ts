@@ -1,4 +1,4 @@
-import type { HealthResponse } from "./api/contracts";
+import type { HealthResponse, ModelManifest } from "./api/contracts";
 import { AethraApiError } from "./api/errors";
 
 export type AethraDataMode = "fixture" | "live-local";
@@ -25,6 +25,24 @@ export type LiveHealthState =
   | {
       status: "loaded";
       health: HealthResponse;
+      loadedAt: string;
+    }
+  | {
+      status: "error";
+      label: string;
+      message: string;
+    };
+
+export type LiveModelsState =
+  | {
+      status: "not-loaded";
+    }
+  | {
+      status: "loading";
+    }
+  | {
+      status: "loaded";
+      models: ModelManifest[];
       loadedAt: string;
     }
   | {
@@ -92,6 +110,25 @@ export function describeHealthLoadError(error: unknown): {
   label: string;
   message: string;
 } {
+  return describeEndpointLoadError(error, "health");
+}
+
+export function describeModelsLoadError(error: unknown): {
+  label: string;
+  message: string;
+} {
+  return describeEndpointLoadError(error, "models");
+}
+
+function describeEndpointLoadError(
+  error: unknown,
+  endpoint: "health" | "models",
+): {
+  label: string;
+  message: string;
+} {
+  const noun = endpoint === "health" ? "health" : "model manifest";
+
   if (error instanceof AethraApiError) {
     switch (error.kind) {
       case "unreachable-daemon":
@@ -114,7 +151,7 @@ export function describeHealthLoadError(error: unknown): {
         return {
           label: "Unsupported schema",
           message:
-            "The local daemon returned JSON that did not match the expected health schema.",
+            `The local daemon returned JSON that did not match the expected ${noun} schema.`,
         };
       case "http-error":
         return {
@@ -125,7 +162,7 @@ export function describeHealthLoadError(error: unknown): {
   }
 
   return {
-    label: "Health load failed",
-    message: "Aethra could not load live local health metadata.",
+    label: endpoint === "health" ? "Health load failed" : "Models load failed",
+    message: `Aethra could not load live local ${noun} metadata.`,
   };
 }
