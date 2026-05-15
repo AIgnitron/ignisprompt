@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { AethraApiError } from "./api/errors";
 import {
   DEFAULT_AETHRA_BASE_URL,
+  describeHealthLoadError,
   normalizeLocalBaseUrl,
   validateLocalBaseUrl,
 } from "./dataSource";
@@ -46,5 +48,32 @@ describe("Aethra data source helpers", () => {
   it("rejects malformed and empty URLs", () => {
     expect(validateLocalBaseUrl("")).toMatchObject({ ok: false });
     expect(validateLocalBaseUrl("not a url")).toMatchObject({ ok: false });
+  });
+
+  it("describes daemon unreachable health load failures", () => {
+    expect(
+      describeHealthLoadError(
+        new AethraApiError("unreachable-daemon", "unreachable"),
+      ),
+    ).toEqual({
+      label: "Daemon unreachable",
+      message:
+        "Aethra could not reach the configured local IgnisPrompt daemon.",
+    });
+  });
+
+  it("describes invalid JSON and unsupported health schema failures", () => {
+    expect(
+      describeHealthLoadError(new AethraApiError("invalid-json", "bad json")),
+    ).toMatchObject({
+      label: "Invalid JSON",
+    });
+    expect(
+      describeHealthLoadError(
+        new AethraApiError("unexpected-shape", "bad schema"),
+      ),
+    ).toMatchObject({
+      label: "Unsupported schema",
+    });
   });
 });

@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { AuditEvents } from "./routes/AuditEvents";
 import { StatusBadge } from "./components/StatusBadge";
-import type { AethraDataMode } from "./dataSource";
+import { createIgnisPromptClient } from "./api/client";
+import type { AethraDataMode, LiveHealthState } from "./dataSource";
 import {
   DEFAULT_AETHRA_BASE_URL,
+  describeHealthLoadError,
   validateLocalBaseUrl,
 } from "./dataSource";
 import { ModelRunnerStatus } from "./routes/ModelRunnerStatus";
@@ -22,6 +24,9 @@ export default function App() {
   const [activeRoute, setActiveRoute] = useState<AethraRoute>("overview");
   const [dataMode, setDataMode] = useState<AethraDataMode>("fixture");
   const [baseUrlInput, setBaseUrlInput] = useState(DEFAULT_AETHRA_BASE_URL);
+  const [liveHealthState, setLiveHealthState] = useState<LiveHealthState>({
+    status: "not-loaded",
+  });
   const baseUrlValidation = validateLocalBaseUrl(baseUrlInput);
   const localBaseUrl = baseUrlValidation.ok
     ? baseUrlValidation.baseUrl
@@ -29,6 +34,33 @@ export default function App() {
   const baseUrlError = baseUrlValidation.ok
     ? undefined
     : baseUrlValidation.error;
+
+  async function loadLiveHealth() {
+    if (baseUrlError) {
+      setLiveHealthState({
+        status: "error",
+        label: "Local URL blocked",
+        message: baseUrlError,
+      });
+      return;
+    }
+
+    setLiveHealthState({ status: "loading" });
+    try {
+      const client = createIgnisPromptClient({ baseUrl: localBaseUrl });
+      const health = await client.health();
+      setLiveHealthState({
+        status: "loaded",
+        health,
+        loadedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      setLiveHealthState({
+        status: "error",
+        ...describeHealthLoadError(error),
+      });
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -94,7 +126,7 @@ export default function App() {
             <p>
               {dataMode === "fixture"
                 ? "Live local actions are explicit and local. Aethra observes IgnisPrompt state without changing routing, runners, models, or audit policy."
-                : "Live local mode is selected state only in this PR. Metadata fetching for health, models, and audit events comes later."}
+                : "Live local health loading is manual and read-only. Model and audit event metadata fetching comes later."}
             </p>
           </div>
           <div className="mode-badges" aria-label="Aethra mode guarantees">
@@ -116,11 +148,19 @@ export default function App() {
           baseUrlInput={baseUrlInput}
           baseUrl={localBaseUrl}
           baseUrlError={baseUrlError}
+          liveHealthState={liveHealthState}
           onDataModeChange={setDataMode}
           onBaseUrlInputChange={setBaseUrlInput}
+          onLoadLiveHealth={loadLiveHealth}
         />
 
-        {activeRoute === "overview" ? <Overview /> : null}
+        {activeRoute === "overview" ? (
+          <Overview
+            dataMode={dataMode}
+            liveHealthState={liveHealthState}
+            onLoadLiveHealth={loadLiveHealth}
+          />
+        ) : null}
         {activeRoute === "routing-explorer" ? (
           <RoutingExplorer
             localBaseUrl={localBaseUrl}
@@ -142,8 +182,10 @@ type DataSourceControlProps = {
   baseUrlInput: string;
   baseUrl: string;
   baseUrlError?: string;
+  liveHealthState: LiveHealthState;
   onDataModeChange: (dataMode: AethraDataMode) => void;
   onBaseUrlInputChange: (baseUrl: string) => void;
+  onLoadLiveHealth: () => void;
 };
 
 function DataSourceControl({
@@ -151,9 +193,16 @@ function DataSourceControl({
   baseUrlInput,
   baseUrl,
   baseUrlError,
+  liveHealthState,
   onDataModeChange,
   onBaseUrlInputChange,
+  onLoadLiveHealth,
 }: DataSourceControlProps) {
+  const canLoadHealth =
+    dataMode === "live-local" &&
+    !baseUrlError &&
+    liveHealthState.status !== "loading";
+
   return (
     <section className="data-source-control" aria-label="Aethra data source">
       <div className="mode-toggle" aria-label="Select Aethra data mode">
@@ -189,9 +238,20 @@ function DataSourceControl({
         </StatusBadge>
         <p className="muted">
           {baseUrlError ??
-            "Fixture screens still use bundled data. Live metadata requests are not enabled yet."}
+            "Fixture screens use bundled data until live local health is manually loaded."}
         </p>
       </div>
+
+      <button
+        type="button"
+        className="secondary-button health-load-button"
+        disabled={!canLoadHealth}
+        onClick={onLoadLiveHealth}
+      >
+        {liveHealthState.status === "loading"
+          ? "Loading health"
+          : "Load live health"}
+      </button>
     </section>
   );
 }

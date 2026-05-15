@@ -1,5 +1,6 @@
 import { MetricCard } from "../components/MetricCard";
 import { StatusBadge } from "../components/StatusBadge";
+import type { AethraDataMode, LiveHealthState } from "../dataSource";
 import {
   auditEventFixtures,
   healthFixture,
@@ -17,27 +18,55 @@ const summary = buildOverviewSummary(
 );
 const warningExamples = getWarningExamples(auditEventFixtures);
 
-export function Overview() {
+type OverviewProps = {
+  dataMode: AethraDataMode;
+  liveHealthState: LiveHealthState;
+  onLoadLiveHealth: () => void;
+};
+
+export function Overview({
+  dataMode,
+  liveHealthState,
+  onLoadLiveHealth,
+}: OverviewProps) {
   const latestEvent = summary.latestEvent;
+  const liveHealth =
+    dataMode === "live-local" && liveHealthState.status === "loaded"
+      ? liveHealthState.health
+      : undefined;
+  const healthForStatus = liveHealth ?? healthFixture;
+  const healthSourceLabel = liveHealth
+    ? "Live local health"
+    : dataMode === "live-local"
+      ? "Fixture fallback"
+      : "Fixture mode";
 
   return (
     <section id="overview" className="page-section">
       <header className="page-header">
         <div>
           <p className="eyebrow">Overview</p>
-          <h2>Fixture-backed IgnisPrompt overview</h2>
+          <h2>IgnisPrompt overview</h2>
         </div>
-        <div className="status-strip" aria-label="Overview fixture status">
-          <StatusBadge tone="ok">{healthFixture.status.toUpperCase()}</StatusBadge>
+        <div className="status-strip" aria-label="Overview health status">
+          <StatusBadge tone="ok">{healthForStatus.status.toUpperCase()}</StatusBadge>
           <StatusBadge tone="neutral">
-            {healthFixture.service} {healthFixture.version}
+            {healthForStatus.service} {healthForStatus.version}
           </StatusBadge>
-          <StatusBadge tone={healthFixture.local_only ? "ok" : "warning"}>
-            {healthFixture.local_only ? "Local-only" : "Local-only off"}
+          <StatusBadge tone={healthForStatus.local_only ? "ok" : "warning"}>
+            {healthForStatus.local_only ? "Local-only" : "Local-only off"}
           </StatusBadge>
-          <StatusBadge tone="neutral">Fixture mode</StatusBadge>
+          <StatusBadge tone={liveHealth ? "ok" : "neutral"}>
+            {healthSourceLabel}
+          </StatusBadge>
         </div>
       </header>
+
+      <HealthMetadataPanel
+        dataMode={dataMode}
+        liveHealthState={liveHealthState}
+        onLoadLiveHealth={onLoadLiveHealth}
+      />
 
       <div className="metric-grid" aria-label="Aethra fixture metrics">
         <MetricCard
@@ -179,4 +208,152 @@ export function Overview() {
       </div>
     </section>
   );
+}
+
+type HealthMetadataPanelProps = {
+  dataMode: AethraDataMode;
+  liveHealthState: LiveHealthState;
+  onLoadLiveHealth: () => void;
+};
+
+function HealthMetadataPanel({
+  dataMode,
+  liveHealthState,
+  onLoadLiveHealth,
+}: HealthMetadataPanelProps) {
+  const isLiveMode = dataMode === "live-local";
+  const health =
+    isLiveMode && liveHealthState.status === "loaded"
+      ? liveHealthState.health
+      : healthFixture;
+  const sourceLabel =
+    isLiveMode && liveHealthState.status === "loaded"
+      ? "Live local metadata"
+      : isLiveMode
+        ? "Fixture fallback"
+        : "Fixture metadata";
+
+  return (
+    <section className="panel" aria-label="Health metadata source">
+      <div className="panel-heading">
+        <div>
+          <h3>Health metadata</h3>
+          <p className="muted">
+            {isLiveMode
+              ? "Manual read-only GET /health from the configured local daemon."
+              : "Fixture mode uses bundled synthetic health metadata."}
+          </p>
+        </div>
+        <StatusBadge
+          tone={
+            liveHealthState.status === "error"
+              ? "warning"
+              : liveHealthState.status === "loaded" && isLiveMode
+                ? "ok"
+                : "neutral"
+          }
+        >
+          {getHealthStateLabel(dataMode, liveHealthState)}
+        </StatusBadge>
+      </div>
+
+      {isLiveMode && liveHealthState.status === "not-loaded" ? (
+        <p className="explanation">
+          Live local health is not loaded yet. Aethra is showing fixture health
+          values until you manually refresh.
+        </p>
+      ) : null}
+
+      {isLiveMode && liveHealthState.status === "loading" ? (
+        <p className="explanation">
+          Loading read-only health metadata from the configured local daemon.
+        </p>
+      ) : null}
+
+      {isLiveMode && liveHealthState.status === "error" ? (
+        <p className="explanation">
+          {liveHealthState.label}: {liveHealthState.message} Fixture health
+          values remain clearly labeled below.
+        </p>
+      ) : null}
+
+      <dl className="definition-grid health-grid">
+        <div>
+          <dt>Source</dt>
+          <dd>{sourceLabel}</dd>
+        </div>
+        <div>
+          <dt>Service</dt>
+          <dd>{health.service}</dd>
+        </div>
+        <div>
+          <dt>Version</dt>
+          <dd>{health.version}</dd>
+        </div>
+        <div>
+          <dt>Status</dt>
+          <dd>{health.status}</dd>
+        </div>
+        <div>
+          <dt>Started at</dt>
+          <dd>{formatTimestamp(health.started_at)}</dd>
+        </div>
+        <div>
+          <dt>Local only</dt>
+          <dd>{String(health.local_only)}</dd>
+        </div>
+        <div>
+          <dt>Model count</dt>
+          <dd>{health.model_count}</dd>
+        </div>
+        <div>
+          <dt>Loaded at</dt>
+          <dd>
+            {liveHealthState.status === "loaded" && isLiveMode
+              ? formatTimestamp(liveHealthState.loadedAt)
+              : "not loaded"}
+          </dd>
+        </div>
+      </dl>
+
+      {isLiveMode ? (
+        <div className="button-row health-action-row">
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={liveHealthState.status === "loading"}
+            onClick={onLoadLiveHealth}
+          >
+            {liveHealthState.status === "loading"
+              ? "Loading health"
+              : "Refresh live health"}
+          </button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function getHealthStateLabel(
+  dataMode: AethraDataMode,
+  liveHealthState: LiveHealthState,
+): string {
+  if (dataMode === "fixture") {
+    return "Fixture health";
+  }
+
+  switch (liveHealthState.status) {
+    case "not-loaded":
+      return "Live health not loaded";
+    case "loading":
+      return "Loading live health";
+    case "loaded":
+      return "Live health loaded";
+    case "error":
+      return liveHealthState.label;
+  }
+}
+
+function formatTimestamp(timestamp: string): string {
+  return timestamp.replace("T", " ").replace("Z", " UTC");
 }

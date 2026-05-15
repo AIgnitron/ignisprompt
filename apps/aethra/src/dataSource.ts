@@ -1,3 +1,6 @@
+import type { HealthResponse } from "./api/contracts";
+import { AethraApiError } from "./api/errors";
+
 export type AethraDataMode = "fixture" | "live-local";
 
 export const DEFAULT_AETHRA_BASE_URL = "http://127.0.0.1:8765";
@@ -10,6 +13,24 @@ export type LocalBaseUrlValidation =
   | {
       ok: false;
       error: string;
+    };
+
+export type LiveHealthState =
+  | {
+      status: "not-loaded";
+    }
+  | {
+      status: "loading";
+    }
+  | {
+      status: "loaded";
+      health: HealthResponse;
+      loadedAt: string;
+    }
+  | {
+      status: "error";
+      label: string;
+      message: string;
     };
 
 const loopbackHostnames = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
@@ -64,5 +85,47 @@ export function validateLocalBaseUrl(
   return {
     ok: true,
     baseUrl: normalizeLocalBaseUrl(baseUrl),
+  };
+}
+
+export function describeHealthLoadError(error: unknown): {
+  label: string;
+  message: string;
+} {
+  if (error instanceof AethraApiError) {
+    switch (error.kind) {
+      case "unreachable-daemon":
+        return {
+          label: "Daemon unreachable",
+          message:
+            "Aethra could not reach the configured local IgnisPrompt daemon.",
+        };
+      case "timeout":
+        return {
+          label: "Timeout",
+          message: "The local daemon did not respond before the request timed out.",
+        };
+      case "invalid-json":
+        return {
+          label: "Invalid JSON",
+          message: "The local daemon returned a response that was not valid JSON.",
+        };
+      case "unexpected-shape":
+        return {
+          label: "Unsupported schema",
+          message:
+            "The local daemon returned JSON that did not match the expected health schema.",
+        };
+      case "http-error":
+        return {
+          label: "HTTP error",
+          message: `The local daemon returned HTTP ${error.status ?? "error"}.`,
+        };
+    }
+  }
+
+  return {
+    label: "Health load failed",
+    message: "Aethra could not load live local health metadata.",
   };
 }
