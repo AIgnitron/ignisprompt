@@ -44,7 +44,23 @@ export function RoutingExplorer({
     label: fixtureScenarios[0].label,
     response: fixtureScenarios[0].response,
   });
+  const [isLiveRequestConfirmed, setIsLiveRequestConfirmed] = useState(false);
   const [isLiveRequestRunning, setIsLiveRequestRunning] = useState(false);
+
+  function updatePrompt(nextPrompt: string) {
+    setPrompt(nextPrompt);
+    setIsLiveRequestConfirmed(false);
+  }
+
+  function updateModel(nextModel: string) {
+    setModel(nextModel);
+    setIsLiveRequestConfirmed(false);
+  }
+
+  function updateDomain(nextDomain: string) {
+    setDomain(nextDomain);
+    setIsLiveRequestConfirmed(false);
+  }
 
   function showFixtureResult() {
     const scenario =
@@ -67,6 +83,16 @@ export function RoutingExplorer({
         source: "live",
         label: "Local URL blocked",
         errorMessage: localBaseUrlError,
+      });
+      return;
+    }
+
+    if (!isLiveRequestConfirmed) {
+      setResult({
+        source: "live",
+        label: "Confirmation required",
+        errorMessage:
+          "Confirm that this local route-explain request may append a local audit event before running it.",
       });
       return;
     }
@@ -100,6 +126,7 @@ export function RoutingExplorer({
       });
     } finally {
       setIsLiveRequestRunning(false);
+      setIsLiveRequestConfirmed(false);
     }
   }
 
@@ -126,11 +153,13 @@ export function RoutingExplorer({
           selectedFixtureId={selectedFixtureId}
           localBaseUrl={localBaseUrl}
           localBaseUrlError={localBaseUrlError}
+          isLiveRequestConfirmed={isLiveRequestConfirmed}
           isLiveRequestRunning={isLiveRequestRunning}
-          onPromptChange={setPrompt}
-          onModelChange={setModel}
-          onDomainChange={setDomain}
+          onPromptChange={updatePrompt}
+          onModelChange={updateModel}
+          onDomainChange={updateDomain}
           onFixtureChange={setSelectedFixtureId}
+          onLiveRequestConfirmationChange={setIsLiveRequestConfirmed}
           onFixtureSubmit={showFixtureResult}
           onLiveSubmit={runLiveRouteExplain}
         />
@@ -148,11 +177,13 @@ type RouteExplainFormProps = {
   selectedFixtureId: string;
   localBaseUrl: string;
   localBaseUrlError?: string;
+  isLiveRequestConfirmed: boolean;
   isLiveRequestRunning: boolean;
   onPromptChange: (prompt: string) => void;
   onModelChange: (model: string) => void;
   onDomainChange: (domain: string) => void;
   onFixtureChange: (fixtureId: string) => void;
+  onLiveRequestConfirmationChange: (isConfirmed: boolean) => void;
   onFixtureSubmit: () => void;
   onLiveSubmit: (event: FormEvent<HTMLFormElement>) => void;
 };
@@ -165,11 +196,13 @@ function RouteExplainForm({
   selectedFixtureId,
   localBaseUrl,
   localBaseUrlError,
+  isLiveRequestConfirmed,
   isLiveRequestRunning,
   onPromptChange,
   onModelChange,
   onDomainChange,
   onFixtureChange,
+  onLiveRequestConfirmationChange,
   onFixtureSubmit,
   onLiveSubmit,
 }: RouteExplainFormProps) {
@@ -232,6 +265,23 @@ function RouteExplainForm({
         </select>
       </label>
 
+      <label className="route-confirmation">
+        <input
+          type="checkbox"
+          checked={isLiveRequestConfirmed}
+          onChange={(event) =>
+            onLiveRequestConfirmationChange(event.target.checked)
+          }
+          disabled={Boolean(localBaseUrlError) || isLiveRequestRunning}
+        />
+        <span>
+          I understand this request stays local to the configured daemon, appends
+          a local audit event, and should use only synthetic or non-sensitive
+          text. Aethra will display the result, but IgnisPrompt owns the routing
+          decision.
+        </span>
+      </label>
+
       <div className="button-row">
         <button
           type="button"
@@ -243,7 +293,11 @@ function RouteExplainForm({
         <button
           type="submit"
           className="primary-button"
-          disabled={isLiveRequestRunning || Boolean(localBaseUrlError)}
+          disabled={
+            isLiveRequestRunning ||
+            Boolean(localBaseUrlError) ||
+            !isLiveRequestConfirmed
+          }
         >
           {isLiveRequestRunning
             ? "Running local route explanation"

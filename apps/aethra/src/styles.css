@@ -477,6 +477,29 @@ textarea:focus {
   font-size: 0.9rem;
 }
 
+.route-confirmation {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid #e4d7bd;
+  border-radius: 8px;
+  background: #fffaf0;
+  color: #40545c;
+  font-size: 0.88rem;
+}
+
+.route-confirmation input {
+  width: auto;
+  margin: 4px 0 0;
+}
+
+.route-confirmation span {
+  color: #40545c;
+  font-weight: 600;
+}
+
 .form-field {
   display: grid;
   gap: 6px;
