@@ -20,6 +20,13 @@ describe("Aethra data source helpers", () => {
     );
   });
 
+  it("accepts trailing slash-only loopback origins", () => {
+    expect(validateLocalBaseUrl("http://127.0.0.1:8765///")).toEqual({
+      ok: true,
+      baseUrl: "http://127.0.0.1:8765",
+    });
+  });
+
   it("accepts localhost and 127.0.0.1 URLs", () => {
     expect(validateLocalBaseUrl("http://localhost:8765")).toEqual({
       ok: true,
@@ -50,6 +57,18 @@ describe("Aethra data source helpers", () => {
   it("rejects malformed and empty URLs", () => {
     expect(validateLocalBaseUrl("")).toMatchObject({ ok: false });
     expect(validateLocalBaseUrl("not a url")).toMatchObject({ ok: false });
+  });
+
+  it("rejects loopback URLs with paths, queries, or hashes", () => {
+    expect(validateLocalBaseUrl("http://127.0.0.1:8765/health")).toMatchObject({
+      ok: false,
+    });
+    expect(validateLocalBaseUrl("http://127.0.0.1:8765/?x=1")).toMatchObject({
+      ok: false,
+    });
+    expect(validateLocalBaseUrl("http://127.0.0.1:8765/#health")).toMatchObject({
+      ok: false,
+    });
   });
 
   it("describes daemon unreachable health load failures", () => {
