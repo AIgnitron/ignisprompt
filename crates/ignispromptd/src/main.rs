@@ -506,6 +506,7 @@ async fn run_http_daemon(state: AppState, bind: SocketAddr) -> Result<()> {
     let app = Router::new()
         .route("/health", get(health))
         .route("/v1/models", get(list_models))
+        .route("/v1/status/models", get(model_status))
         .route("/v1/route/explain", post(route_explain))
         .route("/v1/chat/completions", post(chat_completions))
         .route("/v1/audit/events", get(list_audit_events))
@@ -578,6 +579,199 @@ async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
 
 async fn list_models(State(state): State<AppState>) -> Json<ModelRegistry> {
     Json(state.model_registry.read().await.clone())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ModelStatusResponse {
+    #[serde(rename = "schemaVersion")]
+    schema_version: String,
+    #[serde(rename = "generatedAt")]
+    generated_at: DateTime<Utc>,
+    source: String,
+    #[serde(rename = "statusHints")]
+    status_hints: Vec<ModelStatusHint>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ModelStatusHint {
+    #[serde(rename = "modelId")]
+    model_id: String,
+    #[serde(rename = "displayName")]
+    display_name: String,
+    tier: u8,
+    domains: Vec<String>,
+    configured: bool,
+    #[serde(rename = "localPathDeclared")]
+    local_path_declared: bool,
+    #[serde(rename = "localPathExists")]
+    local_path_exists: bool,
+    #[serde(rename = "runnerConfigured")]
+    runner_configured: bool,
+    #[serde(rename = "runnerKind")]
+    runner_kind: String,
+    #[serde(rename = "runnerExecutableExists")]
+    runner_executable_exists: bool,
+    availability: ModelAvailability,
+    #[serde(rename = "lastCheckedAt")]
+    last_checked_at: DateTime<Utc>,
+    warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum ModelAvailability {
+    Configured,
+    Staged,
+    RunnerMissing,
+    ModelFileMissing,
+    Unavailable,
+    Unknown,
+}
+
+struct RunnerStatusHint {
+    configured: bool,
+    kind: String,
+    executable_exists: bool,
+    warning: Option<String>,
+}
+
+async fn model_status(State(state): State<AppState>) -> Json<ModelStatusResponse> {
+    let generated_at = Utc::now();
+    let registry = state.model_registry.read().await.clone();
+    let mut status_hints = Vec::with_capacity(registry.models.len());
+
+    for model in registry.models {
+        status_hints.push(model_status_hint_for_manifest(&state.config, model, generated_at).await);
+    }
+
+    Json(ModelStatusResponse {
+        schema_version: "v0.1".to_string(),
+        generated_at,
+        source: "local-daemon".to_string(),
+        status_hints,
+    })
+}
+
+async fn model_status_hint_for_manifest(
+    config: &Args,
+    model: ModelManifest,
+    checked_at: DateTime<Utc>,
+) -> ModelStatusHint {
+    let local_path = model
+        .local_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|path| !path.is_empty());
+    let local_path_declared = local_path.is_some();
+    let local_path_exists = match local_path {
+        Some(path) => fs::try_exists(path).await.unwrap_or(false),
+        None => false,
+    };
+    let runner = runner_status_hint(config, &model).await;
+    let availability = model_availability(local_path_declared, local_path_exists, &runner);
+    let mut warnings = vec![
+        "Status is a local hint, not a production readiness, legal accuracy, or compliance claim."
+            .to_string(),
+    ];
+
+    if local_path_declared && !local_path_exists {
+        warnings.push(
+            "Declared local model path was not found by a daemon-side filesystem check."
+                .to_string(),
+        );
+    }
+    if !runner.executable_exists {
+        warnings.push(
+            "Configured runner executable was not found by a daemon-side filesystem check."
+                .to_string(),
+        );
+    }
+    if let Some(warning) = runner.warning {
+        warnings.push(warning);
+    }
+
+    ModelStatusHint {
+        model_id: model.model_id,
+        display_name: model.display_name,
+        tier: model.tier,
+        domains: model.domains,
+        configured: true,
+        local_path_declared,
+        local_path_exists,
+        runner_configured: runner.configured,
+        runner_kind: runner.kind,
+        runner_executable_exists: runner.executable_exists,
+        availability,
+        last_checked_at: checked_at,
+        warnings,
+    }
+}
+
+fn model_availability(
+    local_path_declared: bool,
+    local_path_exists: bool,
+    runner: &RunnerStatusHint,
+) -> ModelAvailability {
+    if local_path_declared && !local_path_exists {
+        return ModelAvailability::ModelFileMissing;
+    }
+
+    if runner.configured && !runner.executable_exists {
+        return ModelAvailability::RunnerMissing;
+    }
+
+    if local_path_declared && local_path_exists && runner.configured && runner.executable_exists {
+        return ModelAvailability::Staged;
+    }
+
+    if runner.configured {
+        return ModelAvailability::Configured;
+    }
+
+    ModelAvailability::Unknown
+}
+
+async fn runner_status_hint(config: &Args, model: &ModelManifest) -> RunnerStatusHint {
+    #[cfg(feature = "gguf-runner-spike")]
+    {
+        if model.tier == 3
+            && model.format.eq_ignore_ascii_case("gguf")
+            && model
+                .domains
+                .iter()
+                .any(|domain| domain.eq_ignore_ascii_case("legal"))
+        {
+            if let Some(runner_bin) = config.gguf_runner_bin.as_deref() {
+                let runner_path_is_explicit =
+                    runner_bin.is_absolute() || runner_bin.components().count() > 1;
+                let executable_exists =
+                    runner_path_is_explicit && fs::try_exists(runner_bin).await.unwrap_or(false);
+                let warning = (!runner_path_is_explicit).then(|| {
+                    "Configured GGUF runner path is not explicit, so this status remains a local hint only."
+                        .to_string()
+                });
+
+                return RunnerStatusHint {
+                    configured: true,
+                    kind: "gguf-runner-spike".to_string(),
+                    executable_exists,
+                    warning,
+                };
+            }
+        }
+    }
+
+    let _ = config;
+    let _ = model;
+    RunnerStatusHint {
+        configured: true,
+        kind: "stub-legal-runner".to_string(),
+        executable_exists: true,
+        warning: Some(
+            "Default in-process StubLegalRunner fallback is available; this is a local status hint only."
+                .to_string(),
+        ),
+    }
 }
 
 async fn route_explain(
@@ -1528,6 +1722,13 @@ mod tests {
         }
     }
 
+    fn legal_model_with_local_path(local_path: impl Into<String>) -> ModelManifest {
+        ModelManifest {
+            local_path: Some(local_path.into()),
+            ..legal_model()
+        }
+    }
+
     fn state_with_models(models: Vec<ModelManifest>) -> AppState {
         state_with_models_and_cache(models, true)
     }
@@ -1679,6 +1880,10 @@ mod tests {
             .into_response()
     }
 
+    async fn call_model_status(state: &AppState) -> ModelStatusResponse {
+        model_status(State(state.clone())).await.0
+    }
+
     async fn call_mcp_message(
         state: &AppState,
         session: &mut McpSessionState,
@@ -1707,6 +1912,81 @@ mod tests {
         selected_model: Option<&ModelManifest>,
     ) -> ExactMatchCacheKey {
         completion_cache_key_for_request(&state.config, request, decision, selected_model)
+    }
+
+    #[tokio::test]
+    async fn model_status_endpoint_returns_valid_response_shape() {
+        let state = state_with_models(vec![legal_model()]);
+        let response = call_model_status(&state).await;
+
+        assert_eq!(response.schema_version, "v0.1");
+        assert_eq!(response.source, "local-daemon");
+        assert_eq!(response.status_hints.len(), 1);
+
+        let hint = &response.status_hints[0];
+        assert_eq!(hint.model_id, "legal-saul-placeholder");
+        assert_eq!(hint.display_name, "Legal Saul Placeholder");
+        assert_eq!(hint.tier, 3);
+        assert_eq!(hint.domains, vec!["legal"]);
+        assert!(hint.configured);
+        assert_eq!(hint.last_checked_at, response.generated_at);
+    }
+
+    #[tokio::test]
+    async fn model_status_hints_use_conservative_availability_values() {
+        let state = state_with_models(vec![legal_model()]);
+        let response = call_model_status(&state).await;
+        let hint = &response.status_hints[0];
+
+        assert!(matches!(
+            hint.availability,
+            ModelAvailability::Configured
+                | ModelAvailability::Staged
+                | ModelAvailability::RunnerMissing
+                | ModelAvailability::ModelFileMissing
+                | ModelAvailability::Unavailable
+                | ModelAvailability::Unknown
+        ));
+
+        let encoded = serde_json::to_value(&hint.availability).unwrap();
+        let availability = encoded.as_str().unwrap();
+        assert!(!availability.contains("ready"));
+        assert!(!availability.contains("verified"));
+        assert!(!availability.contains("certified"));
+        assert!(!availability.contains("compliant"));
+    }
+
+    #[tokio::test]
+    async fn model_status_response_includes_conservative_warning_language() {
+        let state = state_with_models(vec![legal_model()]);
+        let response = call_model_status(&state).await;
+        let warnings = response.status_hints[0].warnings.join(" ");
+
+        assert!(warnings.contains("local hint"));
+        assert!(warnings.contains("not a production readiness"));
+        assert!(warnings.contains("legal accuracy"));
+        assert!(warnings.contains("compliance claim"));
+    }
+
+    #[tokio::test]
+    async fn model_status_missing_declared_local_path_reports_model_file_missing() {
+        let missing_path = std::env::temp_dir().join(format!(
+            "ignispromptd-missing-model-{}.gguf",
+            Uuid::new_v4()
+        ));
+        let state = state_with_models(vec![legal_model_with_local_path(
+            missing_path.display().to_string(),
+        )]);
+        let response = call_model_status(&state).await;
+        let hint = &response.status_hints[0];
+
+        assert!(hint.local_path_declared);
+        assert!(!hint.local_path_exists);
+        assert_eq!(hint.availability, ModelAvailability::ModelFileMissing);
+        assert!(hint
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("Declared local model path was not found")));
     }
 
     #[test]
