@@ -110,20 +110,29 @@ function startDaemon() {
 
 async function waitForHealth() {
   const deadline = Date.now() + HEALTH_TIMEOUT_MS;
+  let lastError;
+
   while (Date.now() < deadline) {
     try {
       const health = await getJson("/health");
       assertHealth(health);
       return;
     } catch (error) {
+      lastError = error;
       if (daemon && daemon.exitCode !== null) {
-        throw new Error("local daemon exited before /health became ready");
+        throw new Error(
+          `local daemon exited before /health became ready; last error: ${error.message}`,
+        );
       }
       await sleep(500);
     }
   }
 
-  throw new Error(`timed out waiting for ${baseUrl}/health`);
+  throw new Error(
+    `timed out waiting for ${baseUrl}/health; last error: ${
+      lastError?.message ?? "none"
+    }`,
+  );
 }
 
 async function getJson(path) {
@@ -150,21 +159,25 @@ async function requestJson(path, init) {
     });
   } catch (error) {
     if (error?.name === "AbortError") {
-      throw new Error(`request timed out: ${path}`);
+      throw new Error(
+        `request timed out after ${REQUEST_TIMEOUT_MS}ms: ${baseUrl}${path}`,
+      );
     }
-    throw new Error(`unable to reach local ignispromptd: ${path}`);
+    throw new Error(
+      `unable to reach local ignispromptd at ${baseUrl}${path}; start the daemon or pass --start-daemon`,
+    );
   } finally {
     clearTimeout(timeout);
   }
 
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status} from ${path}`);
+    throw new Error(`HTTP ${response.status} from ${baseUrl}${path}`);
   }
 
   try {
     return await response.json();
   } catch {
-    throw new Error(`invalid JSON from ${path}`);
+    throw new Error(`invalid JSON from ${baseUrl}${path}`);
   }
 }
 
@@ -173,6 +186,7 @@ function assertHealth(value) {
   assertString(value.status, "health.status");
   assertString(value.service, "health.service");
   assertString(value.version, "health.version");
+  assertString(value.started_at, "health.started_at");
   assertBoolean(value.local_only, "health.local_only");
   assertNumber(value.model_count, "health.model_count");
 }
@@ -182,12 +196,76 @@ function assertModels(value) {
   if (!Array.isArray(value.models)) {
     throw new Error("models response did not include models[]");
   }
+
+  value.models.forEach((model, index) => {
+    const label = `models[${index}]`;
+    assertRecord(model, label);
+    assertString(model.modelId, `${label}.modelId`);
+    assertString(model.displayName, `${label}.displayName`);
+    assertNumber(model.tier, `${label}.tier`);
+    assertStringArray(model.domains, `${label}.domains`);
+    assertString(model.format, `${label}.format`);
+    assertOptionalNullableString(model.quantization, `${label}.quantization`);
+    assertOptionalNullableNumber(model.contextWindow, `${label}.contextWindow`);
+    assertOptionalNullableString(model.localPath, `${label}.localPath`);
+    assertOptionalNullableString(model.promptPack, `${label}.promptPack`);
+    assertOptionalNullableString(
+      model.responseFormat,
+      `${label}.responseFormat`,
+    );
+    assertOptionalNullableString(model.sha256, `${label}.sha256`);
+    assertOptionalNullableString(model.version, `${label}.version`);
+    assertBoolean(model.installed, `${label}.installed`);
+    assertOptionalNullableString(model.source, `${label}.source`);
+  });
 }
 
 function assertAuditEvents(value) {
   if (!Array.isArray(value)) {
     throw new Error("audit events response was not an array");
   }
+
+  value.forEach((event, index) => {
+    const label = `audit_events[${index}]`;
+    assertRecord(event, label);
+    assertString(event.request_id, `${label}.request_id`);
+    assertString(event.timestamp, `${label}.timestamp`);
+    assertString(event.event_type, `${label}.event_type`);
+    assertString(event.route_code, `${label}.route_code`);
+    assertString(event.tier, `${label}.tier`);
+    assertString(event.domain, `${label}.domain`);
+    assertOptionalNullableString(event.model_id, `${label}.model_id`);
+    assertBoolean(event.data_left_device, `${label}.data_left_device`);
+    assertString(event.explanation, `${label}.explanation`);
+    assertStringArray(event.warnings, `${label}.warnings`);
+
+    if (event.cache !== undefined) {
+      assertRecord(event.cache, `${label}.cache`);
+      assertBoolean(event.cache.hit, `${label}.cache.hit`);
+      assertString(event.cache.kind, `${label}.cache.kind`);
+    }
+
+    if (event.completion_output !== undefined) {
+      assertRecord(event.completion_output, `${label}.completion_output`);
+      assertString(
+        event.completion_output.runner,
+        `${label}.completion_output.runner`,
+      );
+      if (
+        event.completion_output.legal_json !== undefined &&
+        event.completion_output.legal_json !== null
+      ) {
+        assertRecord(
+          event.completion_output.legal_json,
+          `${label}.completion_output.legal_json`,
+        );
+        assertString(
+          event.completion_output.legal_json.status,
+          `${label}.completion_output.legal_json.status`,
+        );
+      }
+    }
+  });
 }
 
 function assertRouteExplain(value) {
@@ -223,6 +301,15 @@ function assertString(value, label) {
   }
 }
 
+function assertStringArray(value, label) {
+  if (
+    !Array.isArray(value) ||
+    !value.every((item) => typeof item === "string")
+  ) {
+    throw new Error(`${label} was not a string array`);
+  }
+}
+
 function assertBoolean(value, label) {
   if (typeof value !== "boolean") {
     throw new Error(`${label} was not a boolean`);
@@ -232,6 +319,22 @@ function assertBoolean(value, label) {
 function assertNumber(value, label) {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new Error(`${label} was not a finite number`);
+  }
+}
+
+function assertOptionalNullableString(value, label) {
+  if (value !== undefined && value !== null && typeof value !== "string") {
+    throw new Error(`${label} was not a string, null, or undefined`);
+  }
+}
+
+function assertOptionalNullableNumber(value, label) {
+  if (
+    value !== undefined &&
+    value !== null &&
+    (typeof value !== "number" || !Number.isFinite(value))
+  ) {
+    throw new Error(`${label} was not a finite number, null, or undefined`);
   }
 }
 
