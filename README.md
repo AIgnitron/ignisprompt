@@ -18,7 +18,7 @@ For details, see the [demo flows](docs/DEMO.md), [testing notes](docs/TESTING.md
 
 `./scripts/dev-check.sh` is the recommended one-command developer path. `./scripts/start-dev.sh` plus `./scripts/smoke.sh` remains available as the lower-level manual debugging path when you want to inspect a running daemon directly.
 
-- `/health`, `/v1/models`, `/v1/route/explain`, `/v1/chat/completions`, and `/v1/audit/events` respond locally
+- `/health`, `/v1/models`, `/v1/status/models`, `/v1/route/explain`, `/v1/chat/completions`, and `/v1/audit/events` respond locally
 - legal requests route to Tier 3 with a human-readable explanation
 - adversarial document instructions are detected and treated as untrusted content
 - audit events are written locally
@@ -64,6 +64,7 @@ Contributors and AI coding agents should read `AGENTS.md` before making changes.
 
 - `GET /health`
 - `GET /v1/models`
+- `GET /v1/status/models` for model and runner status hints
 - `POST /v1/route/explain`
 - `POST /v1/chat/completions` using an OpenAI-compatible request shape
 - basic SSE-compatible chat-completion scaffolding when `stream: true`
