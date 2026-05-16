@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createIgnisPromptClient } from "../api/client";
 import { RouteExplainResponse } from "../api/contracts";
 import { routeExplainFixture } from "../fixtures/aethraFixture";
@@ -61,6 +61,10 @@ export function RoutingExplorer({
     setDomain(nextDomain);
     setIsLiveRequestConfirmed(false);
   }
+
+  useEffect(() => {
+    setIsLiveRequestConfirmed(false);
+  }, [localBaseUrl, localBaseUrlError]);
 
   function showFixtureResult() {
     const scenario =

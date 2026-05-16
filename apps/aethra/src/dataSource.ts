@@ -111,7 +111,11 @@ export function validateLocalBaseUrl(
     };
   }
 
-  if (parsed.pathname !== "/" || parsed.search !== "" || parsed.hash !== "") {
+  if (
+    !isSlashOnlyPath(parsed.pathname) ||
+    parsed.search !== "" ||
+    parsed.hash !== ""
+  ) {
     return {
       ok: false,
       error: "Use only the local daemon origin, without a path, query, or hash.",
@@ -122,6 +126,10 @@ export function validateLocalBaseUrl(
     ok: true,
     baseUrl: normalizeLocalBaseUrl(baseUrl),
   };
+}
+
+function isSlashOnlyPath(pathname: string): boolean {
+  return /^\/+$/.test(pathname);
 }
 
 export function describeHealthLoadError(error: unknown): {
