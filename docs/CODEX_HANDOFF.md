@@ -9,7 +9,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - MVP tag: `v0.1.0-mvp`
 - Final readiness result: **PASS WITH GAPS**
 - Public feedback issue: https://github.com/AIgnitron/ignisprompt/issues/56
-- Latest known main commit: `c34870e test: add model status endpoint smoke coverage (#97)`
+- Latest known main commit: `04776e0 feat: show Aethra model status hints (#99)`
 - Open PRs at this handoff: none
 - Open issues at this handoff: #56 only
 
@@ -32,6 +32,8 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - PR #95: added the model and runner status endpoint design for `GET /v1/status/models`.
 - PR #96: implemented local read-only `GET /v1/status/models` with conservative model and runner status hints.
 - PR #97: added smoke coverage for `GET /v1/status/models` in repo and Aethra local API smoke paths.
+- PR #98: updated the Codex handoff for the model status endpoint work.
+- PR #99: wired Aethra to manually consume `GET /v1/status/models` as model and runner status hints.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
 - Issue #43 is closed after Saul 7B local legal candidate evidence was documented.
 
@@ -72,6 +74,8 @@ The live metadata controls use the configured loopback/local daemon base URL. Th
 `POST /v1/route/explain` remains local and inspection-oriented, but it appends a local audit event. Aethra now requires explicit confirmation before sending a live local route-explain request, resets that confirmation when the target daemon URL or request inputs change, and continues to recommend synthetic or non-sensitive text.
 
 IgnisPrompt now exposes `GET /v1/status/models` for local model and runner status hints. This endpoint is read-only, local-only, and conservative: it reports configuration/path/runner hints and warning language, not production readiness, model quality, legal accuracy, or compliance status.
+
+Aethra can manually load `GET /v1/status/models` on the Model / Runner Status screen. Fixture mode remains the default, live loading remains explicit/manual, and the UI presents these values as local daemon status hints alongside manifest-derived hints.
 
 Aethra observes IgnisPrompt state. IgnisPrompt still owns routing decisions, route explanations, audit events, local-only behavior, model manifests, runner/provider selection, and fail-closed behavior.
 
@@ -130,7 +134,7 @@ Add `--include-route-explain` only when you intentionally want to append a local
 
 1. Follow up on public feedback in issue #56.
 2. Improve Aethra daemon error, empty-state, and live-mode copy as operators test the manual local metadata flows.
-3. Wire Aethra to optionally consume `GET /v1/status/models` as model and runner status hints, keeping fixture mode as the default and live loading manual.
+3. Improve Aethra model and runner status hint copy, empty states, and operator guidance based on live-mode feedback.
 4. Keep any future model and runner status work limited to hints; avoid readiness, certification, legal-quality, or compliance claims.
 
 Avoid cloud telemetry, analytics, auth providers, a SaaS backend, model install/delete controls, and production/legal/compliance/sustainability overclaims unless a future task explicitly scopes and reviews those changes.
