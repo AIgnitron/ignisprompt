@@ -2,7 +2,7 @@
 
 ## 1. Status
 
-Status: rollout partially implemented through PR #88.
+Status: rollout implemented through PR #91.
 
 Completed:
 
@@ -11,10 +11,12 @@ Completed:
 - PR #86: manual read-only `/health` live local metadata.
 - PR #87: manual read-only `/v1/models` live local metadata.
 - PR #88: manual read-only `/v1/audit/events` live local metadata.
+- PR #90: explicit confirmation before any live local route-explain request that appends a local audit event.
+- PR #91: review fixes for route-explain confirmation reset when the daemon URL changes and trailing-slash loopback URL normalization.
 
-Not complete:
+Remaining follow-ups:
 
-- PR #89 or later: explicit route-explain confirmation before any live local request that appends a local audit event.
+- Improve operator-facing copy, local smoke coverage, and error/empty states as the live local metadata flows receive feedback.
 
 Aethra currently exists as the Local AI Routing Observatory for IgnisPrompt. The MVP is fixture-backed by default, read-only, and local-first. This document describes a conservative path for optional live local metadata from an operator-managed `ignispromptd` instance. It does not implement the mode, change daemon behavior, change routing policy, add telemetry, add cloud calls, add a SaaS backend, or add model control features.
 
@@ -231,7 +233,8 @@ Rollout progress:
 3. PR 3: read-only `/health` live metadata - complete in #86.
 4. PR 4: read-only `/v1/models` live metadata - complete in #87.
 5. PR 5: read-only `/v1/audit/events` live metadata - complete in #88.
-6. PR 6: explicit route-explain confirmation before any request that appends an audit event - not complete.
+6. PR 6: explicit route-explain confirmation before any request that appends an audit event - complete in #90.
+7. Review fixes: route-explain confirmation reset and trailing-slash loopback URL normalization - complete in #91.
 
 Each implementation PR should keep fixture mode as the default and should be reversible without affecting IgnisPrompt routing, model runners, audit append behavior, or local-only policy.
 
