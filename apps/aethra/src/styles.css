@@ -621,6 +621,22 @@ textarea:focus {
   text-align: left;
 }
 
+.table-subtext {
+  display: block;
+  margin-top: 4px;
+  color: #607176;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.model-status-table-scroll {
+  margin-top: 18px;
+}
+
+.model-status-table {
+  min-width: 980px;
+}
+
 .detail-panel {
   position: sticky;
   top: 28px;

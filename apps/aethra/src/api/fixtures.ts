@@ -2,6 +2,7 @@ import {
   AuditEvent,
   HealthResponse,
   ModelManifest,
+  ModelStatusResponse,
   RouteExplainResponse,
 } from "./contracts";
 
@@ -30,6 +31,31 @@ export const modelFixtures: ModelManifest[] = [
     source: "local-gguf",
   },
 ];
+
+export const modelStatusFixture: ModelStatusResponse = {
+  schemaVersion: "v0.1",
+  generatedAt: "2026-05-15T00:00:00Z",
+  source: "local-daemon",
+  statusHints: [
+    {
+      modelId: "legal-qwen2.5-0.5b-instruct-q4-k-m-local",
+      displayName: "Qwen2.5 0.5B Instruct Q4_K_M Local Legal Adapter",
+      tier: 3,
+      domains: ["legal", "contracts", "compliance"],
+      configured: true,
+      localPathDeclared: true,
+      localPathExists: false,
+      runnerConfigured: true,
+      runnerKind: "stub-legal-runner",
+      runnerExecutableExists: true,
+      availability: "model-file-missing",
+      lastCheckedAt: "2026-05-15T00:00:00Z",
+      warnings: [
+        "Status is a local hint, not a production readiness, legal accuracy, or compliance claim.",
+      ],
+    },
+  ],
+};
 
 export const auditEventFixtures: AuditEvent[] = [
   {

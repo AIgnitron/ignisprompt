@@ -1,4 +1,9 @@
-import type { AuditEvent, HealthResponse, ModelManifest } from "./api/contracts";
+import type {
+  AuditEvent,
+  HealthResponse,
+  ModelManifest,
+  ModelStatusHint,
+} from "./api/contracts";
 import { AethraApiError } from "./api/errors";
 
 export type AethraDataMode = "fixture" | "live-local";
@@ -43,6 +48,27 @@ export type LiveModelsState =
   | {
       status: "loaded";
       models: ModelManifest[];
+      loadedAt: string;
+    }
+  | {
+      status: "error";
+      label: string;
+      message: string;
+    };
+
+export type LiveModelStatusState =
+  | {
+      status: "not-loaded";
+    }
+  | {
+      status: "loading";
+    }
+  | {
+      status: "loaded";
+      statusHints: ModelStatusHint[];
+      schemaVersion: string;
+      source: "local-daemon";
+      generatedAt: string;
       loadedAt: string;
     }
   | {
@@ -146,6 +172,13 @@ export function describeModelsLoadError(error: unknown): {
   return describeEndpointLoadError(error, "models");
 }
 
+export function describeModelStatusLoadError(error: unknown): {
+  label: string;
+  message: string;
+} {
+  return describeEndpointLoadError(error, "model-status");
+}
+
 export function describeAuditEventsLoadError(error: unknown): {
   label: string;
   message: string;
@@ -155,7 +188,7 @@ export function describeAuditEventsLoadError(error: unknown): {
 
 function describeEndpointLoadError(
   error: unknown,
-  endpoint: "health" | "models" | "audit-events",
+  endpoint: "health" | "models" | "model-status" | "audit-events",
 ): {
   label: string;
   message: string;
@@ -165,7 +198,9 @@ function describeEndpointLoadError(
       ? "health"
       : endpoint === "models"
         ? "model manifest"
-        : "audit event";
+        : endpoint === "model-status"
+          ? "model and runner status hint"
+          : "audit event";
 
   if (error instanceof AethraApiError) {
     switch (error.kind) {
@@ -205,7 +240,9 @@ function describeEndpointLoadError(
         ? "Health load failed"
         : endpoint === "models"
           ? "Models load failed"
-          : "Audit events load failed",
+          : endpoint === "model-status"
+            ? "Model status load failed"
+            : "Audit events load failed",
     message: `Aethra could not load live local ${noun} metadata.`,
   };
 }

@@ -2,11 +2,13 @@ import {
   AuditEvent,
   HealthResponse,
   ModelRegistry,
+  ModelStatusResponse,
   RouteExplainRequest,
   RouteExplainResponse,
   isAuditEventList,
   isHealthResponse,
   isModelRegistry,
+  isModelStatusResponse,
   isRouteExplainResponse,
 } from "./contracts";
 import { AethraApiError } from "./errors";
@@ -41,6 +43,10 @@ export class IgnisPromptClient {
 
   models(): Promise<ModelRegistry> {
     return this.request("/v1/models", isModelRegistry);
+  }
+
+  modelStatus(): Promise<ModelStatusResponse> {
+    return this.request("/v1/status/models", isModelStatusResponse);
   }
 
   auditEvents(): Promise<AuditEvent[]> {
