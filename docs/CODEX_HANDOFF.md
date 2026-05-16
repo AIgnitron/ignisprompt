@@ -9,7 +9,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - MVP tag: `v0.1.0-mvp`
 - Final readiness result: **PASS WITH GAPS**
 - Public feedback issue: https://github.com/AIgnitron/ignisprompt/issues/56
-- Latest known main commit: `43850ff fix: address Aethra live mode review findings (#91)`
+- Latest known main commit: `db0bc6e test: strengthen Aethra local API smoke coverage (#93)`
 - Open PRs at this handoff: none
 - Open issues at this handoff: #56 only
 
@@ -27,6 +27,8 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - PR #89: updated Aethra live metadata rollout docs.
 - PR #90: added explicit confirmation before live local `POST /v1/route/explain`.
 - PR #91: addressed Aethra live mode review findings for route-explain confirmation reset and trailing-slash loopback URL normalization.
+- PR #92: updated Aethra live rollout docs through the review fixes.
+- PR #93: strengthened Aethra local API smoke coverage for read-only `/health`, `/v1/models`, and `/v1/audit/events`; route-explain remains opt-in only.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
 - Issue #43 is closed after Saul 7B local legal candidate evidence was documented.
 
@@ -123,7 +125,7 @@ Add `--include-route-explain` only when you intentionally want to append a local
 
 1. Follow up on public feedback in issue #56.
 2. Improve Aethra daemon error, empty-state, and live-mode copy as operators test the manual local metadata flows.
-3. Add focused tests or local smoke coverage for Aethra live mode only where it remains lightweight and does not require model bakeoffs.
+3. Consider a design proposal for a dedicated IgnisPrompt model/runner status endpoint before expanding Aethra beyond model and runner status hints.
 4. Keep any future model and runner status work limited to hints unless IgnisPrompt adds a dedicated local status endpoint.
 
 Avoid cloud telemetry, analytics, auth providers, a SaaS backend, model install/delete controls, and production/legal/compliance/sustainability overclaims unless a future task explicitly scopes and reviews those changes.
