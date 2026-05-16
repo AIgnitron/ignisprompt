@@ -9,7 +9,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - MVP tag: `v0.1.0-mvp`
 - Final readiness result: **PASS WITH GAPS**
 - Public feedback issue: https://github.com/AIgnitron/ignisprompt/issues/56
-- Latest known main commit: `5871d49 feat: add Aethra live audit events loading (#88)`
+- Latest known main commit: `43850ff fix: address Aethra live mode review findings (#91)`
 - Open PRs at this handoff: none
 - Open issues at this handoff: #56 only
 
@@ -24,6 +24,9 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - PR #86: added manual read-only live local `/health` metadata loading.
 - PR #87: added manual read-only live local `/v1/models` metadata loading.
 - PR #88: added manual read-only live local `/v1/audit/events` metadata loading.
+- PR #89: updated Aethra live metadata rollout docs.
+- PR #90: added explicit confirmation before live local `POST /v1/route/explain`.
+- PR #91: addressed Aethra live mode review findings for route-explain confirmation reset and trailing-slash loopback URL normalization.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
 - Issue #43 is closed after Saul 7B local legal candidate evidence was documented.
 
@@ -59,9 +62,9 @@ Aethra currently provides fixture-backed screens for Overview, Routing Explorer,
 - `GET /v1/models`
 - `GET /v1/audit/events`
 
-The live metadata controls use the configured loopback/local daemon base URL. They do not poll, do not persist state in local storage or session storage, do not add telemetry, and do not make cloud calls by default. The rollout did not add model or runner controls and did not change route-explain behavior.
+The live metadata controls use the configured loopback/local daemon base URL. They do not poll, do not persist state in local storage or session storage, do not add telemetry, and do not make cloud calls by default. The rollout did not add model or runner controls.
 
-`POST /v1/route/explain` remains local and inspection-oriented, but it appends a local audit event; use synthetic or non-sensitive text when exercising it.
+`POST /v1/route/explain` remains local and inspection-oriented, but it appends a local audit event. Aethra now requires explicit confirmation before sending a live local route-explain request, resets that confirmation when the target daemon URL or request inputs change, and continues to recommend synthetic or non-sensitive text.
 
 Aethra observes IgnisPrompt state. IgnisPrompt still owns routing decisions, route explanations, audit events, local-only behavior, model manifests, runner/provider selection, and fail-closed behavior.
 
@@ -119,8 +122,8 @@ Add `--include-route-explain` only when you intentionally want to append a local
 ## Recommended Next Tasks
 
 1. Follow up on public feedback in issue #56.
-2. Add an explicit confirmation step for live local route-explain requests, because that endpoint appends a local audit event.
-3. Improve Aethra daemon error and empty-state copy as the live local metadata screens receive operator feedback.
+2. Improve Aethra daemon error, empty-state, and live-mode copy as operators test the manual local metadata flows.
+3. Add focused tests or local smoke coverage for Aethra live mode only where it remains lightweight and does not require model bakeoffs.
 4. Keep any future model and runner status work limited to hints unless IgnisPrompt adds a dedicated local status endpoint.
 
 Avoid cloud telemetry, analytics, auth providers, a SaaS backend, model install/delete controls, and production/legal/compliance/sustainability overclaims unless a future task explicitly scopes and reviews those changes.
