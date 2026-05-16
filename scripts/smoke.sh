@@ -13,6 +13,15 @@ curl -fsS "$BASE_URL/v1/models" | jq -e '
   ([.models[]? | select((.tier == 3) and ((.domains // []) | map(ascii_downcase) | index("legal")))] | length >= 1)
 '
 
+echo "[S01c] model and runner status hints"
+curl -fsS "$BASE_URL/v1/status/models" | jq -e '
+  (.schemaVersion | type == "string") and
+  (.generatedAt | type == "string") and
+  (.source == "local-daemon") and
+  (.statusHints | type == "array") and
+  all(.statusHints[]?; (.availability as $availability | ["configured", "staged", "runner-missing", "model-file-missing", "unavailable", "unknown"] | index($availability) != null))
+'
+
 echo "[S02/S04/S05] legal route explain"
 curl -fsS -X POST "$BASE_URL/v1/route/explain" \
   -H 'content-type: application/json' \

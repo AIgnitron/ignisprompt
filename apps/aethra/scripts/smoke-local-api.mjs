@@ -50,6 +50,12 @@ async function main() {
     assertModels(models);
     console.log(`[aethra-smoke] models ok: ${models.models.length} entries`);
 
+    const modelStatus = await getJson("/v1/status/models");
+    assertModelStatus(modelStatus);
+    console.log(
+      `[aethra-smoke] model status hints ok: ${modelStatus.statusHints.length} entries`,
+    );
+
     const auditEvents = await getJson("/v1/audit/events");
     assertAuditEvents(auditEvents);
     console.log(
@@ -217,6 +223,51 @@ function assertModels(value) {
     assertOptionalNullableString(model.version, `${label}.version`);
     assertBoolean(model.installed, `${label}.installed`);
     assertOptionalNullableString(model.source, `${label}.source`);
+  });
+}
+
+function assertModelStatus(value) {
+  assertRecord(value, "model status response");
+  assertString(value.schemaVersion, "model_status.schemaVersion");
+  assertString(value.generatedAt, "model_status.generatedAt");
+  if (value.source !== "local-daemon") {
+    throw new Error("model_status.source was not local-daemon");
+  }
+  if (!Array.isArray(value.statusHints)) {
+    throw new Error("model_status.statusHints was not an array");
+  }
+
+  const conservativeAvailability = new Set([
+    "configured",
+    "staged",
+    "runner-missing",
+    "model-file-missing",
+    "unavailable",
+    "unknown",
+  ]);
+
+  value.statusHints.forEach((hint, index) => {
+    const label = `model_status.statusHints[${index}]`;
+    assertRecord(hint, label);
+    assertString(hint.modelId, `${label}.modelId`);
+    assertString(hint.displayName, `${label}.displayName`);
+    assertNumber(hint.tier, `${label}.tier`);
+    assertStringArray(hint.domains, `${label}.domains`);
+    assertBoolean(hint.configured, `${label}.configured`);
+    assertBoolean(hint.localPathDeclared, `${label}.localPathDeclared`);
+    assertBoolean(hint.localPathExists, `${label}.localPathExists`);
+    assertBoolean(hint.runnerConfigured, `${label}.runnerConfigured`);
+    assertString(hint.runnerKind, `${label}.runnerKind`);
+    assertBoolean(
+      hint.runnerExecutableExists,
+      `${label}.runnerExecutableExists`,
+    );
+    assertString(hint.availability, `${label}.availability`);
+    if (!conservativeAvailability.has(hint.availability)) {
+      throw new Error(`${label}.availability was not a conservative hint`);
+    }
+    assertString(hint.lastCheckedAt, `${label}.lastCheckedAt`);
+    assertStringArray(hint.warnings, `${label}.warnings`);
   });
 }
 

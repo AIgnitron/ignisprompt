@@ -77,7 +77,7 @@ For the opt-in local API smoke path, first run the Aethra app checks above, then
 npm run smoke:local-api -- --start-daemon
 ```
 
-This starts the default local-only `ignispromptd` path with `./scripts/start-dev.sh`, waits for `/health`, and checks that Aethra can read `GET /health`, `GET /v1/models`, and `GET /v1/audit/events` over localhost. It does not require Ollama, GGUF tooling, model weights, cloud credentials, generated evidence, or a browser E2E runner.
+This starts the default local-only `ignispromptd` path with `./scripts/start-dev.sh`, waits for `/health`, and checks that Aethra can read `GET /health`, `GET /v1/models`, `GET /v1/status/models`, and `GET /v1/audit/events` over localhost. `GET /v1/status/models` is treated as model and runner status hints only. It does not require Ollama, GGUF tooling, model weights, cloud credentials, generated evidence, or a browser E2E runner.
 
 If a daemon is already running, omit `--start-daemon`:
 
