@@ -6,12 +6,14 @@ import type {
   AethraDataMode,
   LiveAuditEventsState,
   LiveHealthState,
+  LiveModelStatusState,
   LiveModelsState,
 } from "./dataSource";
 import {
   DEFAULT_AETHRA_BASE_URL,
   describeAuditEventsLoadError,
   describeHealthLoadError,
+  describeModelStatusLoadError,
   describeModelsLoadError,
   validateLocalBaseUrl,
 } from "./dataSource";
@@ -37,6 +39,10 @@ export default function App() {
   const [liveModelsState, setLiveModelsState] = useState<LiveModelsState>({
     status: "not-loaded",
   });
+  const [liveModelStatusState, setLiveModelStatusState] =
+    useState<LiveModelStatusState>({
+      status: "not-loaded",
+    });
   const [liveAuditEventsState, setLiveAuditEventsState] =
     useState<LiveAuditEventsState>({
       status: "not-loaded",
@@ -99,6 +105,36 @@ export default function App() {
       setLiveModelsState({
         status: "error",
         ...describeModelsLoadError(error),
+      });
+    }
+  }
+
+  async function loadLiveModelStatus() {
+    if (baseUrlError) {
+      setLiveModelStatusState({
+        status: "error",
+        label: "Local URL blocked",
+        message: baseUrlError,
+      });
+      return;
+    }
+
+    setLiveModelStatusState({ status: "loading" });
+    try {
+      const client = createIgnisPromptClient({ baseUrl: localBaseUrl });
+      const modelStatus = await client.modelStatus();
+      setLiveModelStatusState({
+        status: "loaded",
+        statusHints: modelStatus.statusHints,
+        schemaVersion: modelStatus.schemaVersion,
+        source: modelStatus.source,
+        generatedAt: modelStatus.generatedAt,
+        loadedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      setLiveModelStatusState({
+        status: "error",
+        ...describeModelStatusLoadError(error),
       });
     }
   }
@@ -194,7 +230,7 @@ export default function App() {
             <p>
               {dataMode === "fixture"
                 ? "Live local actions are explicit and local. Aethra observes IgnisPrompt state without changing routing, runners, models, or audit policy."
-                : "Live local metadata loading is manual and read-only for health, models, and audit events."}
+                : "Live local metadata loading is manual and read-only for health, models, model and runner status hints, and audit events."}
             </p>
           </div>
           <div className="mode-badges" aria-label="Aethra mode guarantees">
@@ -246,7 +282,9 @@ export default function App() {
           <ModelRunnerStatus
             dataMode={dataMode}
             liveModelsState={liveModelsState}
+            liveModelStatusState={liveModelStatusState}
             onLoadLiveModels={loadLiveModels}
+            onLoadLiveModelStatus={loadLiveModelStatus}
           />
         ) : null}
         {activeRoute === "sustainability-preview" ? (

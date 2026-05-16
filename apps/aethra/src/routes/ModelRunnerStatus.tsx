@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { ModelManifest } from "../api/contracts";
-import type { AethraDataMode, LiveModelsState } from "../dataSource";
+import { ModelManifest, ModelStatusHint } from "../api/contracts";
+import type {
+  AethraDataMode,
+  LiveModelsState,
+  LiveModelStatusState,
+} from "../dataSource";
 import { modelFixtures } from "../fixtures/aethraFixture";
 import { MetricCard } from "../components/MetricCard";
 import { StatusBadge } from "../components/StatusBadge";
@@ -18,13 +22,17 @@ const initialSelectedModelId = toModelManifestRows(modelFixtures)[0]?.modelId;
 type ModelRunnerStatusProps = {
   dataMode: AethraDataMode;
   liveModelsState: LiveModelsState;
+  liveModelStatusState: LiveModelStatusState;
   onLoadLiveModels: () => void;
+  onLoadLiveModelStatus: () => void;
 };
 
 export function ModelRunnerStatus({
   dataMode,
   liveModelsState,
+  liveModelStatusState,
   onLoadLiveModels,
+  onLoadLiveModelStatus,
 }: ModelRunnerStatusProps) {
   const [selectedModelId, setSelectedModelId] = useState<string | undefined>(
     initialSelectedModelId,
@@ -37,6 +45,14 @@ export function ModelRunnerStatus({
     selectedModelId === undefined
       ? undefined
       : findModelManifestById(models, selectedModelId);
+  const selectedStatusHint =
+    selectedModelId === undefined ||
+    dataMode !== "live-local" ||
+    liveModelStatusState.status !== "loaded"
+      ? undefined
+      : liveModelStatusState.statusHints.find(
+          (hint) => hint.modelId === selectedModelId,
+        );
   const sourceLabel = isLiveModelsLoaded
     ? "Live local metadata"
     : dataMode === "live-local"
@@ -69,7 +85,7 @@ export function ModelRunnerStatus({
             {sourceLabel}
           </StatusBadge>
           <StatusBadge tone="neutral">Read-only</StatusBadge>
-          <StatusBadge tone="warning">Readiness not verified</StatusBadge>
+          <StatusBadge tone="warning">Status hints only</StatusBadge>
         </div>
       </header>
 
@@ -77,6 +93,12 @@ export function ModelRunnerStatus({
         dataMode={dataMode}
         liveModelsState={liveModelsState}
         onLoadLiveModels={onLoadLiveModels}
+      />
+
+      <ModelStatusPanel
+        dataMode={dataMode}
+        liveModelStatusState={liveModelStatusState}
+        onLoadLiveModelStatus={onLoadLiveModelStatus}
       />
 
       <div className="metric-grid" aria-label="Model manifest metrics">
@@ -105,9 +127,13 @@ export function ModelRunnerStatus({
           detail="Declared prompt pack fields"
         />
         <MetricCard
-          label="Runner readiness"
-          value="Unknown"
-          detail="Not inferred from manifest metadata"
+          label="Status hints"
+          value={
+            liveModelStatusState.status === "loaded"
+              ? liveModelStatusState.statusHints.length
+              : "Not loaded"
+          }
+          detail="Local daemon status hints only"
         />
       </div>
 
@@ -121,6 +147,7 @@ export function ModelRunnerStatus({
         <ModelManifestDetail
           model={selectedModel}
           isLiveModel={isLiveModelsLoaded}
+          statusHint={selectedStatusHint}
         />
       </div>
     </section>
@@ -236,6 +263,189 @@ function ModelMetadataPanel({
   );
 }
 
+type ModelStatusPanelProps = {
+  dataMode: AethraDataMode;
+  liveModelStatusState: LiveModelStatusState;
+  onLoadLiveModelStatus: () => void;
+};
+
+function ModelStatusPanel({
+  dataMode,
+  liveModelStatusState,
+  onLoadLiveModelStatus,
+}: ModelStatusPanelProps) {
+  const isLiveMode = dataMode === "live-local";
+  const isLoaded = isLiveMode && liveModelStatusState.status === "loaded";
+
+  return (
+    <section className="panel" aria-label="Model and runner status hints">
+      <div className="panel-heading">
+        <div>
+          <h3>Model and runner status hints</h3>
+          <p className="muted">
+            {isLiveMode
+              ? "Manual read-only GET /v1/status/models from the configured local daemon."
+              : "Fixture mode does not contact the local daemon for status hints."}
+          </p>
+        </div>
+        <StatusBadge
+          tone={
+            liveModelStatusState.status === "error"
+              ? "warning"
+              : isLoaded
+                ? "ok"
+                : "neutral"
+          }
+        >
+          {getModelStatusStateLabel(dataMode, liveModelStatusState)}
+        </StatusBadge>
+      </div>
+
+      <p className="explanation">
+        Local daemon status hints are configuration, path, and runner hints only.
+        They are not production readiness, model quality certification, legal
+        accuracy, or compliance certification.
+      </p>
+
+      {isLiveMode && liveModelStatusState.status === "not-loaded" ? (
+        <p className="explanation">
+          Live local model and runner status hints are not loaded yet. Aethra is
+          showing manifest-derived fixture hints until you manually refresh.
+        </p>
+      ) : null}
+
+      {isLiveMode && liveModelStatusState.status === "loading" ? (
+        <p className="explanation">
+          Loading read-only model and runner status hints from the configured
+          local daemon.
+        </p>
+      ) : null}
+
+      {isLiveMode && liveModelStatusState.status === "error" ? (
+        <p className="explanation">
+          {liveModelStatusState.label}: {liveModelStatusState.message} Fixture
+          manifest hints remain clearly labeled below.
+        </p>
+      ) : null}
+
+      {isLiveMode &&
+      liveModelStatusState.status === "loaded" &&
+      liveModelStatusState.statusHints.length === 0 ? (
+        <p className="explanation">
+          Empty data: the local daemon returned no model and runner status
+          hints.
+        </p>
+      ) : null}
+
+      <dl className="definition-grid model-metadata-grid">
+        <div>
+          <dt>Source</dt>
+          <dd>
+            {isLoaded
+              ? "Local daemon status hints"
+              : isLiveMode
+                ? "Not loaded"
+                : "Fixture mode"}
+          </dd>
+        </div>
+        <div>
+          <dt>Endpoint</dt>
+          <dd>{isLiveMode ? "GET /v1/status/models" : "manual live only"}</dd>
+        </div>
+        <div>
+          <dt>Status hints</dt>
+          <dd>
+            {isLoaded ? liveModelStatusState.statusHints.length : "not loaded"}
+          </dd>
+        </div>
+        <div>
+          <dt>Loaded at</dt>
+          <dd>
+            {isLoaded
+              ? formatTimestamp(liveModelStatusState.loadedAt)
+              : "not loaded"}
+          </dd>
+        </div>
+      </dl>
+
+      {isLoaded ? (
+        <ModelStatusHintTable statusHints={liveModelStatusState.statusHints} />
+      ) : null}
+
+      {isLiveMode ? (
+        <div className="button-row model-action-row">
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={liveModelStatusState.status === "loading"}
+            onClick={onLoadLiveModelStatus}
+          >
+            {liveModelStatusState.status === "loading"
+              ? "Loading status hints"
+              : "Refresh status hints"}
+          </button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+type ModelStatusHintTableProps = {
+  statusHints: ModelStatusHint[];
+};
+
+function ModelStatusHintTable({ statusHints }: ModelStatusHintTableProps) {
+  if (statusHints.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="table-scroll model-status-table-scroll">
+      <table className="audit-table model-status-table">
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Availability</th>
+            <th>Local path</th>
+            <th>Runner</th>
+            <th>Last checked</th>
+            <th>Warnings</th>
+          </tr>
+        </thead>
+        <tbody>
+          {statusHints.map((hint) => (
+            <tr key={hint.modelId}>
+              <td>
+                <strong>{hint.modelId}</strong>
+                <span className="table-subtext">{hint.displayName}</span>
+              </td>
+              <td>{formatAvailability(hint.availability)}</td>
+              <td>
+                {hint.localPathDeclared
+                  ? hint.localPathExists
+                    ? "declared and found"
+                    : "declared, not found"
+                  : "not declared"}
+              </td>
+              <td>
+                {hint.runnerConfigured
+                  ? `${hint.runnerKind}; executable ${
+                      hint.runnerExecutableExists ? "found" : "not found"
+                    }`
+                  : "not configured"}
+              </td>
+              <td>{formatTimestamp(hint.lastCheckedAt)}</td>
+              <td>
+                {hint.warnings.length > 0 ? hint.warnings.join(" ") : "none"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 type ModelManifestTableProps = {
   rows: ReturnType<typeof toModelManifestRows>;
   sourceLabel: string;
@@ -321,9 +531,14 @@ function ModelManifestTable({
 type ModelManifestDetailProps = {
   model?: ModelManifest;
   isLiveModel: boolean;
+  statusHint?: ModelStatusHint;
 };
 
-function ModelManifestDetail({ model, isLiveModel }: ModelManifestDetailProps) {
+function ModelManifestDetail({
+  model,
+  isLiveModel,
+  statusHint,
+}: ModelManifestDetailProps) {
   if (!model) {
     return (
       <aside className="panel detail-panel" aria-label="Model manifest detail">
@@ -360,15 +575,54 @@ function ModelManifestDetail({ model, isLiveModel }: ModelManifestDetailProps) {
         <h4>Status language</h4>
         <ul className="status-hint-list">
           {statusHints.map((hint) => {
-            const displayHint =
-              isLiveModel &&
-              hint === "File existence not verified by Aethra in fixture mode"
-                ? "File existence not verified by Aethra"
-                : hint;
+            const displayHint = manifestStatusHintLabel(hint, isLiveModel);
             return <li key={hint}>{displayHint}</li>;
           })}
         </ul>
       </section>
+
+      {statusHint ? (
+        <section className="detail-section">
+          <h4>Local daemon status hints</h4>
+          <dl className="state-list compact-state-list">
+            <div>
+              <dt>Availability</dt>
+              <dd>{formatAvailability(statusHint.availability)}</dd>
+            </div>
+            <div>
+              <dt>Local path</dt>
+              <dd>
+                {statusHint.localPathDeclared
+                  ? statusHint.localPathExists
+                    ? "declared and found"
+                    : "declared, not found"
+                  : "not declared"}
+              </dd>
+            </div>
+            <div>
+              <dt>Runner</dt>
+              <dd>
+                {statusHint.runnerConfigured
+                  ? `${statusHint.runnerKind}; executable ${
+                      statusHint.runnerExecutableExists ? "found" : "not found"
+                    }`
+                  : "not configured"}
+              </dd>
+            </div>
+            <div>
+              <dt>Last checked</dt>
+              <dd>{formatTimestamp(statusHint.lastCheckedAt)}</dd>
+            </div>
+          </dl>
+          {statusHint.warnings.length > 0 ? (
+            <ul className="status-hint-list">
+              {statusHint.warnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="detail-section">
         <h4>Manifest fields</h4>
@@ -423,6 +677,28 @@ function ModelManifestDetail({ model, isLiveModel }: ModelManifestDetailProps) {
   );
 }
 
+function getModelStatusStateLabel(
+  dataMode: AethraDataMode,
+  liveModelStatusState: LiveModelStatusState,
+): string {
+  if (dataMode === "fixture") {
+    return "Fixture mode";
+  }
+
+  switch (liveModelStatusState.status) {
+    case "not-loaded":
+      return "Status hints not loaded";
+    case "loading":
+      return "Loading status hints";
+    case "loaded":
+      return liveModelStatusState.statusHints.length === 0
+        ? "Empty status hints"
+        : "Status hints loaded";
+    case "error":
+      return liveModelStatusState.label;
+  }
+}
+
 function getModelsStateLabel(
   dataMode: AethraDataMode,
   liveModelsState: LiveModelsState,
@@ -440,6 +716,39 @@ function getModelsStateLabel(
       return "Live models loaded";
     case "error":
       return liveModelsState.label;
+  }
+}
+
+function manifestStatusHintLabel(hint: string, isLiveModel: boolean): string {
+  if (hint === "Runner readiness unknown") {
+    return "Runner status not inferred from manifest metadata";
+  }
+
+  if (hint === "File existence not verified by Aethra in fixture mode") {
+    return isLiveModel
+      ? "File existence comes from local daemon status hints when loaded"
+      : "File existence not checked by Aethra in fixture mode";
+  }
+
+  return hint;
+}
+
+function formatAvailability(
+  availability: ModelStatusHint["availability"],
+): string {
+  switch (availability) {
+    case "configured":
+      return "configured";
+    case "staged":
+      return "staged locally";
+    case "runner-missing":
+      return "runner missing";
+    case "model-file-missing":
+      return "model file missing";
+    case "unavailable":
+      return "unavailable";
+    case "unknown":
+      return "unknown";
   }
 }
 

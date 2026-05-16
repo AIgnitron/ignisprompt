@@ -4,6 +4,7 @@ import {
   DEFAULT_AETHRA_BASE_URL,
   describeAuditEventsLoadError,
   describeHealthLoadError,
+  describeModelStatusLoadError,
   describeModelsLoadError,
   normalizeLocalBaseUrl,
   validateLocalBaseUrl,
@@ -124,6 +125,25 @@ describe("Aethra data source helpers", () => {
       label: "Unsupported schema",
       message:
         "The local daemon returned JSON that did not match the expected model manifest schema.",
+    });
+  });
+
+  it("describes invalid JSON and unsupported model status schema failures", () => {
+    expect(
+      describeModelStatusLoadError(
+        new AethraApiError("invalid-json", "bad json"),
+      ),
+    ).toMatchObject({
+      label: "Invalid JSON",
+    });
+    expect(
+      describeModelStatusLoadError(
+        new AethraApiError("unexpected-shape", "bad schema"),
+      ),
+    ).toEqual({
+      label: "Unsupported schema",
+      message:
+        "The local daemon returned JSON that did not match the expected model and runner status hint schema.",
     });
   });
 

@@ -28,6 +28,37 @@ export type ModelRegistry = {
   models: ModelManifest[];
 };
 
+export type ModelStatusAvailability =
+  | "configured"
+  | "staged"
+  | "runner-missing"
+  | "model-file-missing"
+  | "unavailable"
+  | "unknown";
+
+export type ModelStatusHint = {
+  modelId: string;
+  displayName: string;
+  tier: number;
+  domains: string[];
+  configured: boolean;
+  localPathDeclared: boolean;
+  localPathExists: boolean;
+  runnerConfigured: boolean;
+  runnerKind: string;
+  runnerExecutableExists: boolean;
+  availability: ModelStatusAvailability;
+  lastCheckedAt: string;
+  warnings: string[];
+};
+
+export type ModelStatusResponse = {
+  schemaVersion: string;
+  generatedAt: string;
+  source: "local-daemon";
+  statusHints: ModelStatusHint[];
+};
+
 export type ChatMessage = {
   role: string;
   content: string;
@@ -104,6 +135,21 @@ const isNumber = (value: unknown): value is number =>
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every(isString);
 
+const modelStatusAvailabilityValues = new Set<ModelStatusAvailability>([
+  "configured",
+  "staged",
+  "runner-missing",
+  "model-file-missing",
+  "unavailable",
+  "unknown",
+]);
+
+const isModelStatusAvailability = (
+  value: unknown,
+): value is ModelStatusAvailability =>
+  isString(value) &&
+  modelStatusAvailabilityValues.has(value as ModelStatusAvailability);
+
 const isOptionalString = (value: unknown): value is string | undefined =>
   value === undefined || isString(value);
 
@@ -157,6 +203,38 @@ export function isModelRegistry(value: unknown): value is ModelRegistry {
     isRecord(value) &&
     Array.isArray(value.models) &&
     value.models.every(isModelManifest)
+  );
+}
+
+export function isModelStatusHint(value: unknown): value is ModelStatusHint {
+  return (
+    isRecord(value) &&
+    isString(value.modelId) &&
+    isString(value.displayName) &&
+    isNumber(value.tier) &&
+    isStringArray(value.domains) &&
+    isBoolean(value.configured) &&
+    isBoolean(value.localPathDeclared) &&
+    isBoolean(value.localPathExists) &&
+    isBoolean(value.runnerConfigured) &&
+    isString(value.runnerKind) &&
+    isBoolean(value.runnerExecutableExists) &&
+    isModelStatusAvailability(value.availability) &&
+    isString(value.lastCheckedAt) &&
+    isStringArray(value.warnings)
+  );
+}
+
+export function isModelStatusResponse(
+  value: unknown,
+): value is ModelStatusResponse {
+  return (
+    isRecord(value) &&
+    isString(value.schemaVersion) &&
+    isString(value.generatedAt) &&
+    value.source === "local-daemon" &&
+    Array.isArray(value.statusHints) &&
+    value.statusHints.every(isModelStatusHint)
   );
 }
 

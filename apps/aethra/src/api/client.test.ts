@@ -5,6 +5,7 @@ import {
   auditEventFixtures,
   healthFixture,
   modelFixtures,
+  modelStatusFixture,
   routeExplainFixture,
 } from "./fixtures";
 
@@ -40,6 +41,36 @@ describe("IgnisPromptClient", () => {
 
     await expect(client.models()).resolves.toEqual({ models: modelFixtures });
     await expect(client.auditEvents()).resolves.toEqual(auditEventFixtures);
+  });
+
+  it("reads model and runner status hints with the current response shape", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(modelStatusFixture));
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.modelStatus()).resolves.toEqual(modelStatusFixture);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "http://127.0.0.1:8765/v1/status/models",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("rejects unsupported model status availability strings", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
+        ...modelStatusFixture,
+        statusHints: [
+          {
+            ...modelStatusFixture.statusHints[0],
+            availability: "active",
+          },
+        ],
+      }),
+    );
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.modelStatus()).rejects.toMatchObject({
+      kind: "unexpected-shape",
+    });
   });
 
   it("accepts null optional model manifest fields from the daemon", async () => {
