@@ -16,7 +16,8 @@ Completed:
 
 Remaining follow-ups:
 
-- Improve operator-facing copy, local smoke coverage, and error/empty states as the live local metadata flows receive feedback.
+- Improve operator-facing copy and error/empty states as the live local metadata flows receive feedback.
+- Keep default local smoke coverage read-only; route-explain must remain opt-in because it appends a local audit event.
 
 Aethra currently exists as the Local AI Routing Observatory for IgnisPrompt. The MVP is fixture-backed by default, read-only, and local-first. This document describes a conservative path for optional live local metadata from an operator-managed `ignispromptd` instance. It does not implement the mode, change daemon behavior, change routing policy, add telemetry, add cloud calls, add a SaaS backend, or add model control features.
 
