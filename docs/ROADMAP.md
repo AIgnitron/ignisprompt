@@ -9,6 +9,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Manifest loading from `config/models`.
 - Route explanations for legal and general requests.
 - Local audit events for route explanations and chat completions.
+- Aethra v0.1 local-only sustainability metrics endpoint with counterfactual proxy estimates derived from local audit events.
 - Adversarial document-instruction detection for known instruction strings.
 - OpenAI-compatible non-streaming chat completion request shape.
 - `StubLegalRunner` as the default Tier 3 legal fallback.
@@ -44,6 +45,7 @@ Future model selection should compare larger general models and legal-domain can
 - Tamper-evident audit log storage.
 - Production legal-quality evaluation.
 - Enterprise compliance certification or enterprise attestation.
+- Certified sustainability reporting, ESG certification, measured energy reporting, or actual carbon accounting.
 
 ## Guardrails
 

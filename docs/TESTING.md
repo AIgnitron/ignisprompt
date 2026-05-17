@@ -77,7 +77,7 @@ For the opt-in local API smoke path, first run the Aethra app checks above, then
 npm run smoke:local-api -- --start-daemon
 ```
 
-This starts the default local-only `ignispromptd` path with `./scripts/start-dev.sh`, waits for `/health`, and checks that Aethra can read `GET /health`, `GET /v1/models`, `GET /v1/status/models`, and `GET /v1/audit/events` over localhost. `GET /v1/status/models` is treated as model and runner status hints only. It does not require Ollama, GGUF tooling, model weights, cloud credentials, generated evidence, or a browser E2E runner.
+This starts the default local-only `ignispromptd` path with `./scripts/start-dev.sh`, waits for `/health`, and checks that Aethra can read `GET /health`, `GET /v1/models`, `GET /v1/status/models`, `GET /v1/audit/events`, and `GET /v1/metrics/sustainability?period=30d` over localhost. `GET /v1/status/models` is treated as model and runner status hints only. `GET /v1/metrics/sustainability?period=30d` is treated as methodology-dependent counterfactual proxy estimates only. It does not require Ollama, GGUF tooling, model weights, cloud credentials, generated evidence, or a browser E2E runner.
 
 If a daemon is already running, omit `--start-daemon`:
 
@@ -92,6 +92,12 @@ npm run smoke:local-api -- --start-daemon --include-route-explain
 ```
 
 `--include-route-explain` calls `POST /v1/route/explain` with synthetic text only. The request is local, but it appends a local audit event. The smoke does not call chat completions, does not call cloud services, and does not prove model quality, production readiness, legal accuracy, compliance readiness, certified sustainability reporting, measured energy use, or measured carbon impact.
+
+## Sustainability metrics checks
+
+The default Rust tests cover the Aethra v0.1 methodology fields on audit events, valid JSON shape for `GET /v1/metrics/sustainability?period=30d`, safe zero values with no audit data, local fail-closed/cloud-denied route counting, and always-present methodology/disclaimer fields.
+
+The endpoint is local-only and derived from in-memory audit events. Tests should not add telemetry, network calls, cloud calls, external coefficient lookup, or global opt-in pools. The output must remain framed as estimated, proxy, counterfactual, and methodology-dependent.
 
 ## Experimental MCP stub
 

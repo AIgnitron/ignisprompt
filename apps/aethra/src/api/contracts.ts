@@ -118,6 +118,32 @@ export type AuditEvent = {
   warnings: string[];
   cache?: CacheMetadata;
   completion_output?: CompletionOutputMetadata;
+  input_tokens_est?: number;
+  output_tokens_est?: number;
+  baseline_provider?: string;
+  baseline_model?: string;
+  estimated_cloud_cost_usd?: number;
+  estimated_cloud_cost_avoided_usd?: number;
+  estimated_local_energy_wh?: number;
+  estimated_cloud_baseline_wh?: number;
+  estimated_carbon_avoided_gco2e?: number;
+  methodology_version?: string;
+  confidence?: string;
+};
+
+export type SustainabilityMetricsResponse = {
+  period: string;
+  requests_total: number;
+  local_request_rate: number;
+  tier_breakdown: Record<string, number>;
+  estimated_cloud_cost_avoided_usd: number;
+  estimated_carbon_avoided_kgco2e: number;
+  estimated_data_kept_local_gb: number;
+  baseline_provider: string;
+  baseline_model: string;
+  methodology_version: string;
+  confidence: string;
+  disclaimer: string;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -308,10 +334,42 @@ export function isAuditEvent(value: unknown): value is AuditEvent {
     isStringArray(value.warnings) &&
     (value.cache === undefined || isCacheMetadata(value.cache)) &&
     (value.completion_output === undefined ||
-      isCompletionOutputMetadata(value.completion_output))
+      isCompletionOutputMetadata(value.completion_output)) &&
+    isOptionalNumber(value.input_tokens_est) &&
+    isOptionalNumber(value.output_tokens_est) &&
+    isOptionalString(value.baseline_provider) &&
+    isOptionalString(value.baseline_model) &&
+    isOptionalNumber(value.estimated_cloud_cost_usd) &&
+    isOptionalNumber(value.estimated_cloud_cost_avoided_usd) &&
+    isOptionalNumber(value.estimated_local_energy_wh) &&
+    isOptionalNumber(value.estimated_cloud_baseline_wh) &&
+    isOptionalNumber(value.estimated_carbon_avoided_gco2e) &&
+    isOptionalString(value.methodology_version) &&
+    isOptionalString(value.confidence)
   );
 }
 
 export function isAuditEventList(value: unknown): value is AuditEvent[] {
   return Array.isArray(value) && value.every(isAuditEvent);
+}
+
+export function isSustainabilityMetricsResponse(
+  value: unknown,
+): value is SustainabilityMetricsResponse {
+  return (
+    isRecord(value) &&
+    isString(value.period) &&
+    isNumber(value.requests_total) &&
+    isNumber(value.local_request_rate) &&
+    isRecord(value.tier_breakdown) &&
+    Object.values(value.tier_breakdown).every(isNumber) &&
+    isNumber(value.estimated_cloud_cost_avoided_usd) &&
+    isNumber(value.estimated_carbon_avoided_kgco2e) &&
+    isNumber(value.estimated_data_kept_local_gb) &&
+    isString(value.baseline_provider) &&
+    isString(value.baseline_model) &&
+    isString(value.methodology_version) &&
+    isString(value.confidence) &&
+    isString(value.disclaimer)
+  );
 }

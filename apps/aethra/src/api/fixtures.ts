@@ -4,6 +4,7 @@ import {
   ModelManifest,
   ModelStatusResponse,
   RouteExplainResponse,
+  SustainabilityMetricsResponse,
 } from "./contracts";
 
 export const healthFixture: HealthResponse = {
@@ -70,6 +71,17 @@ export const auditEventFixtures: AuditEvent[] = [
     explanation:
       "Synthetic fixture: IgnisPrompt selected a local Tier 3 legal route and did not consider a cloud route.",
     warnings: [],
+    input_tokens_est: 28,
+    output_tokens_est: 31,
+    baseline_provider: "openai",
+    baseline_model: "gpt-4.1-mini",
+    estimated_cloud_cost_usd: 0.000012,
+    estimated_cloud_cost_avoided_usd: 0.000012,
+    estimated_local_energy_wh: 0.00059,
+    estimated_cloud_baseline_wh: 0.00295,
+    estimated_carbon_avoided_gco2e: 0.000944,
+    methodology_version: "aethra-impact-0.1",
+    confidence: "low",
   },
   {
     request_id: "fixture-warning-001",
@@ -85,6 +97,17 @@ export const auditEventFixtures: AuditEvent[] = [
     warnings: [
       "Document-contained instruction was detected and treated as untrusted content. Routing policy and audit behavior were not modified.",
     ],
+    input_tokens_est: 34,
+    output_tokens_est: 25,
+    baseline_provider: "openai",
+    baseline_model: "gpt-4.1-mini",
+    estimated_cloud_cost_usd: 0.000012,
+    estimated_cloud_cost_avoided_usd: 0.000012,
+    estimated_local_energy_wh: 0.00059,
+    estimated_cloud_baseline_wh: 0.00295,
+    estimated_carbon_avoided_gco2e: 0.000944,
+    methodology_version: "aethra-impact-0.1",
+    confidence: "low",
   },
   {
     request_id: "fixture-cache-001",
@@ -102,8 +125,37 @@ export const auditEventFixtures: AuditEvent[] = [
       hit: true,
       kind: "tier_1_exact_match_v0_1",
     },
+    input_tokens_est: 30,
+    output_tokens_est: 20,
+    baseline_provider: "openai",
+    baseline_model: "gpt-4.1-mini",
+    estimated_cloud_cost_usd: 0.00001,
+    estimated_cloud_cost_avoided_usd: 0.00001,
+    estimated_local_energy_wh: 0.0005,
+    estimated_cloud_baseline_wh: 0.0025,
+    estimated_carbon_avoided_gco2e: 0.0008,
+    methodology_version: "aethra-impact-0.1",
+    confidence: "low",
   },
 ];
+
+export const sustainabilityMetricsFixture: SustainabilityMetricsResponse = {
+  period: "30d",
+  requests_total: 3,
+  local_request_rate: 1,
+  tier_breakdown: {
+    TIER_3: 3,
+  },
+  estimated_cloud_cost_avoided_usd: 0.000034,
+  estimated_carbon_avoided_kgco2e: 0.000003,
+  estimated_data_kept_local_gb: 0,
+  baseline_provider: "openai",
+  baseline_model: "gpt-4.1-mini",
+  methodology_version: "aethra-impact-0.1",
+  confidence: "low",
+  disclaimer:
+    "Demo data: Aethra sustainability values are local-only counterfactual proxy estimates. They are methodology-dependent, not measured energy use, not actual carbon accounting, not ESG certification, and not production compliance evidence.",
+};
 
 export const routeExplainFixture: RouteExplainResponse = {
   request_id: "fixture-route-explain-001",

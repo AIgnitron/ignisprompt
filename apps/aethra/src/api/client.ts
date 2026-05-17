@@ -5,11 +5,13 @@ import {
   ModelStatusResponse,
   RouteExplainRequest,
   RouteExplainResponse,
+  SustainabilityMetricsResponse,
   isAuditEventList,
   isHealthResponse,
   isModelRegistry,
   isModelStatusResponse,
   isRouteExplainResponse,
+  isSustainabilityMetricsResponse,
 } from "./contracts";
 import { AethraApiError } from "./errors";
 
@@ -51,6 +53,13 @@ export class IgnisPromptClient {
 
   auditEvents(): Promise<AuditEvent[]> {
     return this.request("/v1/audit/events", isAuditEventList);
+  }
+
+  sustainabilityMetrics(period = "30d"): Promise<SustainabilityMetricsResponse> {
+    return this.request(
+      `/v1/metrics/sustainability?period=${encodeURIComponent(period)}`,
+      isSustainabilityMetricsResponse,
+    );
   }
 
   routeExplain(request: RouteExplainRequest): Promise<RouteExplainResponse> {

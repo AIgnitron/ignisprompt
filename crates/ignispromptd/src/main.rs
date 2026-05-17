@@ -7,16 +7,17 @@ use std::{
 
 mod legal_json;
 mod model_runner;
+mod sustainability;
 
 use anyhow::{Context, Result};
 use axum::{
-    extract::State,
+    extract::{Query, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use clap::Parser;
 #[cfg(feature = "gguf-runner-spike")]
 use model_runner::log_gguf_runner_configuration;
@@ -28,6 +29,9 @@ use model_runner::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sustainability::{
+    SustainabilityAuditEvent, SustainabilityEstimate, SustainabilityMetricsResponse,
+};
 use tokio::{
     fs,
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
@@ -370,6 +374,54 @@ struct AuditEvent {
     cache: Option<CacheMetadata>,
     #[serde(skip_serializing_if = "Option::is_none")]
     completion_output: Option<CompletionOutputMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    input_tokens_est: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    output_tokens_est: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    baseline_provider: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    baseline_model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    estimated_cloud_cost_usd: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    estimated_cloud_cost_avoided_usd: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    estimated_local_energy_wh: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    estimated_cloud_baseline_wh: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    estimated_carbon_avoided_gco2e: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    methodology_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    confidence: Option<String>,
+}
+
+impl SustainabilityAuditEvent for AuditEvent {
+    fn tier(&self) -> &str {
+        &self.tier
+    }
+
+    fn data_left_device(&self) -> bool {
+        self.data_left_device
+    }
+
+    fn input_tokens_est(&self) -> Option<u64> {
+        self.input_tokens_est
+    }
+
+    fn output_tokens_est(&self) -> Option<u64> {
+        self.output_tokens_est
+    }
+
+    fn estimated_cloud_cost_avoided_usd(&self) -> Option<f64> {
+        self.estimated_cloud_cost_avoided_usd
+    }
+
+    fn estimated_carbon_avoided_gco2e(&self) -> Option<f64> {
+        self.estimated_carbon_avoided_gco2e
+    }
 }
 
 struct AuditStore {
@@ -510,6 +562,7 @@ async fn run_http_daemon(state: AppState, bind: SocketAddr) -> Result<()> {
         .route("/v1/route/explain", post(route_explain))
         .route("/v1/chat/completions", post(chat_completions))
         .route("/v1/audit/events", get(list_audit_events))
+        .route("/v1/metrics/sustainability", get(sustainability_metrics))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state);
@@ -804,20 +857,21 @@ async fn chat_completions(
                     let cache = Some(exact_match_cache_hit_metadata());
                     let cache_explanation =
                         completion_cache_hit_explanation(&explanation, &decision);
-                    let event = AuditEvent {
-                        request_id: request_id.clone(),
-                        timestamp: Utc::now(),
-                        event_type: "chat_completion".to_string(),
-                        route_code: decision.route_code.clone(),
-                        tier: decision.tier.clone(),
-                        domain: decision.domain.clone(),
-                        model_id: decision.model_id.clone(),
-                        data_left_device: decision.data_left_device,
-                        explanation: cache_explanation,
-                        warnings: warnings.clone(),
-                        cache: cache.clone(),
-                        completion_output: cached.local_output.clone(),
-                    };
+                    let event = audit_event_for_route(
+                        request_id.clone(),
+                        "chat_completion",
+                        &decision,
+                        cache_explanation,
+                        warnings.clone(),
+                        AuditEventDetails {
+                            cache: cache.clone(),
+                            completion_output: cached.local_output.clone(),
+                            estimate: Some(sustainability_estimate_for_request(
+                                &req,
+                                &cached.content,
+                            )),
+                        },
+                    );
                     if let Err(err) = state.audit.append(event).await {
                         warn!(error = %err, "failed to append audit event");
                     }
@@ -867,20 +921,21 @@ async fn chat_completions(
                     )
                     .await;
             }
-            let event = AuditEvent {
-                request_id: request_id.clone(),
-                timestamp: Utc::now(),
-                event_type: "chat_completion".to_string(),
-                route_code: decision.route_code.clone(),
-                tier: decision.tier.clone(),
-                domain: decision.domain.clone(),
-                model_id: decision.model_id.clone(),
-                data_left_device: decision.data_left_device,
-                explanation: explanation.clone(),
+            let event = audit_event_for_route(
+                request_id.clone(),
+                "chat_completion",
+                &decision,
+                explanation.clone(),
                 warnings,
-                cache: None,
-                completion_output: completion_output.metadata.clone(),
-            };
+                AuditEventDetails {
+                    cache: None,
+                    completion_output: completion_output.metadata.clone(),
+                    estimate: Some(sustainability_estimate_for_request(
+                        &req,
+                        &completion_output.content,
+                    )),
+                },
+            );
             if let Err(err) = state.audit.append(event).await {
                 warn!(error = %err, "failed to append audit event");
             }
@@ -1213,6 +1268,20 @@ async fn list_audit_events(State(state): State<AppState>) -> Json<Vec<AuditEvent
     Json(state.audit.list().await)
 }
 
+#[derive(Debug, Clone, Default, Deserialize)]
+struct SustainabilityMetricsQuery {
+    period: Option<String>,
+}
+
+async fn sustainability_metrics(
+    State(state): State<AppState>,
+    Query(query): Query<SustainabilityMetricsQuery>,
+) -> Json<SustainabilityMetricsResponse> {
+    let period = query.period.unwrap_or_else(|| "30d".to_string());
+    let events = audit_events_for_period(&state.audit.list().await, &period);
+    Json(sustainability::summarize_audit_events(period, &events))
+}
+
 async fn route_explain_response_for_request(
     state: &AppState,
     req: &ChatCompletionRequest,
@@ -1225,7 +1294,7 @@ async fn route_explain_response_for_request(
                 explanation,
                 warnings,
             };
-            append_route_explain_audit_event(state, &response).await;
+            append_route_explain_audit_event(state, req, &response).await;
             (StatusCode::OK, response)
         }
         Err(err) => (
@@ -1235,25 +1304,140 @@ async fn route_explain_response_for_request(
     }
 }
 
-async fn append_route_explain_audit_event(state: &AppState, response: &RouteExplainResponse) {
-    let event = AuditEvent {
-        request_id: response.request_id.clone(),
-        timestamp: Utc::now(),
-        event_type: "route_explain".to_string(),
-        route_code: response.decision.route_code.clone(),
-        tier: response.decision.tier.clone(),
-        domain: response.decision.domain.clone(),
-        model_id: response.decision.model_id.clone(),
-        data_left_device: response.decision.data_left_device,
-        explanation: response.explanation.clone(),
-        warnings: response.warnings.clone(),
-        cache: None,
-        completion_output: None,
-    };
+async fn append_route_explain_audit_event(
+    state: &AppState,
+    req: &ChatCompletionRequest,
+    response: &RouteExplainResponse,
+) {
+    let event = audit_event_for_route(
+        response.request_id.clone(),
+        "route_explain",
+        &response.decision,
+        response.explanation.clone(),
+        response.warnings.clone(),
+        AuditEventDetails {
+            cache: None,
+            completion_output: None,
+            estimate: Some(sustainability_estimate_for_request(
+                req,
+                &response.explanation,
+            )),
+        },
+    );
 
     if let Err(err) = state.audit.append(event).await {
         warn!(error = %err, "failed to append audit event");
     }
+}
+
+#[derive(Debug, Clone, Default)]
+struct AuditEventDetails {
+    cache: Option<CacheMetadata>,
+    completion_output: Option<CompletionOutputMetadata>,
+    estimate: Option<SustainabilityEstimate>,
+}
+
+fn audit_event_for_route(
+    request_id: String,
+    event_type: &str,
+    decision: &RouteDecision,
+    explanation: String,
+    warnings: Vec<String>,
+    details: AuditEventDetails,
+) -> AuditEvent {
+    let AuditEventDetails {
+        cache,
+        completion_output,
+        estimate,
+    } = details;
+
+    let (
+        input_tokens_est,
+        output_tokens_est,
+        baseline_provider,
+        baseline_model,
+        estimated_cloud_cost_usd,
+        estimated_cloud_cost_avoided_usd,
+        estimated_local_energy_wh,
+        estimated_cloud_baseline_wh,
+        estimated_carbon_avoided_gco2e,
+        methodology_version,
+        confidence,
+    ) = match estimate {
+        Some(estimate) => (
+            Some(estimate.input_tokens_est),
+            Some(estimate.output_tokens_est),
+            Some(estimate.baseline_provider),
+            Some(estimate.baseline_model),
+            Some(estimate.estimated_cloud_cost_usd),
+            Some(estimate.estimated_cloud_cost_avoided_usd),
+            Some(estimate.estimated_local_energy_wh),
+            Some(estimate.estimated_cloud_baseline_wh),
+            Some(estimate.estimated_carbon_avoided_gco2e),
+            Some(estimate.methodology_version),
+            Some(estimate.confidence),
+        ),
+        None => (
+            None, None, None, None, None, None, None, None, None, None, None,
+        ),
+    };
+
+    AuditEvent {
+        request_id,
+        timestamp: Utc::now(),
+        event_type: event_type.to_string(),
+        route_code: decision.route_code.clone(),
+        tier: decision.tier.clone(),
+        domain: decision.domain.clone(),
+        model_id: decision.model_id.clone(),
+        data_left_device: decision.data_left_device,
+        explanation,
+        warnings,
+        cache,
+        completion_output,
+        input_tokens_est,
+        output_tokens_est,
+        baseline_provider,
+        baseline_model,
+        estimated_cloud_cost_usd,
+        estimated_cloud_cost_avoided_usd,
+        estimated_local_energy_wh,
+        estimated_cloud_baseline_wh,
+        estimated_carbon_avoided_gco2e,
+        methodology_version,
+        confidence,
+    }
+}
+
+fn sustainability_estimate_for_request(
+    req: &ChatCompletionRequest,
+    output_text: &str,
+) -> SustainabilityEstimate {
+    let input_text = req
+        .messages
+        .iter()
+        .map(|message| message.content.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    sustainability::estimate_for_text(&input_text, output_text)
+}
+
+fn audit_events_for_period(events: &[AuditEvent], period: &str) -> Vec<AuditEvent> {
+    let now = Utc::now();
+    let Some(days) = period_days(period) else {
+        return events.to_vec();
+    };
+    let cutoff = now - Duration::days(days);
+    events
+        .iter()
+        .filter(|event| event.timestamp >= cutoff)
+        .cloned()
+        .collect()
+}
+
+fn period_days(period: &str) -> Option<i64> {
+    let days = period.strip_suffix('d')?.parse::<i64>().ok()?;
+    (days >= 0).then_some(days)
 }
 
 fn preflight_rejected_route_explain_response(explanation: String) -> RouteExplainResponse {
@@ -1528,13 +1712,9 @@ async fn handle_mcp_message(
 
             Some(handle_mcp_tool_call(state, id, params).await)
         }
-        _ => id.map(|id| {
-            mcp_error_response(
-                Some(id),
-                -32601,
-                format!("Method not found: {method}"),
-            )
-        }),
+        _ => {
+            id.map(|id| mcp_error_response(Some(id), -32601, format!("Method not found: {method}")))
+        }
     }
 }
 
@@ -1544,16 +1724,15 @@ async fn handle_mcp_tool_call(state: &AppState, id: Value, params: Option<Value>
     };
 
     let Some(name) = params.get("name").and_then(Value::as_str) else {
-        return mcp_error_response(
-            Some(id),
-            -32602,
-            "Missing tool name in tools/call params.",
-        );
+        return mcp_error_response(Some(id), -32602, "Missing tool name in tools/call params.");
     };
 
     match name {
         MCP_ROUTE_EXPLAIN_TOOL_NAME => {
-            let arguments = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
+            let arguments = params
+                .get("arguments")
+                .cloned()
+                .unwrap_or_else(|| json!({}));
             let request: McpRouteExplainArgs = match serde_json::from_value(arguments) {
                 Ok(arguments) => arguments,
                 Err(err) => {
@@ -1884,6 +2063,20 @@ mod tests {
         model_status(State(state.clone())).await.0
     }
 
+    async fn call_sustainability_metrics(
+        state: &AppState,
+        period: Option<&str>,
+    ) -> SustainabilityMetricsResponse {
+        sustainability_metrics(
+            State(state.clone()),
+            Query(SustainabilityMetricsQuery {
+                period: period.map(str::to_string),
+            }),
+        )
+        .await
+        .0
+    }
+
     async fn call_mcp_message(
         state: &AppState,
         session: &mut McpSessionState,
@@ -1987,6 +2180,117 @@ mod tests {
             .warnings
             .iter()
             .any(|warning| warning.contains("Declared local model path was not found")));
+    }
+
+    #[tokio::test]
+    async fn route_explain_audit_event_includes_sustainability_estimate_fields() {
+        let state = state_with_models(vec![legal_model()]);
+        let request = req(
+            "Review this indemnification clause in a vendor services agreement.",
+            Some("ignisprompt/legal"),
+        );
+
+        let (status, _) = call_route_explain(&state, request).await;
+
+        assert_eq!(status, StatusCode::OK);
+        let audit_events = state.audit.list().await;
+        assert_eq!(audit_events.len(), 1);
+        let event = &audit_events[0];
+        assert!(event.input_tokens_est.unwrap() > 0);
+        assert!(event.output_tokens_est.unwrap() > 0);
+        assert_eq!(event.baseline_provider.as_deref(), Some("openai"));
+        assert_eq!(event.baseline_model.as_deref(), Some("gpt-4.1-mini"));
+        assert!(event.estimated_cloud_cost_usd.unwrap() >= 0.0);
+        assert!(event.estimated_cloud_cost_avoided_usd.unwrap() >= 0.0);
+        assert!(event.estimated_local_energy_wh.unwrap() >= 0.0);
+        assert!(event.estimated_cloud_baseline_wh.unwrap() >= 0.0);
+        assert!(event.estimated_carbon_avoided_gco2e.unwrap() >= 0.0);
+        assert_eq!(
+            event.methodology_version.as_deref(),
+            Some("aethra-impact-0.1")
+        );
+        assert_eq!(event.confidence.as_deref(), Some("low"));
+    }
+
+    #[tokio::test]
+    async fn sustainability_metrics_endpoint_returns_valid_json_shape() {
+        let state = state_with_models(vec![legal_model()]);
+        let request = req(
+            "Review this governing law clause in a vendor services agreement.",
+            Some("ignisprompt/legal"),
+        );
+        let _ = call_route_explain(&state, request).await;
+
+        let response = call_sustainability_metrics(&state, Some("30d")).await;
+        let encoded = serde_json::to_value(&response).unwrap();
+
+        assert_eq!(encoded["period"], "30d");
+        assert_eq!(encoded["requests_total"], 1);
+        assert_eq!(encoded["local_request_rate"], 1.0);
+        assert_eq!(encoded["tier_breakdown"]["TIER_3"], 1);
+        assert!(encoded["estimated_cloud_cost_avoided_usd"].is_number());
+        assert!(encoded["estimated_carbon_avoided_kgco2e"].is_number());
+        assert!(encoded["estimated_data_kept_local_gb"].is_number());
+        assert_eq!(encoded["baseline_provider"], "openai");
+        assert_eq!(encoded["baseline_model"], "gpt-4.1-mini");
+        assert_eq!(encoded["methodology_version"], "aethra-impact-0.1");
+        assert_eq!(encoded["confidence"], "low");
+        assert!(encoded["disclaimer"]
+            .as_str()
+            .unwrap()
+            .contains("counterfactual"));
+    }
+
+    #[tokio::test]
+    async fn sustainability_metrics_empty_audit_data_returns_safe_zero_values() {
+        let state = state_with_models(vec![legal_model()]);
+
+        let response = call_sustainability_metrics(&state, Some("30d")).await;
+
+        assert_eq!(response.period, "30d");
+        assert_eq!(response.requests_total, 0);
+        assert_eq!(response.local_request_rate, 0.0);
+        assert!(response.tier_breakdown.is_empty());
+        assert_eq!(response.estimated_cloud_cost_avoided_usd, 0.0);
+        assert_eq!(response.estimated_carbon_avoided_kgco2e, 0.0);
+        assert_eq!(response.estimated_data_kept_local_gb, 0.0);
+        assert_eq!(response.methodology_version, "aethra-impact-0.1");
+        assert!(response.disclaimer.contains("methodology-dependent"));
+    }
+
+    #[tokio::test]
+    async fn sustainability_metrics_counts_cloud_denied_local_routes_as_avoided_cloud_usage() {
+        let state = state_with_models(vec![]);
+        let request = req(
+            "Review this contract termination clause.",
+            Some("ignisprompt/legal"),
+        );
+
+        let (status, response) = call_route_explain(&state, request).await;
+        let metrics = call_sustainability_metrics(&state, Some("30d")).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(response.decision.route_code, "LEGAL_MODEL_NOT_INSTALLED");
+        assert!(!response.decision.data_left_device);
+        assert_eq!(metrics.requests_total, 1);
+        assert_eq!(metrics.local_request_rate, 1.0);
+        assert_eq!(metrics.tier_breakdown.get("ERR"), Some(&1));
+        assert!(metrics.estimated_cloud_cost_avoided_usd > 0.0);
+        assert!(metrics.estimated_data_kept_local_gb >= 0.0);
+    }
+
+    #[tokio::test]
+    async fn sustainability_metrics_always_include_methodology_and_disclaimer() {
+        let state = state_with_models(vec![]);
+
+        let metrics = call_sustainability_metrics(&state, None).await;
+
+        assert_eq!(metrics.period, "30d");
+        assert_eq!(metrics.methodology_version, "aethra-impact-0.1");
+        assert_eq!(metrics.confidence, "low");
+        assert!(metrics.disclaimer.contains("proxy estimates"));
+        assert!(metrics.disclaimer.contains("not actual carbon accounting"));
+        assert!(metrics.disclaimer.contains("not ESG certification"));
     }
 
     #[test]
@@ -2796,7 +3100,10 @@ mod tests {
 
         assert!(session.initialize_seen);
         assert_eq!(response["result"]["protocolVersion"], MCP_PROTOCOL_VERSION);
-        assert_eq!(response["result"]["capabilities"]["tools"]["listChanged"], false);
+        assert_eq!(
+            response["result"]["capabilities"]["tools"]["listChanged"],
+            false
+        );
         assert_eq!(response["result"]["serverInfo"]["name"], "ignispromptd");
     }
 
