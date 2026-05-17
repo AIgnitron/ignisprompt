@@ -11,6 +11,8 @@
 
 Show that Aignitron is not just displaying AI usage. Aethra shows the cloud usage avoided by local-first routing decisions using conservative routing-aware counterfactual proxy estimates.
 
+For methodology details, see the [Aethra Sustainability Monitor methodology](AETHRA_SUSTAINABILITY_METHODOLOGY.md).
+
 Current demo flow:
 
 ```text

@@ -13,6 +13,8 @@ IgnisPrompt audit events
 
 This checkpoint is about observability for local-first routing decisions. Aignitron is not just showing AI usage. Aethra shows the cloud usage avoided by local-first routing decisions, using estimated CO₂ avoided, counterfactual proxy estimates, and methodology-dependent caveats.
 
+For the v0.1 assumptions, limitations, and reviewer checklist, see the [Aethra Sustainability Monitor methodology](AETHRA_SUSTAINABILITY_METHODOLOGY.md).
+
 ## Completed PRs
 
 - #101: backend/API sustainability metrics
