@@ -62,6 +62,14 @@ async function main() {
       `[aethra-smoke] audit events ok: ${auditEvents.length} records`,
     );
 
+    const sustainabilityMetrics = await getJson(
+      "/v1/metrics/sustainability?period=30d",
+    );
+    assertSustainabilityMetrics(sustainabilityMetrics);
+    console.log(
+      `[aethra-smoke] sustainability metrics ok: ${sustainabilityMetrics.requests_total} records, methodology=${sustainabilityMetrics.methodology_version}`,
+    );
+
     if (includeRouteExplain) {
       console.log(
         "[aethra-smoke] route-explain is enabled; this appends a local audit event.",
@@ -316,7 +324,66 @@ function assertAuditEvents(value) {
         );
       }
     }
+
+    assertOptionalNumber(event.input_tokens_est, `${label}.input_tokens_est`);
+    assertOptionalNumber(event.output_tokens_est, `${label}.output_tokens_est`);
+    assertOptionalString(event.baseline_provider, `${label}.baseline_provider`);
+    assertOptionalString(event.baseline_model, `${label}.baseline_model`);
+    assertOptionalNumber(
+      event.estimated_cloud_cost_usd,
+      `${label}.estimated_cloud_cost_usd`,
+    );
+    assertOptionalNumber(
+      event.estimated_cloud_cost_avoided_usd,
+      `${label}.estimated_cloud_cost_avoided_usd`,
+    );
+    assertOptionalNumber(
+      event.estimated_local_energy_wh,
+      `${label}.estimated_local_energy_wh`,
+    );
+    assertOptionalNumber(
+      event.estimated_cloud_baseline_wh,
+      `${label}.estimated_cloud_baseline_wh`,
+    );
+    assertOptionalNumber(
+      event.estimated_carbon_avoided_gco2e,
+      `${label}.estimated_carbon_avoided_gco2e`,
+    );
+    assertOptionalString(
+      event.methodology_version,
+      `${label}.methodology_version`,
+    );
+    assertOptionalString(event.confidence, `${label}.confidence`);
   });
+}
+
+function assertSustainabilityMetrics(value) {
+  assertRecord(value, "sustainability metrics response");
+  assertString(value.period, "sustainability.period");
+  assertNumber(value.requests_total, "sustainability.requests_total");
+  assertNumber(value.local_request_rate, "sustainability.local_request_rate");
+  assertRecord(value.tier_breakdown, "sustainability.tier_breakdown");
+  Object.entries(value.tier_breakdown).forEach(([tier, count]) => {
+    assertString(tier, "sustainability.tier_breakdown key");
+    assertNumber(count, `sustainability.tier_breakdown.${tier}`);
+  });
+  assertNumber(
+    value.estimated_cloud_cost_avoided_usd,
+    "sustainability.estimated_cloud_cost_avoided_usd",
+  );
+  assertNumber(
+    value.estimated_carbon_avoided_kgco2e,
+    "sustainability.estimated_carbon_avoided_kgco2e",
+  );
+  assertNumber(
+    value.estimated_data_kept_local_gb,
+    "sustainability.estimated_data_kept_local_gb",
+  );
+  assertString(value.baseline_provider, "sustainability.baseline_provider");
+  assertString(value.baseline_model, "sustainability.baseline_model");
+  assertString(value.methodology_version, "sustainability.methodology_version");
+  assertString(value.confidence, "sustainability.confidence");
+  assertString(value.disclaimer, "sustainability.disclaimer");
 }
 
 function assertRouteExplain(value) {
@@ -376,6 +443,21 @@ function assertNumber(value, label) {
 function assertOptionalNullableString(value, label) {
   if (value !== undefined && value !== null && typeof value !== "string") {
     throw new Error(`${label} was not a string, null, or undefined`);
+  }
+}
+
+function assertOptionalString(value, label) {
+  if (value !== undefined && typeof value !== "string") {
+    throw new Error(`${label} was not a string or undefined`);
+  }
+}
+
+function assertOptionalNumber(value, label) {
+  if (
+    value !== undefined &&
+    (typeof value !== "number" || !Number.isFinite(value))
+  ) {
+    throw new Error(`${label} was not a finite number or undefined`);
   }
 }
 

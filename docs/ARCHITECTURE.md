@@ -23,6 +23,7 @@ The architecture is intentionally small. It validates the local routing control 
 - `POST /v1/route/explain`: returns a route decision, human-readable explanation, and warnings.
 - `POST /v1/chat/completions`: accepts an OpenAI-compatible request shape, preserves the current JSON response when `stream` is missing or `false`, and returns a basic SSE-compatible scaffold when `stream` is `true`.
 - `GET /v1/audit/events`: returns audit events accumulated in the current daemon process.
+- `GET /v1/metrics/sustainability?period=30d`: returns local-only Aethra counterfactual sustainability and cost proxy estimates derived from local audit events.
 
 The default daemon path does not implement a full MCP server surface, dashboard, Tier 4 edge dispatch, Tier 5 cloud dispatch, or signed attestation generation. Its `stream: true` path is a compatibility scaffold that formats an already-produced local completion as SSE chunks; it is not a full incremental token streaming engine.
 
@@ -48,7 +49,7 @@ This stub is intentionally narrow. It is not a full MCP implementation, does not
 6. If no local legal model is eligible, or simulated RAM pressure is enabled, it fails closed without cloud fallback.
 7. For safe chat completions only, it may reuse an in-memory Tier 1 exact-match cache entry when the request messages, model or domain hints, selected route inputs, and relevant local policy flags match exactly.
 8. For general requests, it returns a Tier 2 route decision with stubbed OS-native dispatch.
-9. Route explanations and chat completions append local audit events.
+9. Route explanations and chat completions append local audit events with optional Aethra v0.1 estimate fields.
 10. When `stream: true`, the daemon reuses the same completion result and emits it as SSE-framed JSON chunks ending in `data: [DONE]`.
 
 ## Route decisions
@@ -103,9 +104,23 @@ If the GGUF path is unavailable, configured with a non-explicit runner name, or 
 
 ## Audit events
 
-The daemon appends JSONL audit events to the configured audit log path and stores events in memory for `GET /v1/audit/events`. Events include route code, tier, domain, model id, route explanation, warnings, whether data left the device, and cache-hit metadata when a local exact-match entry is reused.
+The daemon appends JSONL audit events to the configured audit log path and stores events in memory for `GET /v1/audit/events`. Events include route code, tier, domain, model id, route explanation, warnings, whether data left the device, and cache-hit metadata when a local exact-match entry is reused. When request text is available, events also include optional Aethra v0.1 estimate fields such as `input_tokens_est`, `output_tokens_est`, `baseline_provider`, `baseline_model`, `estimated_cloud_cost_avoided_usd`, `estimated_local_energy_wh`, `estimated_cloud_baseline_wh`, `estimated_carbon_avoided_gco2e`, `methodology_version`, and `confidence`.
 
 Audit events are local process records. They are not currently signed, tamper-evident, replicated, encrypted by the daemon, or certified as enterprise audit evidence. Successful MCP `route_explain` tool calls reuse the same local audit append path as the HTTP route-explain surface.
+
+## Aethra sustainability estimates
+
+`GET /v1/metrics/sustainability?period=30d` summarizes the in-memory local audit events for a day-based period string such as `30d`. It returns request counts, local request rate, tier breakdown, `estimated_cloud_cost_avoided_usd`, `estimated_carbon_avoided_kgco2e`, `estimated_data_kept_local_gb`, baseline provider/model, methodology version, confidence, and a disclaimer.
+
+The v0.1 methodology is intentionally small and local-only:
+
+- token estimate fallback: characters divided by 4
+- baseline provider/model: `openai` / `gpt-4.1-mini`
+- methodology version: `aethra-impact-0.1`
+- confidence: `low`
+- coefficients are conservative placeholder estimates in code, not measurements or external lookups
+
+These values are routing-aware counterfactual proxy estimates. They are methodology-dependent, not measured energy use, not actual carbon accounting, not ESG certification, and not production compliance evidence.
 
 ## Data locality
 

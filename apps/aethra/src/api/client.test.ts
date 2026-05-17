@@ -7,6 +7,7 @@ import {
   modelFixtures,
   modelStatusFixture,
   routeExplainFixture,
+  sustainabilityMetricsFixture,
 } from "./fixtures";
 
 function jsonResponse(value: unknown, init: ResponseInit = {}) {
@@ -50,6 +51,19 @@ describe("IgnisPromptClient", () => {
     await expect(client.modelStatus()).resolves.toEqual(modelStatusFixture);
     expect(fetchImpl).toHaveBeenCalledWith(
       "http://127.0.0.1:8765/v1/status/models",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("reads sustainability metrics as local-only counterfactual estimates", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(sustainabilityMetricsFixture));
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.sustainabilityMetrics("30d")).resolves.toEqual(
+      sustainabilityMetricsFixture,
+    );
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "http://127.0.0.1:8765/v1/metrics/sustainability?period=30d",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });

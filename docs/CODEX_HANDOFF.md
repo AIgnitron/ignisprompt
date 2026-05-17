@@ -75,6 +75,8 @@ The live metadata controls use the configured loopback/local daemon base URL. Th
 
 IgnisPrompt now exposes `GET /v1/status/models` for local model and runner status hints. This endpoint is read-only, local-only, and conservative: it reports configuration/path/runner hints and warning language, not production readiness, model quality, legal accuracy, or compliance status.
 
+IgnisPrompt now exposes `GET /v1/metrics/sustainability?period=30d` for Aethra v0.1 local-only counterfactual sustainability and cost proxy estimates derived from in-memory audit events. It reports methodology version, confidence, and disclaimer fields, and must not be presented as measured energy use, actual carbon accounting, ESG certification, or compliance evidence.
+
 Aethra can manually load `GET /v1/status/models` on the Model / Runner Status screen. Fixture mode remains the default, live loading remains explicit/manual, and the UI presents these values as local daemon status hints alongside manifest-derived hints.
 
 Aethra observes IgnisPrompt state. IgnisPrompt still owns routing decisions, route explanations, audit events, local-only behavior, model manifests, runner/provider selection, and fail-closed behavior.

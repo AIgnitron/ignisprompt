@@ -107,7 +107,10 @@ fn cmd_models(base_url: &str) {
                     println!("{}", format_model_manifest_line(m));
                 }
             } else {
-                println!("{}", serde_json::to_string_pretty(&body).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&body).unwrap_or_default()
+                );
             }
         }
         Err(e) => {
@@ -119,10 +122,13 @@ fn cmd_models(base_url: &str) {
 
 fn format_model_manifest_line(model: &Value) -> String {
     let id = string_field(model, &["modelId", "model_id"]).unwrap_or("unknown");
-    let tier = model.get("tier").and_then(|v| v.as_u64())
+    let tier = model
+        .get("tier")
+        .and_then(|v| v.as_u64())
         .map(|t| format!("TIER_{}", t))
         .unwrap_or_else(|| "-".to_string());
-    let domains = model.get("domains")
+    let domains = model
+        .get("domains")
         .and_then(|v| v.as_array())
         .map(|arr| {
             arr.iter()
@@ -131,7 +137,8 @@ fn format_model_manifest_line(model: &Value) -> String {
                 .join(",")
         })
         .unwrap_or_else(|| "-".to_string());
-    let installed = model.get("installed")
+    let installed = model
+        .get("installed")
         .and_then(|v| v.as_bool())
         .map(|b| if b { "installed" } else { "missing" })
         .unwrap_or("-");
@@ -140,7 +147,8 @@ fn format_model_manifest_line(model: &Value) -> String {
 }
 
 fn string_field<'a>(value: &'a Value, keys: &[&str]) -> Option<&'a str> {
-    keys.iter().find_map(|key| value.get(*key).and_then(|v| v.as_str()))
+    keys.iter()
+        .find_map(|key| value.get(*key).and_then(|v| v.as_str()))
 }
 
 fn cmd_route_explain(base_url: &str, file: &str) {
@@ -168,33 +176,46 @@ fn cmd_route_explain(base_url: &str, file: &str) {
             );
             println!(
                 "route_code:         {}",
-                decision.get("route_code").and_then(|v| v.as_str()).unwrap_or("-")
+                decision
+                    .get("route_code")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("-")
             );
             println!(
                 "domain:             {}",
-                decision.get("domain").and_then(|v| v.as_str()).unwrap_or("-")
+                decision
+                    .get("domain")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("-")
             );
             println!(
                 "model_id:           {}",
-                decision.get("model_id").and_then(|v| v.as_str()).unwrap_or("-")
+                decision
+                    .get("model_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("-")
             );
             println!(
                 "data_left_device:   {}",
-                decision.get("data_left_device")
+                decision
+                    .get("data_left_device")
                     .and_then(|v| v.as_bool())
                     .map(|b| if b { "true" } else { "false" })
                     .unwrap_or("-")
             );
             println!(
                 "cloud_considered:   {}",
-                decision.get("cloud_considered")
+                decision
+                    .get("cloud_considered")
                     .and_then(|v| v.as_bool())
                     .map(|b| if b { "true" } else { "false" })
                     .unwrap_or("-")
             );
             println!(
                 "explanation:        {}",
-                data.get("explanation").and_then(|v| v.as_str()).unwrap_or("-")
+                data.get("explanation")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("-")
             );
             if let Some(warnings) = data.get("warnings").and_then(|v| v.as_array()) {
                 for w in warnings {
@@ -217,11 +238,24 @@ fn cmd_audit_tail(base_url: &str) {
         Ok(resp) => {
             let data = parse_response(resp);
             if let Some(events) = data.as_array() {
-                let start = if events.len() > 10 { events.len() - 10 } else { 0 };
+                let start = if events.len() > 10 {
+                    events.len() - 10
+                } else {
+                    0
+                };
                 for event in &events[start..] {
-                    let ts = event.get("timestamp").and_then(|v| v.as_str()).unwrap_or("-");
-                    let et = event.get("event_type").and_then(|v| v.as_str()).unwrap_or("-");
-                    let rc = event.get("route_code").and_then(|v| v.as_str()).unwrap_or("-");
+                    let ts = event
+                        .get("timestamp")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("-");
+                    let et = event
+                        .get("event_type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("-");
+                    let rc = event
+                        .get("route_code")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("-");
                     let tier = event.get("tier").and_then(|v| v.as_str()).unwrap_or("-");
                     println!("[{}] {} {} {}", ts, et, rc, tier);
                 }
@@ -282,9 +316,21 @@ mod tests {
             "warnings": []
         });
         let decision = response.get("decision").unwrap();
-        assert_eq!(decision.get("tier").and_then(|v| v.as_str()).unwrap(), "TIER_3");
-        assert_eq!(decision.get("route_code").and_then(|v| v.as_str()).unwrap(), "DOMAIN_MODEL_SELECTED");
-        assert_eq!(decision.get("data_left_device").and_then(|v| v.as_bool()).unwrap(), false);
+        assert_eq!(
+            decision.get("tier").and_then(|v| v.as_str()).unwrap(),
+            "TIER_3"
+        );
+        assert_eq!(
+            decision.get("route_code").and_then(|v| v.as_str()).unwrap(),
+            "DOMAIN_MODEL_SELECTED"
+        );
+        assert_eq!(
+            decision
+                .get("data_left_device")
+                .and_then(|v| v.as_bool())
+                .unwrap(),
+            false
+        );
     }
 
     #[test]

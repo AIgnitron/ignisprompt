@@ -60,8 +60,11 @@ Show simple local-first proxy indicators:
 - count of recent events where `cloud_allowed=false`
 - count of fail-closed legal events
 - avoided-cloud-call estimate based only on route decisions that stayed local
+- local daemon estimate summary from `GET /v1/metrics/sustainability?period=30d` when available
 
-This view must not claim certified sustainability metrics, measured energy usage, carbon accounting, or compliance evidence. It should be labeled as an early observability preview.
+The daemon endpoint returns routing-aware counterfactual fields such as `estimated_cloud_cost_avoided_usd`, `estimated_carbon_avoided_kgco2e`, and `estimated_data_kept_local_gb`, plus `methodology_version`, `confidence`, and a disclaimer. Fixture-backed examples in Aethra are demo data only.
+
+This view must not claim certified sustainability metrics, measured energy usage, actual carbon accounting, ESG certification, or compliance evidence. It should be labeled as an early observability preview with methodology-dependent proxy estimates.
 
 ## API Gaps
 
@@ -73,7 +76,7 @@ The following IgnisPrompt API additions would make Aethra more useful without mo
 - `GET /v1/audit/events?limit=&since=&type=&route_code=`: add bounded querying and filtering instead of returning only the full in-memory event list
 - `GET /v1/audit/summary`: return route-code counts, tier counts, warning counts, cache-hit counts, and `data_left_device` counts for the current process
 - `GET /v1/policy/locality`: expose the effective local-only and cloud-consent policy state in a read-only form
-- `GET /v1/sustainability/summary`: if implemented later, return clearly named estimates or proxies with methodology fields, not certified measurements
+- richer bounded filtering for `GET /v1/metrics/sustainability`: if implemented later, keep clearly named estimates or proxies with methodology fields, not certified measurements
 
 These are dashboard support endpoints. They should preserve IgnisPrompt as the source of routing, audit, and policy truth.
 

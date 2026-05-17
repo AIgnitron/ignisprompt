@@ -40,4 +40,20 @@ curl -fsS -X POST "$BASE_URL/v1/route/explain" \
 echo "[S06] audit events"
 curl -fsS "$BASE_URL/v1/audit/events" | jq .
 
+echo "[S07] sustainability metrics"
+curl -fsS "$BASE_URL/v1/metrics/sustainability?period=30d" | jq -e '
+  (.period == "30d") and
+  (.requests_total | type == "number") and
+  (.local_request_rate | type == "number") and
+  (.tier_breakdown | type == "object") and
+  (.estimated_cloud_cost_avoided_usd | type == "number") and
+  (.estimated_carbon_avoided_kgco2e | type == "number") and
+  (.estimated_data_kept_local_gb | type == "number") and
+  (.baseline_provider == "openai") and
+  (.baseline_model == "gpt-4.1-mini") and
+  (.methodology_version == "aethra-impact-0.1") and
+  (.confidence == "low") and
+  (.disclaimer | type == "string")
+'
+
 echo "[OK] smoke script completed"
