@@ -56,7 +56,9 @@ describe("IgnisPromptClient", () => {
   });
 
   it("reads sustainability metrics as local-only counterfactual estimates", async () => {
-    const fetchImpl = vi.fn(async () => jsonResponse(sustainabilityMetricsFixture));
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(sustainabilityMetricsFixture),
+    );
     const client = new IgnisPromptClient({ fetchImpl });
 
     await expect(client.sustainabilityMetrics("30d")).resolves.toEqual(
@@ -66,6 +68,34 @@ describe("IgnisPromptClient", () => {
       "http://127.0.0.1:8765/v1/metrics/sustainability?period=30d",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
+  });
+
+  it("encodes sustainability metrics period query values", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(sustainabilityMetricsFixture));
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.sustainabilityMetrics("90d")).resolves.toEqual(
+      sustainabilityMetricsFixture,
+    );
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "http://127.0.0.1:8765/v1/metrics/sustainability?period=90d",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("rejects unsupported sustainability metrics response shapes", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
+        ...sustainabilityMetricsFixture,
+        disclaimer: undefined,
+      }),
+    );
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.sustainabilityMetrics("7d")).rejects.toMatchObject({
+      kind: "unexpected-shape",
+    });
   });
 
   it("rejects unsupported model status availability strings", async () => {

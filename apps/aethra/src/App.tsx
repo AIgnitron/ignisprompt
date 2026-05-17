@@ -8,6 +8,7 @@ import type {
   LiveHealthState,
   LiveModelStatusState,
   LiveModelsState,
+  LiveSustainabilityMetricsState,
 } from "./dataSource";
 import {
   DEFAULT_AETHRA_BASE_URL,
@@ -15,6 +16,7 @@ import {
   describeHealthLoadError,
   describeModelStatusLoadError,
   describeModelsLoadError,
+  describeSustainabilityMetricsLoadError,
   validateLocalBaseUrl,
 } from "./dataSource";
 import { ModelRunnerStatus } from "./routes/ModelRunnerStatus";
@@ -45,6 +47,10 @@ export default function App() {
     });
   const [liveAuditEventsState, setLiveAuditEventsState] =
     useState<LiveAuditEventsState>({
+      status: "not-loaded",
+    });
+  const [liveSustainabilityMetricsState, setLiveSustainabilityMetricsState] =
+    useState<LiveSustainabilityMetricsState>({
       status: "not-loaded",
     });
   const baseUrlValidation = validateLocalBaseUrl(baseUrlInput);
@@ -166,6 +172,35 @@ export default function App() {
     }
   }
 
+  async function loadLiveSustainabilityMetrics(period: string) {
+    if (baseUrlError) {
+      setLiveSustainabilityMetricsState({
+        status: "error",
+        period,
+        label: "Local URL blocked",
+        message: baseUrlError,
+      });
+      return;
+    }
+
+    setLiveSustainabilityMetricsState({ status: "loading", period });
+    try {
+      const client = createIgnisPromptClient({ baseUrl: localBaseUrl });
+      const metrics = await client.sustainabilityMetrics(period);
+      setLiveSustainabilityMetricsState({
+        status: "loaded",
+        metrics,
+        loadedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      setLiveSustainabilityMetricsState({
+        status: "error",
+        period,
+        ...describeSustainabilityMetricsLoadError(error),
+      });
+    }
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Aethra sections">
@@ -230,7 +265,7 @@ export default function App() {
             <p>
               {dataMode === "fixture"
                 ? "Live local actions are explicit and local. Aethra observes IgnisPrompt state without changing routing, runners, models, or audit policy."
-                : "Live local metadata loading is manual and read-only for health, models, model and runner status hints, and audit events."}
+                : "Live local metadata loading is manual and read-only for health, models, model and runner status hints, audit events, and sustainability metrics."}
             </p>
           </div>
           <div className="mode-badges" aria-label="Aethra mode guarantees">
@@ -288,7 +323,11 @@ export default function App() {
           />
         ) : null}
         {activeRoute === "sustainability-preview" ? (
-          <SustainabilityPreview />
+          <SustainabilityPreview
+            dataMode={dataMode}
+            liveSustainabilityMetricsState={liveSustainabilityMetricsState}
+            onLoadLiveSustainabilityMetrics={loadLiveSustainabilityMetrics}
+          />
         ) : null}
       </main>
     </div>

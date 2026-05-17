@@ -6,6 +6,7 @@ import {
   describeHealthLoadError,
   describeModelStatusLoadError,
   describeModelsLoadError,
+  describeSustainabilityMetricsLoadError,
   normalizeLocalBaseUrl,
   validateLocalBaseUrl,
 } from "./dataSource";
@@ -175,6 +176,25 @@ describe("Aethra data source helpers", () => {
       label: "Unsupported schema",
       message:
         "The local daemon returned JSON that did not match the expected audit event schema.",
+    });
+  });
+
+  it("describes invalid JSON and unsupported sustainability metrics schema failures", () => {
+    expect(
+      describeSustainabilityMetricsLoadError(
+        new AethraApiError("invalid-json", "bad json"),
+      ),
+    ).toMatchObject({
+      label: "Invalid JSON",
+    });
+    expect(
+      describeSustainabilityMetricsLoadError(
+        new AethraApiError("unexpected-shape", "bad schema"),
+      ),
+    ).toEqual({
+      label: "Unsupported schema",
+      message:
+        "The local daemon returned JSON that did not match the expected sustainability metrics schema.",
     });
   });
 });

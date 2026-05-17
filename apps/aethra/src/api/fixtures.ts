@@ -154,7 +154,7 @@ export const sustainabilityMetricsFixture: SustainabilityMetricsResponse = {
   methodology_version: "aethra-impact-0.1",
   confidence: "low",
   disclaimer:
-    "Demo data: Aethra sustainability values are local-only counterfactual proxy estimates. They are methodology-dependent, not measured energy use, not actual carbon accounting, not ESG certification, and not production compliance evidence.",
+    "Demo data: Aethra sustainability values are local-only counterfactual proxy estimates. They are methodology-dependent, not measured energy use, not actual carbon accounting, not sustainability certification, and not compliance evidence.",
 };
 
 export const routeExplainFixture: RouteExplainResponse = {

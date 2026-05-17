@@ -3,6 +3,7 @@ import type {
   HealthResponse,
   ModelManifest,
   ModelStatusHint,
+  SustainabilityMetricsResponse,
 } from "./api/contracts";
 import { AethraApiError } from "./api/errors";
 
@@ -91,6 +92,26 @@ export type LiveAuditEventsState =
     }
   | {
       status: "error";
+      label: string;
+      message: string;
+    };
+
+export type LiveSustainabilityMetricsState =
+  | {
+      status: "not-loaded";
+    }
+  | {
+      status: "loading";
+      period: string;
+    }
+  | {
+      status: "loaded";
+      metrics: SustainabilityMetricsResponse;
+      loadedAt: string;
+    }
+  | {
+      status: "error";
+      period: string;
       label: string;
       message: string;
     };
@@ -186,9 +207,21 @@ export function describeAuditEventsLoadError(error: unknown): {
   return describeEndpointLoadError(error, "audit-events");
 }
 
+export function describeSustainabilityMetricsLoadError(error: unknown): {
+  label: string;
+  message: string;
+} {
+  return describeEndpointLoadError(error, "sustainability-metrics");
+}
+
 function describeEndpointLoadError(
   error: unknown,
-  endpoint: "health" | "models" | "model-status" | "audit-events",
+  endpoint:
+    | "health"
+    | "models"
+    | "model-status"
+    | "audit-events"
+    | "sustainability-metrics",
 ): {
   label: string;
   message: string;
@@ -200,7 +233,9 @@ function describeEndpointLoadError(
         ? "model manifest"
         : endpoint === "model-status"
           ? "model and runner status hint"
-          : "audit event";
+          : endpoint === "audit-events"
+            ? "audit event"
+            : "sustainability metrics";
 
   if (error instanceof AethraApiError) {
     switch (error.kind) {
@@ -242,7 +277,9 @@ function describeEndpointLoadError(
           ? "Models load failed"
           : endpoint === "model-status"
             ? "Model status load failed"
-            : "Audit events load failed",
+            : endpoint === "audit-events"
+              ? "Audit events load failed"
+              : "Sustainability metrics load failed",
     message: `Aethra could not load live local ${noun} metadata.`,
   };
 }
