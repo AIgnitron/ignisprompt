@@ -139,7 +139,7 @@ export function downloadTextFile(
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
-  URL.revokeObjectURL(url);
+  globalThis.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function sortTierBreakdown(

@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { sustainabilityMetricsFixture } from "../api/fixtures";
 import {
   buildSustainabilityJsonReport,
   buildSustainabilityJsonReportText,
   buildSustainabilityMarkdownReport,
+  downloadTextFile,
 } from "./sustainabilityReport";
 
 const reportInput = {
@@ -11,6 +12,12 @@ const reportInput = {
   dataSource: "fixture" as const,
   metrics: sustainabilityMetricsFixture,
 };
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  Reflect.deleteProperty(globalThis, "document");
+});
 
 describe("sustainability report export formatting", () => {
   it("formats a human-readable Markdown report with required methodology fields", () => {
@@ -120,5 +127,48 @@ describe("sustainability report export formatting", () => {
       }
       "
     `);
+  });
+
+  it("delays blob URL revocation until after the download click task", () => {
+    vi.useFakeTimers();
+    const anchor = {
+      download: "",
+      href: "",
+      rel: "",
+      style: { display: "" },
+      click: vi.fn(),
+      remove: vi.fn(),
+    };
+    const append = vi.fn();
+    const createElement = vi.fn(() => anchor);
+    const createObjectURL = vi
+      .spyOn(URL, "createObjectURL")
+      .mockReturnValue("blob:aethra-report");
+    const revokeObjectURL = vi
+      .spyOn(URL, "revokeObjectURL")
+      .mockImplementation(() => undefined);
+
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: {
+        body: { append },
+        createElement,
+      },
+    });
+
+    downloadTextFile("report.md", "local report", "text/markdown");
+
+    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+    expect(createElement).toHaveBeenCalledWith("a");
+    expect(anchor.href).toBe("blob:aethra-report");
+    expect(anchor.download).toBe("report.md");
+    expect(append).toHaveBeenCalledWith(anchor);
+    expect(anchor.click).toHaveBeenCalledOnce();
+    expect(anchor.remove).toHaveBeenCalledOnce();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+
+    vi.runOnlyPendingTimers();
+
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:aethra-report");
   });
 });
