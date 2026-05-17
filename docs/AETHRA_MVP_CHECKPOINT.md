@@ -38,7 +38,7 @@ Aethra does not claim:
 - legal advice or legal accuracy
 - compliance certification
 - signed, immutable, encrypted, or certified audit evidence
-- certified sustainability reporting
+- not certified sustainability reporting
 - measured energy use or carbon accounting
 - model quality validation
 - cloud calls by default

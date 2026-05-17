@@ -44,7 +44,7 @@ This design does not include:
 - measured energy use
 - carbon accounting
 - ESG evidence
-- certified sustainability reporting
+- not certified sustainability reporting
 
 ## 4. Current state
 

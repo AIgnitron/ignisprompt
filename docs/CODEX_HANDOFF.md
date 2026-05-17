@@ -77,7 +77,7 @@ The live metadata controls use the configured loopback/local daemon base URL. Th
 
 IgnisPrompt now exposes `GET /v1/status/models` for local model and runner status hints. This endpoint is read-only, local-only, and conservative: it reports configuration/path/runner hints and warning language, not production readiness, model quality, legal accuracy, or compliance status.
 
-IgnisPrompt now exposes `GET /v1/metrics/sustainability?period=30d` for Aethra v0.1 local-only counterfactual sustainability and cost proxy estimates derived from in-memory audit events. It reports methodology version, confidence, and disclaimer fields, and must not be presented as measured energy use, actual carbon accounting, ESG certification, or compliance evidence.
+IgnisPrompt now exposes `GET /v1/metrics/sustainability?period=30d` for Aethra v0.1 local-only counterfactual sustainability and cost proxy estimates derived from in-memory audit events. It reports methodology version, confidence, and disclaimer fields. It must be presented as not measured energy use, not actual carbon accounting, not ESG certification, and not compliance evidence.
 
 Aethra can manually load `GET /v1/status/models` on the Model / Runner Status screen. It can also manually load `GET /v1/metrics/sustainability?period=30d` on the Sustainability Preview screen in live-local mode, with fixture fallback data remaining visible until a successful manual load. Fixture mode remains the default, live loading remains explicit/manual, and the UI presents these values as local daemon hints and methodology-dependent proxy estimates.
 
@@ -132,7 +132,7 @@ Add `--include-route-explain` only when you intentionally want to append a local
 - Prompt-injection handling is lightweight pattern detection, not a complete adversarial robustness solution.
 - No command in the current audit proves production legal accuracy or legal advice quality.
 - Local bakeoff documentation records candidate behavior observed under local conditions; it does not prove legal accuracy, production readiness, compliance status, or broad model quality.
-- Aethra sustainability indicators are proxy-only. They are not measured energy use, carbon accounting, ESG evidence, compliance evidence, or certified sustainability reporting.
+- Aethra sustainability indicators are proxy-only. They are not measured energy use, not actual carbon accounting, not ESG certification, not compliance evidence, and not certified sustainability reporting.
 
 ## Recommended Next Tasks
 
@@ -151,5 +151,7 @@ Avoid cloud telemetry, analytics, auth providers, a SaaS backend, model install/
 - Keep model weights local and ignored.
 - Preserve local-only behavior, route explanations, audit events, and adversarial document-instruction handling.
 - Keep `StubLegalRunner` as the default fallback.
-- Keep language conservative: local-first control-plane MVP and Aethra observability MVP, not production legal advice, legal accuracy certification, compliance certification, formal attestation, or certified sustainability reporting.
+- Keep language conservative: local-first control-plane MVP and Aethra observability MVP, not production legal advice, legal accuracy certification, compliance certification, formal attestation, and not certified sustainability reporting.
+- Future sustainability work must use estimated/proxy/counterfactual/methodology-dependent language and avoid unsupported ESG, compliance, carbon-certainty, zero-emissions, or certified reporting claims.
+- `./scripts/check-sustainability-language.sh` enforces the sustainability language guardrail and is included in `./scripts/dev-check.sh`.
 - If generated/model output is invalid or low quality, report that directly and keep validation strict.
