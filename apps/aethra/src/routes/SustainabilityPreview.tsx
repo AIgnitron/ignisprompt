@@ -13,6 +13,12 @@ import type {
 } from "../dataSource";
 import { MetricCard } from "../components/MetricCard";
 import { StatusBadge } from "../components/StatusBadge";
+import {
+  buildSustainabilityJsonReportText,
+  buildSustainabilityMarkdownReport,
+  downloadTextFile,
+  SustainabilityReportDataSource,
+} from "./sustainabilityReport";
 import { buildSustainabilitySummary } from "./sustainabilitySummary";
 
 const fixtureSummary = buildSustainabilitySummary(
@@ -47,6 +53,35 @@ export function SustainabilityPreview({
     : isLiveMode
       ? "Fixture fallback metrics"
       : "Fixture metrics";
+  const reportDataSource: SustainabilityReportDataSource = isLiveLoaded
+    ? "live-local"
+    : "fixture";
+
+  function exportMarkdownReport() {
+    const generatedAt = new Date().toISOString();
+    downloadTextFile(
+      buildReportFilename("md", metrics.period, reportDataSource),
+      buildSustainabilityMarkdownReport({
+        generatedAt,
+        dataSource: reportDataSource,
+        metrics,
+      }),
+      "text/markdown;charset=utf-8",
+    );
+  }
+
+  function exportJsonReport() {
+    const generatedAt = new Date().toISOString();
+    downloadTextFile(
+      buildReportFilename("json", metrics.period, reportDataSource),
+      buildSustainabilityJsonReportText({
+        generatedAt,
+        dataSource: reportDataSource,
+        metrics,
+      }),
+      "application/json;charset=utf-8",
+    );
+  }
 
   return (
     <section id="sustainability-preview" className="page-section">
@@ -77,6 +112,8 @@ export function SustainabilityPreview({
         liveSustainabilityMetricsState={liveSustainabilityMetricsState}
         onPeriodChange={setPeriod}
         onLoadLiveSustainabilityMetrics={onLoadLiveSustainabilityMetrics}
+        onExportMarkdown={exportMarkdownReport}
+        onExportJson={exportJsonReport}
       />
 
       <div className="metric-grid" aria-label="Sustainability proxy metrics">
@@ -216,6 +253,8 @@ type SustainabilityLiveControlProps = {
   liveSustainabilityMetricsState: LiveSustainabilityMetricsState;
   onPeriodChange: (period: string) => void;
   onLoadLiveSustainabilityMetrics: (period: string) => void;
+  onExportMarkdown: () => void;
+  onExportJson: () => void;
 };
 
 function SustainabilityLiveControl({
@@ -224,6 +263,8 @@ function SustainabilityLiveControl({
   liveSustainabilityMetricsState,
   onPeriodChange,
   onLoadLiveSustainabilityMetrics,
+  onExportMarkdown,
+  onExportJson,
 }: SustainabilityLiveControlProps) {
   const isLiveMode = dataMode === "live-local";
   const canLoad =
@@ -324,6 +365,20 @@ function SustainabilityLiveControl({
             ? "Loading metrics"
             : "Load live sustainability metrics"}
         </button>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={onExportMarkdown}
+        >
+          Export Markdown
+        </button>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={onExportJson}
+        >
+          Export JSON
+        </button>
       </div>
     </section>
   );
@@ -370,4 +425,12 @@ function formatTimestamp(value: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function buildReportFilename(
+  extension: "md" | "json",
+  period: string,
+  dataSource: SustainabilityReportDataSource,
+): string {
+  return `aethra-sustainability-report-${dataSource}-${period}.${extension}`;
 }

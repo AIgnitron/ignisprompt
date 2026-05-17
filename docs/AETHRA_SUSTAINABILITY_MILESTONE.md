@@ -8,6 +8,7 @@ IgnisPrompt audit events
 -> Aethra live-local Sustainability Preview
 -> sustainability language guardrails
 -> review hardening
+-> local Markdown/JSON report export
 ```
 
 This checkpoint is about observability for local-first routing decisions. Aignitron is not just showing AI usage. Aethra shows the cloud usage avoided by local-first routing decisions, using estimated CO₂ avoided, counterfactual proxy estimates, and methodology-dependent caveats.
@@ -30,6 +31,7 @@ This checkpoint is about observability for local-first routing decisions. Aignit
 - `methodology_version`, `confidence`, and disclaimer shown
 - language guardrail wired into `dev-check`
 - invalid/out-of-range period validation
+- local Markdown/JSON report export from the currently displayed metrics
 
 ## Safety Boundaries
 
@@ -41,6 +43,7 @@ This checkpoint is about observability for local-first routing decisions. Aignit
 - no persistence
 - not ESG certification
 - not production compliance evidence
+- no report upload
 - values remain estimated, proxy, counterfactual, and methodology-dependent
 
 These values are counterfactual proxy estimates. They are not actual carbon accounting, not measured energy use, not ESG certification, and not production compliance evidence.
@@ -60,6 +63,5 @@ The sustainability monitor should stay framed as a local-first routing observabi
 
 ## Recommended Next Work
 
-- export local sustainability report
 - enterprise/team rollup later
 - global opt-in aggregation later, not implemented
