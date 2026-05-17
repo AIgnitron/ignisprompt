@@ -62,9 +62,11 @@ Show simple local-first proxy indicators:
 - avoided-cloud-call estimate based only on route decisions that stayed local
 - local daemon estimate summary from `GET /v1/metrics/sustainability?period=30d` when available
 
+Fixture mode remains the default for screenshots and demos. In explicit live-local mode, the Sustainability Preview can manually load `GET /v1/metrics/sustainability?period=30d` from the configured loopback daemon URL. It does not poll, persist state, call external services, or change IgnisPrompt routing/audit behavior. If the daemon is unavailable or returns unsupported data, Aethra keeps fixture fallback metrics visible and shows a local error state.
+
 The daemon endpoint returns routing-aware counterfactual fields such as `estimated_cloud_cost_avoided_usd`, `estimated_carbon_avoided_kgco2e`, and `estimated_data_kept_local_gb`, plus `methodology_version`, `confidence`, and a disclaimer. Fixture-backed examples in Aethra are demo data only.
 
-This view must not claim certified sustainability metrics, measured energy usage, actual carbon accounting, ESG certification, or compliance evidence. It should be labeled as an early observability preview with methodology-dependent proxy estimates.
+This view must not claim certified sustainability metrics, measured energy usage, carbon accounting, sustainability certification, or compliance evidence. It should be labeled as an early observability preview with methodology-dependent proxy estimates.
 
 ## API Gaps
 

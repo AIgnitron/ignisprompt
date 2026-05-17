@@ -566,6 +566,18 @@ textarea:focus {
   margin-top: 18px;
 }
 
+.sustainability-action-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 160px) auto;
+  gap: 12px;
+  align-items: end;
+  margin-top: 18px;
+}
+
+.sustainability-period-field {
+  min-width: 0;
+}
+
 .table-scroll {
   overflow-x: auto;
   margin: 16px -18px -18px;
@@ -757,7 +769,8 @@ textarea:focus {
   .audit-layout,
   .model-layout,
   .routing-layout,
-  .sustainability-layout {
+  .sustainability-layout,
+  .sustainability-action-row {
     grid-template-columns: 1fr;
   }
 }

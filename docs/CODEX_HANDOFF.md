@@ -67,7 +67,9 @@ Aethra currently provides fixture-backed screens for Overview, Routing Explorer,
 
 - `GET /health`
 - `GET /v1/models`
+- `GET /v1/status/models`
 - `GET /v1/audit/events`
+- `GET /v1/metrics/sustainability?period=30d`
 
 The live metadata controls use the configured loopback/local daemon base URL. They do not poll, do not persist state in local storage or session storage, do not add telemetry, and do not make cloud calls by default. The rollout did not add model or runner controls.
 
@@ -77,7 +79,7 @@ IgnisPrompt now exposes `GET /v1/status/models` for local model and runner statu
 
 IgnisPrompt now exposes `GET /v1/metrics/sustainability?period=30d` for Aethra v0.1 local-only counterfactual sustainability and cost proxy estimates derived from in-memory audit events. It reports methodology version, confidence, and disclaimer fields, and must not be presented as measured energy use, actual carbon accounting, ESG certification, or compliance evidence.
 
-Aethra can manually load `GET /v1/status/models` on the Model / Runner Status screen. Fixture mode remains the default, live loading remains explicit/manual, and the UI presents these values as local daemon status hints alongside manifest-derived hints.
+Aethra can manually load `GET /v1/status/models` on the Model / Runner Status screen. It can also manually load `GET /v1/metrics/sustainability?period=30d` on the Sustainability Preview screen in live-local mode, with fixture fallback data remaining visible until a successful manual load. Fixture mode remains the default, live loading remains explicit/manual, and the UI presents these values as local daemon hints and methodology-dependent proxy estimates.
 
 Aethra observes IgnisPrompt state. IgnisPrompt still owns routing decisions, route explanations, audit events, local-only behavior, model manifests, runner/provider selection, and fail-closed behavior.
 

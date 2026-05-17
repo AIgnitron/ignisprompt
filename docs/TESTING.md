@@ -79,6 +79,8 @@ npm run smoke:local-api -- --start-daemon
 
 This starts the default local-only `ignispromptd` path with `./scripts/start-dev.sh`, waits for `/health`, and checks that Aethra can read `GET /health`, `GET /v1/models`, `GET /v1/status/models`, `GET /v1/audit/events`, and `GET /v1/metrics/sustainability?period=30d` over localhost. `GET /v1/status/models` is treated as model and runner status hints only. `GET /v1/metrics/sustainability?period=30d` is treated as methodology-dependent counterfactual proxy estimates only. It does not require Ollama, GGUF tooling, model weights, cloud credentials, generated evidence, or a browser E2E runner.
 
+In the Aethra UI, Sustainability Preview remains fixture-backed by default. To exercise the live-local UI path manually, start the daemon, switch Aethra to Live local mode, keep the daemon URL on a loopback origin such as `http://127.0.0.1:8765`, open Sustainability Preview, choose a period such as `30d`, and use the manual live sustainability metrics load action. The UI should show fixture fallback data until the operator requests the live load, and it should keep fixture fallback data visible if the local daemon is unreachable or returns invalid JSON/schema.
+
 If a daemon is already running, omit `--start-daemon`:
 
 ```bash
@@ -98,6 +100,8 @@ npm run smoke:local-api -- --start-daemon --include-route-explain
 The default Rust tests cover the Aethra v0.1 methodology fields on audit events, valid JSON shape for `GET /v1/metrics/sustainability?period=30d`, safe zero values with no audit data, local fail-closed/cloud-denied route counting, and always-present methodology/disclaimer fields.
 
 The endpoint is local-only and derived from in-memory audit events. Tests should not add telemetry, network calls, cloud calls, external coefficient lookup, or global opt-in pools. The output must remain framed as estimated, proxy, counterfactual, and methodology-dependent.
+
+The Aethra client tests cover `sustainabilityMetrics(period)`, period query encoding, and unsupported sustainability response shapes. Aethra data-source tests cover local error labels for the sustainability metrics endpoint. UI-level browser tests are not part of the current app test setup.
 
 ## Experimental MCP stub
 
