@@ -568,7 +568,7 @@ textarea:focus {
 
 .sustainability-action-row {
   display: grid;
-  grid-template-columns: minmax(120px, 160px) auto;
+  grid-template-columns: minmax(120px, 160px) repeat(3, auto);
   gap: 12px;
   align-items: end;
   margin-top: 18px;

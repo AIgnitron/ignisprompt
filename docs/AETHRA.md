@@ -68,6 +68,14 @@ The daemon endpoint returns routing-aware counterfactual fields such as `estimat
 
 This view must not claim certified sustainability metrics, measured energy usage, carbon accounting, sustainability certification, or compliance evidence. It should be labeled as an early observability preview with methodology-dependent proxy estimates.
 
+### Local Sustainability Report Export
+
+Sustainability Preview can generate a local Markdown report, and a simple JSON report, from the currently displayed sustainability metrics. The export works with bundled fixture data and with manually loaded live-local metrics from the configured loopback daemon.
+
+The report is generated client-side in the browser. Aethra does not persist the report to local storage or session storage, send it to a backend, call telemetry, call cloud services, look up external coefficients, or join a global opt-in aggregation pool. The report must not include request content, prompts, raw audit event text, PII, or machine identifiers.
+
+Report language must stay conservative: estimated CO₂ avoided, counterfactual proxy estimates, methodology-dependent, not actual carbon accounting, not ESG certification, and not production compliance evidence.
+
 ## API Gaps
 
 The following IgnisPrompt API additions would make Aethra more useful without moving routing logic into the dashboard:

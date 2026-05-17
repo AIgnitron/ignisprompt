@@ -81,6 +81,8 @@ IgnisPrompt now exposes `GET /v1/metrics/sustainability?period=30d` for Aethra v
 
 Aethra can manually load `GET /v1/status/models` on the Model / Runner Status screen. It can also manually load `GET /v1/metrics/sustainability?period=30d` on the Sustainability Preview screen in live-local mode, with fixture fallback data remaining visible until a successful manual load. Fixture mode remains the default, live loading remains explicit/manual, and the UI presents these values as local daemon hints and methodology-dependent proxy estimates.
 
+Sustainability Preview can export a local Markdown report and a deterministic JSON report from the currently displayed sustainability metrics, whether those metrics are fixture fallback data or manually loaded live-local data. Export is client-side only. It does not persist report data, send report data to a backend, add telemetry, call cloud services, look up external coefficients, or include request content, prompts, raw audit event text, PII, or machine identifiers.
+
 Aethra observes IgnisPrompt state. IgnisPrompt still owns routing decisions, route explanations, audit events, local-only behavior, model manifests, runner/provider selection, and fail-closed behavior.
 
 ## Known Good Commands
@@ -153,5 +155,6 @@ Avoid cloud telemetry, analytics, auth providers, a SaaS backend, model install/
 - Keep `StubLegalRunner` as the default fallback.
 - Keep language conservative: local-first control-plane MVP and Aethra observability MVP, not production legal advice, legal accuracy certification, compliance certification, formal attestation, and not certified sustainability reporting.
 - Future sustainability work must use estimated/proxy/counterfactual/methodology-dependent language and avoid unsupported ESG, compliance, carbon-certainty, zero-emissions, or certified reporting claims.
+- Future sustainability report work must keep export local-only, avoid request content and raw audit text, and preserve the current boundary: not actual carbon accounting, not ESG certification, and not production compliance evidence.
 - `./scripts/check-sustainability-language.sh` enforces the sustainability language guardrail and is included in `./scripts/dev-check.sh`.
 - If generated/model output is invalid or low quality, report that directly and keep validation strict.
