@@ -29,9 +29,7 @@ use model_runner::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use sustainability::{
-    SustainabilityAuditEvent, SustainabilityEstimate, SustainabilityMetricsResponse,
-};
+use sustainability::{SustainabilityAuditEvent, SustainabilityEstimate};
 use tokio::{
     fs,
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
@@ -44,6 +42,7 @@ use uuid::Uuid;
 
 const MCP_PROTOCOL_VERSION: &str = "2025-06-18";
 const MCP_ROUTE_EXPLAIN_TOOL_NAME: &str = "route_explain";
+const SUSTAINABILITY_METRICS_MAX_PERIOD_DAYS: i64 = 3650;
 
 #[derive(Debug, Parser, Clone)]
 #[command(
@@ -1276,10 +1275,25 @@ struct SustainabilityMetricsQuery {
 async fn sustainability_metrics(
     State(state): State<AppState>,
     Query(query): Query<SustainabilityMetricsQuery>,
-) -> Json<SustainabilityMetricsResponse> {
+) -> Response {
     let period = query.period.unwrap_or_else(|| "30d".to_string());
-    let events = audit_events_for_period(&state.audit.list().await, &period);
-    Json(sustainability::summarize_audit_events(period, &events))
+    let days = match period_days(&period) {
+        Ok(days) => days,
+        Err(message) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "error": {
+                        "code": "INVALID_SUSTAINABILITY_PERIOD",
+                        "message": message,
+                    }
+                })),
+            )
+                .into_response();
+        }
+    };
+    let events = audit_events_for_period(&state.audit.list().await, days);
+    Json(sustainability::summarize_audit_events(period, &events)).into_response()
 }
 
 async fn route_explain_response_for_request(
@@ -1422,11 +1436,8 @@ fn sustainability_estimate_for_request(
     sustainability::estimate_for_text(&input_text, output_text)
 }
 
-fn audit_events_for_period(events: &[AuditEvent], period: &str) -> Vec<AuditEvent> {
+fn audit_events_for_period(events: &[AuditEvent], days: i64) -> Vec<AuditEvent> {
     let now = Utc::now();
-    let Some(days) = period_days(period) else {
-        return events.to_vec();
-    };
     let cutoff = now - Duration::days(days);
     events
         .iter()
@@ -1435,9 +1446,19 @@ fn audit_events_for_period(events: &[AuditEvent], period: &str) -> Vec<AuditEven
         .collect()
 }
 
-fn period_days(period: &str) -> Option<i64> {
-    let days = period.strip_suffix('d')?.parse::<i64>().ok()?;
-    (days >= 0).then_some(days)
+fn period_days(period: &str) -> Result<i64, String> {
+    let Some(raw_days) = period.strip_suffix('d') else {
+        return Err("Sustainability metrics period must use a day suffix such as 30d.".to_string());
+    };
+    let days = raw_days.parse::<i64>().map_err(|_| {
+        "Sustainability metrics period must be a non-negative day count such as 30d.".to_string()
+    })?;
+    if !(0..=SUSTAINABILITY_METRICS_MAX_PERIOD_DAYS).contains(&days) {
+        return Err(format!(
+            "Sustainability metrics period must be between 0d and {SUSTAINABILITY_METRICS_MAX_PERIOD_DAYS}d."
+        ));
+    }
+    Ok(days)
 }
 
 fn preflight_rejected_route_explain_response(explanation: String) -> RouteExplainResponse {
@@ -1842,6 +1863,7 @@ fn mcp_error_response(id: Option<Value>, code: i64, message: impl Into<String>) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sustainability::SustainabilityMetricsResponse;
     use axum::{
         body::to_bytes,
         response::{IntoResponse, Response},
@@ -2067,6 +2089,22 @@ mod tests {
         state: &AppState,
         period: Option<&str>,
     ) -> SustainabilityMetricsResponse {
+        let response = sustainability_metrics(
+            State(state.clone()),
+            Query(SustainabilityMetricsQuery {
+                period: period.map(str::to_string),
+            }),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        serde_json::from_slice(&body).unwrap()
+    }
+
+    async fn call_sustainability_metrics_response(
+        state: &AppState,
+        period: Option<&str>,
+    ) -> Response {
         sustainability_metrics(
             State(state.clone()),
             Query(SustainabilityMetricsQuery {
@@ -2074,7 +2112,6 @@ mod tests {
             }),
         )
         .await
-        .0
     }
 
     async fn call_mcp_message(
@@ -2291,6 +2328,23 @@ mod tests {
         assert!(metrics.disclaimer.contains("proxy estimates"));
         assert!(metrics.disclaimer.contains("not actual carbon accounting"));
         assert!(metrics.disclaimer.contains("not ESG certification"));
+    }
+
+    #[tokio::test]
+    async fn sustainability_metrics_rejects_out_of_range_period_before_duration_construction() {
+        let state = state_with_models(vec![]);
+
+        let response =
+            call_sustainability_metrics_response(&state, Some("9223372036854775807d")).await;
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let parsed: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(parsed["error"]["code"], "INVALID_SUSTAINABILITY_PERIOD");
+        assert!(parsed["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("between 0d"));
     }
 
     #[test]
