@@ -93,7 +93,7 @@ To also exercise route explanation with synthetic text, use:
 npm run smoke:local-api -- --start-daemon --include-route-explain
 ```
 
-`--include-route-explain` calls `POST /v1/route/explain` with synthetic text only. The request is local, but it appends a local audit event. The smoke does not call chat completions, does not call cloud services, and does not prove model quality, production readiness, legal accuracy, compliance readiness, certified sustainability reporting, measured energy use, or measured carbon impact.
+`--include-route-explain` calls `POST /v1/route/explain` with synthetic text only. The request is local, but it appends a local audit event. The smoke does not call chat completions, does not call cloud services, and does not prove model quality, production readiness, legal accuracy, or compliance readiness. It is not certified sustainability reporting, measured energy use, or measured carbon impact.
 
 ## Sustainability metrics checks
 
@@ -102,6 +102,16 @@ The default Rust tests cover the Aethra v0.1 methodology fields on audit events,
 The endpoint is local-only and derived from in-memory audit events. Tests should not add telemetry, network calls, cloud calls, external coefficient lookup, or global opt-in pools. The output must remain framed as estimated, proxy, counterfactual, and methodology-dependent.
 
 The Aethra client tests cover `sustainabilityMetrics(period)`, period query encoding, and unsupported sustainability response shapes. Aethra data-source tests cover local error labels for the sustainability metrics endpoint. UI-level browser tests are not part of the current app test setup.
+
+## Sustainability language guardrail
+
+Run the repository language guardrail before sustainability copy, docs, or UI changes:
+
+```bash
+./scripts/check-sustainability-language.sh
+```
+
+The check is also part of `./scripts/dev-check.sh`. It blocks unsupported sustainability certainty or certification phrases unless the line uses an approved negated disclaimer. Keep Aethra language framed as estimated, proxy, counterfactual, and methodology-dependent.
 
 ## Experimental MCP stub
 

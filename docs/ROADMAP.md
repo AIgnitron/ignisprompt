@@ -45,7 +45,7 @@ Future model selection should compare larger general models and legal-domain can
 - Tamper-evident audit log storage.
 - Production legal-quality evaluation.
 - Enterprise compliance certification or enterprise attestation.
-- Certified sustainability reporting, ESG certification, measured energy reporting, or actual carbon accounting.
+- No certified sustainability reporting, not ESG certification, not measured energy reporting, and not actual carbon accounting.
 
 ## Guardrails
 

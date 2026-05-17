@@ -50,7 +50,7 @@ This design does not include:
 - audit log mutation
 - production readiness claims
 - legal advice or legal accuracy claims
-- compliance certification, enterprise certification, formal attestation, or certified sustainability reporting
+- compliance certification, enterprise certification, or formal attestation; sustainability preview is not certified sustainability reporting
 - measured energy use, carbon accounting, ESG evidence, or provider energy reporting
 
 ## 4. Current State
@@ -110,7 +110,7 @@ Aethra must not:
 - duplicate routing policy
 - claim model readiness beyond model and runner status hints
 - treat local audit events as signed, immutable, encrypted, or certified evidence
-- treat sustainability proxies as measured energy use, carbon accounting, ESG evidence, compliance evidence, or certified sustainability reporting
+- treat sustainability proxies as measured energy use, not actual carbon accounting, ESG evidence, or compliance evidence; sustainability preview is not certified sustainability reporting
 - upload metadata, prompts, audit events, model ids, or base URLs to external services
 
 ## 8. Endpoint-by-Endpoint Behavior

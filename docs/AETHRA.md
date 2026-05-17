@@ -104,8 +104,8 @@ The MVP should not include:
 - duplicate route classification logic
 - cloud calls by default
 - production legal advice claims
-- production compliance claims
-- certified sustainability or carbon accounting
+- not production compliance evidence
+- not certified sustainability reporting or not actual carbon accounting
 - signed or tamper-evident audit storage
 - multi-tenant identity, authorization, or enterprise policy administration
 - broad MCP client compatibility claims

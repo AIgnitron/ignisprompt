@@ -336,7 +336,7 @@ It starts `ignispromptd` with `--features gguf-runner-spike`, sends `tests/golde
 Demo caveats:
 
 - this is not legal advice
-- this is not production compliance certification
+- this is not production compliance evidence or certification
 - Qwen2.5 0.5B is the pipe/demo baseline, not a settled legal model winner
 - never use real customer contracts, confidential legal text, personal data, or production matter materials in a demo
 
