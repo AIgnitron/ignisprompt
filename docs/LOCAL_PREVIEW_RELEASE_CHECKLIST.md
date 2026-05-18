@@ -24,6 +24,11 @@ git checkout main
 git pull origin main
 git status --short
 git log --oneline -5
+```
+
+If GitHub CLI is installed and you want to check open PRs from the command line, run:
+
+```bash
 gh pr list --state open --limit 20
 ```
 

@@ -1,4 +1,4 @@
-# Local Preview 0.1.0 Release Notes Draft
+# Local Preview 0.1.0 Release Notes
 
 Status: ready for local preview tag.
 
