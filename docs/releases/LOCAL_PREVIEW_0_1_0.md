@@ -1,6 +1,6 @@
 # Local Preview 0.1.0 Release Notes Draft
 
-Status: draft for local preview release preparation.
+Status: ready for local preview tag.
 
 ## What Is Included
 
