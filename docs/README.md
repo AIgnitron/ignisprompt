@@ -26,6 +26,9 @@ The default path does not require Ollama, GGUF tooling, model weights, or networ
 - [Aethra Sustainability Monitor Checkpoint](AETHRA_SUSTAINABILITY_MILESTONE.md): Phase 1 sustainability monitor milestone across backend metrics, live-local Aethra loading, language guardrails, and review hardening.
 - [Aethra Sustainability Monitor Methodology](AETHRA_SUSTAINABILITY_METHODOLOGY.md): v0.1 routing-aware counterfactual proxy methodology, assumptions, limitations, and reviewer checklist.
 - [Aethra Sustainability Monitor Demo](AETHRA_SUSTAINABILITY_DEMO.md): demo setup, talk tracks, failure modes, and local report export script for the Sustainability Monitor flow.
+- [Local Preview Quickstart](LOCAL_PREVIEW_QUICKSTART.md): first-time local setup for IgnisPrompt + Aethra, live-local loading, and report export.
+- [Local Preview Release Checklist](LOCAL_PREVIEW_RELEASE_CHECKLIST.md): repeatable local preview release verification, manual checks, tag steps, and rollback notes.
+- [Local Preview 0.1.0 Release Notes Draft](releases/LOCAL_PREVIEW_0_1_0.md): draft release notes, boundaries, limitations, and verification commands.
 - [Runner Providers](RUNNER_PROVIDERS.md): `ModelRunner` trait, `ModelRunnerContext`, provider ordering, and rules for adding new local runners.
 - [Demo](DEMO.md): default smoke flow and optional GGUF/Ollama demo flow.
 - [Demo Readiness Checklist](DEMO_READINESS_CHECKLIST.md): short pre-demo checks for local-only behavior, synthetic data, evidence handling, and optional GGUF runs.

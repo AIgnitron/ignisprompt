@@ -1,0 +1,126 @@
+# Local Preview Quickstart
+
+This quickstart runs the current IgnisPrompt daemon and Aethra dashboard locally. It is intended for a first-time local preview user.
+
+## 1. Clone The Repo
+
+```bash
+git clone https://github.com/AIgnitron/ignisprompt.git
+cd ignisprompt
+```
+
+## 2. Install Required Tools
+
+Install:
+
+- Rust and Cargo: https://rustup.rs/
+- Node.js and npm
+- `jq`
+- `curl`
+- `rg` / ripgrep
+
+`rg` is required by `./scripts/check-sustainability-language.sh`, which is part of the default developer check.
+
+macOS Homebrew example:
+
+```bash
+brew install rustup node jq curl ripgrep
+rustup-init
+```
+
+Use your platform's normal package manager if you are not on macOS.
+
+## 3. Run The Default Check
+
+```bash
+./scripts/dev-check.sh
+```
+
+This builds and tests the Rust daemon, starts the local-only daemon, runs the smoke script, checks sustainability language, and stops the daemon.
+
+No model weights, cloud key, telemetry, Ollama, or GGUF tooling are required for the default path.
+
+## 4. Start The Daemon
+
+In terminal 1:
+
+```bash
+./scripts/start-dev.sh
+```
+
+The daemon should listen at:
+
+```text
+http://127.0.0.1:8765
+```
+
+Optional sanity check from terminal 2:
+
+```bash
+curl -fsS http://127.0.0.1:8765/health | jq .
+```
+
+## 5. Start Aethra
+
+In terminal 2:
+
+```bash
+cd apps/aethra
+npm install
+npm run dev
+```
+
+Open:
+
+```text
+http://127.0.0.1:5173/
+```
+
+## 6. Use Fixture Mode First
+
+Aethra starts in fixture mode by default. Fixture mode is useful for deterministic local preview, screenshots, and review without a live daemon dependency.
+
+## 7. Switch To Live-Local Mode
+
+In Aethra:
+
+1. Switch the data mode to live-local.
+2. Keep the daemon URL on loopback, such as `http://127.0.0.1:8765`.
+3. Load health.
+4. Load models.
+5. Load model and runner status hints.
+6. Load audit events.
+7. Open Sustainability Preview.
+8. Manually load sustainability metrics.
+
+Live-local loading is explicit/manual. Aethra does not poll, persist live data in local storage or session storage, call telemetry, call cloud services, upload data, or change IgnisPrompt routing behavior.
+
+## 8. Export A Local Sustainability Report
+
+In Sustainability Preview:
+
+1. Confirm fixture metrics or manually loaded live-local metrics are visible.
+2. Select a period such as `30d`.
+3. Click `Export Markdown`.
+4. Click `Export JSON`.
+
+The reports are generated client-side from the currently displayed metrics. They are local-only reports and include methodology, confidence, and disclaimer fields.
+
+## 9. Stop Services
+
+Stop Aethra with `Ctrl-C` in the terminal running `npm run dev`.
+
+Stop IgnisPrompt with `Ctrl-C` in the terminal running `./scripts/start-dev.sh`.
+
+## Boundaries
+
+- local preview only
+- not production deployment
+- not legal advice
+- not legal accuracy certification
+- not production compliance evidence
+- sustainability values are estimated counterfactual proxy estimates
+- not ESG certification
+- no telemetry/cloud calls by default
+- no model weights included
+- fixture mode remains default
