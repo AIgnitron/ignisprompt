@@ -42,6 +42,9 @@ The docs set under `docs/` describes the current scaffold and clearly separates 
 - [Codex/agent instructions](AGENTS.md) for contributors and AI coding agents working in this repo
 - [Current Codex handoff](docs/CODEX_HANDOFF.md) for current-state context and post-MVP follow-up work
 - [Docs index](docs/README.md)
+- [Local preview quickstart](docs/LOCAL_PREVIEW_QUICKSTART.md)
+- [Local preview release checklist](docs/LOCAL_PREVIEW_RELEASE_CHECKLIST.md)
+- [Local Preview 0.1.0 release notes draft](docs/releases/LOCAL_PREVIEW_0_1_0.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Aethra MVP plan](docs/AETHRA.md)
 - [Aethra MVP checkpoint](docs/AETHRA_MVP_CHECKPOINT.md) for the current fixture-backed local dashboard status
