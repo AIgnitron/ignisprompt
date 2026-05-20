@@ -33,12 +33,15 @@ In another terminal:
 
 `./scripts/smoke.sh` assumes the daemon is already listening at `IGNISPROMPT_BASE_URL`, defaulting to `http://127.0.0.1:8765`.
 
+The smoke script checks `GET /v1/status/version` in addition to health, models, model/runner status hints, route explanation, chat completions, audit events, and sustainability metrics. The version status endpoint is for local preview support/debugging and release validation only. It does not perform telemetry, update checks, GitHub lookups, cloud calls, or external release lookups.
+
 ## ignispromptctl smoke
 
 With the daemon already running, `ignispromptctl` can be used for quick local inspection:
 
 ```bash
 cargo run -p ignispromptctl -- health
+cargo run -p ignispromptctl -- status-version
 cargo run -p ignispromptctl -- models
 cargo run -p ignispromptctl -- route-explain --file ./tests/golden-legal/smoke-legal-request.json
 cargo run -p ignispromptctl -- audit tail

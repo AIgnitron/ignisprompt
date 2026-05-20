@@ -54,6 +54,8 @@ cargo test
 
 This runs the default local-only daemon path, the Rust build/test path, sustainability language guardrails, and the daemon smoke script.
 
+The daemon smoke includes `GET /v1/status/version` for local preview support/debugging metadata. This endpoint is local-only and is not an update checker, telemetry mechanism, release lookup, or cloud call.
+
 ## Aethra Checks
 
 ```bash
@@ -80,6 +82,27 @@ In another terminal:
 ```
 
 Stop the daemon with `Ctrl-C` in the terminal that started it.
+
+## Version Status Endpoint Verification
+
+With the daemon running:
+
+```bash
+curl -fsS "http://127.0.0.1:8765/v1/status/version" | jq .
+```
+
+Confirm the response includes:
+
+- `service: "ignispromptd"`
+- `version`
+- `release_channel: "local-preview"`
+- `local_only: true`
+- `build_profile` as `debug` or `release`
+- `git_commit` as `null` unless build metadata is added later without external lookup
+- `started_at`
+- `warnings` with local preview and non-production language
+
+Do not treat this endpoint as telemetry, an update check, a GitHub lookup, or a production readiness signal.
 
 ## Manual Dashboard Verification
 

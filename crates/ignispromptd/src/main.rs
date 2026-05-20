@@ -248,6 +248,18 @@ struct HealthResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+struct VersionStatusResponse {
+    service: String,
+    version: String,
+    release_channel: String,
+    local_only: bool,
+    build_profile: String,
+    git_commit: Option<String>,
+    started_at: DateTime<Utc>,
+    warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct RouteExplainResponse {
     request_id: String,
     decision: RouteDecision,
@@ -558,6 +570,7 @@ async fn run_http_daemon(state: AppState, bind: SocketAddr) -> Result<()> {
         .route("/health", get(health))
         .route("/v1/models", get(list_models))
         .route("/v1/status/models", get(model_status))
+        .route("/v1/status/version", get(version_status))
         .route("/v1/route/explain", post(route_explain))
         .route("/v1/chat/completions", post(chat_completions))
         .route("/v1/audit/events", get(list_audit_events))
@@ -631,6 +644,27 @@ async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
 
 async fn list_models(State(state): State<AppState>) -> Json<ModelRegistry> {
     Json(state.model_registry.read().await.clone())
+}
+
+async fn version_status(State(state): State<AppState>) -> Json<VersionStatusResponse> {
+    Json(VersionStatusResponse {
+        service: "ignispromptd".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        release_channel: "local-preview".to_string(),
+        local_only: state.config.local_only,
+        build_profile: build_profile().to_string(),
+        git_commit: None,
+        started_at: state.started_at,
+        warnings: vec!["Local preview build; not production deployment.".to_string()],
+    })
+}
+
+fn build_profile() -> &'static str {
+    if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2085,6 +2119,10 @@ mod tests {
         model_status(State(state.clone())).await.0
     }
 
+    async fn call_version_status(state: &AppState) -> VersionStatusResponse {
+        version_status(State(state.clone())).await.0
+    }
+
     async fn call_sustainability_metrics(
         state: &AppState,
         period: Option<&str>,
@@ -2142,6 +2180,33 @@ mod tests {
         selected_model: Option<&ModelManifest>,
     ) -> ExactMatchCacheKey {
         completion_cache_key_for_request(&state.config, request, decision, selected_model)
+    }
+
+    #[tokio::test]
+    async fn version_status_endpoint_returns_valid_response_shape() {
+        let state = state_with_models(vec![legal_model()]);
+        let response = call_version_status(&state).await;
+
+        assert_eq!(response.service, "ignispromptd");
+        assert_eq!(response.version, env!("CARGO_PKG_VERSION"));
+        assert_eq!(response.release_channel, "local-preview");
+        assert!(response.local_only);
+        assert!(matches!(
+            response.build_profile.as_str(),
+            "debug" | "release"
+        ));
+        assert_eq!(response.git_commit, None);
+        assert_eq!(response.started_at, state.started_at);
+        assert!(response.warnings.iter().any(|warning| {
+            let warning = warning.to_ascii_lowercase();
+            warning.contains("local preview") && warning.contains("not production")
+        }));
+
+        let encoded = serde_json::to_value(&response).unwrap();
+        assert_eq!(encoded["service"], "ignispromptd");
+        assert_eq!(encoded["local_only"], true);
+        assert_eq!(encoded["release_channel"], "local-preview");
+        assert!(encoded["warnings"].is_array());
     }
 
     #[tokio::test]

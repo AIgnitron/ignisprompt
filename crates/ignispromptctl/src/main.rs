@@ -22,6 +22,8 @@ struct Cli {
 enum Commands {
     /// Check daemon health
     Health,
+    /// Print daemon version and local preview status
+    StatusVersion,
     /// List available model manifests
     Models,
     /// Explain routing for a request file
@@ -52,6 +54,7 @@ fn main() {
     let cli = Cli::parse();
     match &cli.command {
         Commands::Health => cmd_health(&cli.daemon_url),
+        Commands::StatusVersion => cmd_status_version(&cli.daemon_url),
         Commands::Models => cmd_models(&cli.daemon_url),
         Commands::RouteExplain { file } => cmd_route_explain(&cli.daemon_url, file),
         Commands::Audit { sub } => match sub {
@@ -87,6 +90,59 @@ fn cmd_health(base_url: &str) {
         }
         Err(e) => {
             eprintln!("error: daemon not reachable — {}", e);
+            process::exit(1);
+        }
+    }
+}
+
+fn cmd_status_version(base_url: &str) {
+    let url = format!("{}/v1/status/version", base_url);
+    match ureq::get(&url).call() {
+        Ok(resp) => {
+            let body = parse_response(resp);
+            println!(
+                "service:         {}",
+                body.get("service").and_then(|v| v.as_str()).unwrap_or("-")
+            );
+            println!(
+                "version:         {}",
+                body.get("version").and_then(|v| v.as_str()).unwrap_or("-")
+            );
+            println!(
+                "release_channel: {}",
+                body.get("release_channel")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("-")
+            );
+            println!(
+                "local_only:      {}",
+                body.get("local_only")
+                    .and_then(|v| v.as_bool())
+                    .map(|b| if b { "true" } else { "false" })
+                    .unwrap_or("-")
+            );
+            println!(
+                "build_profile:   {}",
+                body.get("build_profile")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("-")
+            );
+            println!(
+                "git_commit:      {}",
+                body.get("git_commit")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("-")
+            );
+            if let Some(warnings) = body.get("warnings").and_then(|v| v.as_array()) {
+                for warning in warnings {
+                    if let Some(message) = warning.as_str() {
+                        println!("warning:         {}", message);
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("error: {}", e);
             process::exit(1);
         }
     }
@@ -285,6 +341,12 @@ mod tests {
     fn models_url_format() {
         let url = format!("{}/v1/models", "http://127.0.0.1:8765");
         assert_eq!(url, "http://127.0.0.1:8765/v1/models");
+    }
+
+    #[test]
+    fn status_version_url_format() {
+        let url = format!("{}/v1/status/version", "http://127.0.0.1:8765");
+        assert_eq!(url, "http://127.0.0.1:8765/v1/status/version");
     }
 
     #[test]
