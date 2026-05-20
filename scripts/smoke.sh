@@ -7,6 +7,17 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 echo "[S01] health"
 curl -fsS "$BASE_URL/health" | jq .
 
+echo "[S01a] version status"
+curl -fsS "$BASE_URL/v1/status/version" | jq -e '
+  (.service == "ignispromptd") and
+  (.version | type == "string") and
+  (.release_channel == "local-preview") and
+  (.local_only == true) and
+  ((.build_profile == null) or (.build_profile == "debug") or (.build_profile == "release")) and
+  (.warnings | type == "array") and
+  any(.warnings[]?; (ascii_downcase | contains("local preview")) and (ascii_downcase | contains("not production")))
+'
+
 echo "[S01b] models"
 curl -fsS "$BASE_URL/v1/models" | jq -e '
   (.models | type == "array") and

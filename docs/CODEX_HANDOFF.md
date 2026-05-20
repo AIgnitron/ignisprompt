@@ -34,6 +34,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - PR #97: added smoke coverage for `GET /v1/status/models` in repo and Aethra local API smoke paths.
 - PR #98: updated the Codex handoff for the model status endpoint work.
 - PR #99: wired Aethra to manually consume `GET /v1/status/models` as model and runner status hints.
+- Post-v0.1.0 hardening branch `feat/local-version-status-endpoint` adds `GET /v1/status/version` for local preview support/debugging metadata and `ignispromptctl status-version`.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
 - Issue #43 is closed after Saul 7B local legal candidate evidence was documented.
 
@@ -49,6 +50,8 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - The default synthetic demo avoids placeholder-like `"string"` output in the checked demo path.
 - The demo proves local routing, audit capture, strict schema validation, and transcript generation. It does not prove legal answer quality for production use.
 - `ignispromptctl models` should display current camelCase model manifest fields from the daemon and tolerate legacy snake_case model ids.
+- `GET /v1/status/version` reports daemon service, crate version, release channel `local-preview`, local-only flag, build profile, start time, nullable git commit metadata, and conservative warning language. It is local-only support/debugging metadata, not telemetry, an update checker, an external release lookup, or a production readiness signal.
+- `ignispromptctl status-version` reads `GET /v1/status/version` and prints the same local preview metadata.
 
 ## Aethra Status
 
@@ -76,6 +79,8 @@ The live metadata controls use the configured loopback/local daemon base URL. Th
 `POST /v1/route/explain` remains local and inspection-oriented, but it appends a local audit event. Aethra now requires explicit confirmation before sending a live local route-explain request, resets that confirmation when the target daemon URL or request inputs change, and continues to recommend synthetic or non-sensitive text.
 
 IgnisPrompt now exposes `GET /v1/status/models` for local model and runner status hints. This endpoint is read-only, local-only, and conservative: it reports configuration/path/runner hints and warning language, not production readiness, model quality, legal accuracy, or compliance status.
+
+IgnisPrompt now exposes `GET /v1/status/version` for local preview support, debugging, release validation, and future Aethra display. This endpoint is read-only and local-only. It does not call telemetry, cloud services, GitHub, update services, or external release lookups, and it does not imply production readiness.
 
 IgnisPrompt now exposes `GET /v1/metrics/sustainability?period=30d` for Aethra v0.1 local-only counterfactual sustainability and cost proxy estimates derived from in-memory audit events. It reports methodology version, confidence, and disclaimer fields. It must be presented as not measured energy use, not actual carbon accounting, not ESG certification, and not compliance evidence.
 
@@ -141,7 +146,8 @@ Add `--include-route-explain` only when you intentionally want to append a local
 1. Follow up on public feedback in issue #56.
 2. Improve Aethra daemon error, empty-state, and live-mode copy as operators test the manual local metadata flows.
 3. Improve Aethra model and runner status hint copy, empty states, and operator guidance based on live-mode feedback.
-4. Keep any future model and runner status work limited to hints; avoid readiness, certification, legal-quality, or compliance claims.
+4. Add Aethra display for `GET /v1/status/version` in a follow-up PR if useful, keeping live-local loading explicit/manual.
+5. Keep any future model and runner status work limited to hints; avoid readiness, certification, legal-quality, or compliance claims.
 
 Avoid cloud telemetry, analytics, auth providers, a SaaS backend, model install/delete controls, and production/legal/compliance/sustainability overclaims unless a future task explicitly scopes and reviews those changes.
 

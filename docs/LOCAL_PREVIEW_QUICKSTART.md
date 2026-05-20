@@ -58,7 +58,10 @@ Optional sanity check from terminal 2:
 
 ```bash
 curl -fsS http://127.0.0.1:8765/health | jq .
+curl -fsS http://127.0.0.1:8765/v1/status/version | jq .
 ```
+
+`GET /v1/status/version` reports local preview support/debugging metadata such as daemon service, crate version, release channel, local-only flag, build profile, start time, and conservative warning language. It is not an update checker, telemetry mechanism, release lookup, or cloud call.
 
 ## 5. Start Aethra
 
