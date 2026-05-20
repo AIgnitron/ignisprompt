@@ -35,6 +35,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - PR #98: updated the Codex handoff for the model status endpoint work.
 - PR #99: wired Aethra to manually consume `GET /v1/status/models` as model and runner status hints.
 - Post-v0.1.0 hardening branch `feat/local-version-status-endpoint` adds `GET /v1/status/version` for local preview support/debugging metadata and `ignispromptctl status-version`.
+- Post-v0.1.0 hardening branch `feat/aethra-version-status` wires Aethra Overview to show `GET /v1/status/version` in live-local mode with fixture fallback.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
 - Issue #43 is closed after Saul 7B local legal candidate evidence was documented.
 
@@ -52,6 +53,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - `ignispromptctl models` should display current camelCase model manifest fields from the daemon and tolerate legacy snake_case model ids.
 - `GET /v1/status/version` reports daemon service, crate version, release channel `local-preview`, local-only flag, build profile, start time, nullable git commit metadata, and conservative warning language. It is local-only support/debugging metadata, not telemetry, an update checker, an external release lookup, or a production readiness signal.
 - `ignispromptctl status-version` reads `GET /v1/status/version` and prints the same local preview metadata.
+- Aethra Overview can manually load daemon version status in live-local mode and otherwise shows fixture fallback release status metadata.
 
 ## Aethra Status
 
@@ -73,6 +75,7 @@ Aethra currently provides fixture-backed screens for Overview, Routing Explorer,
 - `GET /v1/status/models`
 - `GET /v1/audit/events`
 - `GET /v1/metrics/sustainability?period=30d`
+- `GET /v1/status/version`
 
 The live metadata controls use the configured loopback/local daemon base URL. They do not poll, do not persist state in local storage or session storage, do not add telemetry, and do not make cloud calls by default. The rollout did not add model or runner controls.
 
@@ -81,6 +84,8 @@ The live metadata controls use the configured loopback/local daemon base URL. Th
 IgnisPrompt now exposes `GET /v1/status/models` for local model and runner status hints. This endpoint is read-only, local-only, and conservative: it reports configuration/path/runner hints and warning language, not production readiness, model quality, legal accuracy, or compliance status.
 
 IgnisPrompt now exposes `GET /v1/status/version` for local preview support, debugging, release validation, and future Aethra display. This endpoint is read-only and local-only. It does not call telemetry, cloud services, GitHub, update services, or external release lookups, and it does not imply production readiness.
+
+Aethra can manually load `GET /v1/status/version` on the Overview screen in live-local mode. Fixture mode remains the default, the fixture version status remains visible until a successful manual load, and unreachable daemon/schema errors keep a clear fixture fallback state. Aethra does not poll, persist this metadata, add telemetry, call cloud services, call GitHub, or perform release/update checks.
 
 IgnisPrompt now exposes `GET /v1/metrics/sustainability?period=30d` for Aethra v0.1 local-only counterfactual sustainability and cost proxy estimates derived from in-memory audit events. It reports methodology version, confidence, and disclaimer fields. It must be presented as not measured energy use, not actual carbon accounting, not ESG certification, and not compliance evidence.
 
@@ -146,7 +151,7 @@ Add `--include-route-explain` only when you intentionally want to append a local
 1. Follow up on public feedback in issue #56.
 2. Improve Aethra daemon error, empty-state, and live-mode copy as operators test the manual local metadata flows.
 3. Improve Aethra model and runner status hint copy, empty states, and operator guidance based on live-mode feedback.
-4. Add Aethra display for `GET /v1/status/version` in a follow-up PR if useful, keeping live-local loading explicit/manual.
+4. Keep Aethra version status language limited to local preview support/debugging metadata; avoid update-check, readiness, certification, or compliance claims.
 5. Keep any future model and runner status work limited to hints; avoid readiness, certification, legal-quality, or compliance claims.
 
 Avoid cloud telemetry, analytics, auth providers, a SaaS backend, model install/delete controls, and production/legal/compliance/sustainability overclaims unless a future task explicitly scopes and reviews those changes.

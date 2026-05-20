@@ -7,6 +7,7 @@ import {
   describeModelStatusLoadError,
   describeModelsLoadError,
   describeSustainabilityMetricsLoadError,
+  describeVersionStatusLoadError,
   normalizeLocalBaseUrl,
   validateLocalBaseUrl,
 } from "./dataSource";
@@ -145,6 +146,25 @@ describe("Aethra data source helpers", () => {
       label: "Unsupported schema",
       message:
         "The local daemon returned JSON that did not match the expected model and runner status hint schema.",
+    });
+  });
+
+  it("describes invalid JSON and unsupported daemon version status schema failures", () => {
+    expect(
+      describeVersionStatusLoadError(
+        new AethraApiError("invalid-json", "bad json"),
+      ),
+    ).toMatchObject({
+      label: "Invalid JSON",
+    });
+    expect(
+      describeVersionStatusLoadError(
+        new AethraApiError("unexpected-shape", "bad schema"),
+      ),
+    ).toEqual({
+      label: "Unsupported schema",
+      message:
+        "The local daemon returned JSON that did not match the expected daemon version status schema.",
     });
   });
 

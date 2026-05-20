@@ -325,6 +325,10 @@ textarea:focus {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.version-status-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .model-metadata-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -555,6 +559,11 @@ textarea:focus {
 }
 
 .health-action-row {
+  margin-top: 18px;
+}
+
+.version-status-action-row,
+.version-status-note {
   margin-top: 18px;
 }
 

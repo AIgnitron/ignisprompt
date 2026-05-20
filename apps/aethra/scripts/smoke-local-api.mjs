@@ -56,6 +56,12 @@ async function main() {
       `[aethra-smoke] model status hints ok: ${modelStatus.statusHints.length} entries`,
     );
 
+    const versionStatus = await getJson("/v1/status/version");
+    assertVersionStatus(versionStatus);
+    console.log(
+      `[aethra-smoke] version status ok: ${versionStatus.service} ${versionStatus.version}, release_channel=${versionStatus.release_channel}`,
+    );
+
     const auditEvents = await getJson("/v1/audit/events");
     assertAuditEvents(auditEvents);
     console.log(
@@ -277,6 +283,28 @@ function assertModelStatus(value) {
     assertString(hint.lastCheckedAt, `${label}.lastCheckedAt`);
     assertStringArray(hint.warnings, `${label}.warnings`);
   });
+}
+
+function assertVersionStatus(value) {
+  assertRecord(value, "version status response");
+  assertString(value.service, "version_status.service");
+  assertString(value.version, "version_status.version");
+  assertString(value.release_channel, "version_status.release_channel");
+  assertBoolean(value.local_only, "version_status.local_only");
+  assertString(value.build_profile, "version_status.build_profile");
+  assertOptionalNullableString(value.git_commit, "version_status.git_commit");
+  assertString(value.started_at, "version_status.started_at");
+  assertStringArray(value.warnings, "version_status.warnings");
+
+  if (value.service !== "ignispromptd") {
+    throw new Error("version_status.service was not ignispromptd");
+  }
+  if (value.release_channel !== "local-preview") {
+    throw new Error("version_status.release_channel was not local-preview");
+  }
+  if (value.local_only !== true) {
+    throw new Error("version_status.local_only was not true");
+  }
 }
 
 function assertAuditEvents(value) {

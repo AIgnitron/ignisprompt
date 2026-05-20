@@ -90,13 +90,14 @@ In Aethra:
 1. Switch the data mode to live-local.
 2. Keep the daemon URL on loopback, such as `http://127.0.0.1:8765`.
 3. Load health.
-4. Load models.
-5. Load model and runner status hints.
-6. Load audit events.
-7. Open Sustainability Preview.
-8. Manually load sustainability metrics.
+4. Load daemon version status on the Overview screen.
+5. Load models.
+6. Load model and runner status hints.
+7. Load audit events.
+8. Open Sustainability Preview.
+9. Manually load sustainability metrics.
 
-Live-local loading is explicit/manual. Aethra does not poll, persist live data in local storage or session storage, call telemetry, call cloud services, upload data, or change IgnisPrompt routing behavior.
+Live-local loading is explicit/manual. Aethra can show daemon version status as local preview support/debugging metadata. It is not an update checker or telemetry mechanism. Aethra does not poll, persist live data in local storage or session storage, call telemetry, call cloud services, upload data, perform release lookups, or change IgnisPrompt routing behavior.
 
 ## 8. Export A Local Sustainability Report
 
