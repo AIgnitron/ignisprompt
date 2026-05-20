@@ -2,9 +2,15 @@ import { MetricCard } from "../components/MetricCard";
 import { StatusBadge } from "../components/StatusBadge";
 import type {
   AethraDataMode,
+  LiveAuditEventsState,
   LiveHealthState,
+  LiveLocalDiagnostics,
+  LiveModelStatusState,
+  LiveModelsState,
+  LiveSustainabilityMetricsState,
   LiveVersionStatusState,
 } from "../dataSource";
+import { buildLiveLocalDiagnostics } from "../dataSource";
 import {
   auditEventFixtures,
   healthFixture,
@@ -25,16 +31,28 @@ const warningExamples = getWarningExamples(auditEventFixtures);
 
 type OverviewProps = {
   dataMode: AethraDataMode;
+  baseUrl: string;
+  baseUrlError?: string;
   liveHealthState: LiveHealthState;
+  liveModelsState: LiveModelsState;
+  liveModelStatusState: LiveModelStatusState;
   liveVersionStatusState: LiveVersionStatusState;
+  liveAuditEventsState: LiveAuditEventsState;
+  liveSustainabilityMetricsState: LiveSustainabilityMetricsState;
   onLoadLiveHealth: () => void;
   onLoadLiveVersionStatus: () => void;
 };
 
 export function Overview({
   dataMode,
+  baseUrl,
+  baseUrlError,
   liveHealthState,
+  liveModelsState,
+  liveModelStatusState,
   liveVersionStatusState,
+  liveAuditEventsState,
+  liveSustainabilityMetricsState,
   onLoadLiveHealth,
   onLoadLiveVersionStatus,
 }: OverviewProps) {
@@ -49,6 +67,19 @@ export function Overview({
     : dataMode === "live-local"
       ? "Fixture fallback"
       : "Fixture mode";
+  const diagnostics = buildLiveLocalDiagnostics({
+    dataMode,
+    baseUrl,
+    baseUrlError,
+    endpointStates: [
+      liveHealthState,
+      liveVersionStatusState,
+      liveModelsState,
+      liveModelStatusState,
+      liveAuditEventsState,
+      liveSustainabilityMetricsState,
+    ],
+  });
 
   return (
     <section id="overview" className="page-section">
@@ -70,6 +101,8 @@ export function Overview({
           </StatusBadge>
         </div>
       </header>
+
+      <LiveLocalDiagnosticsPanel diagnostics={diagnostics} />
 
       <HealthMetadataPanel
         dataMode={dataMode}
@@ -223,6 +256,69 @@ export function Overview({
       </div>
     </section>
   );
+}
+
+type LiveLocalDiagnosticsPanelProps = {
+  diagnostics: LiveLocalDiagnostics;
+};
+
+function LiveLocalDiagnosticsPanel({
+  diagnostics,
+}: LiveLocalDiagnosticsPanelProps) {
+  return (
+    <section className="panel" aria-label="Live-local connection diagnostics">
+      <div className="panel-heading">
+        <div>
+          <h3>Live-local connection diagnostics</h3>
+          <p className="muted">
+            Manual, local loopback connection state for local preview loading.
+          </p>
+        </div>
+        <StatusBadge tone={diagnosticsTone(diagnostics.state)}>
+          {diagnostics.label}
+        </StatusBadge>
+      </div>
+
+      <dl className="definition-grid diagnostics-grid">
+        <div>
+          <dt>Connection state</dt>
+          <dd>{diagnostics.state}</dd>
+        </div>
+        <div>
+          <dt>Last refresh</dt>
+          <dd>{diagnostics.lastRefresh}</dd>
+        </div>
+        <div>
+          <dt>Next action</dt>
+          <dd>{diagnostics.nextAction}</dd>
+        </div>
+      </dl>
+
+      <p className="explanation">{diagnostics.detail}</p>
+      <p className="muted diagnostics-note">
+        Fixture mode remains available without a daemon. Diagnostics are
+        local-only, manual, non-persistent, and not telemetry.
+      </p>
+    </section>
+  );
+}
+
+function diagnosticsTone(
+  state: LiveLocalDiagnostics["state"],
+): "ok" | "neutral" | "warning" {
+  switch (state) {
+    case "live-local-connected":
+    case "last-refresh-succeeded":
+      return "ok";
+    case "daemon-unreachable":
+    case "endpoint-unavailable":
+    case "invalid-response-shape":
+    case "last-refresh-failed":
+      return "warning";
+    case "fixture-mode-active":
+    case "live-local-ready":
+      return "neutral";
+  }
 }
 
 type VersionStatusPanelProps = {

@@ -22,6 +22,20 @@ export type LocalBaseUrlValidation =
       error: string;
     };
 
+export type LiveEndpointErrorKind =
+  | "daemon-unreachable"
+  | "endpoint-unavailable"
+  | "invalid-response-shape"
+  | "invalid-local-url"
+  | "timeout"
+  | "unknown";
+
+export type LiveEndpointErrorDescription = {
+  label: string;
+  message: string;
+  diagnosticKind: LiveEndpointErrorKind;
+};
+
 export type LiveHealthState =
   | {
       status: "not-loaded";
@@ -38,6 +52,7 @@ export type LiveHealthState =
       status: "error";
       label: string;
       message: string;
+      diagnosticKind: LiveEndpointErrorKind;
     };
 
 export type LiveModelsState =
@@ -56,6 +71,7 @@ export type LiveModelsState =
       status: "error";
       label: string;
       message: string;
+      diagnosticKind: LiveEndpointErrorKind;
     };
 
 export type LiveModelStatusState =
@@ -77,6 +93,7 @@ export type LiveModelStatusState =
       status: "error";
       label: string;
       message: string;
+      diagnosticKind: LiveEndpointErrorKind;
     };
 
 export type LiveVersionStatusState =
@@ -95,6 +112,7 @@ export type LiveVersionStatusState =
       status: "error";
       label: string;
       message: string;
+      diagnosticKind: LiveEndpointErrorKind;
     };
 
 export type LiveAuditEventsState =
@@ -113,6 +131,7 @@ export type LiveAuditEventsState =
       status: "error";
       label: string;
       message: string;
+      diagnosticKind: LiveEndpointErrorKind;
     };
 
 export type LiveSustainabilityMetricsState =
@@ -133,7 +152,34 @@ export type LiveSustainabilityMetricsState =
       period: string;
       label: string;
       message: string;
+      diagnosticKind: LiveEndpointErrorKind;
     };
+
+export type LiveEndpointState =
+  | LiveHealthState
+  | LiveModelsState
+  | LiveModelStatusState
+  | LiveVersionStatusState
+  | LiveAuditEventsState
+  | LiveSustainabilityMetricsState;
+
+export type LiveLocalDiagnosticsState =
+  | "fixture-mode-active"
+  | "live-local-ready"
+  | "live-local-connected"
+  | "daemon-unreachable"
+  | "endpoint-unavailable"
+  | "invalid-response-shape"
+  | "last-refresh-failed"
+  | "last-refresh-succeeded";
+
+export type LiveLocalDiagnostics = {
+  state: LiveLocalDiagnosticsState;
+  label: string;
+  detail: string;
+  nextAction: string;
+  lastRefresh: string;
+};
 
 const loopbackHostnames = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
 
@@ -198,45 +244,49 @@ function isSlashOnlyPath(pathname: string): boolean {
   return /^\/+$/.test(pathname);
 }
 
-export function describeHealthLoadError(error: unknown): {
-  label: string;
-  message: string;
-} {
+export function localUrlBlockedDescription(
+  error: string,
+): LiveEndpointErrorDescription {
+  return {
+    label: "Local URL blocked",
+    message: error,
+    diagnosticKind: "invalid-local-url",
+  };
+}
+
+export function describeHealthLoadError(
+  error: unknown,
+): LiveEndpointErrorDescription {
   return describeEndpointLoadError(error, "health");
 }
 
-export function describeModelsLoadError(error: unknown): {
-  label: string;
-  message: string;
-} {
+export function describeModelsLoadError(
+  error: unknown,
+): LiveEndpointErrorDescription {
   return describeEndpointLoadError(error, "models");
 }
 
-export function describeModelStatusLoadError(error: unknown): {
-  label: string;
-  message: string;
-} {
+export function describeModelStatusLoadError(
+  error: unknown,
+): LiveEndpointErrorDescription {
   return describeEndpointLoadError(error, "model-status");
 }
 
-export function describeVersionStatusLoadError(error: unknown): {
-  label: string;
-  message: string;
-} {
+export function describeVersionStatusLoadError(
+  error: unknown,
+): LiveEndpointErrorDescription {
   return describeEndpointLoadError(error, "version-status");
 }
 
-export function describeAuditEventsLoadError(error: unknown): {
-  label: string;
-  message: string;
-} {
+export function describeAuditEventsLoadError(
+  error: unknown,
+): LiveEndpointErrorDescription {
   return describeEndpointLoadError(error, "audit-events");
 }
 
-export function describeSustainabilityMetricsLoadError(error: unknown): {
-  label: string;
-  message: string;
-} {
+export function describeSustainabilityMetricsLoadError(
+  error: unknown,
+): LiveEndpointErrorDescription {
   return describeEndpointLoadError(error, "sustainability-metrics");
 }
 
@@ -249,10 +299,7 @@ function describeEndpointLoadError(
     | "version-status"
     | "audit-events"
     | "sustainability-metrics",
-): {
-  label: string;
-  message: string;
-} {
+): LiveEndpointErrorDescription {
   const noun =
     endpoint === "health"
       ? "health"
@@ -273,27 +320,33 @@ function describeEndpointLoadError(
           label: "Daemon unreachable",
           message:
             "Aethra could not reach the configured local IgnisPrompt daemon.",
+          diagnosticKind: "daemon-unreachable",
         };
       case "timeout":
         return {
           label: "Timeout",
           message: "The local daemon did not respond before the request timed out.",
+          diagnosticKind: "timeout",
         };
       case "invalid-json":
         return {
           label: "Invalid JSON",
           message: "The local daemon returned a response that was not valid JSON.",
+          diagnosticKind: "invalid-response-shape",
         };
       case "unexpected-shape":
         return {
           label: "Unsupported schema",
           message:
             `The local daemon returned JSON that did not match the expected ${noun} schema.`,
+          diagnosticKind: "invalid-response-shape",
         };
       case "http-error":
         return {
-          label: "HTTP error",
+          label:
+            error.status === 404 ? "Endpoint unavailable" : "Endpoint HTTP error",
           message: `The local daemon returned HTTP ${error.status ?? "error"}.`,
+          diagnosticKind: "endpoint-unavailable",
         };
     }
   }
@@ -312,5 +365,144 @@ function describeEndpointLoadError(
                 ? "Audit events load failed"
                 : "Sustainability metrics load failed",
     message: `Aethra could not load live local ${noun} metadata.`,
+    diagnosticKind: "unknown",
   };
+}
+
+export function buildLiveLocalDiagnostics(input: {
+  dataMode: AethraDataMode;
+  baseUrl: string;
+  baseUrlError?: string;
+  endpointStates: LiveEndpointState[];
+}): LiveLocalDiagnostics {
+  if (input.dataMode === "fixture") {
+    return {
+      state: "fixture-mode-active",
+      label: "Fixture mode active",
+      detail:
+        "Aethra is using bundled fixture data and is not contacting the local daemon.",
+      nextAction:
+        "Switch to live local mode when you want to manually load loopback daemon metadata.",
+      lastRefresh: "No live local refresh has run in fixture mode.",
+    };
+  }
+
+  if (input.baseUrlError) {
+    return {
+      state: "last-refresh-failed",
+      label: "Live-local URL blocked",
+      detail: input.baseUrlError,
+      nextAction:
+        "Use a loopback daemon origin such as http://127.0.0.1:8765.",
+      lastRefresh: "No valid live local refresh is available.",
+    };
+  }
+
+  const failedState = input.endpointStates.find(
+    (state): state is Extract<LiveEndpointState, { status: "error" }> =>
+      state.status === "error",
+  );
+
+  if (failedState) {
+    const state = diagnosticsStateForError(failedState.diagnosticKind);
+    return {
+      state,
+      label: diagnosticsLabelForError(failedState),
+      detail: failedState.message,
+      nextAction: nextActionForError(failedState.diagnosticKind, input.baseUrl),
+      lastRefresh: "Last refresh failed.",
+    };
+  }
+
+  const loadedStates = input.endpointStates.filter(
+    (state): state is Extract<LiveEndpointState, { status: "loaded" }> =>
+      state.status === "loaded",
+  );
+
+  if (loadedStates.length > 0) {
+    const latestLoadedAt = latestTimestamp(
+      loadedStates.map((state) => state.loadedAt),
+    );
+    const fullyLoaded = loadedStates.length === input.endpointStates.length;
+    return {
+      state: fullyLoaded ? "last-refresh-succeeded" : "live-local-connected",
+      label: fullyLoaded ? "Last refresh succeeded" : "Live-local connected",
+      detail: `${loadedStates.length} of ${input.endpointStates.length} live local metadata surfaces have loaded from the configured daemon.`,
+      nextAction:
+        "Use the remaining manual refresh actions if you need more local metadata.",
+      lastRefresh: latestLoadedAt
+        ? `Last successful refresh: ${latestLoadedAt}.`
+        : "Last successful refresh recorded.",
+    };
+  }
+
+  return {
+    state: "live-local-ready",
+    label: "Live-local ready",
+    detail:
+      "Aethra is pointed at the local loopback daemon but has not loaded live metadata yet.",
+    nextAction: `Start the daemon with ./scripts/start-dev.sh, then confirm ${input.baseUrl}/health is reachable before using manual refresh actions.`,
+    lastRefresh: "No live local refresh has run yet.",
+  };
+}
+
+function diagnosticsStateForError(
+  kind: LiveEndpointErrorKind,
+): LiveLocalDiagnosticsState {
+  switch (kind) {
+    case "daemon-unreachable":
+    case "timeout":
+      return "daemon-unreachable";
+    case "endpoint-unavailable":
+      return "endpoint-unavailable";
+    case "invalid-response-shape":
+      return "invalid-response-shape";
+    case "invalid-local-url":
+    case "unknown":
+      return "last-refresh-failed";
+  }
+}
+
+function diagnosticsLabelForError(
+  state: Extract<LiveEndpointState, { status: "error" }>,
+): string {
+  if (
+    state.diagnosticKind === "daemon-unreachable" ||
+    state.diagnosticKind === "timeout"
+  ) {
+    return "Daemon unreachable";
+  }
+  if (state.diagnosticKind === "endpoint-unavailable") {
+    return "Endpoint unavailable";
+  }
+  if (state.diagnosticKind === "invalid-response-shape") {
+    return "Invalid response shape";
+  }
+  return state.label;
+}
+
+function nextActionForError(
+  kind: LiveEndpointErrorKind,
+  baseUrl: string,
+): string {
+  switch (kind) {
+    case "daemon-unreachable":
+    case "timeout":
+      return `Start the daemon with ./scripts/start-dev.sh and confirm ${baseUrl}/health is reachable.`;
+    case "endpoint-unavailable":
+      return "Confirm the daemon build includes the requested local preview endpoint.";
+    case "invalid-response-shape":
+      return "Confirm the daemon is from the current local preview build and retry the manual refresh.";
+    case "invalid-local-url":
+      return "Use a loopback daemon origin such as http://127.0.0.1:8765.";
+    case "unknown":
+      return "Fixture mode remains available without a daemon while you inspect the local setup.";
+  }
+}
+
+function latestTimestamp(timestamps: string[]): string | undefined {
+  return timestamps
+    .map((timestamp) => ({ timestamp, time: Date.parse(timestamp) }))
+    .filter(({ time }) => Number.isFinite(time))
+    .sort((a, b) => b.time - a.time)[0]?.timestamp;
 }

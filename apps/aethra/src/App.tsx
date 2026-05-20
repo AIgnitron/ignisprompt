@@ -19,6 +19,7 @@ import {
   describeModelsLoadError,
   describeSustainabilityMetricsLoadError,
   describeVersionStatusLoadError,
+  localUrlBlockedDescription,
   validateLocalBaseUrl,
 } from "./dataSource";
 import { ModelRunnerStatus } from "./routes/ModelRunnerStatus";
@@ -71,8 +72,7 @@ export default function App() {
     if (baseUrlError) {
       setLiveHealthState({
         status: "error",
-        label: "Local URL blocked",
-        message: baseUrlError,
+        ...localUrlBlockedDescription(baseUrlError),
       });
       return;
     }
@@ -98,8 +98,7 @@ export default function App() {
     if (baseUrlError) {
       setLiveModelsState({
         status: "error",
-        label: "Local URL blocked",
-        message: baseUrlError,
+        ...localUrlBlockedDescription(baseUrlError),
       });
       return;
     }
@@ -125,8 +124,7 @@ export default function App() {
     if (baseUrlError) {
       setLiveModelStatusState({
         status: "error",
-        label: "Local URL blocked",
-        message: baseUrlError,
+        ...localUrlBlockedDescription(baseUrlError),
       });
       return;
     }
@@ -155,8 +153,7 @@ export default function App() {
     if (baseUrlError) {
       setLiveVersionStatusState({
         status: "error",
-        label: "Local URL blocked",
-        message: baseUrlError,
+        ...localUrlBlockedDescription(baseUrlError),
       });
       return;
     }
@@ -182,8 +179,7 @@ export default function App() {
     if (baseUrlError) {
       setLiveAuditEventsState({
         status: "error",
-        label: "Local URL blocked",
-        message: baseUrlError,
+        ...localUrlBlockedDescription(baseUrlError),
       });
       return;
     }
@@ -210,8 +206,7 @@ export default function App() {
       setLiveSustainabilityMetricsState({
         status: "error",
         period,
-        label: "Local URL blocked",
-        message: baseUrlError,
+        ...localUrlBlockedDescription(baseUrlError),
       });
       return;
     }
@@ -329,8 +324,14 @@ export default function App() {
         {activeRoute === "overview" ? (
           <Overview
             dataMode={dataMode}
+            baseUrl={localBaseUrl}
+            baseUrlError={baseUrlError}
             liveHealthState={liveHealthState}
+            liveModelsState={liveModelsState}
+            liveModelStatusState={liveModelStatusState}
             liveVersionStatusState={liveVersionStatusState}
+            liveAuditEventsState={liveAuditEventsState}
+            liveSustainabilityMetricsState={liveSustainabilityMetricsState}
             onLoadLiveHealth={loadLiveHealth}
             onLoadLiveVersionStatus={loadLiveVersionStatus}
           />
