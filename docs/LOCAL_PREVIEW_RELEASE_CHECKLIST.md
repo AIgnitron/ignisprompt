@@ -118,8 +118,9 @@ npm run dev
 4. Confirm fixture mode is the default.
 5. Switch to live-local mode.
 6. Confirm live local loads are manual and target the configured loopback daemon.
-7. Load health, models, model/runner status hints, audit events, and sustainability metrics.
-8. Confirm no polling, no telemetry, no cloud call, no upload, and no persistence is introduced.
+7. Load health, daemon version status, models, model/runner status hints, audit events, and sustainability metrics.
+8. Confirm daemon version status appears on the Overview screen as local preview support/debugging metadata.
+9. Confirm no polling, no telemetry, no cloud call, no upload, no update check, no GitHub API call, and no persistence is introduced.
 
 ## Sustainability Endpoint Verification
 

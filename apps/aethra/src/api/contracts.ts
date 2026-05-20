@@ -7,6 +7,17 @@ export type HealthResponse = {
   model_count: number;
 };
 
+export type VersionStatusResponse = {
+  service: string;
+  version: string;
+  release_channel: string;
+  local_only: boolean;
+  build_profile: string;
+  git_commit: string | null;
+  started_at: string;
+  warnings: string[];
+};
+
 export type ModelManifest = {
   modelId: string;
   displayName: string;
@@ -201,6 +212,22 @@ export function isHealthResponse(value: unknown): value is HealthResponse {
     isString(value.started_at) &&
     isBoolean(value.local_only) &&
     isNumber(value.model_count)
+  );
+}
+
+export function isVersionStatusResponse(
+  value: unknown,
+): value is VersionStatusResponse {
+  return (
+    isRecord(value) &&
+    isString(value.service) &&
+    isString(value.version) &&
+    isString(value.release_channel) &&
+    isBoolean(value.local_only) &&
+    isString(value.build_profile) &&
+    (value.git_commit === null || isString(value.git_commit)) &&
+    isString(value.started_at) &&
+    isStringArray(value.warnings)
   );
 }
 

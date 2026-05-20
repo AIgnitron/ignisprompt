@@ -8,6 +8,7 @@ import {
   modelStatusFixture,
   routeExplainFixture,
   sustainabilityMetricsFixture,
+  versionStatusFixture,
 } from "./fixtures";
 
 function jsonResponse(value: unknown, init: ResponseInit = {}) {
@@ -53,6 +54,31 @@ describe("IgnisPromptClient", () => {
       "http://127.0.0.1:8765/v1/status/models",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
+  });
+
+  it("reads daemon version status with the current response shape", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(versionStatusFixture));
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.versionStatus()).resolves.toEqual(versionStatusFixture);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "http://127.0.0.1:8765/v1/status/version",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("rejects unsupported daemon version status response shapes", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
+        ...versionStatusFixture,
+        warnings: "Local preview build; not production deployment.",
+      }),
+    );
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.versionStatus()).rejects.toMatchObject({
+      kind: "unexpected-shape",
+    });
   });
 
   it("reads sustainability metrics as local-only counterfactual estimates", async () => {

@@ -4,6 +4,7 @@ import type {
   ModelManifest,
   ModelStatusHint,
   SustainabilityMetricsResponse,
+  VersionStatusResponse,
 } from "./api/contracts";
 import { AethraApiError } from "./api/errors";
 
@@ -70,6 +71,24 @@ export type LiveModelStatusState =
       schemaVersion: string;
       source: "local-daemon";
       generatedAt: string;
+      loadedAt: string;
+    }
+  | {
+      status: "error";
+      label: string;
+      message: string;
+    };
+
+export type LiveVersionStatusState =
+  | {
+      status: "not-loaded";
+    }
+  | {
+      status: "loading";
+    }
+  | {
+      status: "loaded";
+      versionStatus: VersionStatusResponse;
       loadedAt: string;
     }
   | {
@@ -200,6 +219,13 @@ export function describeModelStatusLoadError(error: unknown): {
   return describeEndpointLoadError(error, "model-status");
 }
 
+export function describeVersionStatusLoadError(error: unknown): {
+  label: string;
+  message: string;
+} {
+  return describeEndpointLoadError(error, "version-status");
+}
+
 export function describeAuditEventsLoadError(error: unknown): {
   label: string;
   message: string;
@@ -220,6 +246,7 @@ function describeEndpointLoadError(
     | "health"
     | "models"
     | "model-status"
+    | "version-status"
     | "audit-events"
     | "sustainability-metrics",
 ): {
@@ -233,9 +260,11 @@ function describeEndpointLoadError(
         ? "model manifest"
         : endpoint === "model-status"
           ? "model and runner status hint"
-          : endpoint === "audit-events"
-            ? "audit event"
-            : "sustainability metrics";
+          : endpoint === "version-status"
+            ? "daemon version status"
+            : endpoint === "audit-events"
+              ? "audit event"
+              : "sustainability metrics";
 
   if (error instanceof AethraApiError) {
     switch (error.kind) {
@@ -277,9 +306,11 @@ function describeEndpointLoadError(
           ? "Models load failed"
           : endpoint === "model-status"
             ? "Model status load failed"
-            : endpoint === "audit-events"
-              ? "Audit events load failed"
-              : "Sustainability metrics load failed",
+            : endpoint === "version-status"
+              ? "Version status load failed"
+              : endpoint === "audit-events"
+                ? "Audit events load failed"
+                : "Sustainability metrics load failed",
     message: `Aethra could not load live local ${noun} metadata.`,
   };
 }

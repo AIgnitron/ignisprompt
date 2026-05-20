@@ -5,6 +5,7 @@ import {
   ModelStatusResponse,
   RouteExplainResponse,
   SustainabilityMetricsResponse,
+  VersionStatusResponse,
 } from "./contracts";
 
 export const healthFixture: HealthResponse = {
@@ -14,6 +15,17 @@ export const healthFixture: HealthResponse = {
   started_at: "2026-05-13T03:11:36.513779Z",
   local_only: true,
   model_count: 1,
+};
+
+export const versionStatusFixture: VersionStatusResponse = {
+  service: "ignispromptd",
+  version: "0.1.0",
+  release_channel: "local-preview",
+  local_only: true,
+  build_profile: "debug",
+  git_commit: null,
+  started_at: "2026-05-13T03:11:36.513779Z",
+  warnings: ["Local preview build; not production deployment."],
 };
 
 export const modelFixtures: ModelManifest[] = [

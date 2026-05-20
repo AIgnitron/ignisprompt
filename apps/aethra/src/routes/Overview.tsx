@@ -1,10 +1,15 @@
 import { MetricCard } from "../components/MetricCard";
 import { StatusBadge } from "../components/StatusBadge";
-import type { AethraDataMode, LiveHealthState } from "../dataSource";
+import type {
+  AethraDataMode,
+  LiveHealthState,
+  LiveVersionStatusState,
+} from "../dataSource";
 import {
   auditEventFixtures,
   healthFixture,
   modelFixtures,
+  versionStatusFixture,
 } from "../fixtures/aethraFixture";
 import {
   buildOverviewSummary,
@@ -21,13 +26,17 @@ const warningExamples = getWarningExamples(auditEventFixtures);
 type OverviewProps = {
   dataMode: AethraDataMode;
   liveHealthState: LiveHealthState;
+  liveVersionStatusState: LiveVersionStatusState;
   onLoadLiveHealth: () => void;
+  onLoadLiveVersionStatus: () => void;
 };
 
 export function Overview({
   dataMode,
   liveHealthState,
+  liveVersionStatusState,
   onLoadLiveHealth,
+  onLoadLiveVersionStatus,
 }: OverviewProps) {
   const latestEvent = summary.latestEvent;
   const liveHealth =
@@ -66,6 +75,12 @@ export function Overview({
         dataMode={dataMode}
         liveHealthState={liveHealthState}
         onLoadLiveHealth={onLoadLiveHealth}
+      />
+
+      <VersionStatusPanel
+        dataMode={dataMode}
+        liveVersionStatusState={liveVersionStatusState}
+        onLoadLiveVersionStatus={onLoadLiveVersionStatus}
       />
 
       <div className="metric-grid" aria-label="Aethra fixture metrics">
@@ -208,6 +223,173 @@ export function Overview({
       </div>
     </section>
   );
+}
+
+type VersionStatusPanelProps = {
+  dataMode: AethraDataMode;
+  liveVersionStatusState: LiveVersionStatusState;
+  onLoadLiveVersionStatus: () => void;
+};
+
+function VersionStatusPanel({
+  dataMode,
+  liveVersionStatusState,
+  onLoadLiveVersionStatus,
+}: VersionStatusPanelProps) {
+  const isLiveMode = dataMode === "live-local";
+  const versionStatus =
+    isLiveMode && liveVersionStatusState.status === "loaded"
+      ? liveVersionStatusState.versionStatus
+      : versionStatusFixture;
+  const sourceLabel =
+    isLiveMode && liveVersionStatusState.status === "loaded"
+      ? "Live local metadata"
+      : isLiveMode
+        ? "Fixture fallback"
+        : "Fixture metadata";
+
+  return (
+    <section className="panel" aria-label="Daemon version status">
+      <div className="panel-heading">
+        <div>
+          <h3>Daemon version status</h3>
+          <p className="muted">
+            {isLiveMode
+              ? "Manual read-only GET /v1/status/version from the configured local daemon."
+              : "Fixture mode uses bundled local preview release status metadata."}
+          </p>
+        </div>
+        <StatusBadge
+          tone={
+            liveVersionStatusState.status === "error"
+              ? "warning"
+              : liveVersionStatusState.status === "loaded" && isLiveMode
+                ? "ok"
+                : "neutral"
+          }
+        >
+          {getVersionStatusStateLabel(dataMode, liveVersionStatusState)}
+        </StatusBadge>
+      </div>
+
+      {isLiveMode && liveVersionStatusState.status === "not-loaded" ? (
+        <p className="explanation">
+          Live local daemon version status is not loaded yet. Aethra is showing
+          fixture release status values until you manually refresh.
+        </p>
+      ) : null}
+
+      {isLiveMode && liveVersionStatusState.status === "loading" ? (
+        <p className="explanation">
+          Loading support/debugging metadata from the configured local daemon.
+        </p>
+      ) : null}
+
+      {isLiveMode && liveVersionStatusState.status === "error" ? (
+        <p className="explanation">
+          {liveVersionStatusState.label}: {liveVersionStatusState.message} Fixture
+          daemon version status values remain clearly labeled below.
+        </p>
+      ) : null}
+
+      <dl className="definition-grid version-status-grid">
+        <div>
+          <dt>Source</dt>
+          <dd>{sourceLabel}</dd>
+        </div>
+        <div>
+          <dt>Service</dt>
+          <dd>{versionStatus.service}</dd>
+        </div>
+        <div>
+          <dt>Version</dt>
+          <dd>{versionStatus.version}</dd>
+        </div>
+        <div>
+          <dt>Release channel</dt>
+          <dd>{versionStatus.release_channel}</dd>
+        </div>
+        <div>
+          <dt>Local only</dt>
+          <dd>{String(versionStatus.local_only)}</dd>
+        </div>
+        <div>
+          <dt>Build profile</dt>
+          <dd>{versionStatus.build_profile}</dd>
+        </div>
+        <div>
+          <dt>Git commit</dt>
+          <dd>{versionStatus.git_commit ?? "not embedded"}</dd>
+        </div>
+        <div>
+          <dt>Started at</dt>
+          <dd>{formatTimestamp(versionStatus.started_at)}</dd>
+        </div>
+        <div>
+          <dt>Loaded at</dt>
+          <dd>
+            {liveVersionStatusState.status === "loaded" && isLiveMode
+              ? formatTimestamp(liveVersionStatusState.loadedAt)
+              : "not loaded"}
+          </dd>
+        </div>
+      </dl>
+
+      <div className="detail-section">
+        <h4>Warnings</h4>
+        {versionStatus.warnings.length > 0 ? (
+          <ul className="status-hint-list">
+            {versionStatus.warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted">No warning metadata reported.</p>
+        )}
+      </div>
+
+      <p className="muted version-status-note">
+        Daemon version status is local preview support/debugging metadata. Aethra
+        does not use it for telemetry, update checks, external release lookups,
+        or GitHub API calls.
+      </p>
+
+      {isLiveMode ? (
+        <div className="button-row version-status-action-row">
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={liveVersionStatusState.status === "loading"}
+            onClick={onLoadLiveVersionStatus}
+          >
+            {liveVersionStatusState.status === "loading"
+              ? "Loading version status"
+              : "Refresh daemon version status"}
+          </button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function getVersionStatusStateLabel(
+  dataMode: AethraDataMode,
+  liveVersionStatusState: LiveVersionStatusState,
+): string {
+  if (dataMode === "fixture") {
+    return "Fixture release status";
+  }
+
+  switch (liveVersionStatusState.status) {
+    case "not-loaded":
+      return "Version status not loaded";
+    case "loading":
+      return "Loading version status";
+    case "loaded":
+      return "Version status loaded";
+    case "error":
+      return liveVersionStatusState.label;
+  }
 }
 
 type HealthMetadataPanelProps = {

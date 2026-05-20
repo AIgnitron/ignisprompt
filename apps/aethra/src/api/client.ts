@@ -6,12 +6,14 @@ import {
   RouteExplainRequest,
   RouteExplainResponse,
   SustainabilityMetricsResponse,
+  VersionStatusResponse,
   isAuditEventList,
   isHealthResponse,
   isModelRegistry,
   isModelStatusResponse,
   isRouteExplainResponse,
   isSustainabilityMetricsResponse,
+  isVersionStatusResponse,
 } from "./contracts";
 import { AethraApiError } from "./errors";
 
@@ -49,6 +51,10 @@ export class IgnisPromptClient {
 
   modelStatus(): Promise<ModelStatusResponse> {
     return this.request("/v1/status/models", isModelStatusResponse);
+  }
+
+  versionStatus(): Promise<VersionStatusResponse> {
+    return this.request("/v1/status/version", isVersionStatusResponse);
   }
 
   auditEvents(): Promise<AuditEvent[]> {
