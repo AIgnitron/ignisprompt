@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { AethraApiError } from "./api/errors";
 import {
   DEFAULT_AETHRA_BASE_URL,
+  buildLiveLocalDiagnostics,
   describeAuditEventsLoadError,
   describeHealthLoadError,
   describeModelStatusLoadError,
@@ -83,6 +84,7 @@ describe("Aethra data source helpers", () => {
       label: "Daemon unreachable",
       message:
         "Aethra could not reach the configured local IgnisPrompt daemon.",
+      diagnosticKind: "daemon-unreachable",
     });
   });
 
@@ -110,6 +112,7 @@ describe("Aethra data source helpers", () => {
       label: "Daemon unreachable",
       message:
         "Aethra could not reach the configured local IgnisPrompt daemon.",
+      diagnosticKind: "daemon-unreachable",
     });
   });
 
@@ -127,6 +130,7 @@ describe("Aethra data source helpers", () => {
       label: "Unsupported schema",
       message:
         "The local daemon returned JSON that did not match the expected model manifest schema.",
+      diagnosticKind: "invalid-response-shape",
     });
   });
 
@@ -146,6 +150,7 @@ describe("Aethra data source helpers", () => {
       label: "Unsupported schema",
       message:
         "The local daemon returned JSON that did not match the expected model and runner status hint schema.",
+      diagnosticKind: "invalid-response-shape",
     });
   });
 
@@ -165,6 +170,7 @@ describe("Aethra data source helpers", () => {
       label: "Unsupported schema",
       message:
         "The local daemon returned JSON that did not match the expected daemon version status schema.",
+      diagnosticKind: "invalid-response-shape",
     });
   });
 
@@ -177,6 +183,7 @@ describe("Aethra data source helpers", () => {
       label: "Daemon unreachable",
       message:
         "Aethra could not reach the configured local IgnisPrompt daemon.",
+      diagnosticKind: "daemon-unreachable",
     });
   });
 
@@ -196,6 +203,7 @@ describe("Aethra data source helpers", () => {
       label: "Unsupported schema",
       message:
         "The local daemon returned JSON that did not match the expected audit event schema.",
+      diagnosticKind: "invalid-response-shape",
     });
   });
 
@@ -215,6 +223,150 @@ describe("Aethra data source helpers", () => {
       label: "Unsupported schema",
       message:
         "The local daemon returned JSON that did not match the expected sustainability metrics schema.",
+      diagnosticKind: "invalid-response-shape",
+    });
+  });
+
+  it("builds fixture mode diagnostics without live calls", () => {
+    expect(
+      buildLiveLocalDiagnostics({
+        dataMode: "fixture",
+        baseUrl: DEFAULT_AETHRA_BASE_URL,
+        endpointStates: [{ status: "not-loaded" }],
+      }),
+    ).toMatchObject({
+      state: "fixture-mode-active",
+      label: "Fixture mode active",
+    });
+  });
+
+  it("builds live-local ready diagnostics before manual refresh", () => {
+    expect(
+      buildLiveLocalDiagnostics({
+        dataMode: "live-local",
+        baseUrl: DEFAULT_AETHRA_BASE_URL,
+        endpointStates: [{ status: "not-loaded" }],
+      }),
+    ).toMatchObject({
+      state: "live-local-ready",
+      label: "Live-local ready",
+      lastRefresh: "No live local refresh has run yet.",
+    });
+  });
+
+  it("builds connected diagnostics after a successful refresh", () => {
+    expect(
+      buildLiveLocalDiagnostics({
+        dataMode: "live-local",
+        baseUrl: DEFAULT_AETHRA_BASE_URL,
+        endpointStates: [
+          {
+            status: "loaded",
+            health: {
+              status: "ok",
+              service: "ignispromptd",
+              version: "0.1.0",
+              started_at: "2026-05-20T00:00:00Z",
+              local_only: true,
+              model_count: 1,
+            },
+            loadedAt: "2026-05-20T00:01:00Z",
+          },
+          { status: "not-loaded" },
+        ],
+      }),
+    ).toMatchObject({
+      state: "live-local-connected",
+      label: "Live-local connected",
+      lastRefresh: "Last successful refresh: 2026-05-20T00:01:00Z.",
+    });
+  });
+
+  it("builds succeeded diagnostics after every surface has loaded", () => {
+    expect(
+      buildLiveLocalDiagnostics({
+        dataMode: "live-local",
+        baseUrl: DEFAULT_AETHRA_BASE_URL,
+        endpointStates: [
+          {
+            status: "loaded",
+            health: {
+              status: "ok",
+              service: "ignispromptd",
+              version: "0.1.0",
+              started_at: "2026-05-20T00:00:00Z",
+              local_only: true,
+              model_count: 1,
+            },
+            loadedAt: "2026-05-20T00:01:00Z",
+          },
+        ],
+      }),
+    ).toMatchObject({
+      state: "last-refresh-succeeded",
+      label: "Last refresh succeeded",
+    });
+  });
+
+  it("builds daemon unreachable diagnostics after a failed refresh", () => {
+    expect(
+      buildLiveLocalDiagnostics({
+        dataMode: "live-local",
+        baseUrl: DEFAULT_AETHRA_BASE_URL,
+        endpointStates: [
+          {
+            status: "error",
+            label: "Daemon unreachable",
+            message:
+              "Aethra could not reach the configured local IgnisPrompt daemon.",
+            diagnosticKind: "daemon-unreachable",
+          },
+        ],
+      }),
+    ).toMatchObject({
+      state: "daemon-unreachable",
+      label: "Daemon unreachable",
+      lastRefresh: "Last refresh failed.",
+    });
+  });
+
+  it("builds invalid response diagnostics from schema failures", () => {
+    expect(
+      buildLiveLocalDiagnostics({
+        dataMode: "live-local",
+        baseUrl: DEFAULT_AETHRA_BASE_URL,
+        endpointStates: [
+          {
+            status: "error",
+            label: "Unsupported schema",
+            message: "bad shape",
+            diagnosticKind: "invalid-response-shape",
+          },
+        ],
+      }),
+    ).toMatchObject({
+      state: "invalid-response-shape",
+      label: "Invalid response shape",
+    });
+  });
+
+  it("builds endpoint unavailable diagnostics from HTTP failures", () => {
+    expect(
+      buildLiveLocalDiagnostics({
+        dataMode: "live-local",
+        baseUrl: DEFAULT_AETHRA_BASE_URL,
+        endpointStates: [
+          {
+            status: "error",
+            label: "Endpoint unavailable",
+            message: "The local daemon returned HTTP 404.",
+            diagnosticKind: "endpoint-unavailable",
+          },
+        ],
+      }),
+    ).toMatchObject({
+      state: "endpoint-unavailable",
+      label: "Endpoint unavailable",
     });
   });
 });

@@ -120,7 +120,9 @@ npm run dev
 6. Confirm live local loads are manual and target the configured loopback daemon.
 7. Load health, daemon version status, models, model/runner status hints, audit events, and sustainability metrics.
 8. Confirm daemon version status appears on the Overview screen as local preview support/debugging metadata.
-9. Confirm no polling, no telemetry, no cloud call, no upload, no update check, no GitHub API call, and no persistence is introduced.
+9. Confirm Overview live-local diagnostics clearly distinguish fixture mode active, live-local ready, live-local connected, daemon unreachable, endpoint unavailable, invalid response shape, last refresh failed, and last refresh succeeded states as applicable.
+10. Confirm diagnostics include local next steps such as starting `./scripts/start-dev.sh`, checking `/health`, and using fixture mode while debugging.
+11. Confirm no polling, no telemetry, no cloud call, no upload, no update check, no GitHub API call, and no persistence is introduced.
 
 ## Sustainability Endpoint Verification
 

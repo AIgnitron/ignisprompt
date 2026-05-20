@@ -84,6 +84,8 @@ This starts the default local-only `ignispromptd` path with `./scripts/start-dev
 
 In the Aethra UI, Overview and Sustainability Preview remain fixture-backed by default. To exercise the live-local UI path manually, start the daemon, switch Aethra to Live local mode, keep the daemon URL on a loopback origin such as `http://127.0.0.1:8765`, use the manual Overview action to load daemon version status, open Sustainability Preview, choose a period such as `30d`, and use the manual live sustainability metrics load action. The UI should show fixture fallback data until the operator requests the live load, and it should keep fixture fallback data visible if the local daemon is unreachable or returns invalid JSON/schema.
 
+Overview live-local diagnostics are derived from manual local loads only. Tests cover fixture mode active, live-local ready, live-local connected, daemon unreachable, endpoint unavailable, invalid response shape, last refresh failed, and last refresh succeeded summaries. Diagnostics are local-only, non-persistent, not telemetry, and not an update checker.
+
 If a daemon is already running, omit `--start-daemon`:
 
 ```bash

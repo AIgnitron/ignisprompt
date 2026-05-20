@@ -329,6 +329,10 @@ textarea:focus {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.diagnostics-grid {
+  grid-template-columns: minmax(160px, 0.8fr) minmax(180px, 1fr) minmax(0, 1.4fr);
+}
+
 .model-metadata-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -565,6 +569,10 @@ textarea:focus {
 .version-status-action-row,
 .version-status-note {
   margin-top: 18px;
+}
+
+.diagnostics-note {
+  margin-top: 10px;
 }
 
 .model-action-row {

@@ -83,6 +83,8 @@ http://127.0.0.1:5173/
 
 Aethra starts in fixture mode by default. Fixture mode is useful for deterministic local preview, screenshots, and review without a live daemon dependency.
 
+The Overview screen shows live-local connection diagnostics. In fixture mode, diagnostics should report that fixture mode is active and that Aethra is not contacting the daemon.
+
 ## 7. Switch To Live-Local Mode
 
 In Aethra:
@@ -98,6 +100,8 @@ In Aethra:
 9. Manually load sustainability metrics.
 
 Live-local loading is explicit/manual. Aethra can show daemon version status as local preview support/debugging metadata. It is not an update checker or telemetry mechanism. Aethra does not poll, persist live data in local storage or session storage, call telemetry, call cloud services, upload data, perform release lookups, or change IgnisPrompt routing behavior.
+
+If live-local refresh fails, the Overview diagnostics show whether the local daemon appears unreachable, an endpoint is unavailable, or the response shape is invalid. Typical next steps are to start the daemon with `./scripts/start-dev.sh`, confirm `http://127.0.0.1:8765/health` is reachable, and keep using fixture mode while debugging local setup.
 
 ## 8. Export A Local Sustainability Report
 
