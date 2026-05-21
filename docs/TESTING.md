@@ -86,6 +86,8 @@ In the Aethra UI, Overview and Sustainability Preview remain fixture-backed by d
 
 Overview live-local diagnostics are derived from manual local loads only. Tests cover fixture mode active, live-local ready, live-local connected, daemon unreachable, endpoint unavailable, invalid response shape, last refresh failed, and last refresh succeeded summaries. Diagnostics are local-only, non-persistent, not telemetry, and not an update checker.
 
+Overview also includes copyable local commands for preview verification and debugging. The command definitions are covered by Aethra unit tests. Copy behavior uses the browser Clipboard API when available, shows an in-app fallback message when clipboard access is unavailable or fails, and does not execute commands, persist state, add telemetry, or call remote services.
+
 If a daemon is already running, omit `--start-daemon`:
 
 ```bash
