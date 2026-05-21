@@ -75,7 +75,7 @@ Do not claim unimplemented features are complete. In particular, do not claim th
 
 Qwen2.5 0.5B is a pipe/demo baseline only, not a settled legal-quality model.
 
-Aethra should be described as fixture-backed by default where relevant. Sustainability values should be described as proxy, counterfactual, estimated, and methodology-dependent, not measured carbon, ESG certification, certified reporting, production compliance evidence, or a production readiness claim.
+Aethra should be described as fixture-backed by default where relevant. Sustainability values should be described as proxy, counterfactual, estimated, and methodology-dependent. They are not measured carbon, not ESG certification, not certified reporting, not production compliance evidence, and not a production readiness claim.
 
 ## Documentation expectations
 
