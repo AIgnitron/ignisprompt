@@ -24,6 +24,15 @@ enum Commands {
     Health,
     /// Print daemon version and local preview status
     StatusVersion,
+    /// Print local sustainability metrics summary
+    Sustainability {
+        /// Metrics period: 7d, 30d, or 90d
+        #[arg(long, default_value = "30d")]
+        period: String,
+        /// Print raw JSON response instead of a terminal summary
+        #[arg(long)]
+        json: bool,
+    },
     /// List available model manifests
     Models,
     /// Explain routing for a request file
@@ -55,12 +64,210 @@ fn main() {
     match &cli.command {
         Commands::Health => cmd_health(&cli.daemon_url),
         Commands::StatusVersion => cmd_status_version(&cli.daemon_url),
+        Commands::Sustainability { period, json } => {
+            cmd_sustainability(&cli.daemon_url, period, *json)
+        }
         Commands::Models => cmd_models(&cli.daemon_url),
         Commands::RouteExplain { file } => cmd_route_explain(&cli.daemon_url, file),
         Commands::Audit { sub } => match sub {
             AuditCommands::Tail => cmd_audit_tail(&cli.daemon_url),
         },
     }
+}
+
+fn sustainability_url(base_url: &str, period: &str) -> String {
+    format!("{}/v1/metrics/sustainability?period={}", base_url, period)
+}
+
+fn validate_sustainability_period(period: &str) -> Result<(), String> {
+    match period {
+        "7d" | "30d" | "90d" => Ok(()),
+        _ => Err(format!(
+            "unsupported sustainability period '{}'; supported values are 7d, 30d, and 90d",
+            period
+        )),
+    }
+}
+
+fn cmd_sustainability(base_url: &str, period: &str, json_output: bool) {
+    if let Err(message) = validate_sustainability_period(period) {
+        eprintln!("error: {}", message);
+        process::exit(1);
+    }
+
+    let url = sustainability_url(base_url, period);
+    match ureq::get(&url).call() {
+        Ok(resp) => {
+            let body = parse_response(resp);
+            if !is_sustainability_metrics_response(&body) {
+                eprintln!(
+                    "error: invalid sustainability metrics response from {}",
+                    url
+                );
+                process::exit(1);
+            }
+
+            if json_output {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&body).unwrap_or_default()
+                );
+            } else {
+                println!("{}", format_sustainability_summary(&body));
+            }
+        }
+        Err(ureq::Error::Status(status, resp)) => {
+            let body = parse_response(resp);
+            eprintln!("error: sustainability endpoint returned HTTP {}", status);
+            if let Some(message) = body.get("error").and_then(|v| v.as_str()) {
+                eprintln!("daemon error: {}", message);
+            }
+            eprintln!("endpoint: {}", url);
+            process::exit(1);
+        }
+        Err(e) => {
+            eprintln!("error: daemon not reachable — {}", e);
+            eprintln!("confirm the daemon is running with ./scripts/start-dev.sh");
+            eprintln!("endpoint: {}", url);
+            process::exit(1);
+        }
+    }
+}
+
+fn is_sustainability_metrics_response(value: &Value) -> bool {
+    value.get("period").and_then(|v| v.as_str()).is_some()
+        && value
+            .get("requests_total")
+            .and_then(|v| v.as_u64())
+            .is_some()
+        && value
+            .get("local_request_rate")
+            .and_then(|v| v.as_f64())
+            .is_some()
+        && value
+            .get("tier_breakdown")
+            .and_then(|v| v.as_object())
+            .is_some()
+        && value
+            .get("estimated_cloud_cost_avoided_usd")
+            .and_then(|v| v.as_f64())
+            .is_some()
+        && value
+            .get("estimated_carbon_avoided_kgco2e")
+            .and_then(|v| v.as_f64())
+            .is_some()
+        && value
+            .get("estimated_data_kept_local_gb")
+            .and_then(|v| v.as_f64())
+            .is_some()
+        && value
+            .get("methodology_version")
+            .and_then(|v| v.as_str())
+            .is_some()
+        && value.get("confidence").and_then(|v| v.as_str()).is_some()
+        && value.get("disclaimer").and_then(|v| v.as_str()).is_some()
+}
+
+fn format_sustainability_summary(body: &Value) -> String {
+    let mut lines = vec![
+        "Aethra Sustainability Summary".to_string(),
+        format!(
+            "Period: {}",
+            body.get("period").and_then(|v| v.as_str()).unwrap_or("-")
+        ),
+        format!(
+            "Requests total: {}",
+            body.get("requests_total")
+                .and_then(|v| v.as_u64())
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "-".to_string())
+        ),
+        format!(
+            "Local request rate: {}",
+            body.get("local_request_rate")
+                .and_then(|v| v.as_f64())
+                .map(format_rate)
+                .unwrap_or_else(|| "-".to_string())
+        ),
+        format!(
+            "Estimated cloud cost avoided: {}",
+            body.get("estimated_cloud_cost_avoided_usd")
+                .and_then(|v| v.as_f64())
+                .map(format_usd)
+                .unwrap_or_else(|| "-".to_string())
+        ),
+        format!(
+            "Estimated CO₂e avoided: {}",
+            body.get("estimated_carbon_avoided_kgco2e")
+                .and_then(|v| v.as_f64())
+                .map(format_kgco2e)
+                .unwrap_or_else(|| "-".to_string())
+        ),
+        format!(
+            "Estimated data kept local: {}",
+            body.get("estimated_data_kept_local_gb")
+                .and_then(|v| v.as_f64())
+                .map(format_gb)
+                .unwrap_or_else(|| "-".to_string())
+        ),
+        format!(
+            "Methodology: {}",
+            body.get("methodology_version")
+                .and_then(|v| v.as_str())
+                .unwrap_or("-")
+        ),
+        format!(
+            "Confidence: {}",
+            body.get("confidence")
+                .and_then(|v| v.as_str())
+                .unwrap_or("-")
+        ),
+        "".to_string(),
+        "Disclaimer:".to_string(),
+        body.get("disclaimer")
+            .and_then(|v| v.as_str())
+            .unwrap_or("-")
+            .to_string(),
+        "".to_string(),
+        "Tier breakdown:".to_string(),
+    ];
+
+    if let Some(tiers) = body.get("tier_breakdown").and_then(|v| v.as_object()) {
+        if tiers.is_empty() {
+            lines.push("- none: 0".to_string());
+        } else {
+            let mut entries = tiers.iter().collect::<Vec<_>>();
+            entries.sort_by(|(left, _), (right, _)| left.cmp(right));
+            for (tier, count) in entries {
+                lines.push(format!(
+                    "- {}: {}",
+                    tier,
+                    count
+                        .as_u64()
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| "-".to_string())
+                ));
+            }
+        }
+    }
+
+    lines.join("\n")
+}
+
+fn format_rate(value: f64) -> String {
+    format!("{:.0}%", value * 100.0)
+}
+
+fn format_usd(value: f64) -> String {
+    format!("${:.6}", value)
+}
+
+fn format_kgco2e(value: f64) -> String {
+    format!("{:.6} kgCO2e", value)
+}
+
+fn format_gb(value: f64) -> String {
+    format!("{:.6} GB", value)
 }
 
 fn cmd_health(base_url: &str) {
@@ -328,7 +535,11 @@ fn cmd_audit_tail(base_url: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{format_model_manifest_line, string_field};
+    use super::{
+        format_model_manifest_line, format_sustainability_summary,
+        is_sustainability_metrics_response, string_field, sustainability_url,
+        validate_sustainability_period,
+    };
     use serde_json::json;
 
     #[test]
@@ -359,6 +570,35 @@ mod tests {
     fn audit_tail_url_format() {
         let url = format!("{}/v1/audit/events", "http://127.0.0.1:8765");
         assert_eq!(url, "http://127.0.0.1:8765/v1/audit/events");
+    }
+
+    #[test]
+    fn sustainability_default_url_uses_30d() {
+        let url = sustainability_url("http://127.0.0.1:8765", "30d");
+        assert_eq!(
+            url,
+            "http://127.0.0.1:8765/v1/metrics/sustainability?period=30d"
+        );
+    }
+
+    #[test]
+    fn sustainability_custom_period_url_uses_selected_period() {
+        let url = sustainability_url("http://127.0.0.1:8765", "7d");
+        assert_eq!(
+            url,
+            "http://127.0.0.1:8765/v1/metrics/sustainability?period=7d"
+        );
+    }
+
+    #[test]
+    fn sustainability_period_validation_rejects_unsupported_values() {
+        assert!(validate_sustainability_period("7d").is_ok());
+        assert!(validate_sustainability_period("30d").is_ok());
+        assert!(validate_sustainability_period("90d").is_ok());
+
+        let error = validate_sustainability_period("365d").unwrap_err();
+        assert!(error.contains("unsupported sustainability period"));
+        assert!(error.contains("7d, 30d, and 90d"));
     }
 
     #[test]
@@ -435,5 +675,52 @@ mod tests {
         assert!(line.contains("TIER_1"));
         assert!(line.contains("domains=legal,contracts"));
         assert!(line.ends_with("missing"));
+    }
+
+    #[test]
+    fn sustainability_summary_reads_representative_response_fields() {
+        let response = json!({
+            "period": "30d",
+            "requests_total": 3,
+            "local_request_rate": 1.0,
+            "tier_breakdown": {
+                "TIER_1": 1,
+                "TIER_3": 2
+            },
+            "estimated_cloud_cost_avoided_usd": 0.000034,
+            "estimated_carbon_avoided_kgco2e": 0.000003,
+            "estimated_data_kept_local_gb": 0.000001,
+            "baseline_provider": "openai",
+            "baseline_model": "gpt-4.1-mini",
+            "methodology_version": "aethra-impact-0.1",
+            "confidence": "low",
+            "disclaimer": "Local-only counterfactual proxy estimates; not actual carbon accounting."
+        });
+
+        assert!(is_sustainability_metrics_response(&response));
+        let summary = format_sustainability_summary(&response);
+
+        assert!(summary.contains("Aethra Sustainability Summary"));
+        assert!(summary.contains("Period: 30d"));
+        assert!(summary.contains("Requests total: 3"));
+        assert!(summary.contains("Local request rate: 100%"));
+        assert!(summary.contains("Estimated cloud cost avoided: $0.000034"));
+        assert!(summary.contains("Estimated CO₂e avoided: 0.000003 kgCO2e"));
+        assert!(summary.contains("Estimated data kept local: 0.000001 GB"));
+        assert!(summary.contains("Methodology: aethra-impact-0.1"));
+        assert!(summary.contains("Confidence: low"));
+        assert!(summary.contains("Disclaimer:"));
+        assert!(summary.contains("- TIER_1: 1"));
+        assert!(summary.contains("- TIER_3: 2"));
+    }
+
+    #[test]
+    fn sustainability_response_shape_rejects_missing_required_fields() {
+        let response = json!({
+            "period": "30d",
+            "requests_total": 3
+        });
+
+        assert!(!is_sustainability_metrics_response(&response));
     }
 }
