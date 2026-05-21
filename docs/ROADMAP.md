@@ -10,8 +10,9 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Route explanations for legal and general requests.
 - Local audit events for route explanations and chat completions.
 - Aethra v0.1 local-only sustainability metrics endpoint with counterfactual proxy estimates derived from local audit events.
+- Aethra fixture-backed, local-first MVP scaffold for observing local preview metadata and proxy sustainability indicators. It is not a production dashboard.
 - Adversarial document-instruction detection for known instruction strings.
-- OpenAI-compatible non-streaming chat completion request shape.
+- OpenAI-compatible chat completion request shape, including a `stream: true` compatibility scaffold that frames an already-produced local completion as SSE chunks.
 - `StubLegalRunner` as the default Tier 3 legal fallback.
 - Optional `gguf-runner-spike` feature that can call a local subprocess runner when configured and when the local `.gguf` file exists.
 - Local JSON extraction and validation shim for the GGUF legal spike.
@@ -35,8 +36,8 @@ Future model selection should compare larger general models and legal-domain can
 ## Planned but not implemented
 
 - MCP server.
-- Desktop or web dashboard.
-- Streaming chat completions.
+- Production dashboard beyond the current Aethra fixture-backed, local-first MVP scaffold.
+- Production-grade incremental token streaming.
 - Tier 2 Apple Foundation Models or OS-native bridge.
 - Tier 4 edge routing.
 - Tier 5 cloud routing.
