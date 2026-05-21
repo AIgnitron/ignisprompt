@@ -157,7 +157,7 @@ Confirm the response includes:
 - `confidence`
 - `disclaimer`
 
-Rust schema-lock tests also protect the local-preview JSON field names and high-level shapes for health, models, model/runner status, version status, audit events, sustainability metrics, invalid sustainability period errors, and OpenAI-compatible chat completion responses because these surfaces are consumed by local-preview users, Aethra, smoke checks, `ignispromptctl`, and future local gateway planning.
+Rust schema-lock tests also protect the local-preview JSON field names and high-level shapes for health, models, model/runner status, version status, audit events, sustainability metrics, invalid sustainability period errors, OpenAI-compatible chat completion responses, and the existing experimental MCP initialize/tools/list/route_explain response shapes because these surfaces are consumed by local-preview users, Aethra, smoke checks, `ignispromptctl`, and future local gateway planning.
 
 Invalid period check:
 

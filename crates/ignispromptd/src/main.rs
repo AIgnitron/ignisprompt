@@ -2273,6 +2273,22 @@ mod tests {
         }
     }
 
+    fn assert_mcp_success_response_schema(response: &Value) {
+        assert_json_keys(response, &["jsonrpc", "id", "result"]);
+        assert_eq!(response["jsonrpc"], "2.0");
+        assert!(!response["id"].is_null());
+        assert!(response["result"].is_object());
+    }
+
+    fn assert_mcp_error_response_schema(response: &Value) {
+        assert_json_keys(response, &["jsonrpc", "id", "error"]);
+        assert_eq!(response["jsonrpc"], "2.0");
+        assert!(!response["id"].is_null());
+        assert_json_keys(&response["error"], &["code", "message"]);
+        assert!(response["error"]["code"].is_i64());
+        assert!(response["error"]["message"].is_string());
+    }
+
     #[tokio::test]
     async fn health_endpoint_response_schema_is_locked_for_local_preview_clients() {
         let state = state_with_models(vec![legal_model()]);
@@ -3634,12 +3650,43 @@ mod tests {
         .expect("initialize should return a response");
 
         assert!(session.initialize_seen);
+        assert_mcp_success_response_schema(&response);
+        assert_eq!(response["id"], 1);
+        assert_json_keys(
+            &response["result"],
+            &[
+                "protocolVersion",
+                "capabilities",
+                "serverInfo",
+                "instructions",
+            ],
+        );
         assert_eq!(response["result"]["protocolVersion"], MCP_PROTOCOL_VERSION);
+        assert_json_keys(&response["result"]["capabilities"], &["tools"]);
+        assert_json_keys(
+            &response["result"]["capabilities"]["tools"],
+            &["listChanged"],
+        );
         assert_eq!(
             response["result"]["capabilities"]["tools"]["listChanged"],
             false
         );
+        assert_json_keys(
+            &response["result"]["serverInfo"],
+            &["name", "title", "version"],
+        );
         assert_eq!(response["result"]["serverInfo"]["name"], "ignispromptd");
+        assert_eq!(
+            response["result"]["serverInfo"]["title"],
+            "IgnisPrompt Experimental MCP Stub"
+        );
+        assert_eq!(
+            response["result"]["serverInfo"]["version"],
+            env!("CARGO_PKG_VERSION")
+        );
+        assert!(response["result"]["instructions"]
+            .as_str()
+            .is_some_and(|instructions| instructions.contains("local-only")));
     }
 
     #[tokio::test]
@@ -3707,12 +3754,41 @@ mod tests {
         .await
         .expect("tools/list should return a response");
 
+        assert_mcp_success_response_schema(&response);
+        assert_eq!(response["id"], 2);
+        assert_json_keys(&response["result"], &["tools"]);
         let tools = response["result"]["tools"]
             .as_array()
             .expect("tools/list should return an array");
         assert_eq!(tools.len(), 1);
-        assert_eq!(tools[0]["name"], MCP_ROUTE_EXPLAIN_TOOL_NAME);
-        assert_eq!(tools[0]["inputSchema"]["required"][0], "messages");
+        let route_explain_tool = &tools[0];
+        assert_json_keys(
+            route_explain_tool,
+            &["name", "title", "description", "inputSchema"],
+        );
+        assert_eq!(route_explain_tool["name"], MCP_ROUTE_EXPLAIN_TOOL_NAME);
+        assert_eq!(route_explain_tool["title"], "IgnisPrompt Route Explain");
+        assert!(route_explain_tool["description"]
+            .as_str()
+            .is_some_and(|description| description.contains("local-only")));
+
+        let input_schema = &route_explain_tool["inputSchema"];
+        assert_json_keys(
+            input_schema,
+            &["type", "additionalProperties", "properties", "required"],
+        );
+        assert_eq!(input_schema["type"], "object");
+        assert_eq!(input_schema["additionalProperties"], false);
+        assert_eq!(input_schema["required"], json!(["messages"]));
+        assert_json_keys(
+            &input_schema["properties"],
+            &["model", "messages", "stream", "metadata"],
+        );
+        assert_eq!(input_schema["properties"]["messages"]["type"], "array");
+        assert_eq!(
+            input_schema["properties"]["messages"]["items"]["required"],
+            json!(["role", "content"])
+        );
     }
 
     #[tokio::test]
@@ -3749,7 +3825,41 @@ mod tests {
         .await
         .expect("tools/call should return a response");
 
+        assert_mcp_success_response_schema(&response);
+        assert_eq!(response["id"], 3);
+        assert_json_keys(
+            &response["result"],
+            &["content", "structuredContent", "isError"],
+        );
         assert_eq!(response["result"]["isError"], false);
+        let content = response["result"]["content"]
+            .as_array()
+            .expect("tool content array");
+        assert_eq!(content.len(), 1);
+        assert_json_keys(&content[0], &["type", "text"]);
+        assert_eq!(content[0]["type"], "text");
+        assert!(content[0]["text"]
+            .as_str()
+            .is_some_and(|text| text.contains("DOMAIN_MODEL_SELECTED")));
+        assert_json_keys(
+            &response["result"]["structuredContent"],
+            &["request_id", "decision", "explanation", "warnings"],
+        );
+        assert!(response["result"]["structuredContent"]["request_id"]
+            .as_str()
+            .is_some_and(|request_id| !request_id.is_empty()));
+        assert_json_keys(
+            &response["result"]["structuredContent"]["decision"],
+            &[
+                "tier",
+                "route_code",
+                "domain",
+                "model_id",
+                "cloud_considered",
+                "cloud_allowed",
+                "data_left_device",
+            ],
+        );
         assert_eq!(
             response["result"]["structuredContent"]["decision"]["tier"],
             "TIER_3"
@@ -3759,9 +3869,26 @@ mod tests {
             "DOMAIN_MODEL_SELECTED"
         );
         assert_eq!(
+            response["result"]["structuredContent"]["decision"]["domain"],
+            "legal"
+        );
+        assert_eq!(
+            response["result"]["structuredContent"]["decision"]["model_id"],
+            "legal-saul-placeholder"
+        );
+        assert_eq!(
+            response["result"]["structuredContent"]["decision"]["cloud_considered"],
+            false
+        );
+        assert_eq!(
+            response["result"]["structuredContent"]["decision"]["cloud_allowed"],
+            false
+        );
+        assert_eq!(
             response["result"]["structuredContent"]["decision"]["data_left_device"],
             false
         );
+        assert!(response["result"]["structuredContent"]["warnings"].is_array());
 
         let audit_events = state.audit.list().await;
         assert_eq!(audit_events.len(), 1);
@@ -3794,12 +3921,85 @@ mod tests {
         .await
         .expect("tools/call should return a response");
 
+        assert_mcp_success_response_schema(&response);
+        assert_eq!(response["id"], 4);
+        assert_json_keys(
+            &response["result"],
+            &["content", "structuredContent", "isError"],
+        );
         assert_eq!(response["result"]["isError"], true);
+        assert!(response["result"]["content"].is_array());
+        assert_json_keys(
+            &response["result"]["structuredContent"],
+            &["request_id", "decision", "explanation", "warnings"],
+        );
+        assert_eq!(
+            response["result"]["structuredContent"]["decision"]["tier"],
+            "ERR"
+        );
         assert_eq!(
             response["result"]["structuredContent"]["decision"]["route_code"],
             "PREFLIGHT_REJECTED"
         );
+        assert_eq!(
+            response["result"]["structuredContent"]["decision"]["cloud_considered"],
+            false
+        );
+        assert_eq!(
+            response["result"]["structuredContent"]["decision"]["cloud_allowed"],
+            false
+        );
+        assert_eq!(
+            response["result"]["structuredContent"]["decision"]["data_left_device"],
+            false
+        );
+        assert!(response["result"]["structuredContent"]["warnings"].is_array());
         assert!(state.audit.list().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn mcp_invalid_request_error_response_shape_is_locked() {
+        let state = state_with_models(vec![legal_model()]);
+        let mut session = McpSessionState::default();
+
+        let missing_jsonrpc = call_mcp_message(
+            &state,
+            &mut session,
+            json!({
+                "id": 5,
+                "method": "initialize",
+                "params": {}
+            }),
+        )
+        .await
+        .expect("request with id should return an error");
+
+        assert_mcp_error_response_schema(&missing_jsonrpc);
+        assert_eq!(missing_jsonrpc["id"], 5);
+        assert_eq!(missing_jsonrpc["error"]["code"], -32600);
+        assert!(missing_jsonrpc["error"]["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("jsonrpc")));
+        assert!(!session.initialize_seen);
+
+        let unknown_method = call_mcp_message(
+            &state,
+            &mut session,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "unknown/method"
+            }),
+        )
+        .await
+        .expect("unknown method with id should return an error");
+
+        assert_mcp_error_response_schema(&unknown_method);
+        assert_eq!(unknown_method["id"], 6);
+        assert_eq!(unknown_method["error"]["code"], -32601);
+        assert!(unknown_method["error"]["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("Method not found")));
     }
 
     #[tokio::test]
