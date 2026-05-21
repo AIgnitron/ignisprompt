@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createIgnisPromptClient } from "../api/client";
 import { RouteExplainResponse } from "../api/contracts";
 import { routeExplainFixture } from "../fixtures/aethraFixture";
+import { EmptyState } from "../components/EmptyState";
 import { StatusBadge } from "../components/StatusBadge";
 import {
   buildRouteExplainRequest,
@@ -11,6 +12,7 @@ import {
   sampleRoutePrompt,
   validateRoutePrompt,
 } from "./routeExplainSummary";
+import { localPreviewEmptyStates } from "./emptyStates";
 
 type RouteResultState =
   {
@@ -348,10 +350,14 @@ function RouteExplainResult({ result }: RouteExplainResultProps) {
 
       {result.errorMessage || !response ? (
         <section className="detail-section">
-          <h4>Route inspection did not run</h4>
-          <p className="explanation">
-            {result.errorMessage ?? "No route explanation is selected."}
-          </p>
+          <EmptyState
+            {...(result.errorMessage
+              ? {
+                  ...localPreviewEmptyStates.routingLiveError,
+                  message: result.errorMessage,
+                }
+              : localPreviewEmptyStates.routingNoResult)}
+          />
         </section>
       ) : (
         <>

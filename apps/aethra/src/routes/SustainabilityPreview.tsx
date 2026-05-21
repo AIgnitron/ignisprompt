@@ -11,6 +11,7 @@ import type {
   AethraDataMode,
   LiveSustainabilityMetricsState,
 } from "../dataSource";
+import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
 import { StatusBadge } from "../components/StatusBadge";
 import {
@@ -20,6 +21,10 @@ import {
   SustainabilityReportDataSource,
 } from "./sustainabilityReport";
 import { buildSustainabilitySummary } from "./sustainabilitySummary";
+import {
+  buildLiveErrorEmptyState,
+  localPreviewEmptyStates,
+} from "./emptyStates";
 
 const fixtureSummary = buildSustainabilitySummary(
   healthFixture,
@@ -198,9 +203,9 @@ export function SustainabilityPreview({
                 ))}
             </dl>
           ) : (
-            <p className="explanation">
-              No route tiers were present in the loaded sustainability metrics.
-            </p>
+            <EmptyState
+              {...localPreviewEmptyStates.sustainabilityTierBreakdownEmpty}
+            />
           )}
         </section>
 
@@ -302,10 +307,7 @@ function SustainabilityLiveControl({
       </div>
 
       {isLiveMode && liveSustainabilityMetricsState.status === "not-loaded" ? (
-        <p className="inline-notice">
-          Live local sustainability metrics are not loaded yet. Aethra is
-          showing fixture fallback estimates until you manually refresh.
-        </p>
+        <EmptyState {...localPreviewEmptyStates.sustainabilityNotLoaded} />
       ) : null}
       {isLiveMode && liveSustainabilityMetricsState.status === "loading" ? (
         <p className="inline-notice">
@@ -314,11 +316,13 @@ function SustainabilityLiveControl({
         </p>
       ) : null}
       {isLiveMode && liveSustainabilityMetricsState.status === "error" ? (
-        <p className="inline-warning">
-          {liveSustainabilityMetricsState.label}:{" "}
-          {liveSustainabilityMetricsState.message} Fixture fallback estimates
-          remain visible.
-        </p>
+        <EmptyState
+          {...buildLiveErrorEmptyState(
+            liveSustainabilityMetricsState.label,
+            liveSustainabilityMetricsState.message,
+            "Fixture fallback estimates remain visible.",
+          )}
+        />
       ) : null}
 
       <dl className="state-list">
