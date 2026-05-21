@@ -27,6 +27,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Continue local legal model bakeoffs with evidence stored under `./local-evidence/`.
 - Improve the GGUF subprocess contract while keeping it feature-gated.
 - Explore documented adapter concepts for local LiteLLM-style and DreamServer-style stacks without claiming implemented support or compatibility.
+- Use the local adapter implementation checklist before any adapter code is proposed.
 
 ## Candidate model work
 

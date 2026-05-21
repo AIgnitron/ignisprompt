@@ -2,6 +2,8 @@
 
 This document describes possible future adapter directions for local AI stacks such as LiteLLM-style gateways and DreamServer-style local servers. It is a design concept only. IgnisPrompt does not currently implement these adapters, does not claim production support for them, and does not provide a compatibility guarantee.
 
+Before any future adapter code is started, use the [Local Adapter Implementation Checklist](LOCAL_ADAPTER_IMPLEMENTATION_CHECKLIST.md) as the implementation gate.
+
 ## Purpose
 
 Adapters matter because many local AI operators already run model servers, gateways, or runner tools. IgnisPrompt should not become another broad model server just to participate in those workflows. A future adapter layer could let IgnisPrompt keep its narrower role as a local policy, routing, explanation, and audit control plane while existing local stacks continue to own inference.
