@@ -72,11 +72,13 @@ This view must not claim certified sustainability metrics, measured energy usage
 
 ### Local Sustainability Report Export
 
-Sustainability Preview can generate a local Markdown report, and a simple JSON report, from the currently displayed sustainability metrics. The export works with bundled fixture data and with manually loaded live-local metrics from the configured loopback daemon.
+Sustainability Preview can generate a structured local Markdown report and a schema-versioned JSON report from the currently displayed sustainability metrics. The export works with bundled fixture data and with manually loaded live-local metrics from the configured loopback daemon.
 
-The report is generated client-side in the browser. Aethra does not persist the report to local storage or session storage, send it to a backend, call telemetry, call cloud services, look up external coefficients, or join a global opt-in aggregation pool. The report must not include request content, prompts, raw audit event text, PII, or machine identifiers.
+The Markdown report includes report metadata, source, period, summary, key estimates, tier breakdown, baseline assumptions, methodology and confidence, safety/disclaimer language, limitations, and local-only export notes. The JSON report includes `report_schema_version: "aethra-sustainability-report-0.1"`, `generated_at`, `source`, `period`, `summary`, `estimates`, `tier_breakdown`, `baseline`, `methodology`, `confidence`, `disclaimer`, `limitations`, and `local_only: true`.
 
-Report language must stay conservative: estimated CO₂ avoided, counterfactual proxy estimates, methodology-dependent, not actual carbon accounting, not ESG certification, and not production compliance evidence.
+The report is generated client-side in the browser. Aethra does not persist the report to local storage or session storage, send it to a backend, call telemetry, call cloud services, look up external coefficients, call GitHub, check for updates, poll endpoints, or join a global opt-in aggregation pool. The report must not include request content, prompts, raw audit event bodies, PII, machine identifiers, hostnames, usernames, filesystem paths, secrets, or API keys.
+
+Report language must stay conservative: estimated cloud cost avoided, estimated CO₂e avoided, counterfactual proxy estimates, methodology-dependent, not actual carbon accounting, not ESG certification, not certified sustainability reporting, and not production compliance evidence.
 
 ## API Gaps
 

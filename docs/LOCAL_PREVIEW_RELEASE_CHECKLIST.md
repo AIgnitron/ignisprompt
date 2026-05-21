@@ -175,8 +175,11 @@ Confirm exported reports:
 - are generated client-side
 - are not stored in local storage or session storage
 - are not uploaded
-- include `methodology_version`, `confidence`, and `disclaimer`
-- include no request content, prompts, raw audit text, PII, or machine identifiers
+- include structured Markdown sections for report metadata, summary, key estimates, tier breakdown, baseline assumptions, methodology/confidence, safety/disclaimer, limitations, and local-only notes
+- include JSON `report_schema_version: "aethra-sustainability-report-0.1"`
+- include JSON `methodology`, `confidence`, `disclaimer`, `limitations`, and `local_only: true`
+- include no request content, prompts, raw audit event bodies, PII, machine identifiers, hostnames, usernames, filesystem paths, secrets, or API keys
+- remain non-certified counterfactual proxy reports, not actual carbon accounting, not ESG certification, and not production compliance evidence
 
 ## Ignored Artifact Check
 
