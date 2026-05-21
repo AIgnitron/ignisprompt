@@ -221,7 +221,8 @@ function AuditMetadataPanel({
       </dl>
 
       {isLiveMode ? (
-        <div className="button-row audit-action-row">
+        <div className="manual-refresh-card audit-action-row">
+          <span>Manual live-local refresh action</span>
           <button
             type="button"
             className="secondary-button"

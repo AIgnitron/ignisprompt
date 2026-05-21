@@ -247,6 +247,10 @@ export default function App() {
         <div>
           <p className="eyebrow">Aethra</p>
           <h1>Local AI Routing Observatory</h1>
+          <p className="sidebar-note">
+            Local preview observability for routing, audit, model and runner
+            status hints, and proxy sustainability indicators.
+          </p>
         </div>
         <nav className="nav-list">
           <button
@@ -294,6 +298,8 @@ export default function App() {
       </aside>
 
       <main className="workspace">
+        <LocalPreviewBanner />
+
         <section className="mode-strip" aria-label="Aethra data mode boundaries">
           <div className="mode-copy">
             <p className="eyebrow">Data mode</p>
@@ -382,6 +388,29 @@ export default function App() {
   );
 }
 
+function LocalPreviewBanner() {
+  return (
+    <section className="preview-banner" aria-label="Local preview boundary">
+      <div>
+        <p className="eyebrow">Local Preview</p>
+        <h2>Fixture-first observability for local IgnisPrompt review</h2>
+        <p>
+          Fixture mode is the default. Live-local loading is manual. Aethra is
+          read-only, sends no telemetry, makes no cloud calls by default, and is
+          not a production deployment.
+        </p>
+      </div>
+      <div className="preview-banner-badges" aria-label="Local preview guardrails">
+        <StatusBadge tone="neutral">Fixture default</StatusBadge>
+        <StatusBadge tone="neutral">Manual live-local</StatusBadge>
+        <StatusBadge tone="neutral">No telemetry</StatusBadge>
+        <StatusBadge tone="neutral">No cloud calls by default</StatusBadge>
+        <StatusBadge tone="warning">Not production deployment</StatusBadge>
+      </div>
+    </section>
+  );
+}
+
 type DataSourceControlProps = {
   dataMode: AethraDataMode;
   baseUrlInput: string;
@@ -410,6 +439,15 @@ function DataSourceControl({
 
   return (
     <section className="data-source-control" aria-label="Aethra data source">
+      <div className="data-source-intro">
+        <p className="eyebrow">Manual live-local setup</p>
+        <h3>Choose fixture data or manually load local daemon metadata</h3>
+        <p className="muted">
+          Aethra does not poll, persist live-local state, execute commands, or
+          change IgnisPrompt routing.
+        </p>
+      </div>
+
       <div className="mode-toggle" aria-label="Select Aethra data mode">
         <button
           type="button"
@@ -447,16 +485,19 @@ function DataSourceControl({
         </p>
       </div>
 
-      <button
-        type="button"
-        className="secondary-button health-load-button"
-        disabled={!canLoadHealth}
-        onClick={onLoadLiveHealth}
-      >
-        {liveHealthState.status === "loading"
-          ? "Loading health"
-          : "Load live health"}
-      </button>
+      <div className="manual-refresh-card">
+        <span>Manual live-local refresh action</span>
+        <button
+          type="button"
+          className="secondary-button health-load-button"
+          disabled={!canLoadHealth}
+          onClick={onLoadLiveHealth}
+        >
+          {liveHealthState.status === "loading"
+            ? "Loading health"
+            : "Load live health"}
+        </button>
+      </div>
     </section>
   );
 }

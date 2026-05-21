@@ -78,6 +78,12 @@ textarea:focus {
   line-height: 1.2;
 }
 
+.sidebar-note {
+  margin: 12px 0 0;
+  color: #a9b9bd;
+  font-size: 0.88rem;
+}
+
 .eyebrow {
   margin: 0 0 8px;
   color: #4f8f86;
@@ -121,6 +127,42 @@ textarea:focus {
   padding: 28px 36px 40px;
 }
 
+.preview-banner {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  justify-content: space-between;
+  max-width: 1160px;
+  margin-bottom: 14px;
+  padding: 18px;
+  border: 1px solid #d7e5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(23 32 38 / 6%);
+}
+
+.preview-banner h2 {
+  margin: 0;
+  color: #172026;
+  font-size: 1.18rem;
+  line-height: 1.25;
+}
+
+.preview-banner p:last-child {
+  max-width: 700px;
+  margin: 8px 0 0;
+  color: #526a64;
+  font-size: 0.92rem;
+}
+
+.preview-banner-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  max-width: 420px;
+}
+
 .mode-strip {
   display: flex;
   gap: 18px;
@@ -161,15 +203,25 @@ textarea:focus {
 
 .data-source-control {
   display: grid;
-  grid-template-columns: auto minmax(260px, 360px) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(220px, 1fr) auto minmax(260px, 360px) minmax(0, 1fr);
   gap: 12px;
-  align-items: end;
+  align-items: center;
   max-width: 1160px;
   margin-top: 12px;
   padding: 12px;
   border: 1px solid #d9e1e3;
   border-radius: 8px;
   background: #ffffff;
+}
+
+.data-source-intro {
+  min-width: 0;
+}
+
+.data-source-intro h3 {
+  margin: 0;
+  color: #172026;
+  font-size: 0.98rem;
 }
 
 .mode-toggle {
@@ -221,7 +273,6 @@ textarea:focus {
 }
 
 .health-load-button {
-  align-self: center;
   white-space: nowrap;
 }
 
@@ -244,11 +295,44 @@ textarea:focus {
   font-size: 1.7rem;
 }
 
+.page-subtitle {
+  max-width: 580px;
+  margin: 6px 0 0;
+  color: #607176;
+  font-size: 0.92rem;
+}
+
 .status-strip {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.overview-section-group {
+  display: grid;
+  gap: 12px;
+}
+
+.section-heading h3 {
+  margin: 0;
+  color: #172026;
+  font-size: 1.08rem;
+}
+
+.overview-operations-grid,
+.overview-metadata-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.overview-operations-grid {
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  align-items: start;
+}
+
+.overview-metadata-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .metric-grid {
@@ -671,14 +755,43 @@ textarea:focus {
 
 .sustainability-action-row {
   display: grid;
-  grid-template-columns: minmax(120px, 160px) repeat(3, auto);
+  grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr);
   gap: 12px;
-  align-items: end;
+  align-items: stretch;
   margin-top: 18px;
 }
 
 .sustainability-period-field {
   min-width: 0;
+}
+
+.manual-refresh-card,
+.report-export-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid #e2e8ea;
+  border-radius: 8px;
+  background: #f7fafb;
+}
+
+.manual-refresh-card > span,
+.report-export-card > span {
+  flex-basis: 100%;
+  color: #40545c;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.sustainability-refresh-card {
+  align-items: end;
+}
+
+.report-export-card {
+  align-content: start;
 }
 
 .table-scroll {
@@ -820,10 +933,14 @@ textarea:focus {
   .definition-grid,
   .two-column,
   .fact-columns,
-  .data-source-control {
+  .data-source-control,
+  .overview-operations-grid,
+  .overview-metadata-grid,
+  .sustainability-action-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .data-source-intro,
   .data-source-status {
     grid-column: 1 / -1;
   }
@@ -852,13 +969,15 @@ textarea:focus {
   }
 
   .mode-strip,
+  .preview-banner,
   .page-header,
   .panel-heading {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .mode-badges {
+  .mode-badges,
+  .preview-banner-badges {
     justify-content: flex-start;
     max-width: none;
   }
@@ -872,9 +991,11 @@ textarea:focus {
   .form-grid,
   .audit-layout,
   .model-layout,
-  .routing-layout,
-  .sustainability-layout,
-  .sustainability-action-row {
+    .routing-layout,
+    .sustainability-layout,
+    .sustainability-action-row,
+    .overview-operations-grid,
+    .overview-metadata-grid {
     grid-template-columns: 1fr;
   }
 }

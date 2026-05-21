@@ -251,7 +251,8 @@ function ModelMetadataPanel({
       </dl>
 
       {isLiveMode ? (
-        <div className="button-row model-action-row">
+        <div className="manual-refresh-card model-action-row">
+          <span>Manual live-local refresh action</span>
           <button
             type="button"
             className="secondary-button"
@@ -375,7 +376,8 @@ function ModelStatusPanel({
       ) : null}
 
       {isLiveMode ? (
-        <div className="button-row model-action-row">
+        <div className="manual-refresh-card model-action-row">
+          <span>Manual live-local refresh action</span>
           <button
             type="button"
             className="secondary-button"
