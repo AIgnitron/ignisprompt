@@ -27,6 +27,7 @@ The default path does not require Ollama, GGUF tooling, model weights, or networ
 - [Aethra Sustainability Monitor Methodology](AETHRA_SUSTAINABILITY_METHODOLOGY.md): v0.1 routing-aware counterfactual proxy methodology, assumptions, limitations, and reviewer checklist.
 - [Aethra Sustainability Monitor Demo](AETHRA_SUSTAINABILITY_DEMO.md): demo setup, talk tracks, failure modes, and local report export script for the Sustainability Monitor flow.
 - [Adapter Concepts](ADAPTER_CONCEPTS.md): design concepts for possible future local LiteLLM-style and DreamServer-style adapters without claiming implemented support.
+- [Local Adapter Implementation Checklist](LOCAL_ADAPTER_IMPLEMENTATION_CHECKLIST.md): future implementation gates for local adapter PRs before any adapter code is written.
 - [Local Preview Quickstart](LOCAL_PREVIEW_QUICKSTART.md): first-time local setup for IgnisPrompt + Aethra, live-local loading, and report export.
 - [Local Preview Release Checklist](LOCAL_PREVIEW_RELEASE_CHECKLIST.md): repeatable local preview release verification, manual checks, tag steps, and rollback notes.
 - [Local Preview 0.1.0 Release Notes Draft](releases/LOCAL_PREVIEW_0_1_0.md): draft release notes, boundaries, limitations, and verification commands.
