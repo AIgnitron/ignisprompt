@@ -110,7 +110,7 @@ The default Rust tests cover the Aethra v0.1 methodology fields on audit events,
 
 The endpoint is local-only and derived from in-memory audit events. Tests should not add telemetry, network calls, cloud calls, external coefficient lookup, or global opt-in pools. The output must remain framed as estimated, proxy, counterfactual, and methodology-dependent.
 
-The Aethra client tests cover `sustainabilityMetrics(period)`, period query encoding, and unsupported sustainability response shapes. Aethra data-source tests cover local error labels for the sustainability metrics endpoint. Sustainability report tests cover Markdown formatting, deterministic JSON shape, methodology/disclaimer fields, and conservative claim language. UI-level browser tests are not part of the current app test setup.
+The Aethra client tests cover `sustainabilityMetrics(period)`, period query encoding, and unsupported sustainability response shapes. Aethra data-source tests cover local error labels for the sustainability metrics endpoint. Sustainability report tests cover structured Markdown sections, deterministic schema-versioned JSON shape, methodology/confidence/disclaimer fields, export limitations, fixture and live-local report sources, excluded prompt/raw audit/machine fields, and conservative claim language. UI-level browser tests are not part of the current app test setup.
 
 For local sustainability report export changes, run:
 
@@ -120,7 +120,7 @@ npm test
 npm run build
 ```
 
-The export path should remain browser-local. Tests and implementation should not add telemetry, cloud calls, external network calls, external coefficient lookup, persistence, global aggregation, request content, prompts, raw audit event text, PII, or machine identifiers.
+The export path should remain browser-local. Tests and implementation should not add telemetry, cloud calls, external network calls, external coefficient lookup, persistence, global aggregation, request content, prompts, raw audit event bodies, PII, machine identifiers, hostnames, usernames, filesystem paths, secrets, or API keys.
 
 ## Sustainability language guardrail
 

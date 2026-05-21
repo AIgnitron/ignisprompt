@@ -9,38 +9,59 @@ export type SustainabilityReportInput = {
 };
 
 export type SustainabilityJsonReport = {
+  report_schema_version: "aethra-sustainability-report-0.1";
   generated_at: string;
-  data_source: SustainabilityReportDataSource;
+  source: SustainabilityReportDataSource;
   period: string;
-  requests_total: number;
-  local_request_rate: number;
+  summary: {
+    requests_total: number;
+    local_request_rate: number;
+  };
+  estimates: {
+    estimated_cloud_cost_avoided_usd: number;
+    estimated_carbon_avoided_kgco2e: number;
+    estimated_data_kept_local_gb: number;
+  };
   tier_breakdown: Record<string, number>;
-  estimated_cloud_cost_avoided_usd: number;
-  estimated_carbon_avoided_kgco2e: number;
-  estimated_data_kept_local_gb: number;
-  baseline_provider: string;
-  baseline_model: string;
-  methodology_version: string;
+  baseline: {
+    provider: string;
+    model: string;
+  };
+  methodology: {
+    version: string;
+    framing: string;
+  };
   confidence: string;
   disclaimer: string;
-  safety_boundaries: string[];
+  limitations: string[];
+  local_only: true;
+  export_notes: string[];
 };
 
-export const sustainabilityReportSafetyBoundaries = [
-  "local-only report generated in the browser",
-  "no telemetry",
-  "no cloud calls",
-  "no external coefficient lookup",
-  "no SaaS backend",
-  "no global opt-in aggregation",
-  "no request content, prompts, raw audit text, PII, or machine identifiers",
+export const sustainabilityReportLimitations = [
   "counterfactual proxy estimates only",
   "methodology-dependent",
   "not measured energy use",
   "not actual carbon accounting",
   "not ESG certification",
   "not production compliance evidence",
-];
+  "not certified sustainability reporting",
+] as const;
+
+export const sustainabilityReportExportNotes = [
+  "local-only report generated in the browser",
+  "client-side generation only",
+  "no telemetry",
+  "no uploads",
+  "no cloud calls",
+  "no SaaS backend",
+  "no external coefficient lookup",
+  "no GitHub lookup",
+  "no update checks",
+  "no polling",
+  "no localStorage or sessionStorage persistence",
+  "no prompts, raw request text, raw audit event bodies, PII, machine identifiers, hostnames, usernames, filesystem paths, secrets, or API keys",
+] as const;
 
 const requiredFraming =
   "These values are routing-aware counterfactual proxy estimates. They are methodology-dependent and are not measured energy use, not actual carbon accounting, not ESG certification, and not production compliance evidence.";
@@ -55,24 +76,28 @@ export function buildSustainabilityMarkdownReport(
     .join("\n");
 
   return [
-    "# Aethra Sustainability Monitor — Local Report",
+    "# Aethra Sustainability Monitor - Local Report",
     "",
     requiredFraming,
     "",
+    "## Report Metadata",
+    "",
+    `- report_schema_version: ${report.report_schema_version}`,
+    `- generated_at: ${report.generated_at}`,
+    `- source: ${report.source}`,
+    `- period: ${report.period}`,
+    `- local_only: ${String(report.local_only)}`,
+    "",
     "## Summary",
     "",
-    `- generated_at: ${report.generated_at}`,
-    `- data_source: ${report.data_source}`,
-    `- period: ${report.period}`,
-    `- requests_total: ${report.requests_total}`,
-    `- local_request_rate: ${formatRate(report.local_request_rate)}`,
-    `- estimated_cloud_cost_avoided_usd: ${formatFixed(report.estimated_cloud_cost_avoided_usd)}`,
-    `- estimated CO₂ avoided: ${formatFixed(report.estimated_carbon_avoided_kgco2e)} kgCO2e`,
-    `- estimated_data_kept_local_gb: ${formatFixed(report.estimated_data_kept_local_gb)}`,
-    `- baseline_provider: ${report.baseline_provider}`,
-    `- baseline_model: ${report.baseline_model}`,
-    `- methodology_version: ${report.methodology_version}`,
-    `- confidence: ${report.confidence}`,
+    `- requests_total: ${report.summary.requests_total}`,
+    `- local_request_rate: ${formatRate(report.summary.local_request_rate)}`,
+    "",
+    "## Key Estimates",
+    "",
+    `- estimated_cloud_cost_avoided_usd: ${formatFixed(report.estimates.estimated_cloud_cost_avoided_usd)}`,
+    `- estimated CO₂e avoided: ${formatFixed(report.estimates.estimated_carbon_avoided_kgco2e)} kgCO2e`,
+    `- estimated_data_kept_local_gb: ${formatFixed(report.estimates.estimated_data_kept_local_gb)}`,
     "",
     "## Tier Breakdown",
     "",
@@ -80,13 +105,28 @@ export function buildSustainabilityMarkdownReport(
     "| --- | ---: |",
     tierRows || "| none | 0 |",
     "",
-    "## Disclaimer",
+    "## Baseline Assumptions",
+    "",
+    `- baseline_provider: ${report.baseline.provider}`,
+    `- baseline_model: ${report.baseline.model}`,
+    "",
+    "## Methodology and Confidence",
+    "",
+    `- methodology_version: ${report.methodology.version}`,
+    `- confidence: ${report.confidence}`,
+    `- framing: ${report.methodology.framing}`,
+    "",
+    "## Safety / Disclaimer",
     "",
     report.disclaimer,
     "",
-    "## Safety Boundaries / Limitations",
+    "## Limitations",
     "",
-    ...report.safety_boundaries.map((boundary) => `- ${boundary}`),
+    ...report.limitations.map((limitation) => `- ${limitation}`),
+    "",
+    "## Local-Only Export Notes",
+    "",
+    ...report.export_notes.map((note) => `- ${note}`),
     "",
   ].join("\n");
 }
@@ -97,23 +137,35 @@ export function buildSustainabilityJsonReport(
   const { metrics } = input;
 
   return {
+    report_schema_version: "aethra-sustainability-report-0.1",
     generated_at: input.generatedAt,
-    data_source: input.dataSource,
+    source: input.dataSource,
     period: metrics.period,
-    requests_total: metrics.requests_total,
-    local_request_rate: metrics.local_request_rate,
+    summary: {
+      requests_total: metrics.requests_total,
+      local_request_rate: metrics.local_request_rate,
+    },
+    estimates: {
+      estimated_cloud_cost_avoided_usd:
+        metrics.estimated_cloud_cost_avoided_usd,
+      estimated_carbon_avoided_kgco2e:
+        metrics.estimated_carbon_avoided_kgco2e,
+      estimated_data_kept_local_gb: metrics.estimated_data_kept_local_gb,
+    },
     tier_breakdown: sortTierBreakdown(metrics.tier_breakdown),
-    estimated_cloud_cost_avoided_usd:
-      metrics.estimated_cloud_cost_avoided_usd,
-    estimated_carbon_avoided_kgco2e:
-      metrics.estimated_carbon_avoided_kgco2e,
-    estimated_data_kept_local_gb: metrics.estimated_data_kept_local_gb,
-    baseline_provider: metrics.baseline_provider,
-    baseline_model: metrics.baseline_model,
-    methodology_version: metrics.methodology_version,
+    baseline: {
+      provider: metrics.baseline_provider,
+      model: metrics.baseline_model,
+    },
+    methodology: {
+      version: metrics.methodology_version,
+      framing: requiredFraming,
+    },
     confidence: metrics.confidence,
     disclaimer: metrics.disclaimer,
-    safety_boundaries: [...sustainabilityReportSafetyBoundaries],
+    limitations: [...sustainabilityReportLimitations],
+    local_only: true,
+    export_notes: [...sustainabilityReportExportNotes],
   };
 }
 

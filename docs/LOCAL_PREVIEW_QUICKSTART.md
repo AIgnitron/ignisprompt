@@ -120,7 +120,9 @@ In Sustainability Preview:
 3. Click `Export Markdown`.
 4. Click `Export JSON`.
 
-The reports are generated client-side from the currently displayed metrics. They are local-only reports and include methodology, confidence, and disclaimer fields.
+The reports are generated client-side from the currently displayed metrics. They are local-only reports and include structured schema, methodology, confidence, disclaimer, limitations, and local-only export notes. They are counterfactual proxy estimates, not actual carbon accounting, not ESG certification, not certified sustainability reporting, and not production compliance evidence.
+
+The exports do not include prompts, raw request text, raw audit event bodies, PII, machine identifiers, hostnames, usernames, filesystem paths, secrets, or API keys. Aethra does not upload reports, call telemetry, call cloud services, call GitHub, check for updates, poll endpoints, or persist export state in local storage or session storage.
 
 ## 9. Stop Services
 

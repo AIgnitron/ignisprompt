@@ -8,10 +8,10 @@ IgnisPrompt audit events
 -> Aethra live-local Sustainability Preview
 -> sustainability language guardrails
 -> review hardening
--> local Markdown/JSON report export
+-> structured local Markdown/JSON report export
 ```
 
-This checkpoint is about observability for local-first routing decisions. Aignitron is not just showing AI usage. Aethra shows the cloud usage avoided by local-first routing decisions, using estimated CO₂ avoided, counterfactual proxy estimates, and methodology-dependent caveats.
+This checkpoint is about observability for local-first routing decisions. Aignitron is not just showing AI usage. Aethra shows the cloud usage avoided by local-first routing decisions, using estimated CO₂e avoided, counterfactual proxy estimates, and methodology-dependent caveats.
 
 For the v0.1 assumptions, limitations, and reviewer checklist, see the [Aethra Sustainability Monitor methodology](AETHRA_SUSTAINABILITY_METHODOLOGY.md).
 
@@ -33,7 +33,9 @@ For the v0.1 assumptions, limitations, and reviewer checklist, see the [Aethra S
 - `methodology_version`, `confidence`, and disclaimer shown
 - language guardrail wired into `dev-check`
 - invalid/out-of-range period validation
-- local Markdown/JSON report export from the currently displayed metrics
+- structured local Markdown/JSON report export from the currently displayed metrics
+- JSON report schema version `aethra-sustainability-report-0.1`
+- exported methodology, confidence, disclaimer, limitations, and local-only notes
 
 ## Safety Boundaries
 
@@ -41,9 +43,12 @@ For the v0.1 assumptions, limitations, and reviewer checklist, see the [Aethra S
 - no cloud calls
 - no external coefficient lookup
 - no global opt-in pool
+- no GitHub lookup
+- no update checks
 - no polling
 - no persistence
 - not ESG certification
+- not certified sustainability reporting
 - not production compliance evidence
 - no report upload
 - values remain estimated, proxy, counterfactual, and methodology-dependent
@@ -54,11 +59,12 @@ These values are counterfactual proxy estimates. They are not actual carbon acco
 
 Use careful language:
 
-- estimated CO₂ avoided
+- estimated CO₂e avoided
 - counterfactual proxy estimates
 - methodology-dependent
 - not actual carbon accounting
 - not ESG certification
+- not certified sustainability reporting
 - not production compliance evidence
 
 The sustainability monitor should stay framed as a local-first routing observability milestone, not a certified sustainability, carbon, or compliance system.

@@ -38,8 +38,15 @@ The current path adds:
 - no telemetry
 - no cloud calls
 - no external coefficient lookup
+- no GitHub lookup
+- no update checks
+- no polling
 - no uploaded prompts
 - no raw request content in exports
+
+The local report export is generated in the browser from the currently displayed aggregate metrics. Its Markdown layout includes report metadata, summary, key estimates, tier breakdown, baseline assumptions, methodology/confidence, safety/disclaimer language, limitations, and local-only export notes. Its JSON layout uses `report_schema_version: "aethra-sustainability-report-0.1"` with nested `summary`, `estimates`, `baseline`, and `methodology` sections plus `confidence`, `disclaimer`, `limitations`, and `local_only: true`.
+
+Exports must not include prompts, raw request text, raw audit event bodies, PII, machine identifiers, hostnames, usernames, filesystem paths, secrets, or API keys.
 
 Aethra observes IgnisPrompt state. IgnisPrompt remains the source of routing, audit, policy, and endpoint behavior.
 
@@ -200,5 +207,5 @@ For future methodology changes, check:
 - `confidence` reviewed
 - disclaimer still present
 - `./scripts/check-sustainability-language.sh` passes
-- exports include `methodology_version`, `confidence`, and `disclaimer`
+- exports include schema version, methodology, confidence, disclaimer, limitations, and local-only notes
 - no telemetry, cloud call, or external lookup added unless explicitly scoped
