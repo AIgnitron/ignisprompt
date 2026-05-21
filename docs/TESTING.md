@@ -92,6 +92,8 @@ Overview live-local diagnostics are derived from manual local loads only. Tests 
 
 Overview also includes copyable local commands for preview verification and debugging. The command definitions are covered by Aethra unit tests. Copy behavior uses the browser Clipboard API when available, shows an in-app fallback message when clipboard access is unavailable or fails, and does not execute commands, persist state, add telemetry, or call remote services.
 
+Aethra Audit Events search and filters run in the browser against the currently displayed fixture or manually loaded live-local records. Request ID copy helpers use the same Clipboard API boundary as command copy helpers: no command execution, no persistence, no telemetry, and no remote calls.
+
 Aethra empty-state copy is covered by unit tests for fixture mode, missing audit events, model status hints, sustainability metrics, and manual local error guidance. The UI should explain missing data, fixture fallback, daemon startup, and manual refresh actions without auto-loading, polling, storage persistence, telemetry, cloud calls, GitHub calls, or update checks.
 
 If a daemon is already running, omit `--start-daemon`:
@@ -118,7 +120,7 @@ The endpoint is local-only and derived from in-memory audit events. Tests should
 
 The `ignispromptctl sustainability` tests cover default and custom period URL generation, supported-period validation, representative summary formatting, and invalid response-shape detection. JSON output is a CLI presentation option for the same local endpoint response; it is not a report upload or external lookup.
 
-The Aethra client tests cover `sustainabilityMetrics(period)`, period query encoding, and unsupported sustainability response shapes. Aethra data-source tests cover local error labels for the sustainability metrics endpoint. Sustainability report tests cover structured Markdown sections, deterministic schema-versioned JSON shape, methodology/confidence/disclaimer fields, export limitations, fixture and live-local report sources, excluded prompt/raw audit/machine fields, and conservative claim language. UI-level browser tests are not part of the current app test setup.
+The Aethra client tests cover `sustainabilityMetrics(period)`, period query encoding, and unsupported sustainability response shapes. Aethra data-source tests cover local error labels for the sustainability metrics endpoint. Sustainability report tests cover structured Markdown sections, deterministic schema-versioned JSON shape, methodology/confidence/disclaimer fields, export limitations, fixture and live-local report sources, excluded prompt/raw audit/machine fields, and conservative claim language. Sustainability Preview export guidance and methodology copy helpers should remain browser-local UI behavior; UI-level browser tests are not part of the current app test setup.
 
 For local sustainability report export changes, run:
 

@@ -48,7 +48,7 @@ Let the user enter a synthetic or non-sensitive prompt and optional domain/model
 
 ### Audit Events
 
-Render recent events from `GET /v1/audit/events` in a filterable table with timestamp, event type, route code, tier, domain, model id, `data_left_device`, warnings, cache metadata, and completion output metadata. The UI should state that these are local process records, not signed, immutable, encrypted, or certified audit evidence.
+Render recent events from `GET /v1/audit/events` in a filterable table with timestamp, event type, route code, tier, domain, model id, `data_left_device`, warnings, cache metadata, and completion output metadata. The UI should label search and filters as local-preview browser filtering, clarify that rows summarize local route decisions and route explanation metadata, and state that these are local process records, not signed, immutable, encrypted, or certified audit evidence. Copy helpers for request IDs may write text to the browser clipboard only; they should not persist state, execute commands, or call external services.
 
 ### Model And Runner Status
 
@@ -76,7 +76,7 @@ Sustainability Preview can generate a structured local Markdown report and a sch
 
 The Markdown report includes report metadata, source, period, summary, key estimates, tier breakdown, baseline assumptions, methodology and confidence, safety/disclaimer language, limitations, and local-only export notes. The JSON report includes `report_schema_version: "aethra-sustainability-report-0.1"`, `generated_at`, `source`, `period`, `summary`, `estimates`, `tier_breakdown`, `baseline`, `methodology`, `confidence`, `disclaimer`, `limitations`, and `local_only: true`.
 
-The report is generated client-side in the browser. Aethra does not persist the report to local storage or session storage, send it to a backend, call telemetry, call cloud services, look up external coefficients, call GitHub, check for updates, poll endpoints, or join a global opt-in aggregation pool. The report must not include request content, prompts, raw audit event bodies, PII, machine identifiers, hostnames, usernames, filesystem paths, secrets, or API keys.
+The report is generated client-side in the browser from the displayed aggregate metrics. Aethra does not persist the report to local storage or session storage, send it to a backend, call telemetry, call cloud services, look up external coefficients, call GitHub, check for updates, poll endpoints, or join a global opt-in aggregation pool. The report must not include request content, prompts, raw audit text, raw audit event bodies, PII, machine identifiers, hostnames, usernames, filesystem paths, secrets, or API keys. Copy helpers for methodology metadata may write text to the browser clipboard only; they should not persist state, execute commands, or call external services.
 
 Report language must stay conservative: estimated cloud cost avoided, estimated CO₂e avoided, counterfactual proxy estimates, methodology-dependent, not actual carbon accounting, not ESG certification, not certified sustainability reporting, and not production compliance evidence.
 

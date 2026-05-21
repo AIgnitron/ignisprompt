@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   auditEventFixtures,
   healthFixture,
@@ -62,6 +62,29 @@ export function SustainabilityPreview({
   const reportDataSource: SustainabilityReportDataSource = isLiveLoaded
     ? "live-local"
     : "fixture";
+  const [methodologyCopyStatus, setMethodologyCopyStatus] = useState<
+    "idle" | "copied" | "error"
+  >("idle");
+
+  useEffect(() => {
+    setMethodologyCopyStatus("idle");
+  }, [metrics.methodology_version]);
+
+  async function copyMethodologyVersion() {
+    if (!globalThis.navigator?.clipboard?.writeText) {
+      setMethodologyCopyStatus("error");
+      return;
+    }
+
+    try {
+      await globalThis.navigator.clipboard.writeText(
+        metrics.methodology_version,
+      );
+      setMethodologyCopyStatus("copied");
+    } catch {
+      setMethodologyCopyStatus("error");
+    }
+  }
 
   function exportMarkdownReport() {
     const generatedAt = new Date().toISOString();
@@ -190,13 +213,33 @@ export function SustainabilityPreview({
             </div>
             <div>
               <dt>methodology_version</dt>
-              <dd>{metrics.methodology_version}</dd>
+              <dd className="metadata-copy-value">
+                <code>{metrics.methodology_version}</code>
+                <button
+                  type="button"
+                  className="secondary-button compact-button"
+                  onClick={copyMethodologyVersion}
+                >
+                  Copy
+                </button>
+              </dd>
             </div>
             <div>
               <dt>confidence</dt>
               <dd>{metrics.confidence}</dd>
             </div>
           </dl>
+          {methodologyCopyStatus !== "idle" ? (
+            <p
+              className={`copy-feedback copy-feedback-${
+                methodologyCopyStatus === "copied" ? "ok" : "warning"
+              }`}
+            >
+              {methodologyCopyStatus === "copied"
+                ? "Copied methodology version"
+                : "Clipboard unavailable; select the methodology version."}
+            </p>
+          ) : null}
         </section>
 
         <section className="panel" aria-label="Tier breakdown">
@@ -388,6 +431,16 @@ function SustainabilityLiveControl({
 
         <div className="report-export-card">
           <span>Local report export</span>
+          <p>
+            Markdown and JSON reports are generated in this browser from the
+            displayed aggregate metrics. They exclude prompts, raw audit text,
+            PII, and machine identifiers.
+          </p>
+          <p>
+            Use exports for local preview review and debugging. Estimates are
+            methodology-dependent proxy/counterfactual indicators, not certified
+            sustainability reporting and not ESG certification.
+          </p>
           <button
             type="button"
             className="secondary-button"
