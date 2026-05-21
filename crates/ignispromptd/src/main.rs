@@ -2202,6 +2202,77 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
+    fn assert_json_contains_keys(value: &Value, expected_keys: &[&str]) {
+        let object = value.as_object().expect("expected JSON object");
+        for key in expected_keys {
+            assert!(
+                object.contains_key(*key),
+                "expected JSON object to contain key '{key}' but got keys: {:?}",
+                object.keys().collect::<Vec<_>>()
+            );
+        }
+    }
+
+    fn assert_chat_completion_json_schema(encoded: &Value) {
+        assert_json_contains_keys(
+            encoded,
+            &["id", "object", "created", "model", "route", "choices"],
+        );
+        assert!(encoded["id"].as_str().is_some_and(|id| !id.is_empty()));
+        assert_eq!(encoded["object"], "chat.completion");
+        assert!(encoded["created"].is_i64());
+        assert!(encoded["model"]
+            .as_str()
+            .is_some_and(|model| !model.is_empty()));
+
+        assert_json_keys(
+            &encoded["route"],
+            &[
+                "tier",
+                "route_code",
+                "domain",
+                "model_id",
+                "cloud_considered",
+                "cloud_allowed",
+                "data_left_device",
+            ],
+        );
+        assert!(encoded["route"]["tier"].is_string());
+        assert!(encoded["route"]["route_code"].is_string());
+        assert!(encoded["route"]["domain"].is_string());
+        assert!(encoded["route"]["model_id"].is_string() || encoded["route"]["model_id"].is_null());
+        assert!(encoded["route"]["cloud_considered"].is_boolean());
+        assert!(encoded["route"]["cloud_allowed"].is_boolean());
+        assert!(encoded["route"]["data_left_device"].is_boolean());
+
+        let choices = encoded["choices"].as_array().expect("choices array");
+        assert!(!choices.is_empty());
+        assert_json_keys(&choices[0], &["index", "message", "finish_reason"]);
+        assert!(choices[0]["index"].is_u64());
+        assert_json_keys(&choices[0]["message"], &["role", "content"]);
+        assert_eq!(choices[0]["message"]["role"], "assistant");
+        assert!(choices[0]["message"]["content"].is_string());
+    }
+
+    fn assert_chat_completion_chunk_schema(encoded: &Value) {
+        assert_json_contains_keys(encoded, &["id", "object", "created", "model", "choices"]);
+        assert!(encoded["id"].as_str().is_some_and(|id| !id.is_empty()));
+        assert_eq!(encoded["object"], "chat.completion.chunk");
+        assert!(encoded["created"].is_i64());
+        assert!(encoded["model"]
+            .as_str()
+            .is_some_and(|model| !model.is_empty()));
+
+        let choices = encoded["choices"].as_array().expect("choices array");
+        assert!(!choices.is_empty());
+        assert_json_contains_keys(&choices[0], &["index", "delta"]);
+        assert!(choices[0]["index"].is_u64());
+        assert!(choices[0]["delta"].is_object());
+        if let Some(finish_reason) = choices[0].get("finish_reason") {
+            assert!(finish_reason.is_string() || finish_reason.is_null());
+        }
+    }
+
     #[tokio::test]
     async fn health_endpoint_response_schema_is_locked_for_local_preview_clients() {
         let state = state_with_models(vec![legal_model()]);
@@ -2737,6 +2808,65 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn chat_completion_non_streaming_response_schema_is_locked_for_local_preview_clients() {
+        let state = state_with_models_and_cache(vec![legal_model()], false);
+        let request = req(
+            "Review this indemnification clause in a vendor services agreement and return the key risks.",
+            Some("ignisprompt/legal"),
+        );
+
+        let response = call_chat_completions_response(&state, request).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let encoded: Value = serde_json::from_slice(&body).unwrap();
+
+        assert_chat_completion_json_schema(&encoded);
+        assert_eq!(encoded["choices"][0]["finish_reason"], "stop");
+        assert!(
+            encoded["choices"][0]["message"]["content"]
+                .as_str()
+                .is_some_and(|content| !content.is_empty()),
+            "expected assistant content to be present"
+        );
+    }
+
+    #[tokio::test]
+    async fn chat_completion_route_metadata_schema_and_local_safety_flags_are_locked() {
+        let state = state_with_models_and_cache(vec![legal_model()], false);
+        let request = req(
+            "Review this indemnification clause in a vendor services agreement and return the key risks.",
+            Some("ignisprompt/legal"),
+        );
+
+        let response = call_chat_completions_response(&state, request).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let encoded: Value = serde_json::from_slice(&body).unwrap();
+        let route = &encoded["route"];
+
+        assert_json_keys(
+            route,
+            &[
+                "tier",
+                "route_code",
+                "domain",
+                "model_id",
+                "cloud_considered",
+                "cloud_allowed",
+                "data_left_device",
+            ],
+        );
+        assert_eq!(route["tier"], "TIER_3");
+        assert_eq!(route["route_code"], "DOMAIN_MODEL_SELECTED");
+        assert_eq!(route["domain"], "legal");
+        assert_eq!(route["model_id"], "legal-saul-placeholder");
+        assert_eq!(route["cloud_considered"], false);
+        assert_eq!(route["cloud_allowed"], false);
+        assert_eq!(route["data_left_device"], false);
+    }
+
+    #[tokio::test]
     async fn chat_completion_stream_true_returns_sse_compatible_chunks() {
         let state = state_with_models_and_cache(vec![legal_model()], false);
         let mut request = req(
@@ -2762,18 +2892,74 @@ mod tests {
         assert_eq!(events.last().copied(), Some("[DONE]"));
 
         let first_chunk: serde_json::Value = serde_json::from_str(events[0]).unwrap();
+        assert_chat_completion_chunk_schema(&first_chunk);
         assert_eq!(first_chunk["object"], "chat.completion.chunk");
         assert_eq!(first_chunk["route"]["tier"], "TIER_3");
+        assert_eq!(first_chunk["route"]["route_code"], "DOMAIN_MODEL_SELECTED");
+        assert_eq!(first_chunk["route"]["domain"], "legal");
+        assert_eq!(first_chunk["route"]["model_id"], "legal-saul-placeholder");
+        assert_eq!(first_chunk["route"]["cloud_considered"], false);
+        assert_eq!(first_chunk["route"]["cloud_allowed"], false);
+        assert_eq!(first_chunk["route"]["data_left_device"], false);
         assert_eq!(first_chunk["choices"][0]["delta"]["role"], "assistant");
         assert!(
             first_chunk["choices"][0]["delta"].get("content").is_some(),
             "expected the first streaming chunk to include content"
         );
 
+        let content_chunks = events[..events.len() - 1]
+            .iter()
+            .filter_map(|event| serde_json::from_str::<Value>(event).ok())
+            .filter(|chunk| {
+                chunk["choices"][0]["delta"]["content"]
+                    .as_str()
+                    .is_some_and(|content| !content.is_empty())
+            })
+            .count();
+        assert!(
+            content_chunks > 0,
+            "expected at least one streaming chunk with delta content"
+        );
+
         let final_chunk: serde_json::Value =
             serde_json::from_str(events[events.len() - 2]).unwrap();
+        assert_chat_completion_chunk_schema(&final_chunk);
         assert_eq!(final_chunk["object"], "chat.completion.chunk");
         assert_eq!(final_chunk["choices"][0]["finish_reason"], "stop");
+    }
+
+    #[tokio::test]
+    async fn chat_completion_invalid_input_error_response_shape_is_locked() {
+        let state = state_with_models_and_cache(vec![legal_model()], false);
+        let request = ChatCompletionRequest {
+            model: Some("ignisprompt/legal".to_string()),
+            messages: vec![],
+            stream: Some(false),
+            metadata: HashMap::new(),
+        };
+
+        let response = call_chat_completions_response(&state, request).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let encoded: Value = serde_json::from_slice(&body).unwrap();
+
+        assert_chat_completion_json_schema(&encoded);
+        assert_eq!(encoded["object"], "chat.completion");
+        assert_eq!(encoded["model"], "ignisprompt/legal");
+        assert_eq!(encoded["route"]["tier"], "ERR");
+        assert_eq!(encoded["route"]["route_code"], "PREFLIGHT_REJECTED");
+        assert_eq!(encoded["route"]["domain"], "unknown");
+        assert_eq!(encoded["route"]["model_id"], Value::Null);
+        assert_eq!(encoded["route"]["cloud_considered"], false);
+        assert_eq!(encoded["route"]["cloud_allowed"], false);
+        assert_eq!(encoded["route"]["data_left_device"], false);
+        assert_eq!(encoded["choices"][0]["index"], 0);
+        assert_eq!(encoded["choices"][0]["message"]["role"], "assistant");
+        assert!(encoded["choices"][0]["message"]["content"]
+            .as_str()
+            .is_some_and(|content| content.contains("messages is empty")));
+        assert_eq!(encoded["choices"][0]["finish_reason"], "error");
     }
 
     #[tokio::test]
