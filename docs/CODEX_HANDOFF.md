@@ -38,6 +38,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - Post-v0.1.0 hardening branch `feat/aethra-version-status` wires Aethra Overview to show `GET /v1/status/version` in live-local mode with fixture fallback.
 - Post-v0.1.0 hardening branch `feat/aethra-live-local-diagnostics` improves Aethra Overview live-local connection diagnostics without backend changes.
 - Post-v0.1.0 hardening branch `feat/aethra-copyable-local-commands` adds an Aethra Overview Local Commands panel with copyable terminal commands for local preview verification/debugging.
+- Adapter concepts are documented as a design direction for possible future local LiteLLM-style and DreamServer-style integration. No adapter is implemented, no compatibility guarantee is made, and IgnisPrompt remains a local policy/routing/audit control plane rather than another model server.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
 - Issue #43 is closed after Saul 7B local legal candidate evidence was documented.
 
@@ -56,6 +57,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - `GET /v1/status/version` reports daemon service, crate version, release channel `local-preview`, local-only flag, build profile, start time, nullable git commit metadata, and conservative warning language. It is local-only support/debugging metadata, not telemetry, an update checker, an external release lookup, or a production readiness signal.
 - `ignispromptctl status-version` reads `GET /v1/status/version` and prints the same local preview metadata.
 - `ignispromptctl sustainability --period 30d` reads `GET /v1/metrics/sustainability?period=<period>` and prints aggregate local sustainability metrics. Supported periods are `7d`, `30d`, and `90d`; the default is `30d`, and `--json` prints the same local endpoint response as formatted JSON.
+- `docs/ADAPTER_CONCEPTS.md` is docs-only design material. It does not add LiteLLM support, DreamServer support, proxying, runner controls, model controls, cloud calls, telemetry, external lookups, or API behavior.
 - Local-preview schema-lock tests protect the JSON field names and high-level response shapes consumed by Aethra, smoke checks, and `ignispromptctl` for health, models, model/runner status, version status, audit events, sustainability metrics, and invalid sustainability period errors.
 - Aethra Overview can manually load daemon version status in live-local mode and otherwise shows fixture fallback release status metadata.
 - Aethra Overview shows live-local connection diagnostics derived from manual local loads only. Diagnostics distinguish fixture mode active, live-local ready, live-local connected, daemon unreachable, endpoint unavailable, invalid response shape, last refresh failed, and last refresh succeeded states.
@@ -170,6 +172,7 @@ Add `--include-route-explain` only when you intentionally want to append a local
 5. Keep Aethra live-local diagnostics limited to local connection/debugging state; avoid polling, persistence, external lookup, cloud calls, update checks, readiness claims, or controls.
 6. Keep copyable command helpers local and explicit; avoid dashboard-side command execution, remote command language, telemetry, or persistence.
 7. Keep any future model and runner status work limited to hints; avoid readiness, certification, legal-quality, or compliance claims.
+8. Treat any LiteLLM-style or DreamServer-style adapter work as future local-preview design until implementation, tests, docs, and review land; keep adapters explicit, local, configurable, and disabled by default.
 
 Avoid cloud telemetry, analytics, auth providers, a SaaS backend, model install/delete controls, and production/legal/compliance/sustainability overclaims unless a future task explicitly scopes and reviews those changes.
 
