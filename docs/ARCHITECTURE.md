@@ -20,6 +20,8 @@ The architecture is intentionally small. It validates the local routing control 
 
 - `GET /health`: returns daemon status, package version, start time, local-only flag, and model count.
 - `GET /v1/models`: returns loaded model manifests.
+- `GET /v1/status/models`: returns local preview model and runner status hints, including model identity, manifest/path availability, runner configuration, last-checked metadata, and conservative warnings. This is a debug/status surface only; it is not a model-quality, production-readiness, legal-accuracy, or compliance-evidence claim.
+- `GET /v1/status/version`: returns local preview daemon version and release status metadata, including service name, package version, release channel, local-only flag, build profile, nullable git commit, start time, and conservative warnings. It does not perform telemetry, update checking, external release lookup, GitHub calls, cloud calls, or production-readiness validation.
 - `POST /v1/route/explain`: returns a route decision, human-readable explanation, and warnings.
 - `POST /v1/chat/completions`: accepts an OpenAI-compatible request shape, preserves the current JSON response when `stream` is missing or `false`, and returns a basic SSE-compatible scaffold when `stream` is `true`.
 - `GET /v1/audit/events`: returns audit events accumulated in the current daemon process.

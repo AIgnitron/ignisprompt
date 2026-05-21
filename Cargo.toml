@@ -8,7 +8,7 @@ resolver = "2"
 [workspace.package]
 edition = "2021"
 license = "Apache-2.0"
-authors = ["AIGNITRON"]
+authors = ["AIgnitron"]
 repository = "https://github.com/aignitron/ignisprompt"
 
 [workspace.dependencies]
