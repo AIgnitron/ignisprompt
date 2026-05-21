@@ -8,6 +8,7 @@ import type {
 import { modelFixtures } from "../fixtures/aethraFixture";
 import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
+import { PageHelp } from "../components/PageHelp";
 import { StatusBadge } from "../components/StatusBadge";
 import {
   countDeclaredLocalPaths,
@@ -84,6 +85,10 @@ export function ModelRunnerStatus({
         <div>
           <p className="eyebrow">Model / Runner Status</p>
           <h2>Model and runner status hints</h2>
+          <p className="page-subtitle">
+            Review manifest metadata and local daemon status hints without
+            changing models or runners.
+          </p>
         </div>
         <div className="status-strip" aria-label="Model metadata status">
           <StatusBadge tone={isLiveModelsLoaded ? "ok" : "neutral"}>
@@ -93,6 +98,14 @@ export function ModelRunnerStatus({
           <StatusBadge tone="warning">Status hints only</StatusBadge>
         </div>
       </header>
+
+      <PageHelp
+        items={[
+          "Review model manifests and model and runner status hints from fixture data or manual live-local refresh.",
+          "Status values are configuration, path, and runner hints only.",
+          "Aethra observes local status; it does not install, delete, start, stop, or change models or runners.",
+        ]}
+      />
 
       <ModelMetadataPanel
         dataMode={dataMode}

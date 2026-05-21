@@ -3,6 +3,7 @@ import { createIgnisPromptClient } from "../api/client";
 import { RouteExplainResponse } from "../api/contracts";
 import { routeExplainFixture } from "../fixtures/aethraFixture";
 import { EmptyState } from "../components/EmptyState";
+import { PageHelp } from "../components/PageHelp";
 import { StatusBadge } from "../components/StatusBadge";
 import {
   buildRouteExplainRequest,
@@ -142,6 +143,10 @@ export function RoutingExplorer({
         <div>
           <p className="eyebrow">Routing Explorer</p>
           <h2>Route inspection only</h2>
+          <p className="page-subtitle">
+            Inspect route decisions, tiers, explanations, and local-only policy
+            outcomes with fixture data or an explicit local request.
+          </p>
         </div>
         <div className="status-strip" aria-label="Routing Explorer status">
           <StatusBadge tone="neutral">Fixture default</StatusBadge>
@@ -149,6 +154,14 @@ export function RoutingExplorer({
           <StatusBadge tone="neutral">Read-only</StatusBadge>
         </div>
       </header>
+
+      <PageHelp
+        items={[
+          "Compare fixture route examples with an optional live local route-explain request.",
+          "Route tiers, route codes, warnings, and explanations come from IgnisPrompt.",
+          "Live route-explain stays on the configured local daemon and appends a local audit event.",
+        ]}
+      />
 
       <div className="routing-layout">
         <RouteExplainForm

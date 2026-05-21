@@ -67,6 +67,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - Aethra Overview shows copyable local commands for starting the daemon, starting Aethra, smoke/release checks, and local API endpoint inspection. Copying writes text to the browser clipboard only; Aethra does not execute commands.
 - Aethra now shows a local preview banner that keeps fixture mode, manual live-local loading, no telemetry, no cloud calls by default, and not-a-production-deployment boundaries visible.
 - Aethra groups live-local endpoint buttons as manual refresh actions. This is UI copy/layout only; it does not add polling, storage persistence, telemetry, cloud calls, GitHub calls, update checks, command execution, or backend behavior.
+- Aethra main pages now include lightweight "What this page shows" guidance panels and more consistent subtitles. This is UI guidance only and does not change data loading, routing, audit behavior, or endpoint shapes.
 - Aethra empty states now provide clearer local preview guidance for fixture mode, missing live-local data, unavailable daemon responses, valid empty endpoint responses, and panels that need manual refresh.
 
 ## Aethra Status
@@ -106,6 +107,8 @@ Aethra Overview live-local diagnostics explain next local steps such as starting
 Aethra Overview includes a Local Commands panel with copyable local preview helper commands. The commands are for the operator to run in a terminal. The panel does not add remote execution, telemetry, cloud calls, GitHub calls, update checks, polling, or local/session storage persistence.
 
 Aethra includes a local preview banner and grouped manual live-local refresh controls. Fixture mode remains the default, live local loading remains explicit/manual, and no polling, local/session storage persistence, telemetry, cloud calls, GitHub calls, update checks, command execution, backend changes, or API shape changes are added by this UI polish.
+
+Aethra main pages include small guidance panels that explain local preview status, route inspection, local audit records, model and runner status hints, and sustainability proxy indicators. These panels are static help copy and do not add model controls, runner controls, polling, telemetry, storage persistence, cloud calls, GitHub calls, update checks, command execution, backend changes, or API shape changes.
 
 Aethra empty states explain what data is missing, why fixture fallback may still be visible, and what local action to try next, such as starting `./scripts/start-dev.sh`, running `./scripts/smoke.sh`, or manually refreshing the relevant panel. These empty states are local-only UI copy. They do not auto-load data, poll endpoints, persist state, add telemetry, call cloud services, call GitHub, or perform update checks.
 

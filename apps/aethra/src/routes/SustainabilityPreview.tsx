@@ -13,6 +13,7 @@ import type {
 } from "../dataSource";
 import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
+import { PageHelp } from "../components/PageHelp";
 import { StatusBadge } from "../components/StatusBadge";
 import {
   buildSustainabilityJsonReportText,
@@ -98,6 +99,10 @@ export function SustainabilityPreview({
               ? "Live local: counterfactual proxy estimates"
               : "Preview only: proxy indicators"}
           </h2>
+          <p className="page-subtitle">
+            Review methodology-dependent estimates and export local reports from
+            the currently displayed metrics.
+          </p>
         </div>
         <div
           className="status-strip"
@@ -110,6 +115,14 @@ export function SustainabilityPreview({
           <StatusBadge tone="warning">Methodology-dependent</StatusBadge>
         </div>
       </header>
+
+      <PageHelp
+        items={[
+          "Review estimated, methodology-dependent proxy indicators from fixture data or manual live-local metrics.",
+          "Exports are generated locally from the currently displayed metrics and do not upload report data.",
+          "These values are not measured energy use, not actual carbon accounting, and not formal sustainability reporting.",
+        ]}
+      />
 
       <SustainabilityLiveControl
         dataMode={dataMode}

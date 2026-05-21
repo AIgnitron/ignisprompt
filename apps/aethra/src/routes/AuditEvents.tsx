@@ -4,6 +4,7 @@ import { auditEventFixtures } from "../api/fixtures";
 import type { AethraDataMode, LiveAuditEventsState } from "../dataSource";
 import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
+import { PageHelp } from "../components/PageHelp";
 import { StatusBadge } from "../components/StatusBadge";
 import {
   countAuditCacheHits,
@@ -71,6 +72,10 @@ export function AuditEvents({
         <div>
           <p className="eyebrow">Audit Events</p>
           <h2>Local audit records</h2>
+          <p className="page-subtitle">
+            Inspect fixture or manually loaded route history, warnings, and
+            local estimate fields.
+          </p>
         </div>
         <div className="status-strip" aria-label="Audit metadata status">
           <StatusBadge tone={isLiveAuditLoaded ? "ok" : "neutral"}>
@@ -79,6 +84,14 @@ export function AuditEvents({
           <StatusBadge tone="neutral">Read-only</StatusBadge>
         </div>
       </header>
+
+      <PageHelp
+        items={[
+          "Review local process audit records from fixture data or a manual live-local refresh.",
+          "Inspect route history, warnings, cache hints, and sustainability estimate fields.",
+          "Audit events are local records for observability, not signed evidence or production deployment proof.",
+        ]}
+      />
 
       <AuditMetadataPanel
         dataMode={dataMode}
