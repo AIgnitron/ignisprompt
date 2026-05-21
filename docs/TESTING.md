@@ -120,7 +120,7 @@ npm run smoke:local-api -- --start-daemon --include-route-explain
 
 The default Rust tests cover the Aethra v0.1 methodology fields on audit events, valid JSON shape for `GET /v1/metrics/sustainability?period=30d`, safe zero values with no audit data, local fail-closed/cloud-denied route counting, and always-present methodology/disclaimer fields.
 
-Local-preview API schema-lock tests cover the JSON field names and high-level response shapes consumed by Aethra, smoke checks, and `ignispromptctl` for `GET /health`, `GET /v1/models`, `GET /v1/status/models`, `GET /v1/status/version`, `GET /v1/audit/events`, `GET /v1/metrics/sustainability?period=30d`, and invalid sustainability period errors.
+Local-preview API schema-lock tests cover the JSON field names and high-level response shapes consumed by Aethra, smoke checks, and `ignispromptctl` for `GET /health`, `GET /v1/models`, `GET /v1/status/models`, `GET /v1/status/version`, `GET /v1/audit/events`, `GET /v1/metrics/sustainability?period=30d`, and invalid sustainability period errors. OpenAI-compatible `POST /v1/chat/completions` tests also lock the non-streaming response shape, streaming SSE chunk shape, route metadata, local-only route flags, UTF-8-safe streaming fragments, and representative invalid-input error shape for local-preview users and future local gateway planning.
 
 The endpoint is local-only and derived from in-memory audit events. Tests should not add telemetry, network calls, cloud calls, external coefficient lookup, or global opt-in pools. The output must remain framed as estimated, proxy, counterfactual, and methodology-dependent.
 
