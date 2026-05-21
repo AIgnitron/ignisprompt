@@ -88,6 +88,8 @@ Overview live-local diagnostics are derived from manual local loads only. Tests 
 
 Overview also includes copyable local commands for preview verification and debugging. The command definitions are covered by Aethra unit tests. Copy behavior uses the browser Clipboard API when available, shows an in-app fallback message when clipboard access is unavailable or fails, and does not execute commands, persist state, add telemetry, or call remote services.
 
+Aethra empty-state copy is covered by unit tests for fixture mode, missing audit events, model status hints, sustainability metrics, and manual local error guidance. The UI should explain missing data, fixture fallback, daemon startup, and manual refresh actions without auto-loading, polling, storage persistence, telemetry, cloud calls, GitHub calls, or update checks.
+
 If a daemon is already running, omit `--start-daemon`:
 
 ```bash

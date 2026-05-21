@@ -6,6 +6,7 @@ import type {
   LiveModelStatusState,
 } from "../dataSource";
 import { modelFixtures } from "../fixtures/aethraFixture";
+import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
 import { StatusBadge } from "../components/StatusBadge";
 import {
@@ -16,6 +17,10 @@ import {
   getManifestStatusHints,
   toModelManifestRows,
 } from "./modelManifestSummary";
+import {
+  buildLiveErrorEmptyState,
+  localPreviewEmptyStates,
+} from "./emptyStates";
 
 const initialSelectedModelId = toModelManifestRows(modelFixtures)[0]?.modelId;
 
@@ -192,10 +197,7 @@ function ModelMetadataPanel({
       </div>
 
       {isLiveMode && liveModelsState.status === "not-loaded" ? (
-        <p className="explanation">
-          Live local model metadata is not loaded yet. Aethra is showing fixture
-          manifest hints until you manually refresh.
-        </p>
+        <EmptyState {...localPreviewEmptyStates.modelMetadataNotLoaded} />
       ) : null}
 
       {isLiveMode && liveModelsState.status === "loading" ? (
@@ -206,10 +208,13 @@ function ModelMetadataPanel({
       ) : null}
 
       {isLiveMode && liveModelsState.status === "error" ? (
-        <p className="explanation">
-          {liveModelsState.label}: {liveModelsState.message} Fixture model
-          manifest hints remain clearly labeled below.
-        </p>
+        <EmptyState
+          {...buildLiveErrorEmptyState(
+            liveModelsState.label,
+            liveModelsState.message,
+            "Fixture model manifest hints remain clearly labeled below.",
+          )}
+        />
       ) : null}
 
       <dl className="definition-grid model-metadata-grid">
@@ -308,10 +313,7 @@ function ModelStatusPanel({
       </p>
 
       {isLiveMode && liveModelStatusState.status === "not-loaded" ? (
-        <p className="explanation">
-          Live local model and runner status hints are not loaded yet. Aethra is
-          showing manifest-derived fixture hints until you manually refresh.
-        </p>
+        <EmptyState {...localPreviewEmptyStates.modelStatusNotLoaded} />
       ) : null}
 
       {isLiveMode && liveModelStatusState.status === "loading" ? (
@@ -322,19 +324,19 @@ function ModelStatusPanel({
       ) : null}
 
       {isLiveMode && liveModelStatusState.status === "error" ? (
-        <p className="explanation">
-          {liveModelStatusState.label}: {liveModelStatusState.message} Fixture
-          manifest hints remain clearly labeled below.
-        </p>
+        <EmptyState
+          {...buildLiveErrorEmptyState(
+            liveModelStatusState.label,
+            liveModelStatusState.message,
+            "Fixture manifest hints remain clearly labeled below.",
+          )}
+        />
       ) : null}
 
       {isLiveMode &&
       liveModelStatusState.status === "loaded" &&
       liveModelStatusState.statusHints.length === 0 ? (
-        <p className="explanation">
-          Empty data: the local daemon returned no model and runner status
-          hints.
-        </p>
+        <EmptyState {...localPreviewEmptyStates.modelStatusEmpty} />
       ) : null}
 
       <dl className="definition-grid model-metadata-grid">
@@ -463,7 +465,11 @@ function ModelManifestTable({
     return (
       <section className="panel" aria-label="Model manifest table">
         <h3>Model manifests</h3>
-        <p className="muted">No model manifests are available from {sourceLabel}.</p>
+        <EmptyState
+          title="No model manifests are available"
+          message={`No model manifests are available from ${sourceLabel}.`}
+          nextAction="Fixture hints remain available; live-local model metadata requires the daemon and a manual refresh."
+        />
       </section>
     );
   }
@@ -543,7 +549,11 @@ function ModelManifestDetail({
     return (
       <aside className="panel detail-panel" aria-label="Model manifest detail">
         <h3>Manifest detail</h3>
-        <p className="muted">Select a model manifest to inspect it.</p>
+        <EmptyState
+          title="No model manifest selected"
+          message="There is no model manifest detail to inspect yet."
+          nextAction="Select a manifest row, or refresh live models after starting the local daemon."
+        />
       </aside>
     );
   }

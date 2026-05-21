@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
 import { StatusBadge } from "../components/StatusBadge";
 import type {
@@ -27,6 +28,10 @@ import {
   localCommands,
   type LocalCommand,
 } from "./localCommands";
+import {
+  buildLiveErrorEmptyState,
+  localPreviewEmptyStates,
+} from "./emptyStates";
 
 const summary = buildOverviewSummary(
   healthFixture,
@@ -184,7 +189,7 @@ export function Overview({
       ) : (
         <section className="panel" aria-label="Recent fixture route decision">
           <h3>Recent route summary</h3>
-          <p className="muted">No synthetic audit events are available.</p>
+          <EmptyState {...localPreviewEmptyStates.recentRouteSummaryEmpty} />
         </section>
       )}
 
@@ -233,7 +238,7 @@ export function Overview({
               ))}
             </ul>
           ) : (
-            <p className="muted">No warning examples are present in fixtures.</p>
+            <EmptyState {...localPreviewEmptyStates.warningsEmpty} />
           )}
         </section>
 
@@ -488,10 +493,7 @@ function VersionStatusPanel({
       </div>
 
       {isLiveMode && liveVersionStatusState.status === "not-loaded" ? (
-        <p className="explanation">
-          Live local daemon version status is not loaded yet. Aethra is showing
-          fixture release status values until you manually refresh.
-        </p>
+        <EmptyState {...localPreviewEmptyStates.liveVersionNotLoaded} />
       ) : null}
 
       {isLiveMode && liveVersionStatusState.status === "loading" ? (
@@ -501,10 +503,13 @@ function VersionStatusPanel({
       ) : null}
 
       {isLiveMode && liveVersionStatusState.status === "error" ? (
-        <p className="explanation">
-          {liveVersionStatusState.label}: {liveVersionStatusState.message} Fixture
-          daemon version status values remain clearly labeled below.
-        </p>
+        <EmptyState
+          {...buildLiveErrorEmptyState(
+            liveVersionStatusState.label,
+            liveVersionStatusState.message,
+            "Fixture daemon version status values remain clearly labeled below.",
+          )}
+        />
       ) : null}
 
       <dl className="definition-grid version-status-grid">
@@ -655,10 +660,7 @@ function HealthMetadataPanel({
       </div>
 
       {isLiveMode && liveHealthState.status === "not-loaded" ? (
-        <p className="explanation">
-          Live local health is not loaded yet. Aethra is showing fixture health
-          values until you manually refresh.
-        </p>
+        <EmptyState {...localPreviewEmptyStates.liveHealthNotLoaded} />
       ) : null}
 
       {isLiveMode && liveHealthState.status === "loading" ? (
@@ -668,10 +670,13 @@ function HealthMetadataPanel({
       ) : null}
 
       {isLiveMode && liveHealthState.status === "error" ? (
-        <p className="explanation">
-          {liveHealthState.label}: {liveHealthState.message} Fixture health
-          values remain clearly labeled below.
-        </p>
+        <EmptyState
+          {...buildLiveErrorEmptyState(
+            liveHealthState.label,
+            liveHealthState.message,
+            "Fixture health values remain clearly labeled below.",
+          )}
+        />
       ) : null}
 
       <dl className="definition-grid health-grid">

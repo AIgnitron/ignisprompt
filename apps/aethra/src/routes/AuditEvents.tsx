@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AuditEvent } from "../api/contracts";
 import { auditEventFixtures } from "../api/fixtures";
 import type { AethraDataMode, LiveAuditEventsState } from "../dataSource";
+import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
 import { StatusBadge } from "../components/StatusBadge";
 import {
@@ -10,6 +11,10 @@ import {
   findAuditEventByRequestId,
   toAuditEventRows,
 } from "./auditEventSummary";
+import {
+  buildLiveErrorEmptyState,
+  localPreviewEmptyStates,
+} from "./emptyStates";
 
 const initialSelectedRequestId = toAuditEventRows(auditEventFixtures)[0]
   ?.requestId;
@@ -157,10 +162,7 @@ function AuditMetadataPanel({
       </div>
 
       {isLiveMode && liveAuditEventsState.status === "not-loaded" ? (
-        <p className="explanation">
-          Live local audit events are not loaded yet. Aethra is showing fixture
-          records until you manually refresh.
-        </p>
+        <EmptyState {...localPreviewEmptyStates.auditEventsNotLoaded} />
       ) : null}
 
       {isLiveMode && liveAuditEventsState.status === "loading" ? (
@@ -172,16 +174,17 @@ function AuditMetadataPanel({
 
       {isLiveMode && liveAuditEventsState.status === "loaded" &&
       liveAuditEventsState.events.length === 0 ? (
-        <p className="explanation">
-          The local daemon returned a valid empty audit event list.
-        </p>
+        <EmptyState {...localPreviewEmptyStates.auditEventsEmpty} />
       ) : null}
 
       {isLiveMode && liveAuditEventsState.status === "error" ? (
-        <p className="explanation">
-          {liveAuditEventsState.label}: {liveAuditEventsState.message} Fixture
-          audit records remain clearly labeled below.
-        </p>
+        <EmptyState
+          {...buildLiveErrorEmptyState(
+            liveAuditEventsState.label,
+            liveAuditEventsState.message,
+            "Fixture audit records remain clearly labeled below.",
+          )}
+        />
       ) : null}
 
       <dl className="definition-grid audit-metadata-grid">
@@ -252,7 +255,15 @@ function AuditEventTable({
     return (
       <section className="panel" aria-label="Audit event table">
         <h3>Recent audit events</h3>
-        <p className="muted">No audit events are available from {sourceLabel}.</p>
+        <EmptyState
+          title="No audit events are available"
+          message={`No audit events are available from ${sourceLabel}.`}
+          nextAction={
+            sourceLabel === "Live local metadata"
+              ? localPreviewEmptyStates.auditEventsEmpty.nextAction
+              : "Fixture mode remains available; live-local audit events require a manual refresh."
+          }
+        />
       </section>
     );
   }
@@ -324,7 +335,11 @@ function AuditEventDetail({ event, isLiveEvent }: AuditEventDetailProps) {
     return (
       <aside className="panel detail-panel" aria-label="Audit event detail">
         <h3>Event detail</h3>
-        <p className="muted">Select an audit event to inspect it.</p>
+        <EmptyState
+          title="No audit event selected"
+          message="There is no audit event detail to inspect yet."
+          nextAction="Select an audit event row, or load live-local audit events after local daemon activity."
+        />
       </aside>
     );
   }

@@ -87,6 +87,8 @@ The Overview screen shows live-local connection diagnostics. In fixture mode, di
 
 Overview also includes a Local Commands panel with copyable local preview helper commands for starting the daemon, starting Aethra, running smoke/release checks, and inspecting local API endpoints. Copying a command only writes text to your browser clipboard; Aethra does not execute commands, call telemetry, or contact remote services.
 
+Aethra panels now include clearer empty states for fixture mode, missing live-local data, unavailable daemon responses, and panels that need manual refresh. These messages explain what is missing, why fixture fallback may still be visible, and the local command or refresh action to try next.
+
 ## 7. Switch To Live-Local Mode
 
 In Aethra:
@@ -106,6 +108,8 @@ Live-local loading is explicit/manual. Aethra can show daemon version status as 
 If live-local refresh fails, the Overview diagnostics show whether the local daemon appears unreachable, an endpoint is unavailable, or the response shape is invalid. Typical next steps are to start the daemon with `./scripts/start-dev.sh`, confirm `http://127.0.0.1:8765/health` is reachable, and keep using fixture mode while debugging local setup.
 
 Use the Overview Local Commands panel when you want a copyable terminal command for the local daemon/dashboard flow. These commands run in your terminal.
+
+Empty states in live-local mode remain manual and local-only. They do not auto-load data, poll endpoints, persist state, send telemetry, call cloud services, call GitHub, or perform update checks.
 
 ## 8. Export A Local Sustainability Report
 

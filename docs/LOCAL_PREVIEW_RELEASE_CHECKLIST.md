@@ -124,7 +124,8 @@ npm run dev
 10. Confirm diagnostics include local next steps such as starting `./scripts/start-dev.sh`, checking `/health`, and using fixture mode while debugging.
 11. Confirm the Overview Local Commands panel shows copyable local commands for daemon startup, smoke/release checks, local API inspection, and Aethra startup.
 12. Confirm command copying only writes text to the browser clipboard and does not execute commands from the dashboard.
-13. Confirm no polling, no telemetry, no cloud call, no upload, no update check, no GitHub API call, no remote execution, and no persistence is introduced.
+13. Confirm empty states explain fixture mode, missing live-local data, unavailable daemon responses, and panels that need manual refresh.
+14. Confirm no polling, no telemetry, no cloud call, no upload, no update check, no GitHub API call, no remote execution, and no persistence is introduced.
 
 ## Sustainability Endpoint Verification
 
