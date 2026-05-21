@@ -133,6 +133,8 @@ With the daemon running:
 
 ```bash
 curl -fsS "http://127.0.0.1:8765/v1/metrics/sustainability?period=30d" | jq .
+cargo run -p ignispromptctl -- sustainability --period 30d
+cargo run -p ignispromptctl -- sustainability --period 30d --json
 ```
 
 Confirm the response includes:
@@ -159,6 +161,14 @@ jq . /tmp/ignisprompt-invalid-period.json
 ```
 
 Expected result: HTTP `400` with `INVALID_SUSTAINABILITY_PERIOD`.
+
+CLI invalid period check:
+
+```bash
+cargo run -p ignispromptctl -- sustainability --period bad
+```
+
+Expected result: non-zero exit before a request is sent, with supported values `7d`, `30d`, and `90d` listed. The CLI summary is local-only aggregate metadata and must not include prompts, raw audit text, PII, machine identifiers, telemetry, cloud calls, GitHub lookups, external coefficient lookup, persistence, uploads, or global aggregation.
 
 ## Report Export Verification
 

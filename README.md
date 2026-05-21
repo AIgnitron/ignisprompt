@@ -153,10 +153,14 @@ While the daemon is running, `ignispromptctl` provides a local CLI for inspectin
 
 ```bash
 cargo run -p ignispromptctl -- health
+cargo run -p ignispromptctl -- status-version
 cargo run -p ignispromptctl -- models
+cargo run -p ignispromptctl -- sustainability --period 30d
 cargo run -p ignispromptctl -- route-explain --file ./tests/golden-legal/smoke-legal-request.json
 cargo run -p ignispromptctl -- audit tail
 ```
+
+`sustainability` reads aggregate local metrics from `GET /v1/metrics/sustainability?period=<period>`, defaults to `30d`, supports `7d`, `30d`, and `90d`, and can print the daemon JSON with `--json`. It does not include prompts, raw audit text, PII, or machine identifiers.
 
 `route-explain` reads a JSON request file. For a legal route example, use a file that already carries legal context such as `./tests/golden-legal/smoke-legal-request.json`, which sets `model` to `ignisprompt/legal`.
 
