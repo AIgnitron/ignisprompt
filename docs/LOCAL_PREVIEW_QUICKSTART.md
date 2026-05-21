@@ -96,6 +96,8 @@ Overview also includes a Local Commands panel with copyable local preview helper
 
 Aethra panels now include clearer empty states for fixture mode, missing live-local data, unavailable daemon responses, and panels that need manual refresh. These messages explain what is missing, why fixture fallback may still be visible, and the local command or refresh action to try next.
 
+Audit Events includes browser-local search and warning/cache filters for the displayed audit records. The selected event detail can copy `request_id` to the browser clipboard only; it does not persist copied state, execute commands, or call remote services.
+
 ## 7. Switch To Live-Local Mode
 
 In Aethra:
@@ -132,6 +134,8 @@ In Sustainability Preview:
 The reports are generated client-side from the currently displayed metrics. They are local-only reports and include structured schema, methodology, confidence, disclaimer, limitations, and local-only export notes. They are counterfactual proxy estimates, not actual carbon accounting, not ESG certification, not certified sustainability reporting, and not production compliance evidence.
 
 The exports do not include prompts, raw request text, raw audit event bodies, PII, machine identifiers, hostnames, usernames, filesystem paths, secrets, or API keys. Aethra does not upload reports, call telemetry, call cloud services, call GitHub, check for updates, poll endpoints, or persist export state in local storage or session storage.
+
+The export panel now repeats this local-only boundary beside the Markdown/JSON actions, and methodology metadata can be copied with the browser Clipboard API. Copying metadata does not persist state, execute commands, upload data, or contact remote services.
 
 ## 9. Stop Services
 

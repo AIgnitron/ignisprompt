@@ -20,6 +20,8 @@ import {
 const initialSelectedRequestId = toAuditEventRows(auditEventFixtures)[0]
   ?.requestId;
 
+type AuditFilter = "all" | "warnings" | "cache-hit";
+
 type AuditEventsProps = {
   dataMode: AethraDataMode;
   liveAuditEventsState: LiveAuditEventsState;
@@ -36,12 +38,18 @@ export function AuditEvents({
   >(
     initialSelectedRequestId,
   );
+  const [searchQuery, setSearchQuery] = useState("");
+  const [auditFilter, setAuditFilter] = useState<AuditFilter>("all");
   const isLiveAuditLoaded =
     dataMode === "live-local" && liveAuditEventsState.status === "loaded";
   const events = isLiveAuditLoaded
     ? liveAuditEventsState.events
     : auditEventFixtures;
   const rows = useMemo(() => toAuditEventRows(events), [events]);
+  const visibleRows = useMemo(
+    () => filterAuditRows(rows, searchQuery, auditFilter),
+    [auditFilter, rows, searchQuery],
+  );
   const selectedEvent =
     selectedRequestId === undefined
       ? undefined
@@ -53,18 +61,18 @@ export function AuditEvents({
       : "Fixture mode";
 
   useEffect(() => {
-    if (rows.length === 0) {
+    if (visibleRows.length === 0) {
       setSelectedRequestId(undefined);
       return;
     }
 
     if (
       selectedRequestId === undefined ||
-      !rows.some((row) => row.requestId === selectedRequestId)
+      !visibleRows.some((row) => row.requestId === selectedRequestId)
     ) {
-      setSelectedRequestId(rows[0].requestId);
+      setSelectedRequestId(visibleRows[0].requestId);
     }
-  }, [rows, selectedRequestId]);
+  }, [selectedRequestId, visibleRows]);
 
   return (
     <section id="audit-events" className="page-section">
@@ -87,8 +95,9 @@ export function AuditEvents({
 
       <PageHelp
         items={[
-          "Review local process audit records from fixture data or a manual live-local refresh.",
-          "Inspect route history, warnings, cache hints, and sustainability estimate fields.",
+          "Review local process route history from fixture data or a manual live-local refresh.",
+          "Search request IDs, routes, tiers, domains, and models; filter for warnings or cache-hit records.",
+          "Inspect route explanations, warnings, cache hints, and sustainability estimate fields.",
           "Audit events are local records for observability, not signed evidence or production deployment proof.",
         ]}
       />
@@ -123,9 +132,14 @@ export function AuditEvents({
 
       <div className="audit-layout">
         <AuditEventTable
-          rows={rows}
+          rows={visibleRows}
+          totalRows={rows.length}
           sourceLabel={sourceLabel}
           selectedRequestId={selectedRequestId}
+          searchQuery={searchQuery}
+          auditFilter={auditFilter}
+          onSearchChange={setSearchQuery}
+          onFilterChange={setAuditFilter}
           onSelect={setSelectedRequestId}
         />
         <AuditEventDetail
@@ -254,18 +268,28 @@ function AuditMetadataPanel({
 
 type AuditEventTableProps = {
   rows: ReturnType<typeof toAuditEventRows>;
+  totalRows: number;
   sourceLabel: string;
   selectedRequestId?: string;
+  searchQuery: string;
+  auditFilter: AuditFilter;
+  onSearchChange: (value: string) => void;
+  onFilterChange: (value: AuditFilter) => void;
   onSelect: (requestId: string) => void;
 };
 
 function AuditEventTable({
   rows,
+  totalRows,
   sourceLabel,
   selectedRequestId,
+  searchQuery,
+  auditFilter,
+  onSearchChange,
+  onFilterChange,
   onSelect,
 }: AuditEventTableProps) {
-  if (rows.length === 0) {
+  if (totalRows === 0) {
     return (
       <section className="panel" aria-label="Audit event table">
         <h3>Recent audit events</h3>
@@ -287,9 +311,48 @@ function AuditEventTable({
       <div className="panel-heading">
         <div>
           <h3>Recent audit events</h3>
-          <p className="muted">Newest records first from {sourceLabel}</p>
+          <p className="muted">
+            Newest records first from {sourceLabel}. These rows summarize
+            local route decisions, warnings, and route explanation metadata.
+          </p>
         </div>
       </div>
+      <div className="audit-filter-bar" aria-label="Audit event filters">
+        <label className="form-field">
+          <span>Search local audit records</span>
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="request ID, route, tier, domain, model"
+          />
+        </label>
+        <label className="form-field">
+          <span>Filter displayed records</span>
+          <select
+            value={auditFilter}
+            onChange={(event) =>
+              onFilterChange(event.target.value as AuditFilter)
+            }
+          >
+            <option value="all">All audit events</option>
+            <option value="warnings">Warnings only</option>
+            <option value="cache-hit">Cache hits only</option>
+          </select>
+        </label>
+      </div>
+      <p className="muted audit-filter-summary">
+        Showing {rows.length} of {totalRows} local-preview records. Filters run
+        in the browser and do not load new daemon data.
+      </p>
+      {rows.length === 0 ? (
+        <EmptyState
+          title="No audit events match the current filters"
+          message="The selected search text or filter did not match the displayed local audit records."
+          nextAction="Clear the search text, choose All audit events, or manually refresh live-local audit events after local daemon activity."
+        />
+      ) : null}
+      {rows.length === 0 ? null : (
       <div className="table-scroll">
         <table className="audit-table">
           <thead>
@@ -335,6 +398,7 @@ function AuditEventTable({
           </tbody>
         </table>
       </div>
+      )}
     </section>
   );
 }
@@ -345,6 +409,28 @@ type AuditEventDetailProps = {
 };
 
 function AuditEventDetail({ event, isLiveEvent }: AuditEventDetailProps) {
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">(
+    "idle",
+  );
+
+  useEffect(() => {
+    setCopyStatus("idle");
+  }, [event?.request_id]);
+
+  async function copyRequestId(requestId: string) {
+    if (!globalThis.navigator?.clipboard?.writeText) {
+      setCopyStatus("error");
+      return;
+    }
+
+    try {
+      await globalThis.navigator.clipboard.writeText(requestId);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("error");
+    }
+  }
+
   if (!event) {
     return (
       <aside className="panel detail-panel" aria-label="Audit event detail">
@@ -363,12 +449,37 @@ function AuditEventDetail({ event, isLiveEvent }: AuditEventDetailProps) {
       <div className="panel-heading">
         <div>
           <h3>Event detail</h3>
-          <p className="muted">{event.request_id}</p>
+          <p className="muted">Selected local audit event</p>
         </div>
         <StatusBadge tone={event.warnings.length > 0 ? "warning" : "ok"}>
           {event.warnings.length} warnings
         </StatusBadge>
       </div>
+
+      <div className="copy-detail-row">
+        <div>
+          <span>request_id</span>
+          <code>{event.request_id}</code>
+        </div>
+        <button
+          type="button"
+          className="secondary-button compact-button"
+          onClick={() => copyRequestId(event.request_id)}
+        >
+          Copy
+        </button>
+      </div>
+      {copyStatus !== "idle" ? (
+        <p
+          className={`copy-feedback copy-feedback-${
+            copyStatus === "copied" ? "ok" : "warning"
+          }`}
+        >
+          {copyStatus === "copied"
+            ? "Copied request ID"
+            : "Clipboard unavailable; select the request ID."}
+        </p>
+      ) : null}
 
       <p className="explanation">{event.explanation}</p>
 
@@ -444,6 +555,40 @@ function getAuditEventsStateLabel(
     case "error":
       return liveAuditEventsState.label;
   }
+}
+
+function filterAuditRows(
+  rows: ReturnType<typeof toAuditEventRows>,
+  searchQuery: string,
+  auditFilter: AuditFilter,
+): ReturnType<typeof toAuditEventRows> {
+  const normalizedSearch = searchQuery.trim().toLocaleLowerCase();
+
+  return rows.filter((row) => {
+    if (auditFilter === "warnings" && row.warningCount === 0) {
+      return false;
+    }
+
+    if (auditFilter === "cache-hit" && !row.cacheHit) {
+      return false;
+    }
+
+    if (normalizedSearch.length === 0) {
+      return true;
+    }
+
+    return [
+      row.requestId,
+      row.eventType,
+      row.routeCode,
+      row.tier,
+      row.domain,
+      row.modelId,
+    ]
+      .join(" ")
+      .toLocaleLowerCase()
+      .includes(normalizedSearch);
+  });
 }
 
 function formatTimestamp(timestamp: string): string {
