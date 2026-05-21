@@ -1902,6 +1902,7 @@ mod tests {
         body::to_bytes,
         response::{IntoResponse, Response},
     };
+    use std::collections::BTreeSet;
 
     struct ExpectedRoute<'a> {
         tier: &'a str,
@@ -2119,8 +2120,20 @@ mod tests {
         model_status(State(state.clone())).await.0
     }
 
+    async fn call_health(state: &AppState) -> HealthResponse {
+        health(State(state.clone())).await.0
+    }
+
+    async fn call_models(state: &AppState) -> ModelRegistry {
+        list_models(State(state.clone())).await.0
+    }
+
     async fn call_version_status(state: &AppState) -> VersionStatusResponse {
         version_status(State(state.clone())).await.0
+    }
+
+    async fn call_audit_events(state: &AppState) -> Vec<AuditEvent> {
+        list_audit_events(State(state.clone())).await.0
     }
 
     async fn call_sustainability_metrics(
@@ -2182,6 +2195,76 @@ mod tests {
         completion_cache_key_for_request(&state.config, request, decision, selected_model)
     }
 
+    fn assert_json_keys(value: &Value, expected_keys: &[&str]) {
+        let object = value.as_object().expect("expected JSON object");
+        let actual = object.keys().map(String::as_str).collect::<BTreeSet<_>>();
+        let expected = expected_keys.iter().copied().collect::<BTreeSet<_>>();
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn health_endpoint_response_schema_is_locked_for_local_preview_clients() {
+        let state = state_with_models(vec![legal_model()]);
+        let response = call_health(&state).await;
+        let encoded = serde_json::to_value(&response).unwrap();
+
+        assert_json_keys(
+            &encoded,
+            &[
+                "status",
+                "service",
+                "version",
+                "started_at",
+                "local_only",
+                "model_count",
+            ],
+        );
+        assert_eq!(encoded["status"], "ok");
+        assert_eq!(encoded["service"], "ignispromptd");
+        assert_eq!(encoded["version"], env!("CARGO_PKG_VERSION"));
+        assert_eq!(encoded["local_only"], true);
+        assert_eq!(encoded["model_count"], 1);
+        assert!(encoded["started_at"].is_string());
+    }
+
+    #[tokio::test]
+    async fn models_endpoint_response_schema_is_locked_for_local_preview_clients() {
+        let state = state_with_models(vec![legal_model()]);
+        let response = call_models(&state).await;
+        let encoded = serde_json::to_value(&response).unwrap();
+
+        assert_json_keys(&encoded, &["models"]);
+        let models = encoded["models"].as_array().expect("models array");
+        assert_eq!(models.len(), 1);
+
+        let model = &models[0];
+        assert_json_keys(
+            model,
+            &[
+                "modelId",
+                "displayName",
+                "tier",
+                "domains",
+                "format",
+                "quantization",
+                "contextWindow",
+                "localPath",
+                "promptPack",
+                "responseFormat",
+                "sha256",
+                "version",
+                "installed",
+                "source",
+            ],
+        );
+        assert_eq!(model["modelId"], "legal-saul-placeholder");
+        assert_eq!(model["displayName"], "Legal Saul Placeholder");
+        assert_eq!(model["tier"], 3);
+        assert_eq!(model["domains"], json!(["legal"]));
+        assert_eq!(model["localPath"], "./models/legal-saul-placeholder.gguf");
+        assert_eq!(model["installed"], true);
+    }
+
     #[tokio::test]
     async fn version_status_endpoint_returns_valid_response_shape() {
         let state = state_with_models(vec![legal_model()]);
@@ -2203,9 +2286,26 @@ mod tests {
         }));
 
         let encoded = serde_json::to_value(&response).unwrap();
+        assert_json_keys(
+            &encoded,
+            &[
+                "service",
+                "version",
+                "release_channel",
+                "local_only",
+                "build_profile",
+                "git_commit",
+                "started_at",
+                "warnings",
+            ],
+        );
         assert_eq!(encoded["service"], "ignispromptd");
         assert_eq!(encoded["local_only"], true);
         assert_eq!(encoded["release_channel"], "local-preview");
+        assert!(encoded["version"].is_string());
+        assert!(encoded["build_profile"].is_string());
+        assert!(encoded["git_commit"].is_null());
+        assert!(encoded["started_at"].is_string());
         assert!(encoded["warnings"].is_array());
     }
 
@@ -2225,6 +2325,46 @@ mod tests {
         assert_eq!(hint.domains, vec!["legal"]);
         assert!(hint.configured);
         assert_eq!(hint.last_checked_at, response.generated_at);
+
+        let encoded = serde_json::to_value(&response).unwrap();
+        assert_json_keys(
+            &encoded,
+            &["schemaVersion", "generatedAt", "source", "statusHints"],
+        );
+        assert_eq!(encoded["schemaVersion"], "v0.1");
+        assert_eq!(encoded["source"], "local-daemon");
+        assert!(encoded["generatedAt"].is_string());
+
+        let status_hints = encoded["statusHints"].as_array().expect("status hints");
+        assert_eq!(status_hints.len(), 1);
+        assert_json_keys(
+            &status_hints[0],
+            &[
+                "modelId",
+                "displayName",
+                "tier",
+                "domains",
+                "configured",
+                "localPathDeclared",
+                "localPathExists",
+                "runnerConfigured",
+                "runnerKind",
+                "runnerExecutableExists",
+                "availability",
+                "lastCheckedAt",
+                "warnings",
+            ],
+        );
+        assert_eq!(status_hints[0]["modelId"], "legal-saul-placeholder");
+        assert_eq!(status_hints[0]["displayName"], "Legal Saul Placeholder");
+        assert_eq!(status_hints[0]["availability"], "model-file-missing");
+        assert!(status_hints[0]["localPathDeclared"].is_boolean());
+        assert!(status_hints[0]["localPathExists"].is_boolean());
+        assert!(status_hints[0]["runnerConfigured"].is_boolean());
+        assert!(status_hints[0]["runnerKind"].is_string());
+        assert!(status_hints[0]["runnerExecutableExists"].is_boolean());
+        assert!(status_hints[0]["lastCheckedAt"].is_string());
+        assert!(status_hints[0]["warnings"].is_array());
     }
 
     #[tokio::test]
@@ -2315,6 +2455,60 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn audit_events_endpoint_response_schema_is_locked_for_local_preview_clients() {
+        let state = state_with_models(vec![legal_model()]);
+        let request = req(
+            "Review this indemnification clause in a vendor services agreement.",
+            Some("ignisprompt/legal"),
+        );
+
+        let (status, _) = call_route_explain(&state, request).await;
+        assert_eq!(status, StatusCode::OK);
+
+        let events = call_audit_events(&state).await;
+        assert_eq!(events.len(), 1);
+        let encoded = serde_json::to_value(&events).unwrap();
+        let event = &encoded.as_array().expect("audit events array")[0];
+
+        assert_json_keys(
+            event,
+            &[
+                "request_id",
+                "timestamp",
+                "event_type",
+                "route_code",
+                "tier",
+                "domain",
+                "model_id",
+                "data_left_device",
+                "explanation",
+                "warnings",
+                "input_tokens_est",
+                "output_tokens_est",
+                "baseline_provider",
+                "baseline_model",
+                "estimated_cloud_cost_usd",
+                "estimated_cloud_cost_avoided_usd",
+                "estimated_local_energy_wh",
+                "estimated_cloud_baseline_wh",
+                "estimated_carbon_avoided_gco2e",
+                "methodology_version",
+                "confidence",
+            ],
+        );
+        assert_eq!(event["event_type"], "route_explain");
+        assert_eq!(event["route_code"], "DOMAIN_MODEL_SELECTED");
+        assert_eq!(event["tier"], "TIER_3");
+        assert_eq!(event["domain"], "legal");
+        assert_eq!(event["data_left_device"], false);
+        assert!(event["warnings"].is_array());
+        assert_eq!(event["baseline_provider"], "openai");
+        assert_eq!(event["baseline_model"], "gpt-4.1-mini");
+        assert_eq!(event["methodology_version"], "aethra-impact-0.1");
+        assert_eq!(event["confidence"], "low");
+    }
+
+    #[tokio::test]
     async fn sustainability_metrics_endpoint_returns_valid_json_shape() {
         let state = state_with_models(vec![legal_model()]);
         let request = req(
@@ -2326,9 +2520,27 @@ mod tests {
         let response = call_sustainability_metrics(&state, Some("30d")).await;
         let encoded = serde_json::to_value(&response).unwrap();
 
+        assert_json_keys(
+            &encoded,
+            &[
+                "period",
+                "requests_total",
+                "local_request_rate",
+                "tier_breakdown",
+                "estimated_cloud_cost_avoided_usd",
+                "estimated_carbon_avoided_kgco2e",
+                "estimated_data_kept_local_gb",
+                "baseline_provider",
+                "baseline_model",
+                "methodology_version",
+                "confidence",
+                "disclaimer",
+            ],
+        );
         assert_eq!(encoded["period"], "30d");
         assert_eq!(encoded["requests_total"], 1);
         assert_eq!(encoded["local_request_rate"], 1.0);
+        assert!(encoded["tier_breakdown"].is_object());
         assert_eq!(encoded["tier_breakdown"]["TIER_3"], 1);
         assert!(encoded["estimated_cloud_cost_avoided_usd"].is_number());
         assert!(encoded["estimated_carbon_avoided_kgco2e"].is_number());
@@ -2356,7 +2568,10 @@ mod tests {
         assert_eq!(response.estimated_cloud_cost_avoided_usd, 0.0);
         assert_eq!(response.estimated_carbon_avoided_kgco2e, 0.0);
         assert_eq!(response.estimated_data_kept_local_gb, 0.0);
+        assert_eq!(response.baseline_provider, "openai");
+        assert_eq!(response.baseline_model, "gpt-4.1-mini");
         assert_eq!(response.methodology_version, "aethra-impact-0.1");
+        assert_eq!(response.confidence, "low");
         assert!(response.disclaimer.contains("methodology-dependent"));
     }
 
@@ -2410,6 +2625,21 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("between 0d"));
+    }
+
+    #[tokio::test]
+    async fn sustainability_metrics_rejects_unsupported_period_with_structured_error() {
+        let state = state_with_models(vec![]);
+
+        let response = call_sustainability_metrics_response(&state, Some("bad")).await;
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let parsed: Value = serde_json::from_slice(&body).unwrap();
+        assert_json_keys(&parsed, &["error"]);
+        assert_json_keys(&parsed["error"], &["code", "message"]);
+        assert_eq!(parsed["error"]["code"], "INVALID_SUSTAINABILITY_PERIOD");
+        assert!(!parsed["error"]["message"].as_str().unwrap().is_empty());
     }
 
     #[test]
