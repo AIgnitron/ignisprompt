@@ -133,10 +133,14 @@ npm run dev
 With the daemon running:
 
 ```bash
+cargo run -p ignispromptctl -- doctor
+cargo run -p ignispromptctl -- doctor --json
 curl -fsS "http://127.0.0.1:8765/v1/metrics/sustainability?period=30d" | jq .
 cargo run -p ignispromptctl -- sustainability --period 30d
 cargo run -p ignispromptctl -- sustainability --period 30d --json
 ```
+
+`ignispromptctl doctor` should pass required checks for `/health`, `/v1/status/version`, `/v1/models`, and `/v1/status/models`. Its `/v1/metrics/sustainability?period=30d` check is informational. The command must remain a local-only diagnostic with no telemetry, cloud calls, GitHub calls, update checks, external lookup, persistence, uploads, model controls, or runner controls.
 
 Confirm the response includes:
 

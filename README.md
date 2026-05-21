@@ -159,6 +159,8 @@ In another terminal:
 While the daemon is running, `ignispromptctl` provides a local CLI for inspecting its state:
 
 ```bash
+cargo run -p ignispromptctl -- doctor
+cargo run -p ignispromptctl -- doctor --json
 cargo run -p ignispromptctl -- health
 cargo run -p ignispromptctl -- status-version
 cargo run -p ignispromptctl -- models
@@ -166,6 +168,8 @@ cargo run -p ignispromptctl -- sustainability --period 30d
 cargo run -p ignispromptctl -- route-explain --file ./tests/golden-legal/smoke-legal-request.json
 cargo run -p ignispromptctl -- audit tail
 ```
+
+`doctor` checks the local daemon health, version status, model manifest, and model and runner status hint endpoints, then reports local next steps for common failures. Its sustainability metrics check is informational. The command is local-only and does not perform telemetry, cloud calls, GitHub calls, update checks, external lookup, persistence, uploads, model controls, or runner controls.
 
 `sustainability` reads aggregate local metrics from `GET /v1/metrics/sustainability?period=<period>`, defaults to `30d`, supports `7d`, `30d`, and `90d`, and can print the daemon JSON with `--json`. It does not include prompts, raw audit text, PII, or machine identifiers.
 

@@ -59,10 +59,13 @@ Optional sanity check from terminal 2:
 ```bash
 curl -fsS http://127.0.0.1:8765/health | jq .
 curl -fsS http://127.0.0.1:8765/v1/status/version | jq .
+cargo run -p ignispromptctl -- doctor
 cargo run -p ignispromptctl -- sustainability --period 30d
 ```
 
 `GET /v1/status/version` reports local preview support/debugging metadata such as daemon service, crate version, release channel, local-only flag, build profile, start time, and conservative warning language. It is not an update checker, telemetry mechanism, release lookup, or cloud call.
+
+`ignispromptctl doctor` checks the local daemon health, version status, model manifest, and model and runner status hint endpoints, then prints local next steps if a required check fails. Its sustainability metrics check is informational. The command is local-only and does not add telemetry, cloud calls, GitHub lookups, update checks, external lookup, persistence, uploads, model controls, or runner controls. Run it before Aethra live-local debugging when you want a terminal summary of the same local preview readiness signals.
 
 `ignispromptctl sustainability --period 30d` prints an aggregate local sustainability summary from `GET /v1/metrics/sustainability?period=30d`. It supports `7d`, `30d`, and `90d`, defaults to `30d`, and has an optional `--json` mode. The command is local-only and does not include prompts, raw audit text, PII, machine identifiers, telemetry, cloud calls, GitHub lookups, external coefficient lookup, persistence, or uploads.
 

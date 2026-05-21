@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::fs;
 use std::process;
 
@@ -20,6 +20,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Check local daemon readiness for local preview
+    Doctor {
+        /// Print structured JSON diagnostics
+        #[arg(long)]
+        json: bool,
+    },
     /// Check daemon health
     Health,
     /// Print daemon version and local preview status
@@ -62,6 +68,7 @@ fn parse_response(resp: ureq::Response) -> Value {
 fn main() {
     let cli = Cli::parse();
     match &cli.command {
+        Commands::Doctor { json } => cmd_doctor(&cli.daemon_url, *json),
         Commands::Health => cmd_health(&cli.daemon_url),
         Commands::StatusVersion => cmd_status_version(&cli.daemon_url),
         Commands::Sustainability { period, json } => {
@@ -73,6 +80,370 @@ fn main() {
             AuditCommands::Tail => cmd_audit_tail(&cli.daemon_url),
         },
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DoctorCheckLevel {
+    Required,
+    Informational,
+}
+
+impl DoctorCheckLevel {
+    fn as_str(self) -> &'static str {
+        match self {
+            DoctorCheckLevel::Required => "required",
+            DoctorCheckLevel::Informational => "informational",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct DoctorCheckSpec {
+    id: &'static str,
+    label: &'static str,
+    path: &'static str,
+    level: DoctorCheckLevel,
+    validate: fn(&Value) -> Result<String, String>,
+}
+
+#[derive(Clone, Debug)]
+struct DoctorCheckResult {
+    id: &'static str,
+    label: &'static str,
+    level: DoctorCheckLevel,
+    endpoint: String,
+    ok: bool,
+    summary: String,
+    error: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct DoctorReport {
+    base_url: String,
+    checks: Vec<DoctorCheckResult>,
+}
+
+const DOCTOR_CHECKS: &[DoctorCheckSpec] = &[
+    DoctorCheckSpec {
+        id: "health",
+        label: "health",
+        path: "/health",
+        level: DoctorCheckLevel::Required,
+        validate: validate_doctor_health,
+    },
+    DoctorCheckSpec {
+        id: "version_status",
+        label: "version status",
+        path: "/v1/status/version",
+        level: DoctorCheckLevel::Required,
+        validate: validate_doctor_version_status,
+    },
+    DoctorCheckSpec {
+        id: "models",
+        label: "models",
+        path: "/v1/models",
+        level: DoctorCheckLevel::Required,
+        validate: validate_doctor_models,
+    },
+    DoctorCheckSpec {
+        id: "model_status_hints",
+        label: "model and runner status hints",
+        path: "/v1/status/models",
+        level: DoctorCheckLevel::Required,
+        validate: validate_doctor_model_status_hints,
+    },
+    DoctorCheckSpec {
+        id: "sustainability_metrics",
+        label: "sustainability metrics",
+        path: "/v1/metrics/sustainability?period=30d",
+        level: DoctorCheckLevel::Informational,
+        validate: validate_doctor_sustainability_metrics,
+    },
+];
+
+fn cmd_doctor(base_url: &str, json_output: bool) {
+    let report = build_doctor_report(base_url);
+    let is_ready = report.required_checks_passed();
+
+    if json_output {
+        println!("{}", format_doctor_json(&report));
+    } else {
+        println!("{}", format_doctor_summary(&report));
+    }
+
+    if !is_ready {
+        process::exit(1);
+    }
+}
+
+fn build_doctor_report(base_url: &str) -> DoctorReport {
+    DoctorReport {
+        base_url: base_url.trim_end_matches('/').to_string(),
+        checks: DOCTOR_CHECKS
+            .iter()
+            .map(|spec| run_doctor_check(base_url, spec))
+            .collect(),
+    }
+}
+
+fn run_doctor_check(base_url: &str, spec: &DoctorCheckSpec) -> DoctorCheckResult {
+    let endpoint = doctor_endpoint_url(base_url, spec.path);
+
+    match ureq::get(&endpoint).call() {
+        Ok(resp) => {
+            let body = parse_response(resp);
+            match (spec.validate)(&body) {
+                Ok(summary) => DoctorCheckResult {
+                    id: spec.id,
+                    label: spec.label,
+                    level: spec.level,
+                    endpoint,
+                    ok: true,
+                    summary,
+                    error: None,
+                },
+                Err(message) => DoctorCheckResult {
+                    id: spec.id,
+                    label: spec.label,
+                    level: spec.level,
+                    endpoint,
+                    ok: false,
+                    summary: "invalid response shape".to_string(),
+                    error: Some(message),
+                },
+            }
+        }
+        Err(ureq::Error::Status(status, resp)) => {
+            let body = parse_response(resp);
+            let daemon_message = body.get("error").and_then(|v| v.as_str());
+            DoctorCheckResult {
+                id: spec.id,
+                label: spec.label,
+                level: spec.level,
+                endpoint,
+                ok: false,
+                summary: format!("HTTP {}", status),
+                error: Some(
+                    daemon_message
+                        .map(|message| format!("endpoint returned HTTP {}: {}", status, message))
+                        .unwrap_or_else(|| format!("endpoint returned HTTP {}", status)),
+                ),
+            }
+        }
+        Err(error) => DoctorCheckResult {
+            id: spec.id,
+            label: spec.label,
+            level: spec.level,
+            endpoint,
+            ok: false,
+            summary: "daemon unreachable".to_string(),
+            error: Some(format!("daemon unreachable: {}", error)),
+        },
+    }
+}
+
+fn doctor_endpoint_url(base_url: &str, path: &str) -> String {
+    format!("{}{}", base_url.trim_end_matches('/'), path)
+}
+
+impl DoctorReport {
+    fn required_checks_passed(&self) -> bool {
+        self.checks
+            .iter()
+            .filter(|check| check.level == DoctorCheckLevel::Required)
+            .all(|check| check.ok)
+    }
+
+    fn next_steps(&self) -> Vec<String> {
+        if self.required_checks_passed() {
+            return Vec::new();
+        }
+
+        vec![
+            "start the daemon with ./scripts/start-dev.sh".to_string(),
+            format!("{}/health", self.base_url),
+            "run ./scripts/smoke.sh after the daemon starts".to_string(),
+        ]
+    }
+}
+
+fn format_doctor_summary(report: &DoctorReport) -> String {
+    let mut lines = vec![
+        "IgnisPrompt Doctor".to_string(),
+        format!("Base URL: {}", report.base_url),
+        "".to_string(),
+    ];
+
+    let required_checks = report
+        .checks
+        .iter()
+        .filter(|check| check.level == DoctorCheckLevel::Required)
+        .collect::<Vec<_>>();
+    if !required_checks.is_empty() {
+        lines.push("Required checks:".to_string());
+        for check in required_checks {
+            lines.push(format_doctor_check_line(check));
+        }
+        lines.push("".to_string());
+    }
+
+    let informational_checks = report
+        .checks
+        .iter()
+        .filter(|check| check.level == DoctorCheckLevel::Informational)
+        .collect::<Vec<_>>();
+    if !informational_checks.is_empty() {
+        lines.push("Informational checks:".to_string());
+        for check in informational_checks {
+            lines.push(format_doctor_check_line(check));
+        }
+        lines.push("".to_string());
+    }
+
+    lines.push("Result:".to_string());
+    if report.required_checks_passed() {
+        lines.push("✓ Local preview daemon appears ready.".to_string());
+    } else {
+        lines.push("✗ Required local preview checks failed.".to_string());
+        lines.push("".to_string());
+        lines.push("Next steps:".to_string());
+        for step in report.next_steps() {
+            if step.starts_with("http") {
+                lines.push(format!("- check {}", step));
+            } else {
+                lines.push(format!("- {}", step));
+            }
+        }
+    }
+
+    lines.join("\n")
+}
+
+fn format_doctor_check_line(check: &DoctorCheckResult) -> String {
+    if check.ok {
+        format!("✓ {}: {}", check.label, check.summary)
+    } else {
+        format!(
+            "✗ {}: {}",
+            check.label,
+            check.error.as_deref().unwrap_or(&check.summary)
+        )
+    }
+}
+
+fn format_doctor_json(report: &DoctorReport) -> String {
+    let checks = report
+        .checks
+        .iter()
+        .map(|check| {
+            json!({
+                "id": check.id,
+                "label": check.label,
+                "level": check.level.as_str(),
+                "endpoint": check.endpoint,
+                "status": if check.ok { "ok" } else { "failed" },
+                "summary": check.summary,
+                "error": check.error,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    serde_json::to_string_pretty(&json!({
+        "base_url": report.base_url,
+        "overall_status": if report.required_checks_passed() { "ready" } else { "failed" },
+        "checks": checks,
+        "next_steps": report.next_steps(),
+    }))
+    .unwrap_or_default()
+}
+
+fn validate_doctor_health(body: &Value) -> Result<String, String> {
+    let status = required_string(body, "status")?;
+    required_string(body, "service")?;
+    required_string(body, "version")?;
+    required_bool(body, "local_only")?;
+
+    if status == "ok" {
+        Ok("ok".to_string())
+    } else {
+        Err(format!("health status is '{}'", status))
+    }
+}
+
+fn validate_doctor_version_status(body: &Value) -> Result<String, String> {
+    required_string(body, "service")?;
+    let version = required_string(body, "version")?;
+    let release_channel = required_string(body, "release_channel")?;
+    let local_only = required_bool(body, "local_only")?;
+
+    if release_channel != "local-preview" {
+        return Err(format!(
+            "release_channel is '{}', expected local-preview",
+            release_channel
+        ));
+    }
+
+    if !local_only {
+        return Err("local_only is false".to_string());
+    }
+
+    Ok(format!("{} / {}", release_channel, version))
+}
+
+fn validate_doctor_models(body: &Value) -> Result<String, String> {
+    let models = required_array(body, "models")?;
+    Ok(format!(
+        "{} {} listed",
+        models.len(),
+        if models.len() == 1 { "model" } else { "models" }
+    ))
+}
+
+fn validate_doctor_model_status_hints(body: &Value) -> Result<String, String> {
+    required_string(body, "schemaVersion")?;
+    required_string(body, "generatedAt")?;
+    required_string(body, "source")?;
+    let hints = required_array(body, "statusHints")?;
+
+    Ok(format!(
+        "available ({} {})",
+        hints.len(),
+        if hints.len() == 1 { "hint" } else { "hints" }
+    ))
+}
+
+fn validate_doctor_sustainability_metrics(body: &Value) -> Result<String, String> {
+    if !is_sustainability_metrics_response(body) {
+        return Err("missing required sustainability metrics fields".to_string());
+    }
+
+    Ok(format!(
+        "methodology {}, confidence {}",
+        body.get("methodology_version")
+            .and_then(|v| v.as_str())
+            .unwrap_or("-"),
+        body.get("confidence")
+            .and_then(|v| v.as_str())
+            .unwrap_or("-")
+    ))
+}
+
+fn required_string<'a>(body: &'a Value, field: &str) -> Result<&'a str, String> {
+    body.get(field)
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| format!("missing required string field '{}'", field))
+}
+
+fn required_bool(body: &Value, field: &str) -> Result<bool, String> {
+    body.get(field)
+        .and_then(|v| v.as_bool())
+        .ok_or_else(|| format!("missing required boolean field '{}'", field))
+}
+
+fn required_array<'a>(body: &'a Value, field: &str) -> Result<&'a Vec<Value>, String> {
+    body.get(field)
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| format!("missing required array field '{}'", field))
 }
 
 fn sustainability_url(base_url: &str, period: &str) -> String {
@@ -536,9 +907,12 @@ fn cmd_audit_tail(base_url: &str) {
 #[cfg(test)]
 mod tests {
     use super::{
-        format_model_manifest_line, format_sustainability_summary,
-        is_sustainability_metrics_response, string_field, sustainability_url,
-        validate_sustainability_period,
+        doctor_endpoint_url, format_doctor_json, format_doctor_summary, format_model_manifest_line,
+        format_sustainability_summary, is_sustainability_metrics_response, string_field,
+        sustainability_url, validate_doctor_health, validate_doctor_model_status_hints,
+        validate_doctor_models, validate_doctor_sustainability_metrics,
+        validate_doctor_version_status, validate_sustainability_period, DoctorCheckLevel,
+        DoctorCheckResult, DoctorReport, DOCTOR_CHECKS,
     };
     use serde_json::json;
 
@@ -546,6 +920,29 @@ mod tests {
     fn health_url_format() {
         let url = format!("{}/health", "http://127.0.0.1:8765");
         assert_eq!(url, "http://127.0.0.1:8765/health");
+    }
+
+    #[test]
+    fn doctor_url_format_trims_trailing_slashes() {
+        let url = doctor_endpoint_url("http://127.0.0.1:8765/", "/health");
+        assert_eq!(url, "http://127.0.0.1:8765/health");
+    }
+
+    #[test]
+    fn doctor_check_list_covers_required_local_preview_endpoints() {
+        let endpoints = DOCTOR_CHECKS
+            .iter()
+            .map(|check| (check.path, check.level))
+            .collect::<Vec<_>>();
+
+        assert!(endpoints.contains(&("/health", DoctorCheckLevel::Required)));
+        assert!(endpoints.contains(&("/v1/status/version", DoctorCheckLevel::Required)));
+        assert!(endpoints.contains(&("/v1/models", DoctorCheckLevel::Required)));
+        assert!(endpoints.contains(&("/v1/status/models", DoctorCheckLevel::Required)));
+        assert!(endpoints.contains(&(
+            "/v1/metrics/sustainability?period=30d",
+            DoctorCheckLevel::Informational
+        )));
     }
 
     #[test]
@@ -599,6 +996,151 @@ mod tests {
         let error = validate_sustainability_period("365d").unwrap_err();
         assert!(error.contains("unsupported sustainability period"));
         assert!(error.contains("7d, 30d, and 90d"));
+    }
+
+    #[test]
+    fn doctor_validates_representative_endpoint_shapes() {
+        assert_eq!(
+            validate_doctor_health(&json!({
+                "status": "ok",
+                "service": "ignispromptd",
+                "version": "0.1.0",
+                "local_only": true
+            }))
+            .unwrap(),
+            "ok"
+        );
+        assert_eq!(
+            validate_doctor_version_status(&json!({
+                "service": "ignispromptd",
+                "version": "0.1.0",
+                "release_channel": "local-preview",
+                "local_only": true
+            }))
+            .unwrap(),
+            "local-preview / 0.1.0"
+        );
+        assert_eq!(
+            validate_doctor_models(&json!({
+                "models": [{ "modelId": "legal", "tier": 3 }]
+            }))
+            .unwrap(),
+            "1 model listed"
+        );
+        assert_eq!(
+            validate_doctor_model_status_hints(&json!({
+                "schemaVersion": "ignisprompt.model-status.v1",
+                "generatedAt": "2026-05-21T00:00:00Z",
+                "source": "local-daemon",
+                "statusHints": [{ "modelId": "legal" }]
+            }))
+            .unwrap(),
+            "available (1 hint)"
+        );
+        assert_eq!(
+            validate_doctor_sustainability_metrics(&json!({
+                "period": "30d",
+                "requests_total": 3,
+                "local_request_rate": 1.0,
+                "tier_breakdown": { "TIER_3": 3 },
+                "estimated_cloud_cost_avoided_usd": 0.000034,
+                "estimated_carbon_avoided_kgco2e": 0.000003,
+                "estimated_data_kept_local_gb": 0.000001,
+                "methodology_version": "aethra-impact-0.1",
+                "confidence": "low",
+                "disclaimer": "Local-only counterfactual proxy estimates; not actual carbon accounting."
+            }))
+            .unwrap(),
+            "methodology aethra-impact-0.1, confidence low"
+        );
+    }
+
+    #[test]
+    fn doctor_rejects_missing_required_fields() {
+        assert!(validate_doctor_health(&json!({
+            "status": "ok",
+            "service": "ignispromptd",
+            "version": "0.1.0"
+        }))
+        .is_err());
+        assert!(validate_doctor_version_status(&json!({
+            "service": "ignispromptd",
+            "version": "0.1.0",
+            "release_channel": "local-preview",
+            "local_only": false
+        }))
+        .unwrap_err()
+        .contains("local_only"));
+        assert!(validate_doctor_models(&json!({ "items": [] })).is_err());
+        assert!(validate_doctor_model_status_hints(&json!({
+            "schemaVersion": "ignisprompt.model-status.v1",
+            "generatedAt": "2026-05-21T00:00:00Z",
+            "source": "local-daemon"
+        }))
+        .is_err());
+    }
+
+    #[test]
+    fn doctor_summary_reports_ready_and_informational_checks() {
+        let report = DoctorReport {
+            base_url: "http://127.0.0.1:8765".to_string(),
+            checks: vec![
+                DoctorCheckResult {
+                    id: "health",
+                    label: "health",
+                    level: DoctorCheckLevel::Required,
+                    endpoint: "http://127.0.0.1:8765/health".to_string(),
+                    ok: true,
+                    summary: "ok".to_string(),
+                    error: None,
+                },
+                DoctorCheckResult {
+                    id: "sustainability_metrics",
+                    label: "sustainability metrics",
+                    level: DoctorCheckLevel::Informational,
+                    endpoint: "http://127.0.0.1:8765/v1/metrics/sustainability?period=30d"
+                        .to_string(),
+                    ok: true,
+                    summary: "methodology aethra-impact-0.1, confidence low".to_string(),
+                    error: None,
+                },
+            ],
+        };
+
+        let summary = format_doctor_summary(&report);
+        assert!(summary.contains("IgnisPrompt Doctor"));
+        assert!(summary.contains("✓ health: ok"));
+        assert!(summary.contains("Informational checks:"));
+        assert!(summary.contains("✓ Local preview daemon appears ready."));
+    }
+
+    #[test]
+    fn doctor_failed_required_check_reports_next_steps_and_failed_json() {
+        let report = DoctorReport {
+            base_url: "http://127.0.0.1:8765".to_string(),
+            checks: vec![DoctorCheckResult {
+                id: "health",
+                label: "health",
+                level: DoctorCheckLevel::Required,
+                endpoint: "http://127.0.0.1:8765/health".to_string(),
+                ok: false,
+                summary: "daemon unreachable".to_string(),
+                error: Some("daemon unreachable".to_string()),
+            }],
+        };
+
+        assert!(!report.required_checks_passed());
+        let summary = format_doctor_summary(&report);
+        assert!(summary.contains("✗ health: daemon unreachable"));
+        assert!(summary.contains("start the daemon with ./scripts/start-dev.sh"));
+        assert!(summary.contains("check http://127.0.0.1:8765/health"));
+
+        let json_report: serde_json::Value =
+            serde_json::from_str(&format_doctor_json(&report)).unwrap();
+        assert_eq!(json_report["base_url"], "http://127.0.0.1:8765");
+        assert_eq!(json_report["overall_status"], "failed");
+        assert_eq!(json_report["checks"][0]["status"], "failed");
+        assert!(json_report["next_steps"].as_array().unwrap().len() >= 3);
     }
 
     #[test]
