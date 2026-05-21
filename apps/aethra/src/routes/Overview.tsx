@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
+import { PageHelp } from "../components/PageHelp";
 import { StatusBadge } from "../components/StatusBadge";
 import type {
   AethraDataMode,
@@ -116,6 +117,14 @@ export function Overview({
           </StatusBadge>
         </div>
       </header>
+
+      <PageHelp
+        items={[
+          "Review local preview status, fixture fallback data, diagnostics, and copyable local commands.",
+          "Use manual live-local refresh actions to load daemon health and version metadata from loopback endpoints.",
+          "Read fixture-backed route, warning, and local-only summaries before moving to detailed pages.",
+        ]}
+      />
 
       <section className="overview-section-group" aria-label="Local preview operations">
         <div className="section-heading">

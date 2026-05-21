@@ -18,6 +18,8 @@ The default UI uses synthetic health, model, audit, and route data. This keeps s
 
 The app shell includes a local preview banner that keeps the fixture-default, manual live-local loading, no-telemetry, no-cloud-calls-by-default, and not-a-production-deployment boundaries visible. Manual live-local refresh actions are grouped and labeled so operators can distinguish endpoint loads from fixture fallback data and local report export actions.
 
+Each main page includes a small guidance panel that explains what the page shows and how to interpret fixture data, manual live-local metadata, route explanations, audit records, model and runner status hints, and sustainability proxy indicators.
+
 ## Live Local Touchpoints
 
 Aethra includes local IgnisPrompt API support, but the dashboard remains fixture-first by default.
