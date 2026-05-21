@@ -28,6 +28,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Improve the GGUF subprocess contract while keeping it feature-gated.
 - Explore documented adapter concepts for local LiteLLM-style and DreamServer-style stacks without claiming implemented support or compatibility.
 - Use the local adapter implementation checklist before any adapter code is proposed.
+- Refine the LiteLLM-style OpenAI-compatible local gateway plan before any implementation work begins.
 
 ## Candidate model work
 

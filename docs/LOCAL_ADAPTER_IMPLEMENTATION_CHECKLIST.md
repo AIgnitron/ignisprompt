@@ -4,6 +4,8 @@ This checklist is a future implementation gate for local adapter work. It transl
 
 Use this checklist when proposing a local-preview adapter that connects IgnisPrompt to an operator-owned local model gateway, runner, or server. Any future adapter PR should remain conservative until implementation, tests, documentation, and review all land.
 
+For the focused LiteLLM-style OpenAI-compatible local gateway path, use [LiteLLM-Style Local Gateway Plan](LITELLM_LOCAL_GATEWAY_PLAN.md) together with this checklist.
+
 ## Problem Statement Gate
 
 Before writing adapter code, the PR or design issue must state:

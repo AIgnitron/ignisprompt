@@ -59,6 +59,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - `ignispromptctl sustainability --period 30d` reads `GET /v1/metrics/sustainability?period=<period>` and prints aggregate local sustainability metrics. Supported periods are `7d`, `30d`, and `90d`; the default is `30d`, and `--json` prints the same local endpoint response as formatted JSON.
 - `docs/ADAPTER_CONCEPTS.md` is docs-only design material. It does not add LiteLLM support, DreamServer support, proxying, runner controls, model controls, cloud calls, telemetry, external lookups, or API behavior.
 - `docs/LOCAL_ADAPTER_IMPLEMENTATION_CHECKLIST.md` is a docs-only future implementation gate for local adapter work. It does not implement adapters, change API behavior, add proxying, or add runner/model controls.
+- `docs/LITELLM_LOCAL_GATEWAY_PLAN.md` is a docs-only future implementation plan for a LiteLLM-style OpenAI-compatible local gateway path. It does not implement adapter code, proxying, API behavior, cloud fallback, runner controls, or model controls.
 - Local-preview schema-lock tests protect the JSON field names and high-level response shapes consumed by Aethra, smoke checks, and `ignispromptctl` for health, models, model/runner status, version status, audit events, sustainability metrics, and invalid sustainability period errors.
 - Aethra Overview can manually load daemon version status in live-local mode and otherwise shows fixture fallback release status metadata.
 - Aethra Overview shows live-local connection diagnostics derived from manual local loads only. Diagnostics distinguish fixture mode active, live-local ready, live-local connected, daemon unreachable, endpoint unavailable, invalid response shape, last refresh failed, and last refresh succeeded states.
@@ -175,6 +176,7 @@ Add `--include-route-explain` only when you intentionally want to append a local
 7. Keep any future model and runner status work limited to hints; avoid readiness, certification, legal-quality, or compliance claims.
 8. Treat any LiteLLM-style or DreamServer-style adapter work as future local-preview design until implementation, tests, docs, and review land; keep adapters explicit, local, configurable, and disabled by default.
 9. Use `docs/LOCAL_ADAPTER_IMPLEMENTATION_CHECKLIST.md` before any adapter implementation begins; preserve route explanations, audit events, local-only defaults, and adversarial document-instruction behavior.
+10. Treat `docs/LITELLM_LOCAL_GATEWAY_PLAN.md` as the focused plan for any future OpenAI-compatible local gateway path; do not expand DreamServer work unless a future task explicitly scopes it.
 
 Avoid cloud telemetry, analytics, auth providers, a SaaS backend, model install/delete controls, and production/legal/compliance/sustainability overclaims unless a future task explicitly scopes and reviews those changes.
 
