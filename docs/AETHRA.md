@@ -44,7 +44,7 @@ Show daemon status, local-only mode, uptime derived from `started_at`, model cou
 
 ### Routing Explorer
 
-Let the user enter a synthetic or non-sensitive prompt and optional domain/model hints, call `POST /v1/route/explain`, and display the route decision and explanation. This should be framed as route inspection only, not legal advice or model-quality validation.
+Let the user enter a synthetic or non-sensitive prompt and optional domain/model hints, call `POST /v1/route/explain`, and display the route decision and explanation. Fixture-backed local preview examples should remain the default. The result should explain the selected tier, route code, local-only policy signals, warnings, and explanation text as IgnisPrompt route output, not production policy certification, legal advice, or model-quality validation. Copy helpers for route decision JSON may write text to the browser clipboard only; they should not persist state, execute commands, or call external services.
 
 ### Audit Events
 

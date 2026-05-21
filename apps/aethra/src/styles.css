@@ -681,6 +681,22 @@ textarea:focus {
   align-items: start;
 }
 
+.route-policy-breakdown {
+  padding: 12px;
+  border: 1px solid #e2e8ea;
+  border-radius: 8px;
+  background: #f7fafb;
+}
+
+.compact-panel-heading {
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.compact-panel-heading h4 {
+  margin: 0;
+}
+
 .sustainability-layout {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

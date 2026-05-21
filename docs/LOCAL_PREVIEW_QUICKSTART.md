@@ -96,6 +96,8 @@ Overview also includes a Local Commands panel with copyable local preview helper
 
 Aethra panels now include clearer empty states for fixture mode, missing live-local data, unavailable daemon responses, and panels that need manual refresh. These messages explain what is missing, why fixture fallback may still be visible, and the local command or refresh action to try next.
 
+Routing Explorer includes clearer fixture-backed route examples, a compact decision breakdown for tier, route code, local-only policy signals, warnings, and explanation text, and a browser-only route decision JSON copy helper. Copying route decision JSON does not persist state, execute commands, upload data, or contact remote services.
+
 Audit Events includes browser-local search and warning/cache filters for the displayed audit records. The selected event detail can copy `request_id` to the browser clipboard only; it does not persist copied state, execute commands, or call remote services.
 
 ## 7. Switch To Live-Local Mode

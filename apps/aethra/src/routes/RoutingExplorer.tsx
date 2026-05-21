@@ -6,6 +6,7 @@ import { EmptyState } from "../components/EmptyState";
 import { PageHelp } from "../components/PageHelp";
 import { StatusBadge } from "../components/StatusBadge";
 import {
+  buildRouteDecisionCopyText,
   buildRouteExplainRequest,
   buildRouteFixtureScenarios,
   describeRouteExplainError,
@@ -157,8 +158,9 @@ export function RoutingExplorer({
 
       <PageHelp
         items={[
-          "Compare fixture route examples with an optional live local route-explain request.",
-          "Route tiers, route codes, warnings, and explanations come from IgnisPrompt.",
+          "Compare fixture-backed local preview examples with an optional live local route-explain request.",
+          "Route tiers, route codes, warnings, and explanations come from IgnisPrompt and explain why a tier was selected.",
+          "No cloud route is used by default; route explanations are local-preview policy signals, not production policy certification.",
           "Live route-explain stays on the configured local daemon and appends a local audit event.",
         ]}
       />
@@ -231,7 +233,8 @@ function RouteExplainForm({
         <div>
           <h3>Route request</h3>
           <p className="muted">
-            Use synthetic or non-sensitive text. This is not legal advice.
+            Use synthetic or non-sensitive text. Fixture examples are the
+            default local-preview path; live route-explain is explicit.
           </p>
         </div>
       </div>
@@ -271,7 +274,7 @@ function RouteExplainForm({
       </div>
 
       <label className="form-field">
-        <span>Fixture result mode</span>
+        <span>Fixture-backed route example</span>
         <select
           value={selectedFixtureId}
           onChange={(event) => onFixtureChange(event.target.value)}
@@ -325,9 +328,9 @@ function RouteExplainForm({
       </div>
 
       <p className="muted">
-        A live route-explain request is local, but it creates a local audit
-        event. Aethra does not own routing logic; IgnisPrompt returns the
-        decision.
+        Route decisions explain why IgnisPrompt selected a tier and whether
+        cloud was considered or allowed. They are local-preview signals, not
+        production policy certification.
       </p>
     </form>
   );
@@ -338,6 +341,9 @@ type RouteExplainResultProps = {
 };
 
 function RouteExplainResult({ result }: RouteExplainResultProps) {
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">(
+    "idle",
+  );
   const tone = result.errorMessage
     ? "warning"
     : result.response &&
@@ -346,6 +352,26 @@ function RouteExplainResult({ result }: RouteExplainResultProps) {
       ? "warning"
       : "ok";
   const response = result.response;
+
+  useEffect(() => {
+    setCopyStatus("idle");
+  }, [response?.request_id]);
+
+  async function copyRouteDecision(responseToCopy: RouteExplainResponse) {
+    if (!globalThis.navigator?.clipboard?.writeText) {
+      setCopyStatus("error");
+      return;
+    }
+
+    try {
+      await globalThis.navigator.clipboard.writeText(
+        buildRouteDecisionCopyText(responseToCopy),
+      );
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("error");
+    }
+  }
 
   return (
     <aside className="panel detail-panel" aria-label="Route explanation result">
@@ -380,34 +406,77 @@ function RouteExplainResult({ result }: RouteExplainResultProps) {
               <dd>{response.request_id}</dd>
             </div>
             <div>
-              <dt>Tier</dt>
-              <dd>{response.decision.tier}</dd>
-            </div>
-            <div>
-              <dt>Route code</dt>
-              <dd>{response.decision.route_code}</dd>
-            </div>
-            <div>
-              <dt>Domain</dt>
-              <dd>{response.decision.domain}</dd>
-            </div>
-            <div>
-              <dt>Model</dt>
-              <dd>{response.decision.model_id ?? "none"}</dd>
-            </div>
-            <div>
-              <dt>Cloud considered</dt>
-              <dd>{String(response.decision.cloud_considered)}</dd>
-            </div>
-            <div>
-              <dt>Cloud allowed</dt>
-              <dd>{String(response.decision.cloud_allowed)}</dd>
-            </div>
-            <div>
-              <dt>Data left device</dt>
-              <dd>{String(response.decision.data_left_device)}</dd>
+              <dt>Result source</dt>
+              <dd>
+                {result.source === "live"
+                  ? "Live local route-explain"
+                  : "Fixture-backed local preview"}
+              </dd>
             </div>
           </dl>
+
+          <section className="detail-section route-policy-breakdown">
+            <div className="panel-heading compact-panel-heading">
+              <div>
+                <h4>Decision breakdown</h4>
+                <p className="muted">
+                  Local-preview route signals returned by IgnisPrompt.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="secondary-button compact-button"
+                onClick={() => copyRouteDecision(response)}
+              >
+                Copy decision JSON
+              </button>
+            </div>
+            {copyStatus !== "idle" ? (
+              <p
+                className={`copy-feedback copy-feedback-${
+                  copyStatus === "copied" ? "ok" : "warning"
+                }`}
+              >
+                {copyStatus === "copied"
+                  ? "Copied route decision JSON"
+                  : "Clipboard unavailable; select the route fields."}
+              </p>
+            ) : null}
+            <dl className="state-list compact-state-list">
+              <div>
+                <dt>Tier selected</dt>
+                <dd>{response.decision.tier}</dd>
+              </div>
+              <div>
+                <dt>Route code</dt>
+                <dd>{response.decision.route_code}</dd>
+              </div>
+              <div>
+                <dt>Domain signal</dt>
+                <dd>{response.decision.domain}</dd>
+              </div>
+              <div>
+                <dt>Selected model</dt>
+                <dd>{response.decision.model_id ?? "none"}</dd>
+              </div>
+              <div>
+                <dt>Cloud considered</dt>
+                <dd>{String(response.decision.cloud_considered)}</dd>
+              </div>
+              <div>
+                <dt>Cloud allowed</dt>
+                <dd>{String(response.decision.cloud_allowed)}</dd>
+              </div>
+              <div>
+                <dt>Data left device</dt>
+                <dd>{String(response.decision.data_left_device)}</dd>
+              </div>
+              <div>
+                <dt>Warnings</dt>
+                <dd>{response.warnings.length}</dd>
+              </div>
+            </dl>
+          </section>
 
           <section className="detail-section">
             <h4>Explanation</h4>
@@ -431,7 +500,8 @@ function RouteExplainResult({ result }: RouteExplainResultProps) {
 
       <p className="muted">
         Route decisions are returned by IgnisPrompt. This screen does not
-        classify prompts, execute model inference, or validate legal accuracy.
+        classify prompts, execute model inference, validate legal accuracy, or
+        certify production policy.
       </p>
     </aside>
   );
