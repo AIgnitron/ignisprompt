@@ -13,7 +13,7 @@ curl -fsS "$BASE_URL/v1/status/version" | jq -e '
   (.version | type == "string") and
   (.release_channel == "local-preview") and
   (.local_only == true) and
-  ((.build_profile == null) or (.build_profile == "debug") or (.build_profile == "release")) and
+  ((.build_profile == "debug") or (.build_profile == "release")) and
   (.warnings | type == "array") and
   any(.warnings[]?; (ascii_downcase | contains("local preview")) and (ascii_downcase | contains("not production")))
 '

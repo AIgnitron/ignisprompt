@@ -73,6 +73,7 @@ export default function App() {
       setLiveHealthState({
         status: "error",
         ...localUrlBlockedDescription(baseUrlError),
+        checkedAt: new Date().toISOString(),
       });
       return;
     }
@@ -90,6 +91,7 @@ export default function App() {
       setLiveHealthState({
         status: "error",
         ...describeHealthLoadError(error),
+        checkedAt: new Date().toISOString(),
       });
     }
   }
@@ -99,6 +101,7 @@ export default function App() {
       setLiveModelsState({
         status: "error",
         ...localUrlBlockedDescription(baseUrlError),
+        checkedAt: new Date().toISOString(),
       });
       return;
     }
@@ -116,6 +119,7 @@ export default function App() {
       setLiveModelsState({
         status: "error",
         ...describeModelsLoadError(error),
+        checkedAt: new Date().toISOString(),
       });
     }
   }
@@ -125,6 +129,7 @@ export default function App() {
       setLiveModelStatusState({
         status: "error",
         ...localUrlBlockedDescription(baseUrlError),
+        checkedAt: new Date().toISOString(),
       });
       return;
     }
@@ -145,6 +150,7 @@ export default function App() {
       setLiveModelStatusState({
         status: "error",
         ...describeModelStatusLoadError(error),
+        checkedAt: new Date().toISOString(),
       });
     }
   }
@@ -154,6 +160,7 @@ export default function App() {
       setLiveVersionStatusState({
         status: "error",
         ...localUrlBlockedDescription(baseUrlError),
+        checkedAt: new Date().toISOString(),
       });
       return;
     }
@@ -171,6 +178,7 @@ export default function App() {
       setLiveVersionStatusState({
         status: "error",
         ...describeVersionStatusLoadError(error),
+        checkedAt: new Date().toISOString(),
       });
     }
   }
@@ -180,6 +188,7 @@ export default function App() {
       setLiveAuditEventsState({
         status: "error",
         ...localUrlBlockedDescription(baseUrlError),
+        checkedAt: new Date().toISOString(),
       });
       return;
     }
@@ -197,6 +206,7 @@ export default function App() {
       setLiveAuditEventsState({
         status: "error",
         ...describeAuditEventsLoadError(error),
+        checkedAt: new Date().toISOString(),
       });
     }
   }
@@ -207,6 +217,7 @@ export default function App() {
         status: "error",
         period,
         ...localUrlBlockedDescription(baseUrlError),
+        checkedAt: new Date().toISOString(),
       });
       return;
     }
@@ -225,6 +236,7 @@ export default function App() {
         status: "error",
         period,
         ...describeSustainabilityMetricsLoadError(error),
+        checkedAt: new Date().toISOString(),
       });
     }
   }

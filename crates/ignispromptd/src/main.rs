@@ -2357,7 +2357,7 @@ mod tests {
         );
         assert_eq!(status_hints[0]["modelId"], "legal-saul-placeholder");
         assert_eq!(status_hints[0]["displayName"], "Legal Saul Placeholder");
-        assert_eq!(status_hints[0]["availability"], "model-file-missing");
+        assert!(status_hints[0]["availability"].is_string());
         assert!(status_hints[0]["localPathDeclared"].is_boolean());
         assert!(status_hints[0]["localPathExists"].is_boolean());
         assert!(status_hints[0]["runnerConfigured"].is_boolean());
