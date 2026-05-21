@@ -37,6 +37,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - Post-v0.1.0 hardening branch `feat/local-version-status-endpoint` adds `GET /v1/status/version` for local preview support/debugging metadata and `ignispromptctl status-version`.
 - Post-v0.1.0 hardening branch `feat/aethra-version-status` wires Aethra Overview to show `GET /v1/status/version` in live-local mode with fixture fallback.
 - Post-v0.1.0 hardening branch `feat/aethra-live-local-diagnostics` improves Aethra Overview live-local connection diagnostics without backend changes.
+- Post-v0.1.0 hardening branch `feat/aethra-copyable-local-commands` adds an Aethra Overview Local Commands panel with copyable terminal commands for local preview verification/debugging.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
 - Issue #43 is closed after Saul 7B local legal candidate evidence was documented.
 
@@ -56,6 +57,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - `ignispromptctl status-version` reads `GET /v1/status/version` and prints the same local preview metadata.
 - Aethra Overview can manually load daemon version status in live-local mode and otherwise shows fixture fallback release status metadata.
 - Aethra Overview shows live-local connection diagnostics derived from manual local loads only. Diagnostics distinguish fixture mode active, live-local ready, live-local connected, daemon unreachable, endpoint unavailable, invalid response shape, last refresh failed, and last refresh succeeded states.
+- Aethra Overview shows copyable local commands for starting the daemon, starting Aethra, smoke/release checks, and local API endpoint inspection. Copying writes text to the browser clipboard only; Aethra does not execute commands.
 
 ## Aethra Status
 
@@ -90,6 +92,8 @@ IgnisPrompt now exposes `GET /v1/status/version` for local preview support, debu
 Aethra can manually load `GET /v1/status/version` on the Overview screen in live-local mode. Fixture mode remains the default, the fixture version status remains visible until a successful manual load, and unreachable daemon/schema errors keep a clear fixture fallback state. Aethra does not poll, persist this metadata, add telemetry, call cloud services, call GitHub, or perform release/update checks.
 
 Aethra Overview live-local diagnostics explain next local steps such as starting `./scripts/start-dev.sh`, checking the loopback `/health` endpoint, confirming endpoint availability, or using fixture mode while debugging. Diagnostics are local-only, manual, non-persistent, and not telemetry.
+
+Aethra Overview includes a Local Commands panel with copyable local preview helper commands. The commands are for the operator to run in a terminal. The panel does not add remote execution, telemetry, cloud calls, GitHub calls, update checks, polling, or local/session storage persistence.
 
 IgnisPrompt now exposes `GET /v1/metrics/sustainability?period=30d` for Aethra v0.1 local-only counterfactual sustainability and cost proxy estimates derived from in-memory audit events. It reports methodology version, confidence, and disclaimer fields. It must be presented as not measured energy use, not actual carbon accounting, not ESG certification, and not compliance evidence.
 
@@ -157,7 +161,8 @@ Add `--include-route-explain` only when you intentionally want to append a local
 3. Improve Aethra model and runner status hint copy, empty states, and operator guidance based on live-mode feedback.
 4. Keep Aethra version status language limited to local preview support/debugging metadata; avoid update-check, readiness, certification, or compliance claims.
 5. Keep Aethra live-local diagnostics limited to local connection/debugging state; avoid polling, persistence, external lookup, cloud calls, update checks, readiness claims, or controls.
-6. Keep any future model and runner status work limited to hints; avoid readiness, certification, legal-quality, or compliance claims.
+6. Keep copyable command helpers local and explicit; avoid dashboard-side command execution, remote command language, telemetry, or persistence.
+7. Keep any future model and runner status work limited to hints; avoid readiness, certification, legal-quality, or compliance claims.
 
 Avoid cloud telemetry, analytics, auth providers, a SaaS backend, model install/delete controls, and production/legal/compliance/sustainability overclaims unless a future task explicitly scopes and reviews those changes.
 

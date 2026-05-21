@@ -363,6 +363,66 @@ textarea:focus {
   color: #40545c;
 }
 
+.command-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.command-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e2e8ea;
+  border-radius: 8px;
+  background: #f7fafb;
+}
+
+.command-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.command-copy strong {
+  color: #172026;
+}
+
+.command-copy code {
+  overflow-wrap: anywhere;
+  color: #25353b;
+  font-size: 0.85rem;
+}
+
+.command-copy span {
+  color: #607176;
+  font-size: 0.84rem;
+}
+
+.copy-feedback {
+  margin: 12px 0 0;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.command-copy .copy-feedback {
+  margin: 0;
+}
+
+.copy-feedback-ok {
+  color: #17643a;
+}
+
+.copy-feedback-warning {
+  color: #7a4b00;
+}
+
+.local-commands-note {
+  margin-top: 14px;
+}
+
 .two-column {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -747,6 +807,7 @@ textarea:focus {
   }
 
   .audit-layout,
+  .command-row,
   .model-layout,
   .routing-layout,
   .sustainability-layout {

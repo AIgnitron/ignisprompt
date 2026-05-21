@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { MetricCard } from "../components/MetricCard";
 import { StatusBadge } from "../components/StatusBadge";
 import type {
@@ -21,6 +22,11 @@ import {
   buildOverviewSummary,
   getWarningExamples,
 } from "./overviewSummary";
+import {
+  getAllLocalCommandsText,
+  localCommands,
+  type LocalCommand,
+} from "./localCommands";
 
 const summary = buildOverviewSummary(
   healthFixture,
@@ -103,6 +109,8 @@ export function Overview({
       </header>
 
       <LiveLocalDiagnosticsPanel diagnostics={diagnostics} />
+
+      <LocalCommandsPanel />
 
       <HealthMetadataPanel
         dataMode={dataMode}
@@ -255,6 +263,117 @@ export function Overview({
         </section>
       </div>
     </section>
+  );
+}
+
+type CopyStatus =
+  | {
+      id: string;
+      message: string;
+      tone: "ok" | "warning";
+    }
+  | undefined;
+
+function LocalCommandsPanel() {
+  const [copyStatus, setCopyStatus] = useState<CopyStatus>();
+
+  async function copyCommand(id: string, command: string) {
+    if (!globalThis.navigator?.clipboard?.writeText) {
+      setCopyStatus({
+        id,
+        message: "Clipboard unavailable; select the command text.",
+        tone: "warning",
+      });
+      return;
+    }
+
+    try {
+      await globalThis.navigator.clipboard.writeText(command);
+      setCopyStatus({ id, message: "Copied", tone: "ok" });
+    } catch {
+      setCopyStatus({
+        id,
+        message: "Copy failed; select the command text.",
+        tone: "warning",
+      });
+    }
+  }
+
+  return (
+    <section className="panel" aria-label="Copy local commands">
+      <div className="panel-heading">
+        <div>
+          <h3>Local Commands</h3>
+          <p className="muted">
+            Local preview helpers. These commands run in your terminal.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => copyCommand("all", getAllLocalCommandsText())}
+        >
+          Copy all commands
+        </button>
+      </div>
+
+      {copyStatus?.id === "all" ? (
+        <p className={`copy-feedback copy-feedback-${copyStatus.tone}`}>
+          {copyStatus.message}
+        </p>
+      ) : null}
+
+      <div className="command-list">
+        {localCommands.map((item) => (
+          <LocalCommandRow
+            key={item.id}
+            item={item}
+            copyStatus={copyStatus}
+            onCopy={copyCommand}
+          />
+        ))}
+      </div>
+
+      <p className="muted local-commands-note">
+        Aethra only copies text to your clipboard. It does not execute commands,
+        call telemetry, contact cloud services, call GitHub, check for updates,
+        poll endpoints, or persist command state.
+      </p>
+    </section>
+  );
+}
+
+type LocalCommandRowProps = {
+  item: LocalCommand;
+  copyStatus: CopyStatus;
+  onCopy: (id: string, command: string) => void;
+};
+
+function LocalCommandRow({
+  item,
+  copyStatus,
+  onCopy,
+}: LocalCommandRowProps) {
+  return (
+    <div className="command-row">
+      <div className="command-copy">
+        <strong>{item.label}</strong>
+        <code>{item.command}</code>
+        <span>{item.detail}</span>
+        {copyStatus?.id === item.id ? (
+          <span className={`copy-feedback copy-feedback-${copyStatus.tone}`}>
+            {copyStatus.message}
+          </span>
+        ) : null}
+      </div>
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={() => onCopy(item.id, item.command)}
+      >
+        Copy command
+      </button>
+    </div>
   );
 }
 

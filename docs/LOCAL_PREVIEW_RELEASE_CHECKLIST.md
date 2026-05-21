@@ -122,7 +122,9 @@ npm run dev
 8. Confirm daemon version status appears on the Overview screen as local preview support/debugging metadata.
 9. Confirm Overview live-local diagnostics clearly distinguish fixture mode active, live-local ready, live-local connected, daemon unreachable, endpoint unavailable, invalid response shape, last refresh failed, and last refresh succeeded states as applicable.
 10. Confirm diagnostics include local next steps such as starting `./scripts/start-dev.sh`, checking `/health`, and using fixture mode while debugging.
-11. Confirm no polling, no telemetry, no cloud call, no upload, no update check, no GitHub API call, and no persistence is introduced.
+11. Confirm the Overview Local Commands panel shows copyable local commands for daemon startup, smoke/release checks, local API inspection, and Aethra startup.
+12. Confirm command copying only writes text to the browser clipboard and does not execute commands from the dashboard.
+13. Confirm no polling, no telemetry, no cloud call, no upload, no update check, no GitHub API call, no remote execution, and no persistence is introduced.
 
 ## Sustainability Endpoint Verification
 
