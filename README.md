@@ -64,6 +64,13 @@ The docs set under `docs/` describes the current scaffold and clearly separates 
 
 Contributors and AI coding agents should read `AGENTS.md` before making changes. For current repo state, known gaps, and recommended next tasks, also read `docs/CODEX_HANDOFF.md`.
 
+Contributor entry points:
+
+- [Contributing](CONTRIBUTING.md) for the short contribution path
+- [Developer contributing notes](docs/CONTRIBUTING_DEV.md) for local-first rules, artifact hygiene, and documentation expectations
+- [Changelog](CHANGELOG.md) for release history
+- [GitHub issue templates](.github/ISSUE_TEMPLATE/) and [pull request template](.github/pull_request_template.md) for contributor intake and safety checklist prompts
+
 ## What this scaffold includes
 
 - `GET /health`

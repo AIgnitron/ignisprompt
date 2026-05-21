@@ -4,6 +4,8 @@ IgnisPrompt is open-source local AI routing infrastructure. Early contributions 
 
 Before making changes, contributors and AI coding agents should read `AGENTS.md` for permanent repository rules. For current MVP state, known gaps, and recommended post-MVP tasks, also read `docs/CODEX_HANDOFF.md`.
 
+For more detailed local setup, artifact hygiene, conservative claim language, and documentation expectations, see `docs/CONTRIBUTING_DEV.md`. For release history, see `CHANGELOG.md`. New issues should use the templates under `.github/ISSUE_TEMPLATE/`, and PRs should use `.github/pull_request_template.md`.
+
 ## Current priorities
 
 1. Keep `ignispromptd` minimal and reliable.
@@ -17,3 +19,4 @@ Before making changes, contributors and AI coding agents should read `AGENTS.md`
 - Run `cargo clippy --all-targets --all-features`.
 - Run `cargo test`.
 - Run `./scripts/smoke.sh` with the daemon running.
+- Confirm the PR template's local-first checklist, including no cloud calls by default, no committed model weights, no audit logs, no `target/` artifacts, and no `local-evidence/` files.
