@@ -98,6 +98,10 @@ export function Overview({
         <div>
           <p className="eyebrow">Overview</p>
           <h2>IgnisPrompt overview</h2>
+          <p className="page-subtitle">
+            Local preview status, diagnostics, commands, and fixture-backed
+            routing context.
+          </p>
         </div>
         <div className="status-strip" aria-label="Overview health status">
           <StatusBadge tone="ok">{healthForStatus.status.toUpperCase()}</StatusBadge>
@@ -113,21 +117,44 @@ export function Overview({
         </div>
       </header>
 
-      <LiveLocalDiagnosticsPanel diagnostics={diagnostics} />
+      <section className="overview-section-group" aria-label="Local preview operations">
+        <div className="section-heading">
+          <p className="eyebrow">Operations</p>
+          <h3>Status, diagnostics, and local commands</h3>
+          <p className="muted">
+            Live-local actions are manual and read-only; fixture mode remains
+            available while you debug daemon setup.
+          </p>
+        </div>
+        <div className="overview-operations-grid">
+          <LiveLocalDiagnosticsPanel diagnostics={diagnostics} />
+          <LocalCommandsPanel />
+        </div>
+      </section>
 
-      <LocalCommandsPanel />
+      <section className="overview-section-group" aria-label="Manual live-local metadata">
+        <div className="section-heading">
+          <p className="eyebrow">Manual refresh</p>
+          <h3>Live-local metadata actions</h3>
+          <p className="muted">
+            These actions load individual loopback endpoints on demand. Aethra
+            does not poll or persist live-local state.
+          </p>
+        </div>
+        <div className="overview-metadata-grid">
+          <HealthMetadataPanel
+            dataMode={dataMode}
+            liveHealthState={liveHealthState}
+            onLoadLiveHealth={onLoadLiveHealth}
+          />
 
-      <HealthMetadataPanel
-        dataMode={dataMode}
-        liveHealthState={liveHealthState}
-        onLoadLiveHealth={onLoadLiveHealth}
-      />
-
-      <VersionStatusPanel
-        dataMode={dataMode}
-        liveVersionStatusState={liveVersionStatusState}
-        onLoadLiveVersionStatus={onLoadLiveVersionStatus}
-      />
+          <VersionStatusPanel
+            dataMode={dataMode}
+            liveVersionStatusState={liveVersionStatusState}
+            onLoadLiveVersionStatus={onLoadLiveVersionStatus}
+          />
+        </div>
+      </section>
 
       <div className="metric-grid" aria-label="Aethra fixture metrics">
         <MetricCard
@@ -575,7 +602,8 @@ function VersionStatusPanel({
       </p>
 
       {isLiveMode ? (
-        <div className="button-row version-status-action-row">
+        <div className="manual-refresh-card version-status-action-row">
+          <span>Manual live-local refresh action</span>
           <button
             type="button"
             className="secondary-button"
@@ -719,7 +747,8 @@ function HealthMetadataPanel({
       </dl>
 
       {isLiveMode ? (
-        <div className="button-row health-action-row">
+        <div className="manual-refresh-card health-action-row">
+          <span>Manual live-local refresh action</span>
           <button
             type="button"
             className="secondary-button"

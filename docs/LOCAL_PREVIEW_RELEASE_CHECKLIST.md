@@ -115,17 +115,18 @@ npm run dev
 ```
 
 3. Open `http://127.0.0.1:5173/`.
-4. Confirm fixture mode is the default.
-5. Switch to live-local mode.
-6. Confirm live local loads are manual and target the configured loopback daemon.
-7. Load health, daemon version status, models, model/runner status hints, audit events, and sustainability metrics.
-8. Confirm daemon version status appears on the Overview screen as local preview support/debugging metadata.
-9. Confirm Overview live-local diagnostics clearly distinguish fixture mode active, live-local ready, live-local connected, daemon unreachable, endpoint unavailable, invalid response shape, last refresh failed, and last refresh succeeded states as applicable.
-10. Confirm diagnostics include local next steps such as starting `./scripts/start-dev.sh`, checking `/health`, and using fixture mode while debugging.
-11. Confirm the Overview Local Commands panel shows copyable local commands for daemon startup, smoke/release checks, local API inspection, and Aethra startup.
-12. Confirm command copying only writes text to the browser clipboard and does not execute commands from the dashboard.
-13. Confirm empty states explain fixture mode, missing live-local data, unavailable daemon responses, and panels that need manual refresh.
-14. Confirm no polling, no telemetry, no cloud call, no upload, no update check, no GitHub API call, no remote execution, and no persistence is introduced.
+4. Confirm the local preview banner states fixture mode is default, live-local loading is manual, there is no telemetry, there are no cloud calls by default, and this is not a production deployment.
+5. Confirm fixture mode is the default.
+6. Switch to live-local mode.
+7. Confirm live local loads are manual, grouped as manual live-local refresh actions, and target the configured loopback daemon.
+8. Load health, daemon version status, models, model and runner status hints, audit events, and sustainability metrics.
+9. Confirm daemon version status appears on the Overview screen as local preview support/debugging metadata.
+10. Confirm Overview live-local diagnostics clearly distinguish fixture mode active, live-local ready, live-local connected, daemon unreachable, endpoint unavailable, invalid response shape, last refresh failed, and last refresh succeeded states as applicable.
+11. Confirm diagnostics include local next steps such as starting `./scripts/start-dev.sh`, checking `/health`, and using fixture mode while debugging.
+12. Confirm the Overview Local Commands panel shows copyable local commands for daemon startup, smoke/release checks, local API inspection, and Aethra startup.
+13. Confirm command copying only writes text to the browser clipboard and does not execute commands from the dashboard.
+14. Confirm empty states explain fixture mode, missing live-local data, unavailable daemon responses, and panels that need manual refresh.
+15. Confirm no polling, no telemetry, no cloud call, no upload, no update check, no GitHub API call, no remote execution, and no persistence is introduced.
 
 ## Sustainability Endpoint Verification
 

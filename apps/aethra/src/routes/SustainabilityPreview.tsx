@@ -345,44 +345,51 @@ function SustainabilityLiveControl({
       </dl>
 
       <div className="sustainability-action-row">
-        <label className="form-field sustainability-period-field">
-          <span>Period</span>
-          <select
-            value={period}
-            onChange={(event) => onPeriodChange(event.target.value)}
-            disabled={liveSustainabilityMetricsState.status === "loading"}
+        <div className="manual-refresh-card sustainability-refresh-card">
+          <span>Manual live-local refresh action</span>
+          <label className="form-field sustainability-period-field">
+            <span>Period</span>
+            <select
+              value={period}
+              onChange={(event) => onPeriodChange(event.target.value)}
+              disabled={liveSustainabilityMetricsState.status === "loading"}
+            >
+              {periodOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={!canLoad}
+            onClick={() => onLoadLiveSustainabilityMetrics(period)}
           >
-            {periodOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={!canLoad}
-          onClick={() => onLoadLiveSustainabilityMetrics(period)}
-        >
-          {liveSustainabilityMetricsState.status === "loading"
-            ? "Loading metrics"
-            : "Load live sustainability metrics"}
-        </button>
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={onExportMarkdown}
-        >
-          Export Markdown
-        </button>
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={onExportJson}
-        >
-          Export JSON
-        </button>
+            {liveSustainabilityMetricsState.status === "loading"
+              ? "Loading metrics"
+              : "Load live sustainability metrics"}
+          </button>
+        </div>
+
+        <div className="report-export-card">
+          <span>Local report export</span>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onExportMarkdown}
+          >
+            Export Markdown
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onExportJson}
+          >
+            Export JSON
+          </button>
+        </div>
       </div>
     </section>
   );

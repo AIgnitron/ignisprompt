@@ -16,6 +16,8 @@ Aethra currently provides these fixture-backed screens:
 
 The default UI uses synthetic health, model, audit, and route data. This keeps screenshots and demos local, deterministic, and free of model weights, local evidence bundles, audit logs, cloud calls, telemetry, or analytics.
 
+The app shell includes a local preview banner that keeps the fixture-default, manual live-local loading, no-telemetry, no-cloud-calls-by-default, and not-a-production-deployment boundaries visible. Manual live-local refresh actions are grouped and labeled so operators can distinguish endpoint loads from fixture fallback data and local report export actions.
+
 ## Live Local Touchpoints
 
 Aethra includes local IgnisPrompt API support, but the dashboard remains fixture-first by default.
