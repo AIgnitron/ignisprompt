@@ -4,6 +4,8 @@ This document describes possible future adapter directions for local AI stacks s
 
 Before any future adapter code is started, use the [Local Adapter Implementation Checklist](LOCAL_ADAPTER_IMPLEMENTATION_CHECKLIST.md) as the implementation gate.
 
+For a focused plan for the LiteLLM-style OpenAI-compatible local gateway path, see [LiteLLM-Style Local Gateway Plan](LITELLM_LOCAL_GATEWAY_PLAN.md).
+
 ## Purpose
 
 Adapters matter because many local AI operators already run model servers, gateways, or runner tools. IgnisPrompt should not become another broad model server just to participate in those workflows. A future adapter layer could let IgnisPrompt keep its narrower role as a local policy, routing, explanation, and audit control plane while existing local stacks continue to own inference.
