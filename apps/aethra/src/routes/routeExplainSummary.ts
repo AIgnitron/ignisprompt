@@ -68,20 +68,35 @@ export function isWarningRouteDecision(
   );
 }
 
+export function buildRouteDecisionCopyText(
+  response: RouteExplainResponse,
+): string {
+  return `${JSON.stringify(
+    {
+      request_id: response.request_id,
+      decision: response.decision,
+      explanation: response.explanation,
+      warnings: response.warnings,
+    },
+    null,
+    2,
+  )}\n`;
+}
+
 export function buildRouteFixtureScenarios(
   successResponse: RouteExplainResponse,
 ): RouteExplainFixtureScenario[] {
   return [
     {
       id: "success",
-      label: "Success",
-      description: "Synthetic local Tier 3 legal route explanation.",
+      label: "Fixture: local legal route",
+      description: "Tier 3 selected with no cloud route considered.",
       response: successResponse,
     },
     {
       id: "warning",
-      label: "Warning",
-      description: "Synthetic adversarial document-instruction warning.",
+      label: "Fixture: warning preserved",
+      description: "Document instruction warning with local policy unchanged.",
       response: {
         ...successResponse,
         request_id: "fixture-route-warning-001",
@@ -94,8 +109,8 @@ export function buildRouteFixtureScenarios(
     },
     {
       id: "fail-closed",
-      label: "Fail closed",
-      description: "Synthetic fail-closed route decision.",
+      label: "Fixture: fail closed",
+      description: "Rejected before routing; no cloud route considered.",
       response: {
         request_id: "fixture-route-fail-closed-001",
         decision: {
@@ -114,8 +129,8 @@ export function buildRouteFixtureScenarios(
     },
     {
       id: "preflight-rejection",
-      label: "Preflight rejection",
-      description: "Synthetic client-side preflight rejection before POST.",
+      label: "Fixture: preflight rejection",
+      description: "Client-side rejection before a local POST.",
       errorMessage:
         "Enter synthetic or non-sensitive text before running route inspection.",
     },

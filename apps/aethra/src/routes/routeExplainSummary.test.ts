@@ -3,6 +3,7 @@ import { AethraApiError } from "../api/errors";
 import { routeExplainFixture } from "../api/fixtures";
 import {
   buildRouteExplainRequest,
+  buildRouteDecisionCopyText,
   buildRouteFixtureScenarios,
   describeRouteExplainError,
   isWarningRouteDecision,
@@ -75,6 +76,19 @@ describe("route explain helpers", () => {
       "REJECTED_EMPTY_MESSAGES",
     );
     expect(scenarios[3].errorMessage).toContain("non-sensitive text");
+  });
+
+  it("formats route decision copy payloads without request text", () => {
+    const payload = buildRouteDecisionCopyText(routeExplainFixture);
+    const parsed = JSON.parse(payload);
+
+    expect(parsed).toEqual({
+      request_id: routeExplainFixture.request_id,
+      decision: routeExplainFixture.decision,
+      explanation: routeExplainFixture.explanation,
+      warnings: routeExplainFixture.warnings,
+    });
+    expect(payload).not.toContain("messages");
   });
 
   it("marks rejected and error route decisions as warning decisions", () => {

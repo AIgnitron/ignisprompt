@@ -112,6 +112,8 @@ Aethra main pages include small guidance panels that explain local preview statu
 
 Aethra empty states explain what data is missing, why fixture fallback may still be visible, and what local action to try next, such as starting `./scripts/start-dev.sh`, running `./scripts/smoke.sh`, or manually refreshing the relevant panel. These empty states are local-only UI copy. They do not auto-load data, poll endpoints, persist state, add telemetry, call cloud services, call GitHub, or perform update checks.
 
+Aethra Routing Explorer includes clearer fixture-backed route example labels, local-preview route decision guidance, and a compact decision breakdown for tier, route code, local-only policy signals, warnings, and explanation text. Route decision JSON copy uses the browser Clipboard API only; it does not execute commands, persist state, add telemetry, call cloud services, call GitHub, or perform update checks.
+
 Aethra Audit Events includes clearer local-preview search/filter labels, no-match guidance, and a request ID copy helper for the selected event. The filtering is browser-local against currently displayed fixture or manually loaded records. Copying writes text to the browser clipboard only; it does not execute commands, persist state, add telemetry, call cloud services, call GitHub, or perform update checks.
 
 IgnisPrompt now exposes `GET /v1/metrics/sustainability?period=30d` for Aethra v0.1 local-only counterfactual sustainability and cost proxy estimates derived from in-memory audit events. It reports methodology version, confidence, and disclaimer fields. It must be presented as not measured energy use, not actual carbon accounting, not ESG certification, and not compliance evidence.
