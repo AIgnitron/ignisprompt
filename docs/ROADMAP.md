@@ -26,6 +26,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Make model manifest semantics clearer, especially the difference between route eligibility and actual local weight availability.
 - Continue local legal model bakeoffs with evidence stored under `./local-evidence/`.
 - Improve the GGUF subprocess contract while keeping it feature-gated.
+- Explore documented adapter concepts for local LiteLLM-style and DreamServer-style stacks without claiming implemented support or compatibility.
 
 ## Candidate model work
 
@@ -42,6 +43,7 @@ Future model selection should compare larger general models and legal-domain can
 - Tier 4 edge routing.
 - Tier 5 cloud routing.
 - Cloud BYOK provider integrations.
+- LiteLLM-style or DreamServer-style adapters for local model stacks.
 - Signed Local-Only Attestation Report generation.
 - Tamper-evident audit log storage.
 - Production legal-quality evaluation.
