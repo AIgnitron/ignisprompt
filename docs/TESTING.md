@@ -40,6 +40,8 @@ The smoke script checks `GET /v1/status/version` in addition to health, models, 
 With the daemon already running, `ignispromptctl` can be used for quick local inspection:
 
 ```bash
+cargo run -p ignispromptctl -- doctor
+cargo run -p ignispromptctl -- doctor --json
 cargo run -p ignispromptctl -- health
 cargo run -p ignispromptctl -- status-version
 cargo run -p ignispromptctl -- models
@@ -48,6 +50,8 @@ cargo run -p ignispromptctl -- sustainability --period 30d --json
 cargo run -p ignispromptctl -- route-explain --file ./tests/golden-legal/smoke-legal-request.json
 cargo run -p ignispromptctl -- audit tail
 ```
+
+The `doctor` command checks required local preview endpoints for health, version status, model manifests, and model and runner status hints. It also checks sustainability metrics as informational diagnostics. It exits non-zero only when required checks fail, supports `--json`, and should be used before Aethra live-local debugging when a terminal readiness summary is useful. It does not add telemetry, cloud calls, GitHub calls, update checks, external lookup, persistence, uploads, model controls, runner controls, or command execution beyond local HTTP reads.
 
 The `sustainability` command reads `GET /v1/metrics/sustainability?period=<period>` with supported periods `7d`, `30d`, and `90d`; it defaults to `30d` and rejects unsupported values before sending a request. It prints aggregate local sustainability metrics only. It does not include prompts, raw request text, raw audit event bodies, PII, machine identifiers, hostnames, usernames, filesystem paths, secrets, or API keys.
 
@@ -120,7 +124,7 @@ Local-preview API schema-lock tests cover the JSON field names and high-level re
 
 The endpoint is local-only and derived from in-memory audit events. Tests should not add telemetry, network calls, cloud calls, external coefficient lookup, or global opt-in pools. The output must remain framed as estimated, proxy, counterfactual, and methodology-dependent.
 
-The `ignispromptctl sustainability` tests cover default and custom period URL generation, supported-period validation, representative summary formatting, and invalid response-shape detection. JSON output is a CLI presentation option for the same local endpoint response; it is not a report upload or external lookup.
+The `ignispromptctl doctor` tests cover endpoint URL formatting, required/informational check lists, representative endpoint-shape validation, failed required-check summaries, and JSON output shape. The `ignispromptctl sustainability` tests cover default and custom period URL generation, supported-period validation, representative summary formatting, and invalid response-shape detection. JSON output is a CLI presentation option for the same local endpoint response; it is not a report upload or external lookup.
 
 The Aethra client tests cover `sustainabilityMetrics(period)`, period query encoding, and unsupported sustainability response shapes. Aethra data-source tests cover local error labels for the sustainability metrics endpoint. Sustainability report tests cover structured Markdown sections, deterministic schema-versioned JSON shape, methodology/confidence/disclaimer fields, export limitations, fixture and live-local report sources, excluded prompt/raw audit/machine fields, and conservative claim language. Sustainability Preview export guidance and methodology copy helpers should remain browser-local UI behavior; UI-level browser tests are not part of the current app test setup.
 
