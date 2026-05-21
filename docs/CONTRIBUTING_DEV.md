@@ -2,6 +2,8 @@
 
 IgnisPrompt is currently an open-source local daemon scaffold. Keep contributions small, testable, and honest about what is implemented.
 
+For the short contributor entry point, see [`../CONTRIBUTING.md`](../CONTRIBUTING.md). For release history, see [`../CHANGELOG.md`](../CHANGELOG.md). GitHub issue templates live under [`../.github/ISSUE_TEMPLATE/`](../.github/ISSUE_TEMPLATE/), and the pull request checklist lives in [`../.github/pull_request_template.md`](../.github/pull_request_template.md).
+
 ## Local setup
 
 Required for the default path:
@@ -25,6 +27,7 @@ Run `./scripts/smoke.sh` from another terminal while the daemon is running.
 
 - Preserve local-only behavior.
 - Do not add cloud calls unless the task explicitly requires a cloud BYOK feature.
+- Do not add telemetry.
 - Preserve route explanations.
 - Preserve audit events.
 - Preserve adversarial document-instruction handling.
@@ -40,6 +43,7 @@ Do not commit:
 
 - model weights
 - local evidence bundles
+- audit logs
 - secrets or credentials
 - `target/` artifacts
 - `.DS_Store` files
@@ -70,6 +74,8 @@ Do not claim unimplemented features are complete. In particular, do not claim th
 - production legal advice or solved legal accuracy
 
 Qwen2.5 0.5B is a pipe/demo baseline only, not a settled legal-quality model.
+
+Aethra should be described as fixture-backed by default where relevant. Sustainability values should be described as proxy, counterfactual, estimated, and methodology-dependent, not measured carbon, ESG certification, certified reporting, production compliance evidence, or a production readiness claim.
 
 ## Documentation expectations
 
