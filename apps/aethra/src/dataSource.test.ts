@@ -320,6 +320,77 @@ describe("Aethra data source helpers", () => {
             message:
               "Aethra could not reach the configured local IgnisPrompt daemon.",
             diagnosticKind: "daemon-unreachable",
+            checkedAt: "2026-05-20T00:01:00Z",
+          },
+        ],
+      }),
+    ).toMatchObject({
+      state: "daemon-unreachable",
+      label: "Daemon unreachable",
+      lastRefresh: "Last refresh failed.",
+    });
+  });
+
+  it("bases diagnostics on a newer successful refresh over stale errors", () => {
+    expect(
+      buildLiveLocalDiagnostics({
+        dataMode: "live-local",
+        baseUrl: DEFAULT_AETHRA_BASE_URL,
+        endpointStates: [
+          {
+            status: "error",
+            label: "Daemon unreachable",
+            message:
+              "Aethra could not reach the configured local IgnisPrompt daemon.",
+            diagnosticKind: "daemon-unreachable",
+            checkedAt: "2026-05-20T00:01:00Z",
+          },
+          {
+            status: "loaded",
+            health: {
+              status: "ok",
+              service: "ignispromptd",
+              version: "0.1.0",
+              started_at: "2026-05-20T00:00:00Z",
+              local_only: true,
+              model_count: 1,
+            },
+            loadedAt: "2026-05-20T00:02:00Z",
+          },
+        ],
+      }),
+    ).toMatchObject({
+      state: "live-local-connected",
+      label: "Live-local connected",
+      lastRefresh: "Last successful refresh: 2026-05-20T00:02:00Z.",
+    });
+  });
+
+  it("bases diagnostics on a newer failed refresh after earlier success", () => {
+    expect(
+      buildLiveLocalDiagnostics({
+        dataMode: "live-local",
+        baseUrl: DEFAULT_AETHRA_BASE_URL,
+        endpointStates: [
+          {
+            status: "loaded",
+            health: {
+              status: "ok",
+              service: "ignispromptd",
+              version: "0.1.0",
+              started_at: "2026-05-20T00:00:00Z",
+              local_only: true,
+              model_count: 1,
+            },
+            loadedAt: "2026-05-20T00:01:00Z",
+          },
+          {
+            status: "error",
+            label: "Daemon unreachable",
+            message:
+              "Aethra could not reach the configured local IgnisPrompt daemon.",
+            diagnosticKind: "daemon-unreachable",
+            checkedAt: "2026-05-20T00:02:00Z",
           },
         ],
       }),

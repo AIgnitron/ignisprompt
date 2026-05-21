@@ -53,6 +53,7 @@ export type LiveHealthState =
       label: string;
       message: string;
       diagnosticKind: LiveEndpointErrorKind;
+      checkedAt?: string;
     };
 
 export type LiveModelsState =
@@ -72,6 +73,7 @@ export type LiveModelsState =
       label: string;
       message: string;
       diagnosticKind: LiveEndpointErrorKind;
+      checkedAt?: string;
     };
 
 export type LiveModelStatusState =
@@ -94,6 +96,7 @@ export type LiveModelStatusState =
       label: string;
       message: string;
       diagnosticKind: LiveEndpointErrorKind;
+      checkedAt?: string;
     };
 
 export type LiveVersionStatusState =
@@ -113,6 +116,7 @@ export type LiveVersionStatusState =
       label: string;
       message: string;
       diagnosticKind: LiveEndpointErrorKind;
+      checkedAt?: string;
     };
 
 export type LiveAuditEventsState =
@@ -132,6 +136,7 @@ export type LiveAuditEventsState =
       label: string;
       message: string;
       diagnosticKind: LiveEndpointErrorKind;
+      checkedAt?: string;
     };
 
 export type LiveSustainabilityMetricsState =
@@ -153,6 +158,7 @@ export type LiveSustainabilityMetricsState =
       label: string;
       message: string;
       diagnosticKind: LiveEndpointErrorKind;
+      checkedAt?: string;
     };
 
 export type LiveEndpointState =
@@ -398,10 +404,18 @@ export function buildLiveLocalDiagnostics(input: {
     };
   }
 
-  const failedState = input.endpointStates.find(
-    (state): state is Extract<LiveEndpointState, { status: "error" }> =>
-      state.status === "error",
-  );
+  const latestCompletedState = latestEndpointState(input.endpointStates);
+  const failedState =
+    latestCompletedState?.status === "error"
+      ? latestCompletedState
+      : latestCompletedState
+        ? undefined
+        : input.endpointStates.find(
+            (
+              state,
+            ): state is Extract<LiveEndpointState, { status: "error" }> =>
+              state.status === "error",
+          );
 
   if (failedState) {
     const state = diagnosticsStateForError(failedState.diagnosticKind);
@@ -505,4 +519,39 @@ function latestTimestamp(timestamps: string[]): string | undefined {
     .map((timestamp) => ({ timestamp, time: Date.parse(timestamp) }))
     .filter(({ time }) => Number.isFinite(time))
     .sort((a, b) => b.time - a.time)[0]?.timestamp;
+}
+
+function latestEndpointState(
+  endpointStates: LiveEndpointState[],
+): Extract<LiveEndpointState, { status: "loaded" | "error" }> | undefined {
+  return endpointStates
+    .map((state) => ({
+      state,
+      timestamp: endpointStateCompletedAt(state),
+    }))
+    .filter(
+      (
+        item,
+      ): item is {
+        state: Extract<LiveEndpointState, { status: "loaded" | "error" }>;
+        timestamp: number;
+      } => item.timestamp !== undefined,
+    )
+    .sort((a, b) => b.timestamp - a.timestamp)[0]?.state;
+}
+
+function endpointStateCompletedAt(
+  state: LiveEndpointState,
+): number | undefined {
+  if (state.status === "loaded") {
+    const loadedAt = Date.parse(state.loadedAt);
+    return Number.isFinite(loadedAt) ? loadedAt : undefined;
+  }
+
+  if (state.status === "error" && state.checkedAt) {
+    const checkedAt = Date.parse(state.checkedAt);
+    return Number.isFinite(checkedAt) ? checkedAt : undefined;
+  }
+
+  return undefined;
 }
