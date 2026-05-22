@@ -1881,7 +1881,15 @@ async fn handle_mcp_tool_call(state: &AppState, id: Value, params: Option<Value>
             };
 
             match recent_audit_events_for_mcp(state, request).await {
-                Ok(response) => mcp_success_response(id, mcp_tool_result(&response, false)),
+                Ok(events) => mcp_success_response(
+                    id,
+                    mcp_tool_result(
+                        &json!({
+                            "events": events,
+                        }),
+                        false,
+                    ),
+                ),
                 Err(message) => mcp_success_response(
                     id,
                     mcp_tool_result(
@@ -4200,7 +4208,8 @@ mod tests {
             &response["result"],
             &["content", "structuredContent", "isError"],
         );
-        let events = response["result"]["structuredContent"]
+        assert_json_keys(&response["result"]["structuredContent"], &["events"]);
+        let events = response["result"]["structuredContent"]["events"]
             .as_array()
             .expect("audit events array");
         assert_eq!(events.len(), 1);
