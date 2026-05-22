@@ -45,6 +45,7 @@ The docs set under `docs/` describes the current scaffold and clearly separates 
 - [Local preview quickstart](docs/LOCAL_PREVIEW_QUICKSTART.md)
 - [Local preview release checklist](docs/LOCAL_PREVIEW_RELEASE_CHECKLIST.md)
 - [Local Preview 0.1.0 release notes draft](docs/releases/LOCAL_PREVIEW_0_1_0.md)
+- [Local Preview v0.1.1 release notes draft](docs/releases/v0.1.1-local-preview.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Aethra MVP plan](docs/AETHRA.md)
 - [Aethra MVP checkpoint](docs/AETHRA_MVP_CHECKPOINT.md) for the current fixture-backed local dashboard status
@@ -80,7 +81,7 @@ Contributor entry points:
 - `POST /v1/route/explain`
 - `POST /v1/chat/completions` using an OpenAI-compatible request shape
 - basic SSE-compatible chat-completion scaffolding when `stream: true`
-- experimental stdio MCP stub with one `route_explain` tool
+- experimental stdio MCP stub with `route_explain` plus read-only local observability tools
 - optional feature-gated Tier 3 legal GGUF runner spike via a local subprocess contract
 - Tier 3 legal chat completion dispatch through `StubLegalRunner`
 - `GET /v1/audit/events`
