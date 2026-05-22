@@ -267,7 +267,7 @@ Confirm release notes, checklist updates, README links, and quickstart notes kee
 
 ## Release Tag Steps
 
-Use these only after the release branch is merged and the final commit is verified. For the v0.1.1 local preview draft, tagging/publishing is not yet executed.
+Use these only after the release branch is merged and the final commit is verified. For the v0.1.1 local preview readiness package, tagging/publishing is not yet executed.
 
 ```bash
 git checkout main
@@ -275,8 +275,8 @@ git pull --ff-only origin main
 ./scripts/release-check.sh
 git status --short
 git status --short --ignored apps/aethra/dist models local-evidence data/audit
-git tag -a local-preview-v0.1.1 -m "Local preview v0.1.1"
-git push origin local-preview-v0.1.1
+git tag -a v0.1.1-local-preview -m "v0.1.1 local preview"
+git push origin v0.1.1-local-preview
 ```
 
 Do not tag if verification fails or if untracked release artifacts are present.

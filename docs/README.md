@@ -32,7 +32,7 @@ The default path does not require Ollama, GGUF tooling, model weights, or networ
 - [Local Preview Quickstart](LOCAL_PREVIEW_QUICKSTART.md): first-time local setup for IgnisPrompt + Aethra, live-local loading, and report export.
 - [Local Preview Release Checklist](LOCAL_PREVIEW_RELEASE_CHECKLIST.md): repeatable local preview release verification, manual checks, tag steps, and rollback notes.
 - [Local Preview 0.1.0 Release Notes Draft](releases/LOCAL_PREVIEW_0_1_0.md): draft release notes, boundaries, limitations, and verification commands.
-- [Local Preview v0.1.1 Release Notes Draft](releases/v0.1.1-local-preview.md): draft post-v0.1.0 local preview release package, upgrade notes, safety boundaries, and verification checklist. This draft is not tagged or published.
+- [Local Preview v0.1.1 Release Readiness](releases/v0.1.1-local-preview.md): post-v0.1.0 local preview release-readiness package, GitHub release body draft, safety boundaries, and final pre-tag checklist. This is not tagged or published.
 - [Runner Providers](RUNNER_PROVIDERS.md): `ModelRunner` trait, `ModelRunnerContext`, provider ordering, and rules for adding new local runners.
 - [Demo](DEMO.md): default smoke flow and optional GGUF/Ollama demo flow.
 - [Demo Readiness Checklist](DEMO_READINESS_CHECKLIST.md): short pre-demo checks for local-only behavior, synthetic data, evidence handling, and optional GGUF runs.
