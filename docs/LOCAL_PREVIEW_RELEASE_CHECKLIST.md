@@ -43,6 +43,7 @@ cargo build
 ## Tests
 
 ```bash
+./scripts/check-sustainability-language.sh
 cargo test
 ```
 
@@ -55,6 +56,14 @@ cargo test
 This runs the default local-only daemon path, the Rust build/test path, sustainability language guardrails, and the daemon smoke script.
 
 The daemon smoke includes `GET /v1/status/version` for local preview support/debugging metadata. This endpoint is local-only and is not an update checker, telemetry mechanism, release lookup, or cloud call.
+
+## Full Release Check
+
+```bash
+./scripts/release-check.sh
+```
+
+This combines the repository sustainability language guardrail, Rust tests, default developer check, Aethra tests, Aethra production build, and `git diff --check`.
 
 ## Aethra Checks
 
@@ -212,6 +221,27 @@ git status --short --ignored apps/aethra/dist models local-evidence data/audit
 
 Ignored output may include local model files, local evidence, `data/audit/events.jsonl`, and Aethra `dist/`. These must stay ignored and uncommitted.
 
+Before tagging, also verify no generated artifacts are staged and no model weights, local evidence, audit logs, generated transcripts, demo bundles, attestation bundles, `target/`, `dist/`, `.DS_Store`, or secrets are committed.
+
+## Safety Boundary Wording Check
+
+Confirm release notes, checklist updates, README links, and quickstart notes keep these boundaries clear:
+
+- local preview only
+- not production deployment
+- not legal advice
+- not production compliance evidence
+- not ESG certification
+- not certified sustainability reporting
+- sustainability values are estimated, counterfactual, proxy, and methodology-dependent
+- no telemetry
+- no cloud calls by default
+- no global aggregation
+- model and runner status values are hints, not controls
+- MCP observability tools are read-only
+- LiteLLM-style local gateway remains a future plan, not implemented
+- DreamServer remains concept-only and is not current implementation work
+
 ## Known Limitations
 
 - local preview only
@@ -226,21 +256,27 @@ Ignored output may include local model files, local evidence, `data/audit/events
 - fixture mode is Aethra's default
 - live-local mode is explicit/manual
 - no telemetry/cloud calls by default
+- no global aggregation
 - local HTTP API has no daemon-level authentication, authorization, or TLS
 - audit events are local process records and JSONL appends, not signed, immutable, encrypted, or certified evidence
 - `StubLegalRunner` remains the default Tier 3 legal fallback
+- model and runner status values are status hints, not controls
+- MCP observability tools are read-only
+- LiteLLM-style local gateway remains a future plan, not implemented
+- DreamServer remains concept-only and is not current implementation work
 
 ## Release Tag Steps
 
-Use these only after the release branch is merged and the final commit is verified:
+Use these only after the release branch is merged and the final commit is verified. For the v0.1.1 local preview draft, tagging/publishing is not yet executed.
 
 ```bash
 git checkout main
 git pull --ff-only origin main
 ./scripts/release-check.sh
 git status --short
-git tag -a local-preview-v0.1.0 -m "Local preview v0.1.0"
-git push origin local-preview-v0.1.0
+git status --short --ignored apps/aethra/dist models local-evidence data/audit
+git tag -a local-preview-v0.1.1 -m "Local preview v0.1.1"
+git push origin local-preview-v0.1.1
 ```
 
 Do not tag if verification fails or if untracked release artifacts are present.

@@ -9,6 +9,16 @@ git clone https://github.com/AIgnitron/ignisprompt.git
 cd ignisprompt
 ```
 
+For an existing local `v0.1.0-local-preview` checkout, update the source tree before running the current preview:
+
+```bash
+git checkout main
+git pull --ff-only origin main
+./scripts/release-check.sh
+```
+
+No migration is required for local model weights or local evidence. Generated local files remain ignored under paths such as `models/`, `local-evidence/`, `data/audit/*.jsonl`, `target/`, and `apps/aethra/dist/`.
+
 ## 2. Install Required Tools
 
 Install:
@@ -68,6 +78,8 @@ cargo run -p ignispromptctl -- sustainability --period 30d
 `ignispromptctl doctor` checks the local daemon health, version status, model manifest, and model and runner status hint endpoints, then prints local next steps if a required check fails. Its sustainability metrics check is informational. The command is local-only and does not add telemetry, cloud calls, GitHub lookups, update checks, external lookup, persistence, uploads, model controls, or runner controls. Run it before Aethra live-local debugging when you want a terminal summary of the same local preview readiness signals.
 
 `ignispromptctl sustainability --period 30d` prints an aggregate local sustainability summary from `GET /v1/metrics/sustainability?period=30d`. It supports `7d`, `30d`, and `90d`, defaults to `30d`, and has an optional `--json` mode. The command is local-only and does not include prompts, raw audit text, PII, machine identifiers, telemetry, cloud calls, GitHub lookups, external coefficient lookup, persistence, or uploads.
+
+The experimental stdio MCP tools can expose `route_explain` plus read-only local observability tools for audit events, daemon version/status metadata, and sustainability summaries. Treat those observability tools as local read-only views only; they do not control models, control runners, change config, execute commands, add telemetry, call cloud services, or implement a complete MCP server surface.
 
 ## 5. Start Aethra
 
@@ -157,6 +169,14 @@ Stop IgnisPrompt with `Ctrl-C` in the terminal running `./scripts/start-dev.sh`.
 - not production compliance evidence
 - sustainability values are estimated counterfactual proxy estimates
 - not ESG certification
+- not certified sustainability reporting
 - no telemetry/cloud calls by default
+- no global aggregation
 - no model weights included
+- no local evidence included
 - fixture mode remains default
+- live-local loading is manual
+- model and runner status values are hints, not controls
+- MCP observability tools are read-only
+- LiteLLM-style local gateway remains a future plan, not implemented
+- DreamServer remains concept-only and is not current implementation work
