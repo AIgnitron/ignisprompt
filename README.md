@@ -46,6 +46,7 @@ The docs set under `docs/` describes the current scaffold and clearly separates 
 - [Local preview release checklist](docs/LOCAL_PREVIEW_RELEASE_CHECKLIST.md)
 - [Local Preview 0.1.0 release notes draft](docs/releases/LOCAL_PREVIEW_0_1_0.md)
 - [Local Preview v0.1.1 release readiness](docs/releases/v0.1.1-local-preview.md)
+- [Local Preview v0.1.2 patch release draft](docs/releases/v0.1.2-local-preview.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Aethra MVP plan](docs/AETHRA.md)
 - [Aethra MVP checkpoint](docs/AETHRA_MVP_CHECKPOINT.md) for the current fixture-backed local dashboard status
