@@ -165,9 +165,11 @@ Current scope:
 
 - `initialize`, `notifications/initialized`, and `ping`
 - `tools/list` and `tools/call`
-- one experimental tool: `route_explain`
+- experimental tools: `route_explain`, `audit_events`, `status_version`, and `sustainability_summary`
 
-Rust tests protect the current MCP response envelopes, advertised route_explain tool schema, tool content and structured route decision shapes, preflight rejection tool-error shape, notification no-response behavior, and invalid request error shape. These tests are schema locks only; they do not add new MCP tools, resources, prompts, sampling, remote transports, model controls, or runner controls.
+The observability tools are read-only and local-only. `audit_events` returns recent local audit metadata already exposed by `GET /v1/audit/events`; `status_version` returns the existing local version/status shape from `GET /v1/status/version`; `sustainability_summary` returns aggregate local estimates from the existing sustainability metrics logic with `30d` as the default period. They do not add telemetry, cloud calls, update checks, external lookups, command execution, persistence, prompt/resource/sampling support, model controls, runner controls, config changes, or remote transports.
+
+Rust tests protect the current MCP response envelopes, advertised tool schemas, route_explain tool content and structured route decision shapes, observability tool success/error shapes, preflight rejection tool-error shape, notification no-response behavior, and invalid request error shape. The sustainability summary remains estimated, counterfactual, proxy, methodology-dependent, and not certified reporting.
 
 This path must stay local-only and must not require Ollama, GGUF tooling, model weights, network access, or cloud access.
 
