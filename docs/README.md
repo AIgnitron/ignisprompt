@@ -8,7 +8,7 @@ The default path does not require Ollama, GGUF tooling, model weights, or networ
 
 - Rust daemon crate: `crates/ignispromptd`
 - Default endpoints: `GET /health`, `GET /v1/models`, `POST /v1/route/explain`, `POST /v1/chat/completions`, `GET /v1/audit/events`
-- Experimental stdio MCP stub: one `route_explain` tool exposed by `ignispromptd --experimental-mcp-stdio`
+- Experimental stdio MCP stub: `route_explain` plus read-only local observability tools `audit_events`, `status_version`, and `sustainability_summary` exposed by `ignispromptd --experimental-mcp-stdio`
 - Model manifests: `config/models/*.json`
 - Prompt packs for the GGUF spike: `config/prompts/*.md`
 - Default smoke script: `./scripts/smoke.sh`

@@ -42,6 +42,11 @@ use uuid::Uuid;
 
 const MCP_PROTOCOL_VERSION: &str = "2025-06-18";
 const MCP_ROUTE_EXPLAIN_TOOL_NAME: &str = "route_explain";
+const MCP_AUDIT_EVENTS_TOOL_NAME: &str = "audit_events";
+const MCP_STATUS_VERSION_TOOL_NAME: &str = "status_version";
+const MCP_SUSTAINABILITY_SUMMARY_TOOL_NAME: &str = "sustainability_summary";
+const MCP_AUDIT_EVENTS_DEFAULT_LIMIT: usize = 20;
+const MCP_AUDIT_EVENTS_MAX_LIMIT: usize = 100;
 const SUSTAINABILITY_METRICS_MAX_PERIOD_DAYS: i64 = 3650;
 
 #[derive(Debug, Parser, Clone)]
@@ -488,6 +493,22 @@ struct McpRouteExplainArgs {
     metadata: HashMap<String, Value>,
 }
 
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct McpAuditEventsArgs {
+    limit: Option<usize>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct McpStatusVersionArgs {}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct McpSustainabilitySummaryArgs {
+    period: Option<String>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct McpRouteExplainMessage {
@@ -647,16 +668,7 @@ async fn list_models(State(state): State<AppState>) -> Json<ModelRegistry> {
 }
 
 async fn version_status(State(state): State<AppState>) -> Json<VersionStatusResponse> {
-    Json(VersionStatusResponse {
-        service: "ignispromptd".to_string(),
-        version: env!("CARGO_PKG_VERSION").to_string(),
-        release_channel: "local-preview".to_string(),
-        local_only: state.config.local_only,
-        build_profile: build_profile().to_string(),
-        git_commit: None,
-        started_at: state.started_at,
-        warnings: vec!["Local preview build; not production deployment.".to_string()],
-    })
+    Json(version_status_response(&state))
 }
 
 fn build_profile() -> &'static str {
@@ -1301,6 +1313,22 @@ async fn list_audit_events(State(state): State<AppState>) -> Json<Vec<AuditEvent
     Json(state.audit.list().await)
 }
 
+async fn recent_audit_events_for_mcp(
+    state: &AppState,
+    args: McpAuditEventsArgs,
+) -> Result<Vec<AuditEvent>, String> {
+    let limit = args.limit.unwrap_or(MCP_AUDIT_EVENTS_DEFAULT_LIMIT);
+    if limit > MCP_AUDIT_EVENTS_MAX_LIMIT {
+        return Err(format!(
+            "audit_events limit must be between 0 and {MCP_AUDIT_EVENTS_MAX_LIMIT}."
+        ));
+    }
+
+    let events = state.audit.list().await;
+    let start = events.len().saturating_sub(limit);
+    Ok(events[start..].to_vec())
+}
+
 #[derive(Debug, Clone, Default, Deserialize)]
 struct SustainabilityMetricsQuery {
     period: Option<String>,
@@ -1328,6 +1356,35 @@ async fn sustainability_metrics(
     };
     let events = audit_events_for_period(&state.audit.list().await, days);
     Json(sustainability::summarize_audit_events(period, &events)).into_response()
+}
+
+async fn sustainability_summary_for_mcp(
+    state: &AppState,
+    args: McpSustainabilitySummaryArgs,
+) -> Result<sustainability::SustainabilityMetricsResponse, String> {
+    let period = args.period.unwrap_or_else(|| "30d".to_string());
+    if !matches!(period.as_str(), "7d" | "30d" | "90d") {
+        return Err(format!(
+            "Unsupported sustainability period: {period}. Supported MCP periods are 7d, 30d, and 90d."
+        ));
+    }
+
+    let days = period_days(&period)?;
+    let events = audit_events_for_period(&state.audit.list().await, days);
+    Ok(sustainability::summarize_audit_events(period, &events))
+}
+
+fn version_status_response(state: &AppState) -> VersionStatusResponse {
+    VersionStatusResponse {
+        service: "ignispromptd".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        release_channel: "local-preview".to_string(),
+        local_only: state.config.local_only,
+        build_profile: build_profile().to_string(),
+        git_commit: None,
+        started_at: state.started_at,
+        warnings: vec!["Local preview build; not production deployment.".to_string()],
+    }
 }
 
 async fn route_explain_response_for_request(
@@ -1722,7 +1779,7 @@ async fn handle_mcp_message(
                         "title": "IgnisPrompt Experimental MCP Stub",
                         "version": env!("CARGO_PKG_VERSION"),
                     },
-                    "instructions": "Experimental local-only stdio MCP stub. It currently exposes one route_explain tool and does not replace the default HTTP daemon behavior.",
+                    "instructions": "Experimental local-only stdio MCP stub. It exposes route_explain plus read-only local observability tools and does not replace the default HTTP daemon behavior.",
                 }),
             ))
         }
@@ -1745,6 +1802,9 @@ async fn handle_mcp_message(
                     json!({
                         "tools": [
                             mcp_route_explain_tool_definition(),
+                            mcp_audit_events_tool_definition(),
+                            mcp_status_version_tool_definition(),
+                            mcp_sustainability_summary_tool_definition(),
                         ]
                     }),
                 )
@@ -1804,6 +1864,88 @@ async fn handle_mcp_tool_call(state: &AppState, id: Value, params: Option<Value>
             let is_error = !status.is_success();
             mcp_success_response(id, mcp_tool_result(&response, is_error))
         }
+        MCP_AUDIT_EVENTS_TOOL_NAME => {
+            let arguments = params
+                .get("arguments")
+                .cloned()
+                .unwrap_or_else(|| json!({}));
+            let request: McpAuditEventsArgs = match serde_json::from_value(arguments) {
+                Ok(arguments) => arguments,
+                Err(err) => {
+                    return mcp_error_response(
+                        Some(id),
+                        -32602,
+                        format!("Invalid arguments for {MCP_AUDIT_EVENTS_TOOL_NAME}: {err}"),
+                    );
+                }
+            };
+
+            match recent_audit_events_for_mcp(state, request).await {
+                Ok(response) => mcp_success_response(id, mcp_tool_result(&response, false)),
+                Err(message) => mcp_success_response(
+                    id,
+                    mcp_tool_result(
+                        &json!({
+                            "error": {
+                                "code": "INVALID_AUDIT_EVENTS_LIMIT",
+                                "message": message,
+                            }
+                        }),
+                        true,
+                    ),
+                ),
+            }
+        }
+        MCP_STATUS_VERSION_TOOL_NAME => {
+            let arguments = params
+                .get("arguments")
+                .cloned()
+                .unwrap_or_else(|| json!({}));
+            if let Err(err) = serde_json::from_value::<McpStatusVersionArgs>(arguments) {
+                return mcp_error_response(
+                    Some(id),
+                    -32602,
+                    format!("Invalid arguments for {MCP_STATUS_VERSION_TOOL_NAME}: {err}"),
+                );
+            }
+
+            let response = version_status_response(state);
+            mcp_success_response(id, mcp_tool_result(&response, false))
+        }
+        MCP_SUSTAINABILITY_SUMMARY_TOOL_NAME => {
+            let arguments = params
+                .get("arguments")
+                .cloned()
+                .unwrap_or_else(|| json!({}));
+            let request: McpSustainabilitySummaryArgs = match serde_json::from_value(arguments) {
+                Ok(arguments) => arguments,
+                Err(err) => {
+                    return mcp_error_response(
+                        Some(id),
+                        -32602,
+                        format!(
+                            "Invalid arguments for {MCP_SUSTAINABILITY_SUMMARY_TOOL_NAME}: {err}"
+                        ),
+                    );
+                }
+            };
+
+            match sustainability_summary_for_mcp(state, request).await {
+                Ok(response) => mcp_success_response(id, mcp_tool_result(&response, false)),
+                Err(message) => mcp_success_response(
+                    id,
+                    mcp_tool_result(
+                        &json!({
+                            "error": {
+                                "code": "INVALID_SUSTAINABILITY_PERIOD",
+                                "message": message,
+                            }
+                        }),
+                        true,
+                    ),
+                ),
+            }
+        }
         _ => mcp_error_response(Some(id), -32602, format!("Unknown tool: {name}")),
     }
 }
@@ -1848,7 +1990,62 @@ fn mcp_route_explain_tool_definition() -> Value {
     })
 }
 
-fn mcp_tool_result(response: &RouteExplainResponse, is_error: bool) -> Value {
+fn mcp_audit_events_tool_definition() -> Value {
+    json!({
+        "name": MCP_AUDIT_EVENTS_TOOL_NAME,
+        "title": "IgnisPrompt Audit Events",
+        "description": "Read-only local-preview tool that returns recent local audit events already held by the daemon. It does not include prompts, raw request text, PII, machine identifiers, telemetry, or cloud calls.",
+        "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": MCP_AUDIT_EVENTS_MAX_LIMIT,
+                    "description": "Optional maximum number of recent local audit events to return."
+                }
+            },
+            "required": []
+        }
+    })
+}
+
+fn mcp_status_version_tool_definition() -> Value {
+    json!({
+        "name": MCP_STATUS_VERSION_TOOL_NAME,
+        "title": "IgnisPrompt Status Version",
+        "description": "Read-only local-preview tool that returns daemon version/status metadata from the existing local status logic. It performs no update checks, GitHub lookups, release lookups, telemetry, or cloud calls.",
+        "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {},
+            "required": []
+        }
+    })
+}
+
+fn mcp_sustainability_summary_tool_definition() -> Value {
+    json!({
+        "name": MCP_SUSTAINABILITY_SUMMARY_TOOL_NAME,
+        "title": "IgnisPrompt Sustainability Summary",
+        "description": "Read-only local-preview tool that returns aggregate local sustainability proxy estimates from existing audit metadata. Values are estimated, counterfactual, methodology-dependent, and not certified reporting.",
+        "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "period": {
+                    "type": "string",
+                    "enum": ["7d", "30d", "90d"],
+                    "description": "Optional local summary period. Defaults to 30d."
+                }
+            },
+            "required": []
+        }
+    })
+}
+
+fn mcp_tool_result<T: Serialize>(response: &T, is_error: bool) -> Value {
     json!({
         "content": [
             {
@@ -2171,6 +2368,27 @@ mod tests {
         message: Value,
     ) -> Option<Value> {
         handle_mcp_message(state, session, message).await
+    }
+
+    async fn call_mcp_tool(state: &AppState, name: &str, arguments: Value) -> Value {
+        let mut session = McpSessionState {
+            initialize_seen: true,
+        };
+        call_mcp_message(
+            state,
+            &mut session,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 99,
+                "method": "tools/call",
+                "params": {
+                    "name": name,
+                    "arguments": arguments,
+                }
+            }),
+        )
+        .await
+        .expect("tools/call should return a response")
     }
 
     fn sse_data_events(body: &str) -> Vec<&str> {
@@ -3735,7 +3953,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn mcp_tools_list_exposes_route_explain_only() {
+    async fn mcp_tools_list_exposes_route_explain_and_observability_tools() {
         let state = state_with_models(vec![legal_model()]);
         let mut session = McpSessionState {
             initialize_seen: true,
@@ -3760,12 +3978,41 @@ mod tests {
         let tools = response["result"]["tools"]
             .as_array()
             .expect("tools/list should return an array");
-        assert_eq!(tools.len(), 1);
-        let route_explain_tool = &tools[0];
-        assert_json_keys(
-            route_explain_tool,
-            &["name", "title", "description", "inputSchema"],
+        assert_eq!(tools.len(), 4);
+        let tool_names = tools
+            .iter()
+            .map(|tool| tool["name"].as_str().expect("tool name"))
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            tool_names,
+            BTreeSet::from([
+                MCP_ROUTE_EXPLAIN_TOOL_NAME,
+                MCP_AUDIT_EVENTS_TOOL_NAME,
+                MCP_STATUS_VERSION_TOOL_NAME,
+                MCP_SUSTAINABILITY_SUMMARY_TOOL_NAME,
+            ])
         );
+
+        for tool in tools {
+            assert_json_keys(tool, &["name", "title", "description", "inputSchema"]);
+            let description = tool["description"].as_str().expect("tool description");
+            assert!(
+                description.contains("local")
+                    || description.contains("Local")
+                    || description.contains("local-preview")
+            );
+            assert_json_keys(
+                &tool["inputSchema"],
+                &["type", "additionalProperties", "properties", "required"],
+            );
+            assert_eq!(tool["inputSchema"]["type"], "object");
+            assert_eq!(tool["inputSchema"]["additionalProperties"], false);
+        }
+
+        let route_explain_tool = tools
+            .iter()
+            .find(|tool| tool["name"] == MCP_ROUTE_EXPLAIN_TOOL_NAME)
+            .expect("route_explain tool");
         assert_eq!(route_explain_tool["name"], MCP_ROUTE_EXPLAIN_TOOL_NAME);
         assert_eq!(route_explain_tool["title"], "IgnisPrompt Route Explain");
         assert!(route_explain_tool["description"]
@@ -3788,6 +4035,36 @@ mod tests {
         assert_eq!(
             input_schema["properties"]["messages"]["items"]["required"],
             json!(["role", "content"])
+        );
+
+        let audit_events_tool = tools
+            .iter()
+            .find(|tool| tool["name"] == MCP_AUDIT_EVENTS_TOOL_NAME)
+            .expect("audit_events tool");
+        assert_eq!(
+            audit_events_tool["inputSchema"]["properties"]["limit"]["maximum"],
+            MCP_AUDIT_EVENTS_MAX_LIMIT
+        );
+        assert_eq!(audit_events_tool["inputSchema"]["required"], json!([]));
+
+        let status_version_tool = tools
+            .iter()
+            .find(|tool| tool["name"] == MCP_STATUS_VERSION_TOOL_NAME)
+            .expect("status_version tool");
+        assert_eq!(status_version_tool["inputSchema"]["properties"], json!({}));
+        assert_eq!(status_version_tool["inputSchema"]["required"], json!([]));
+
+        let sustainability_summary_tool = tools
+            .iter()
+            .find(|tool| tool["name"] == MCP_SUSTAINABILITY_SUMMARY_TOOL_NAME)
+            .expect("sustainability_summary tool");
+        assert_eq!(
+            sustainability_summary_tool["inputSchema"]["properties"]["period"]["enum"],
+            json!(["7d", "30d", "90d"])
+        );
+        assert_eq!(
+            sustainability_summary_tool["inputSchema"]["required"],
+            json!([])
         );
     }
 
@@ -3894,6 +4171,217 @@ mod tests {
         assert_eq!(audit_events.len(), 1);
         assert_eq!(audit_events[0].event_type, "route_explain");
         assert_eq!(audit_events[0].route_code, "DOMAIN_MODEL_SELECTED");
+    }
+
+    #[tokio::test]
+    async fn mcp_audit_events_tool_returns_existing_local_audit_shape_without_writing() {
+        let state = state_with_models(vec![legal_model()]);
+        let request = req(
+            "Review this limitation of liability clause in a vendor services agreement.",
+            Some("ignisprompt/legal"),
+        );
+        let (status, _) = call_route_explain(&state, request).await;
+        assert_eq!(status, StatusCode::OK);
+        let before = state.audit.list().await;
+        assert_eq!(before.len(), 1);
+
+        let response = call_mcp_tool(
+            &state,
+            MCP_AUDIT_EVENTS_TOOL_NAME,
+            json!({
+                "limit": 1
+            }),
+        )
+        .await;
+
+        assert_mcp_success_response_schema(&response);
+        assert_eq!(response["result"]["isError"], false);
+        assert_json_keys(
+            &response["result"],
+            &["content", "structuredContent", "isError"],
+        );
+        let events = response["result"]["structuredContent"]
+            .as_array()
+            .expect("audit events array");
+        assert_eq!(events.len(), 1);
+        assert_json_keys(
+            &events[0],
+            &[
+                "request_id",
+                "timestamp",
+                "event_type",
+                "route_code",
+                "tier",
+                "domain",
+                "model_id",
+                "data_left_device",
+                "explanation",
+                "warnings",
+                "input_tokens_est",
+                "output_tokens_est",
+                "baseline_provider",
+                "baseline_model",
+                "estimated_cloud_cost_usd",
+                "estimated_cloud_cost_avoided_usd",
+                "estimated_local_energy_wh",
+                "estimated_cloud_baseline_wh",
+                "estimated_carbon_avoided_gco2e",
+                "methodology_version",
+                "confidence",
+            ],
+        );
+        assert_eq!(events[0]["event_type"], "route_explain");
+        assert_eq!(events[0]["route_code"], "DOMAIN_MODEL_SELECTED");
+
+        let after = state.audit.list().await;
+        assert_eq!(after.len(), before.len());
+        assert_eq!(after[0].request_id, before[0].request_id);
+    }
+
+    #[tokio::test]
+    async fn mcp_status_version_tool_returns_existing_version_status_shape_without_writing() {
+        let state = state_with_models(vec![legal_model()]);
+        let before = state.audit.list().await;
+
+        let response = call_mcp_tool(&state, MCP_STATUS_VERSION_TOOL_NAME, json!({})).await;
+
+        assert_mcp_success_response_schema(&response);
+        assert_eq!(response["result"]["isError"], false);
+        let structured = &response["result"]["structuredContent"];
+        assert_json_keys(
+            structured,
+            &[
+                "service",
+                "version",
+                "release_channel",
+                "local_only",
+                "build_profile",
+                "git_commit",
+                "started_at",
+                "warnings",
+            ],
+        );
+        assert_eq!(structured["service"], "ignispromptd");
+        assert_eq!(structured["version"], env!("CARGO_PKG_VERSION"));
+        assert_eq!(structured["release_channel"], "local-preview");
+        assert_eq!(structured["local_only"], true);
+        assert!(structured["warnings"].is_array());
+        assert_eq!(state.audit.list().await.len(), before.len());
+    }
+
+    #[tokio::test]
+    async fn mcp_sustainability_summary_tool_returns_default_30d_shape_without_writing() {
+        let state = state_with_models(vec![legal_model()]);
+        let request = req(
+            "Review this governing law clause in a vendor services agreement.",
+            Some("ignisprompt/legal"),
+        );
+        let (status, _) = call_route_explain(&state, request).await;
+        assert_eq!(status, StatusCode::OK);
+        let before = state.audit.list().await;
+
+        let response = call_mcp_tool(&state, MCP_SUSTAINABILITY_SUMMARY_TOOL_NAME, json!({})).await;
+
+        assert_mcp_success_response_schema(&response);
+        assert_eq!(response["result"]["isError"], false);
+        let structured = &response["result"]["structuredContent"];
+        assert_json_keys(
+            structured,
+            &[
+                "period",
+                "requests_total",
+                "local_request_rate",
+                "tier_breakdown",
+                "estimated_cloud_cost_avoided_usd",
+                "estimated_carbon_avoided_kgco2e",
+                "estimated_data_kept_local_gb",
+                "baseline_provider",
+                "baseline_model",
+                "methodology_version",
+                "confidence",
+                "disclaimer",
+            ],
+        );
+        assert_eq!(structured["period"], "30d");
+        assert_eq!(structured["requests_total"], 1);
+        assert_eq!(structured["tier_breakdown"]["TIER_3"], 1);
+        assert_eq!(structured["baseline_provider"], "openai");
+        assert_eq!(structured["baseline_model"], "gpt-4.1-mini");
+        assert!(structured["disclaimer"]
+            .as_str()
+            .unwrap()
+            .contains("methodology-dependent"));
+        assert_eq!(state.audit.list().await.len(), before.len());
+    }
+
+    #[tokio::test]
+    async fn mcp_sustainability_summary_tool_rejects_unsupported_period_as_tool_error() {
+        let state = state_with_models(vec![legal_model()]);
+
+        let response = call_mcp_tool(
+            &state,
+            MCP_SUSTAINABILITY_SUMMARY_TOOL_NAME,
+            json!({
+                "period": "365d"
+            }),
+        )
+        .await;
+
+        assert_mcp_success_response_schema(&response);
+        assert_eq!(response["result"]["isError"], true);
+        assert_json_keys(&response["result"]["structuredContent"], &["error"]);
+        assert_json_keys(
+            &response["result"]["structuredContent"]["error"],
+            &["code", "message"],
+        );
+        assert_eq!(
+            response["result"]["structuredContent"]["error"]["code"],
+            "INVALID_SUSTAINABILITY_PERIOD"
+        );
+        assert!(response["result"]["structuredContent"]["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("Supported MCP periods"));
+    }
+
+    #[tokio::test]
+    async fn mcp_observability_tools_reject_invalid_input_without_panicking() {
+        let state = state_with_models(vec![legal_model()]);
+
+        let audit_response = call_mcp_tool(
+            &state,
+            MCP_AUDIT_EVENTS_TOOL_NAME,
+            json!({
+                "limit": MCP_AUDIT_EVENTS_MAX_LIMIT + 1
+            }),
+        )
+        .await;
+        assert_mcp_success_response_schema(&audit_response);
+        assert_eq!(audit_response["result"]["isError"], true);
+        assert_eq!(
+            audit_response["result"]["structuredContent"]["error"]["code"],
+            "INVALID_AUDIT_EVENTS_LIMIT"
+        );
+
+        let status_response = call_mcp_tool(
+            &state,
+            MCP_STATUS_VERSION_TOOL_NAME,
+            json!({"unexpected": true}),
+        )
+        .await;
+        assert_mcp_error_response_schema(&status_response);
+        assert_eq!(status_response["error"]["code"], -32602);
+
+        let sustainability_response = call_mcp_tool(
+            &state,
+            MCP_SUSTAINABILITY_SUMMARY_TOOL_NAME,
+            json!({
+                "period": 30
+            }),
+        )
+        .await;
+        assert_mcp_error_response_schema(&sustainability_response);
+        assert_eq!(sustainability_response["error"]["code"], -32602);
     }
 
     #[tokio::test]

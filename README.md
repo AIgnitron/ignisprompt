@@ -190,8 +190,10 @@ Current scope:
 - transport: newline-delimited stdio JSON-RPC 2.0
 - handshake methods: `initialize`, `notifications/initialized`, and `ping`
 - tool methods: `tools/list` and `tools/call`
-- tools exposed: `route_explain` only
-- behavior reused: existing local route classification, human-readable explanation text, adversarial warning handling, and local audit appends
+- tools exposed: `route_explain`, `audit_events`, `status_version`, and `sustainability_summary`
+- behavior reused: existing local route classification, human-readable explanation text, adversarial warning handling, local audit appends for `route_explain`, and read-only local audit/version/sustainability observability data for the observability tools
+
+The observability tools are read-only and local-only. They do not control models or runners, change configuration, execute commands, add telemetry, make cloud calls, perform update or GitHub lookups, add external coefficient lookup, upload data, persist new data, or add prompt/resource/sampling support. Sustainability values remain estimated, counterfactual, proxy, methodology-dependent, and not certified reporting.
 
 Manual example:
 
@@ -210,6 +212,7 @@ Limitations:
 - no MCP HTTP transport
 - no prompts, resources, sampling, or completions
 - no cloud calls
+- no model controls, runner controls, command execution, telemetry, update checks, or external lookups
 - intended for local tool-surface validation, not broad MCP client compatibility claims
 
 ## GGUF Runner Spike

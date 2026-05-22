@@ -157,7 +157,9 @@ Confirm the response includes:
 - `confidence`
 - `disclaimer`
 
-Rust schema-lock tests also protect the local-preview JSON field names and high-level shapes for health, models, model/runner status, version status, audit events, sustainability metrics, invalid sustainability period errors, OpenAI-compatible chat completion responses, and the existing experimental MCP initialize/tools/list/route_explain response shapes because these surfaces are consumed by local-preview users, Aethra, smoke checks, `ignispromptctl`, and future local gateway planning.
+Rust schema-lock tests also protect the local-preview JSON field names and high-level shapes for health, models, model/runner status, version status, audit events, sustainability metrics, invalid sustainability period errors, OpenAI-compatible chat completion responses, and the experimental MCP initialize/tools/list/tool-call response shapes because these surfaces are consumed by local-preview users, Aethra, smoke checks, `ignispromptctl`, and future local gateway planning.
+
+The experimental MCP stdio tools should advertise `route_explain`, `audit_events`, `status_version`, and `sustainability_summary`. The three observability tools must remain read-only and local-only. They expose existing local audit, version status, and aggregate sustainability metadata only; they must not add telemetry, cloud calls, GitHub calls, update checks, external lookups, command execution, prompt/resource/sampling support, remote transports, model controls, runner controls, config changes, persistence, uploads, or global aggregation. Sustainability output remains estimated, counterfactual, proxy, methodology-dependent, and not certified sustainability reporting.
 
 Invalid period check:
 
