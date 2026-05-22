@@ -174,6 +174,8 @@ Current scope:
 
 The observability tools are read-only and local-only. `audit_events` returns recent local audit metadata already exposed by `GET /v1/audit/events`; `status_version` returns the existing local version/status shape from `GET /v1/status/version`; `sustainability_summary` returns aggregate local estimates from the existing sustainability metrics logic with `30d` as the default period. They do not add telemetry, cloud calls, update checks, external lookups, command execution, persistence, prompt/resource/sampling support, model controls, runner controls, config changes, or remote transports.
 
+For contributor-facing usage notes, including `audit_events` `structuredContent` as `{ "events": [...] }` and the preserved HTTP `GET /v1/audit/events` JSON array shape, see [Contributor MCP Usage](MCP_USAGE.md).
+
 Rust tests protect the current MCP response envelopes, advertised tool schemas, route_explain tool content and structured route decision shapes, observability tool success/error shapes, preflight rejection tool-error shape, notification no-response behavior, and invalid request error shape. The sustainability summary remains estimated, counterfactual, proxy, methodology-dependent, and not certified reporting.
 
 This path must stay local-only and must not require Ollama, GGUF tooling, model weights, network access, or cloud access.
@@ -238,6 +240,6 @@ Current local reliability note as of May 2, 2026: the latest local Golden Legal 
 - Enterprise compliance certification.
 - Signed attestation.
 - Tamper-evident audit storage.
-- Broad MCP client compatibility beyond the experimental stdio `route_explain` stub.
+- Broad MCP client compatibility beyond the experimental stdio stub.
 - Dashboard behavior.
 - Tier 4 or Tier 5 routing.

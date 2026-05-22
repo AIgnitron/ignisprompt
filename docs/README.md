@@ -29,11 +29,12 @@ The default path does not require Ollama, GGUF tooling, model weights, or networ
 - [Adapter Concepts](ADAPTER_CONCEPTS.md): design concepts for possible future local LiteLLM-style and DreamServer-style adapters without claiming implemented support.
 - [Local Adapter Implementation Checklist](LOCAL_ADAPTER_IMPLEMENTATION_CHECKLIST.md): future implementation gates for local adapter PRs before any adapter code is written.
 - [LiteLLM-Style Local Gateway Plan](LITELLM_LOCAL_GATEWAY_PLAN.md): focused future implementation plan for an OpenAI-compatible local gateway adapter path.
+- [Contributor MCP Usage](MCP_USAGE.md): manual stdio MCP examples, current tool scope, `audit_events` structured content notes, and local-only limitations.
 - [Local Preview Quickstart](LOCAL_PREVIEW_QUICKSTART.md): first-time local setup for IgnisPrompt + Aethra, live-local loading, and report export.
 - [Local Preview Release Checklist](LOCAL_PREVIEW_RELEASE_CHECKLIST.md): repeatable local preview release verification, manual checks, tag steps, and rollback notes.
 - [Local Preview 0.1.0 Release Notes Draft](releases/LOCAL_PREVIEW_0_1_0.md): draft release notes, boundaries, limitations, and verification commands.
 - [Local Preview v0.1.1 Release Readiness](releases/v0.1.1-local-preview.md): v0.1.1 release-readiness record, published-tag boundary, post-v0.1.1 patch context, safety boundaries, and final checklist notes.
-- [Local Preview v0.1.2 Patch Release Draft](releases/v0.1.2-local-preview.md): draft patch package for post-v0.1.1 MCP compatibility and docs guardrail cleanup. This is not tagged or published.
+- [Local Preview v0.1.2 Patch Release Record](releases/v0.1.2-local-preview.md): published patch package for post-v0.1.1 MCP compatibility and docs guardrail cleanup.
 - [Runner Providers](RUNNER_PROVIDERS.md): `ModelRunner` trait, `ModelRunnerContext`, provider ordering, and rules for adding new local runners.
 - [Demo](DEMO.md): default smoke flow and optional GGUF/Ollama demo flow.
 - [Demo Readiness Checklist](DEMO_READINESS_CHECKLIST.md): short pre-demo checks for local-only behavior, synthetic data, evidence handling, and optional GGUF runs.

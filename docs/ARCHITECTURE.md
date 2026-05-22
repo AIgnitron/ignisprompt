@@ -12,7 +12,7 @@ The architecture is intentionally small. It validates the local routing control 
 - Tier 1 exact-match cache: optional in-memory cache for safe chat completions with identical request and route inputs.
 - Audit store: keeps in-memory events for the process and appends JSONL events to the configured local audit log.
 - Model runner adapter: tries configured model runners in order and falls back safely.
-- Experimental MCP stdio stub: optional newline-delimited JSON-RPC loop exposing one local `route_explain` tool.
+- Experimental MCP stdio stub: optional newline-delimited JSON-RPC loop exposing `route_explain` plus read-only local observability tools.
 - `StubLegalRunner`: default Tier 3 legal completion path.
 - `GgufRunner`: optional subprocess runner behind the `gguf-runner-spike` Cargo feature.
 
@@ -36,10 +36,12 @@ The default daemon path does not implement a full MCP server surface, dashboard,
 - Transport: newline-delimited stdio JSON-RPC 2.0.
 - Lifecycle handled: `initialize`, `notifications/initialized`, and `ping`.
 - Tool surface: `tools/list` and `tools/call`.
-- Tool exposed: `route_explain` only.
-- Reused behavior: existing local route classification, route explanation text, adversarial warning detection, and local audit append behavior.
+- Tools exposed: `route_explain`, `audit_events`, `status_version`, and `sustainability_summary`.
+- Reused behavior: existing local route classification, route explanation text, adversarial warning detection, local audit append behavior for `route_explain`, and read-only local audit/version/sustainability observability data for the observability tools.
 
-This stub is intentionally narrow. It is not a full MCP implementation, does not expose prompts or resources, does not implement MCP HTTP transport, and is documented as experimental rather than production-ready interoperability.
+MCP `audit_events` returns object-shaped tool-call `structuredContent` as `{ "events": [...] }` for stricter MCP clients. The HTTP `GET /v1/audit/events` response remains the existing JSON array shape.
+
+This stub is intentionally narrow. It is not a full MCP implementation, does not expose prompts or resources, does not implement MCP HTTP transport, and is documented as experimental rather than production-ready interoperability. See [Contributor MCP Usage](MCP_USAGE.md) for manual stdio examples and current limitations.
 
 ## Request flow
 
