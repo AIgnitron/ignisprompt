@@ -12,11 +12,16 @@ For the default one-command developer check:
 
 This wrapper runs `cargo build`, `cargo test`, starts `./scripts/start-dev.sh` in the background, waits for `/health`, runs `./scripts/smoke.sh`, and stops the daemon on exit, including failure paths. It intentionally uses the default local-only scaffold and does not require Ollama, GGUF tooling, local model weights, network access, cloud access, or cloud credentials.
 
+It also runs `./scripts/check-sustainability-language.sh` after `cargo test`. That guardrail scans README, docs, Aethra source, daemon source, and scripts for a narrow set of unsupported sustainability claim phrases, excluding generated or ignored output paths. `./scripts/release-check.sh` runs the same guardrail directly and then includes it again through `./scripts/dev-check.sh`.
+
+The guardrail is intended to catch wording that conflicts with the estimated/proxy/counterfactual/methodology-dependent sustainability boundary, including carbon-saved claims, measured-emissions certainty, zero-emissions certainty, certification language, ESG claims, and production or compliance claims. It does not replace careful review of sustainability wording.
+
 The same checks can still be run separately:
 
 ```bash
 cargo build
 cargo test
+./scripts/check-sustainability-language.sh
 ```
 
 For the lower-level manual daemon smoke path:
