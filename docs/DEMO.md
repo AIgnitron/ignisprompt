@@ -2,6 +2,8 @@
 
 IgnisPrompt has two practical demo paths today: the default scaffold smoke demo and an optional local GGUF/Ollama legal-review demo.
 
+> **Demo safety boundary:** Use synthetic demo data only. These flows are local preview aids, not legal advice and not a production deployment. They make no cloud calls by default and add no telemetry. Audit and sustainability outputs are local-preview signals only; sustainability values are estimated, proxy, counterfactual, methodology-dependent, and non-certified.
+
 Before a public or stakeholder demo, run through the [Demo Readiness Checklist](DEMO_READINESS_CHECKLIST.md).
 
 ## Default smoke demo

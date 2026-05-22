@@ -334,6 +334,8 @@ curl -s -X POST http://127.0.0.1:8765/v1/route/explain \
 
 For a public-facing local demo, run the convenience legal-review flow. It uses a fully synthetic contract-review fixture and shows the local Tier 3 routing path, structured JSON parsing, schema validation, route explanation, and local audit evidence without sending request data to a cloud service. See [Demo flows](docs/DEMO.md) for the default smoke demo and optional GGUF setup details.
 
+Read the warning at the top of [Demo flows](docs/DEMO.md) before presenting: demo inputs must stay synthetic, and audit/sustainability outputs are local-preview signals only.
+
 ```bash
 ./scripts/demo-local-legal-review.sh
 ```

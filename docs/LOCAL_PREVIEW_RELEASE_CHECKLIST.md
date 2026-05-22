@@ -21,7 +21,7 @@ Start from a clean `main`:
 
 ```bash
 git checkout main
-git pull origin main
+git pull --ff-only origin main
 git status --short
 git log --oneline -5
 ```
@@ -57,13 +57,17 @@ This runs the default local-only daemon path, the Rust build/test path, sustaina
 
 The daemon smoke includes `GET /v1/status/version` for local preview support/debugging metadata. This endpoint is local-only and is not an update checker, telemetry mechanism, release lookup, or cloud call.
 
+`./scripts/dev-check.sh` runs `./scripts/check-sustainability-language.sh` after `cargo test`. The guardrail scans README, docs, Aethra source, daemon source, and scripts for a narrow set of unsupported sustainability claim phrases while excluding generated or ignored output paths.
+
 ## Full Release Check
 
 ```bash
 ./scripts/release-check.sh
 ```
 
-This combines the repository sustainability language guardrail, Rust tests, default developer check, Aethra tests, Aethra production build, and `git diff --check`.
+This combines the repository sustainability language guardrail, Rust tests, default developer check, Aethra tests, Aethra production build, and `git diff --check`. It runs `./scripts/check-sustainability-language.sh` directly and also includes the same guardrail again through `./scripts/dev-check.sh`.
+
+The guardrail is intended to catch unsupported or overconfident sustainability wording such as carbon-saved claims, measured-emissions certainty, zero-emissions certainty, certification language, ESG claims, and production or compliance claims that conflict with the estimated/proxy/counterfactual/methodology-dependent boundaries. It is a repository language check, not a substitute for reviewer judgment.
 
 ## Aethra Checks
 
@@ -267,7 +271,7 @@ Confirm release notes, checklist updates, README links, and quickstart notes kee
 
 ## Release Tag Steps
 
-Use these only after the release branch is merged and the final commit is verified. For the v0.1.1 local preview readiness package, tagging/publishing is not yet executed.
+Use these only after a release branch is merged and the final commit is verified. The `v0.1.1-local-preview` tag already exists on #140 and must not be moved, deleted, recreated, or republished during post-v0.1.1 cleanup. Use a future patch tag such as `v0.1.2-local-preview` if a later patch release is needed.
 
 ```bash
 git checkout main
@@ -275,11 +279,19 @@ git pull --ff-only origin main
 ./scripts/release-check.sh
 git status --short
 git status --short --ignored apps/aethra/dist models local-evidence data/audit
-git tag -a v0.1.1-local-preview -m "v0.1.1 local preview"
-git push origin v0.1.1-local-preview
+git tag -a v0.1.2-local-preview -m "v0.1.2 local preview"
+git push origin v0.1.2-local-preview
 ```
 
 Do not tag if verification fails or if untracked release artifacts are present.
+
+## Post-v0.1.1 Patch Context
+
+- `v0.1.1-local-preview` remains tagged on #140.
+- Do not move or recreate the `v0.1.1-local-preview` tag.
+- #141 is post-v0.1.1 material and fixed MCP `audit_events` compatibility by changing MCP tool-call `structuredContent` to object-shaped `{ "events": [...] }`.
+- The HTTP `GET /v1/audit/events` response remains the existing JSON array shape.
+- Include #141 in a future `v0.1.2-local-preview` patch release if that patch release is needed.
 
 ## Rollback Notes
 
