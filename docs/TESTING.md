@@ -55,7 +55,11 @@ cargo run -p ignispromptctl -- status-version
 cargo run -p ignispromptctl -- models
 cargo run -p ignispromptctl -- sustainability --period 30d
 cargo run -p ignispromptctl -- sustainability --period 30d --json
-cargo run -p ignispromptctl -- route-explain --file ./tests/golden-legal/smoke-legal-request.json
+cargo run -p ignispromptctl -- audit-events
+cargo run -p ignispromptctl -- audit-events --json
+cargo run -p ignispromptctl -- route-explain --text "Review this synthetic contract clause."
+cargo run -p ignispromptctl -- route-explain --input ./tests/golden-legal/smoke-legal-request.json
+cargo run -p ignispromptctl -- route-explain --input ./tests/golden-legal/smoke-legal-request.json --json
 cargo run -p ignispromptctl -- audit tail
 ```
 
@@ -63,7 +67,9 @@ The `doctor` command checks required local preview endpoints for health, version
 
 The `sustainability` command reads `GET /v1/metrics/sustainability?period=<period>` with supported periods `7d`, `30d`, and `90d`; it defaults to `30d` and rejects unsupported values before sending a request. It prints aggregate local sustainability metrics only. It does not include prompts, raw request text, raw audit event bodies, PII, machine identifiers, hostnames, usernames, filesystem paths, secrets, or API keys.
 
-The `route-explain` command reads a JSON request file. For a legal route example, use a request file that already carries legal context such as `./tests/golden-legal/smoke-legal-request.json`, which sets `model` to `ignisprompt/legal`.
+The `audit-events` command reads the existing local `GET /v1/audit/events` endpoint. Human-readable output includes request IDs, route/domain/tier signals, warnings, timestamps when present, and local-only/proxy fields only when present. `--json` prints the endpoint response as formatted JSON. The command is read-only and does not mutate, persist, upload, or redact audit events through external services.
+
+The `route-explain` command calls the existing local `POST /v1/route/explain` endpoint with either `--text` or `--input`. Use synthetic or non-sensitive local preview text. `--json` prints the raw daemon response as formatted JSON. This is route inspection, not legal advice or legal accuracy validation. For a legal route example, use a request file that already carries legal context such as `./tests/golden-legal/smoke-legal-request.json`, which sets `model` to `ignisprompt/legal`.
 
 ## CI path
 
@@ -138,7 +144,7 @@ Feature-gated GGUF subprocess tests use temporary fake local scripts and placeho
 
 The endpoint is local-only and derived from in-memory audit events. Tests should not add telemetry, network calls, cloud calls, external coefficient lookup, or global opt-in pools. The output must remain framed as estimated, proxy, counterfactual, and methodology-dependent.
 
-The `ignispromptctl doctor` tests cover endpoint URL formatting, required/informational check lists, representative endpoint-shape validation including model and runner status hint fields, failed required-check summaries, and JSON output shape. The `ignispromptctl sustainability` tests cover default and custom period URL generation, supported-period validation, representative summary formatting, and invalid response-shape detection. JSON output is a CLI presentation option for the same local endpoint response; it is not a report upload or external lookup.
+The `ignispromptctl doctor` tests cover endpoint URL formatting, required/informational check lists, representative endpoint-shape validation including model and runner status hint fields, failed required-check summaries, and JSON output shape. The `ignispromptctl sustainability` tests cover default and custom period URL generation, supported-period validation, representative summary formatting, and invalid response-shape detection. The `ignispromptctl audit-events` and `route-explain` tests cover endpoint URL formatting, human-readable summaries, formatted JSON preservation, invalid response shapes, local next-step error messages, and invalid route input handling. JSON output is a CLI presentation option for the same local endpoint response; it is not a report upload or external lookup.
 
 The Aethra client and contract tests cover current local-preview daemon response shapes for health, version status, model manifests, model and runner status hints, audit events, and sustainability metrics. They also cover missing optional model and audit fields, unsupported schema guidance, request IDs, route/domain/tier signals, warning metadata, and optional Aethra proxy estimate fields. Sustainability report tests cover structured Markdown sections, deterministic schema-versioned JSON shape, methodology/confidence/disclaimer fields, export limitations, fixture and live-local report sources, excluded prompt/raw audit/machine fields, redacted sensitive local identifiers, and conservative claim language. Sustainability Preview export guidance and methodology copy helpers should remain browser-local UI behavior; UI-level browser tests are not part of the current app test setup.
 
