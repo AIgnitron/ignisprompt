@@ -129,6 +129,8 @@ Local-preview API schema-lock tests cover the JSON field names and high-level re
 
 Route-policy regression tests cover legal Tier 3 routing, general non-legal local routing, local-only fail-closed legal routing, adversarial document-instruction warnings, conservative route explanation text, and local audit emission for route explanations and chat completions. The tests use existing deterministic golden legal fixtures and do not add generated evidence, model weights, cloud calls, telemetry, or HTTP response shape changes.
 
+Model availability regression tests keep route eligibility separate from local file and runner hints. They cover configured-but-not-route-eligible manifests, route-eligible manifests whose local file is missing, conservative `/v1/status/models` availability values, and feature-gated GGUF status hints for missing runner and staged local prerequisites.
+
 The endpoint is local-only and derived from in-memory audit events. Tests should not add telemetry, network calls, cloud calls, external coefficient lookup, or global opt-in pools. The output must remain framed as estimated, proxy, counterfactual, and methodology-dependent.
 
 The `ignispromptctl doctor` tests cover endpoint URL formatting, required/informational check lists, representative endpoint-shape validation, failed required-check summaries, and JSON output shape. The `ignispromptctl sustainability` tests cover default and custom period URL generation, supported-period validation, representative summary formatting, and invalid response-shape detection. JSON output is a CLI presentation option for the same local endpoint response; it is not a report upload or external lookup.
@@ -232,6 +234,7 @@ Current local reliability note as of May 2, 2026: the latest local Golden Legal 
 - The exact-match cache stays bounded and evicts old entries when its local entry limit is exceeded.
 - Adversarial, rejected, and fail-closed chat completions are not cached.
 - The default Tier 3 path uses `StubLegalRunner` unless the feature-gated GGUF runner is explicitly available.
+- Feature-gated GGUF subprocess tests use temporary fake runner scripts and placeholder local files to cover missing runner binaries, missing `.gguf` paths, non-zero subprocess exits, invalid legal JSON output, malformed legal JSON schema output, and fallback to `StubLegalRunner`.
 - The feature-gated GGUF tests require an explicit local runner path and reject bare executable names.
 - The legal JSON normalizer accepts realistic local noisy output forms and records schema failures as structured local failures.
 - The experimental MCP stub can initialize, list tools, and call `route_explain` while reusing the existing local route and audit behavior.

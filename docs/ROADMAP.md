@@ -23,8 +23,8 @@ This roadmap describes intended direction, not completed functionality. Any item
 - v0.1.3 planning: use the contributor MCP usage docs and Aethra public/demo package as review material, and keep LiteLLM-style local gateway work in planning only. Do not implement LiteLLM in this planning pass. DreamServer work is out of scope.
 - Keep default CI green without local model weights.
 - Keep route-policy regression coverage current for legal Tier 3 routing, general local routing, adversarial document-instruction handling, conservative explanations, and local audit emission.
+- Keep model availability semantics explicit: route eligibility, manifest configuration, local file presence, runner hints, and executable local inference are separate states.
 - Expand adversarial document-instruction fixtures.
-- Make model manifest semantics clearer, especially the difference between route eligibility and actual local weight availability.
 - Continue local legal model bakeoffs with evidence stored under `./local-evidence/`.
 - Improve the GGUF subprocess contract while keeping it feature-gated.
 - Explore documented adapter concepts for local LiteLLM-style stacks without claiming implemented support or compatibility.

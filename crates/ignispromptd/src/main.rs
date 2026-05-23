@@ -1612,7 +1612,7 @@ async fn route_request(
                 data_left_device: false,
             };
             let explanation = format!(
-                "The request was routed to Tier 3 because it was declared or inferred as legal, the local legal model '{}' is installed and healthy, and local domain specialization is preferred over a general OS-native model. No cloud route was considered because an eligible local tier satisfied policy.",
+                "The request was routed to Tier 3 because it was declared or inferred as legal, the local legal model manifest '{}' is configured as route-eligible, and local domain specialization is preferred over a general OS-native model. File and runner availability are reported separately as local status hints. No cloud route was considered because an eligible local tier satisfied policy.",
                 model.model_id
             );
             return Ok((decision, explanation, warnings));
@@ -2167,6 +2167,56 @@ mod tests {
         ModelManifest {
             local_path: Some(local_path.into()),
             ..legal_model()
+        }
+    }
+
+    fn legal_model_with_installed(installed: bool) -> ModelManifest {
+        ModelManifest {
+            installed,
+            ..legal_model()
+        }
+    }
+
+    #[cfg(all(feature = "gguf-runner-spike", unix))]
+    fn gguf_spike_model_with_local_path(local_path: impl Into<String>) -> ModelManifest {
+        ModelManifest {
+            model_id: "saullm-gguf-spike".to_string(),
+            display_name: "SaulLM GGUF Spike".to_string(),
+            tier: 3,
+            domains: vec!["legal".to_string()],
+            format: "gguf".to_string(),
+            quantization: Some("q4_k_m".to_string()),
+            context_window: Some(8192),
+            local_path: Some(local_path.into()),
+            prompt_pack: Some("legal-contract-review-compact-v0.1.md".to_string()),
+            response_format: Some("schema".to_string()),
+            sha256: None,
+            version: Some("0.1-spike".to_string()),
+            installed: true,
+            source: Some("local".to_string()),
+        }
+    }
+
+    #[cfg(all(feature = "gguf-runner-spike", unix))]
+    fn make_executable_script(path: &std::path::Path, contents: impl AsRef<str>) {
+        use std::os::unix::fs::PermissionsExt;
+
+        std::fs::write(path, contents.as_ref()).unwrap();
+        let mut permissions = std::fs::metadata(path).unwrap().permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(path, permissions).unwrap();
+    }
+
+    #[cfg(all(feature = "gguf-runner-spike", unix))]
+    fn gguf_spike_decision(model: &ModelManifest) -> RouteDecision {
+        RouteDecision {
+            tier: "TIER_3".to_string(),
+            route_code: "DOMAIN_MODEL_SELECTED".to_string(),
+            domain: "legal".to_string(),
+            model_id: Some(model.model_id.clone()),
+            cloud_considered: false,
+            cloud_allowed: false,
+            data_left_device: false,
         }
     }
 
@@ -2757,6 +2807,88 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn route_eligibility_does_not_imply_local_weight_availability() {
+        let missing_path = std::env::temp_dir().join(format!(
+            "ignispromptd-route-eligible-missing-model-{}.gguf",
+            Uuid::new_v4()
+        ));
+        let model = legal_model_with_local_path(missing_path.display().to_string());
+        let state = state_with_models(vec![model.clone()]);
+
+        let (route_status, route) = call_route_explain(
+            &state,
+            req(
+                "Review this indemnification clause in a vendor services agreement.",
+                Some("ignisprompt/legal"),
+            ),
+        )
+        .await;
+        let status = call_model_status(&state).await;
+        let hint = &status.status_hints[0];
+
+        assert_eq!(route_status, StatusCode::OK);
+        assert_route_decision(
+            &route.decision,
+            &ExpectedRoute {
+                tier: "TIER_3",
+                route_code: "DOMAIN_MODEL_SELECTED",
+                domain: "legal",
+                model_id: Some("legal-saul-placeholder"),
+                cloud_considered: false,
+                cloud_allowed: false,
+                data_left_device: false,
+            },
+        );
+        assert!(route.explanation.contains("configured as route-eligible"));
+        assert!(route
+            .explanation
+            .contains("File and runner availability are reported separately"));
+        assert!(!route.explanation.contains("installed and healthy"));
+
+        assert_eq!(hint.model_id, model.model_id);
+        assert!(hint.configured);
+        assert!(hint.local_path_declared);
+        assert!(!hint.local_path_exists);
+        assert_eq!(hint.availability, ModelAvailability::ModelFileMissing);
+    }
+
+    #[tokio::test]
+    async fn configured_uninstalled_model_is_listed_but_not_route_eligible() {
+        let state = state_with_models(vec![legal_model_with_installed(false)]);
+
+        let models = call_models(&state).await;
+        let status = call_model_status(&state).await;
+        let (route_status, route) = call_route_explain(
+            &state,
+            req(
+                "Review this indemnification clause in a vendor services agreement.",
+                Some("ignisprompt/legal"),
+            ),
+        )
+        .await;
+
+        assert_eq!(models.models.len(), 1);
+        assert!(!models.models[0].installed);
+        assert_eq!(status.status_hints.len(), 1);
+        assert!(status.status_hints[0].configured);
+
+        assert_eq!(route_status, StatusCode::OK);
+        assert_route_decision(
+            &route.decision,
+            &ExpectedRoute {
+                tier: "ERR",
+                route_code: "LEGAL_MODEL_NOT_INSTALLED",
+                domain: "legal",
+                model_id: None,
+                cloud_considered: false,
+                cloud_allowed: false,
+                data_left_device: false,
+            },
+        );
+        assert_explanation_mentions(&route.explanation, &["legal", "local-only", "fails closed"]);
+    }
+
+    #[tokio::test]
     async fn model_status_response_includes_conservative_warning_language() {
         let state = state_with_models(vec![legal_model()]);
         let response = call_model_status(&state).await;
@@ -2787,6 +2919,78 @@ mod tests {
             .warnings
             .iter()
             .any(|warning| warning.contains("Declared local model path was not found")));
+    }
+
+    #[cfg(all(feature = "gguf-runner-spike", unix))]
+    #[tokio::test]
+    async fn gguf_model_status_reports_missing_runner_without_claiming_readiness() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "ignispromptd-gguf-status-missing-runner-{}",
+            Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let model_path = temp_dir.join("legal.gguf");
+        std::fs::write(&model_path, "gguf-placeholder").unwrap();
+        let missing_runner = temp_dir.join("missing-runner.sh");
+        let mut config = test_args(temp_dir.join("events.jsonl"));
+        config.gguf_runner_bin = Some(missing_runner);
+
+        let hint = model_status_hint_for_manifest(
+            &config,
+            gguf_spike_model_with_local_path(model_path.display().to_string()),
+            Utc::now(),
+        )
+        .await;
+        let warnings = hint.warnings.join(" ").to_ascii_lowercase();
+
+        assert!(hint.local_path_declared);
+        assert!(hint.local_path_exists);
+        assert!(hint.runner_configured);
+        assert_eq!(hint.runner_kind, "gguf-runner-spike");
+        assert!(!hint.runner_executable_exists);
+        assert_eq!(hint.availability, ModelAvailability::RunnerMissing);
+        assert!(warnings.contains("local hint"));
+        assert!(warnings.contains("runner executable was not found"));
+        assert!(!warnings.contains("production ready"));
+        assert!(!warnings.contains("model quality"));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[cfg(all(feature = "gguf-runner-spike", unix))]
+    #[tokio::test]
+    async fn gguf_model_status_reports_staged_only_when_file_and_runner_exist() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "ignispromptd-gguf-status-staged-{}",
+            Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let model_path = temp_dir.join("legal.gguf");
+        std::fs::write(&model_path, "gguf-placeholder").unwrap();
+        let runner_path = temp_dir.join("fake-gguf-runner.sh");
+        make_executable_script(&runner_path, "#!/bin/sh\nprintf '{}'\n");
+        let mut config = test_args(temp_dir.join("events.jsonl"));
+        config.gguf_runner_bin = Some(runner_path);
+
+        let hint = model_status_hint_for_manifest(
+            &config,
+            gguf_spike_model_with_local_path(model_path.display().to_string()),
+            Utc::now(),
+        )
+        .await;
+
+        assert!(hint.local_path_declared);
+        assert!(hint.local_path_exists);
+        assert!(hint.runner_configured);
+        assert_eq!(hint.runner_kind, "gguf-runner-spike");
+        assert!(hint.runner_executable_exists);
+        assert_eq!(hint.availability, ModelAvailability::Staged);
+        assert!(hint
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("local hint")));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 
     #[tokio::test]
@@ -3586,8 +3790,6 @@ mod tests {
     #[cfg(all(feature = "gguf-runner-spike", unix))]
     #[test]
     fn tier_3_completion_uses_gguf_runner_when_configured() {
-        use std::os::unix::fs::PermissionsExt;
-
         let temp_dir =
             std::env::temp_dir().join(format!("ignispromptd-gguf-test-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&temp_dir).unwrap();
@@ -3599,7 +3801,7 @@ mod tests {
         let captured_prompt_path = temp_dir.join("captured-prompt.txt");
         let captured_format_path = temp_dir.join("captured-format.txt");
         let captured_schema_path = temp_dir.join("captured-schema.json");
-        std::fs::write(
+        make_executable_script(
             &runner_path,
             format!(
                 "#!/bin/sh\nmodel=\"\"\nprompt_file=\"\"\nmax_tokens=\"\"\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    --model) model=\"$2\"; shift 2 ;;\n    --prompt-file) prompt_file=\"$2\"; shift 2 ;;\n    --max-tokens) max_tokens=\"$2\"; shift 2 ;;\n    *) shift ;;\n  esac\ndone\ncat \"$prompt_file\" > \"{}\"\nprintf '%s' \"$IGNISPROMPT_OLLAMA_FORMAT_MODE\" > \"{}\"\nprintf '%s' \"$IGNISPROMPT_OLLAMA_JSON_SCHEMA\" > \"{}\"\nprintf 'Here is the JSON:\\n{{\"clause_type\":\"indemnification\",\"jurisdiction\":\"not specified\",\"key_obligations\":[\"model:%s\"],\"risks\":[],\"missing_information\":[\"prompt captured\"],\"confidence\":\"medium\"}}' \"$model\"\n",
@@ -3607,41 +3809,14 @@ mod tests {
                 captured_format_path.display(),
                 captured_schema_path.display()
             ),
-        )
-        .unwrap();
-        let mut permissions = std::fs::metadata(&runner_path).unwrap().permissions();
-        permissions.set_mode(0o755);
-        std::fs::set_permissions(&runner_path, permissions).unwrap();
+        );
 
-        let model = ModelManifest {
-            model_id: "saullm-gguf-spike".to_string(),
-            display_name: "SaulLM GGUF Spike".to_string(),
-            tier: 3,
-            domains: vec!["legal".to_string()],
-            format: "gguf".to_string(),
-            quantization: Some("q4_k_m".to_string()),
-            context_window: Some(8192),
-            local_path: Some(model_path.display().to_string()),
-            prompt_pack: Some("legal-contract-review-compact-v0.1.md".to_string()),
-            response_format: Some("schema".to_string()),
-            sha256: None,
-            version: Some("0.1-spike".to_string()),
-            installed: true,
-            source: Some("local".to_string()),
-        };
+        let model = gguf_spike_model_with_local_path(model_path.display().to_string());
         let request = req(
             "Review this indemnification clause in a vendor services agreement.",
             Some("ignisprompt/legal"),
         );
-        let decision = RouteDecision {
-            tier: "TIER_3".to_string(),
-            route_code: "DOMAIN_MODEL_SELECTED".to_string(),
-            domain: "legal".to_string(),
-            model_id: Some(model.model_id.clone()),
-            cloud_considered: false,
-            cloud_allowed: false,
-            data_left_device: false,
-        };
+        let decision = gguf_spike_decision(&model);
         let mut config = test_args(temp_dir.join("events.jsonl"));
         config.gguf_runner_bin = Some(runner_path.clone());
         let prompt_dir = temp_dir.join("prompts");
@@ -3699,8 +3874,6 @@ mod tests {
     #[cfg(all(feature = "gguf-runner-spike", unix))]
     #[test]
     fn tier_3_completion_falls_back_to_stub_when_prompt_pack_is_missing() {
-        use std::os::unix::fs::PermissionsExt;
-
         let temp_dir = std::env::temp_dir().join(format!(
             "ignispromptd-gguf-missing-prompt-test-{}",
             Uuid::new_v4()
@@ -3712,47 +3885,23 @@ mod tests {
 
         let runner_path = temp_dir.join("fake-gguf-runner.sh");
         let runner_invoked_path = temp_dir.join("runner-invoked.txt");
-        std::fs::write(
+        make_executable_script(
             &runner_path,
             format!(
                 "#!/bin/sh\nprintf invoked > \"{}\"\nprintf '{{\"clause_type\":\"test\",\"jurisdiction\":\"not specified\",\"key_obligations\":[],\"risks\":[],\"missing_information\":[],\"confidence\":\"low\"}}'\n",
                 runner_invoked_path.display()
             ),
-        )
-        .unwrap();
-        let mut permissions = std::fs::metadata(&runner_path).unwrap().permissions();
-        permissions.set_mode(0o755);
-        std::fs::set_permissions(&runner_path, permissions).unwrap();
+        );
 
         let model = ModelManifest {
-            model_id: "saullm-gguf-spike".to_string(),
-            display_name: "SaulLM GGUF Spike".to_string(),
-            tier: 3,
-            domains: vec!["legal".to_string()],
-            format: "gguf".to_string(),
-            quantization: Some("q4_k_m".to_string()),
-            context_window: Some(8192),
-            local_path: Some(model_path.display().to_string()),
             prompt_pack: Some("missing-legal-prompt-pack.md".to_string()),
-            response_format: Some("schema".to_string()),
-            sha256: None,
-            version: Some("0.1-spike".to_string()),
-            installed: true,
-            source: Some("local".to_string()),
+            ..gguf_spike_model_with_local_path(model_path.display().to_string())
         };
         let request = req(
             "Review this indemnification clause in a vendor services agreement.",
             Some("ignisprompt/legal"),
         );
-        let decision = RouteDecision {
-            tier: "TIER_3".to_string(),
-            route_code: "DOMAIN_MODEL_SELECTED".to_string(),
-            domain: "legal".to_string(),
-            model_id: Some(model.model_id.clone()),
-            cloud_considered: false,
-            cloud_allowed: false,
-            data_left_device: false,
-        };
+        let decision = gguf_spike_decision(&model);
         let mut config = test_args(temp_dir.join("events.jsonl"));
         config.gguf_runner_bin = Some(runner_path);
         let prompt_dir = temp_dir.join("prompts");
@@ -3772,6 +3921,258 @@ mod tests {
             .contains("StubLegalRunner handled this Tier 3 legal request locally"));
         assert!(output.metadata.is_none());
         assert!(!runner_invoked_path.exists());
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[cfg(all(feature = "gguf-runner-spike", unix))]
+    #[test]
+    fn tier_3_completion_falls_back_to_stub_when_gguf_model_file_is_missing() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "ignispromptd-gguf-missing-model-test-{}",
+            Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let missing_model_path = temp_dir.join("missing-legal.gguf");
+        let runner_path = temp_dir.join("fake-gguf-runner.sh");
+        let runner_invoked_path = temp_dir.join("runner-invoked.txt");
+        make_executable_script(
+            &runner_path,
+            format!(
+                "#!/bin/sh\nprintf invoked > \"{}\"\nprintf '{{}}'\n",
+                runner_invoked_path.display()
+            ),
+        );
+
+        let model = gguf_spike_model_with_local_path(missing_model_path.display().to_string());
+        let request = req(
+            "Review this indemnification clause in a vendor services agreement.",
+            Some("ignisprompt/legal"),
+        );
+        let decision = gguf_spike_decision(&model);
+        let mut config = test_args(temp_dir.join("events.jsonl"));
+        config.gguf_runner_bin = Some(runner_path);
+
+        let output = completion_output_for_decision(
+            &runner_adapter(),
+            &config,
+            &request,
+            &decision,
+            Some(&model),
+        );
+
+        assert!(output
+            .content
+            .contains("StubLegalRunner handled this Tier 3 legal request locally"));
+        assert!(output.metadata.is_none());
+        assert!(!runner_invoked_path.exists());
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[cfg(all(feature = "gguf-runner-spike", unix))]
+    #[test]
+    fn tier_3_completion_falls_back_to_stub_when_gguf_runner_file_is_missing() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "ignispromptd-gguf-missing-runner-test-{}",
+            Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let model_path = temp_dir.join("legal.gguf");
+        std::fs::write(&model_path, "gguf-placeholder").unwrap();
+
+        let model = gguf_spike_model_with_local_path(model_path.display().to_string());
+        let request = req(
+            "Review this indemnification clause in a vendor services agreement.",
+            Some("ignisprompt/legal"),
+        );
+        let decision = gguf_spike_decision(&model);
+        let mut config = test_args(temp_dir.join("events.jsonl"));
+        config.gguf_runner_bin = Some(temp_dir.join("missing-runner.sh"));
+
+        let output = completion_output_for_decision(
+            &runner_adapter(),
+            &config,
+            &request,
+            &decision,
+            Some(&model),
+        );
+
+        assert!(output
+            .content
+            .contains("StubLegalRunner handled this Tier 3 legal request locally"));
+        assert!(output.metadata.is_none());
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[cfg(all(feature = "gguf-runner-spike", unix))]
+    #[test]
+    fn tier_3_completion_falls_back_to_stub_when_gguf_runner_exits_nonzero() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("ignispromptd-gguf-nonzero-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let model_path = temp_dir.join("legal.gguf");
+        std::fs::write(&model_path, "gguf-placeholder").unwrap();
+        let runner_path = temp_dir.join("fake-gguf-runner.sh");
+        make_executable_script(
+            &runner_path,
+            "#!/bin/sh\nprintf 'runner failed intentionally' >&2\nexit 42\n",
+        );
+
+        let model = gguf_spike_model_with_local_path(model_path.display().to_string());
+        let request = req(
+            "Review this indemnification clause in a vendor services agreement.",
+            Some("ignisprompt/legal"),
+        );
+        let decision = gguf_spike_decision(&model);
+        let mut config = test_args(temp_dir.join("events.jsonl"));
+        config.gguf_runner_bin = Some(runner_path);
+        let prompt_dir = temp_dir.join("prompts");
+        std::fs::create_dir_all(&prompt_dir).unwrap();
+        std::fs::write(
+            prompt_dir.join("legal-contract-review-compact-v0.1.md"),
+            "COMPACT PROMPT PACK TEST\nJSON only.\n",
+        )
+        .unwrap();
+        config.prompt_dir = prompt_dir;
+
+        let output = completion_output_for_decision(
+            &runner_adapter(),
+            &config,
+            &request,
+            &decision,
+            Some(&model),
+        );
+
+        assert!(output
+            .content
+            .contains("StubLegalRunner handled this Tier 3 legal request locally"));
+        assert!(output.metadata.is_none());
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[cfg(all(feature = "gguf-runner-spike", unix))]
+    #[test]
+    fn tier_3_completion_records_legal_json_error_for_invalid_gguf_stdout() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "ignispromptd-gguf-invalid-json-test-{}",
+            Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let model_path = temp_dir.join("legal.gguf");
+        std::fs::write(&model_path, "gguf-placeholder").unwrap();
+        let runner_path = temp_dir.join("fake-gguf-runner.sh");
+        make_executable_script(
+            &runner_path,
+            "#!/bin/sh\nprintf 'this is not json and has no legal schema object'\n",
+        );
+
+        let model = gguf_spike_model_with_local_path(model_path.display().to_string());
+        let request = req(
+            "Review this indemnification clause in a vendor services agreement.",
+            Some("ignisprompt/legal"),
+        );
+        let decision = gguf_spike_decision(&model);
+        let mut config = test_args(temp_dir.join("events.jsonl"));
+        config.gguf_runner_bin = Some(runner_path);
+        let prompt_dir = temp_dir.join("prompts");
+        std::fs::create_dir_all(&prompt_dir).unwrap();
+        std::fs::write(
+            prompt_dir.join("legal-contract-review-compact-v0.1.md"),
+            "COMPACT PROMPT PACK TEST\nJSON only.\n",
+        )
+        .unwrap();
+        config.prompt_dir = prompt_dir;
+
+        let output = completion_output_for_decision(
+            &runner_adapter(),
+            &config,
+            &request,
+            &decision,
+            Some(&model),
+        );
+        let metadata = output.metadata.expect("gguf runner metadata");
+        let legal_json = metadata.legal_json.expect("legal json metadata");
+
+        assert_eq!(metadata.runner, "gguf-runner-spike");
+        assert_eq!(legal_json.status, "error");
+        assert!(!legal_json.schema_valid);
+        assert_eq!(
+            legal_json.raw_model_output,
+            "this is not json and has no legal schema object"
+        );
+        assert_eq!(
+            legal_json.error_code.as_deref(),
+            Some("LEGAL_JSON_EXTRACTION_FAILED")
+        );
+        assert!(output.content.contains("\"parse_status\""));
+        assert!(output.content.contains("LEGAL_JSON_EXTRACTION_FAILED"));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[cfg(all(feature = "gguf-runner-spike", unix))]
+    #[test]
+    fn tier_3_completion_records_schema_error_for_malformed_gguf_json() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "ignispromptd-gguf-malformed-schema-test-{}",
+            Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let model_path = temp_dir.join("legal.gguf");
+        std::fs::write(&model_path, "gguf-placeholder").unwrap();
+        let runner_path = temp_dir.join("fake-gguf-runner.sh");
+        make_executable_script(
+            &runner_path,
+            "#!/bin/sh\nprintf '{\"clause_type\":\"indemnification\",\"confidence\":\"medium\"}'\n",
+        );
+
+        let model = gguf_spike_model_with_local_path(model_path.display().to_string());
+        let request = req(
+            "Review this indemnification clause in a vendor services agreement.",
+            Some("ignisprompt/legal"),
+        );
+        let decision = gguf_spike_decision(&model);
+        let mut config = test_args(temp_dir.join("events.jsonl"));
+        config.gguf_runner_bin = Some(runner_path);
+        let prompt_dir = temp_dir.join("prompts");
+        std::fs::create_dir_all(&prompt_dir).unwrap();
+        std::fs::write(
+            prompt_dir.join("legal-contract-review-compact-v0.1.md"),
+            "COMPACT PROMPT PACK TEST\nJSON only.\n",
+        )
+        .unwrap();
+        config.prompt_dir = prompt_dir;
+
+        let output = completion_output_for_decision(
+            &runner_adapter(),
+            &config,
+            &request,
+            &decision,
+            Some(&model),
+        );
+        let metadata = output.metadata.expect("gguf runner metadata");
+        let legal_json = metadata.legal_json.expect("legal json metadata");
+
+        assert_eq!(metadata.runner, "gguf-runner-spike");
+        assert_eq!(legal_json.status, "error");
+        assert!(!legal_json.schema_valid);
+        assert_eq!(
+            legal_json.error_code.as_deref(),
+            Some("LEGAL_JSON_VALIDATION_FAILED")
+        );
+        assert!(legal_json
+            .missing_fields
+            .iter()
+            .any(|field| field == "jurisdiction"));
+        assert!(output.content.contains("LEGAL_JSON_VALIDATION_FAILED"));
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
