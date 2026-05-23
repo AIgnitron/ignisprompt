@@ -2189,18 +2189,6 @@ fn format_evidence_bundle_validation_json(report: &EvidenceBundleValidationRepor
     .unwrap_or_default()
 }
 
-fn build_evidence_bundle_list_report(
-    bundle_dir: &Path,
-) -> Result<EvidenceBundleValidationReport, String> {
-    let snapshot = read_evidence_bundle_snapshot(bundle_dir)?;
-    let metadata = evidence_bundle_snapshot_metadata(&snapshot);
-    Ok(EvidenceBundleValidationReport {
-        snapshot,
-        metadata,
-        issues: Vec::new(),
-    })
-}
-
 impl EvidenceBundleSnapshot {
     fn file_state(&self, file_name: &str) -> Option<&EvidenceBundleFileState> {
         self.files.iter().find(|file| file.file_name == file_name)
@@ -2738,9 +2726,9 @@ fn format_invalid_response_error(kind: &str, endpoint: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        audit_events_url, build_evidence_bundle_list_report, build_evidence_bundle_report,
-        build_evidence_bundle_validation_report, build_route_explain_body, current_unix_seconds,
-        doctor_endpoint_url, format_audit_events_summary, format_doctor_json, format_doctor_summary,
+        audit_events_url, build_evidence_bundle_report, build_evidence_bundle_validation_report,
+        build_route_explain_body, current_unix_seconds, doctor_endpoint_url,
+        format_audit_events_summary, format_doctor_json, format_doctor_summary,
         format_evidence_bundle_list_json, format_evidence_bundle_list_summary,
         format_evidence_bundle_summary, format_evidence_bundle_unreachable_error,
         format_evidence_bundle_validation_json, format_evidence_bundle_validation_summary,
@@ -3711,7 +3699,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&output_dir);
         write_fake_evidence_bundle(&output_dir, true);
 
-        let report = build_evidence_bundle_list_report(&output_dir).unwrap();
+        let report = build_evidence_bundle_validation_report(&output_dir).unwrap();
         let summary = format_evidence_bundle_list_summary(&report);
         assert!(summary.contains("IgnisPrompt Local Evidence Bundle Listing"));
         assert!(summary.contains("audit-events.json: present (optional)"));
@@ -3728,7 +3716,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&output_dir);
         write_fake_evidence_bundle(&output_dir, true);
 
-        let report = build_evidence_bundle_list_report(&output_dir).unwrap();
+        let report = build_evidence_bundle_validation_report(&output_dir).unwrap();
         let json_output = format_evidence_bundle_list_json(&report);
         let value: serde_json::Value = serde_json::from_str(&json_output).unwrap();
         assert_eq!(value["metadata"]["include_audit_events"], true);

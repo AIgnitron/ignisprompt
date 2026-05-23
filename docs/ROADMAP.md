@@ -22,7 +22,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 
 ## Near-term work
 
-- v0.1.3 planning: use the contributor MCP usage docs and Aethra public/demo package as review material.
+- v0.1.3 release prep: use the contributor MCP usage docs, the Aethra public/demo package, and the v0.1.3 release-readiness record as review material.
 - Keep default CI green without local model weights.
 - Keep route-policy regression coverage current for legal Tier 3 routing, general local routing, adversarial document-instruction handling, conservative explanations, and local audit emission.
 - Keep model availability semantics explicit: route eligibility, manifest configuration, local file presence, runner hints, and executable local inference are separate states.

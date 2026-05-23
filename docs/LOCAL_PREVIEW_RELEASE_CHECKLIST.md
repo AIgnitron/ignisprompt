@@ -271,7 +271,7 @@ Confirm release notes, checklist updates, README links, and quickstart notes kee
 
 ## Release Tag Steps
 
-Use these only after a release branch is merged and the final commit is verified. The `v0.1.1-local-preview` tag already exists on #140 and must not be moved, deleted, recreated, or republished during post-v0.1.1 cleanup. Use a future patch tag such as `v0.1.2-local-preview` if a later patch release is needed.
+Use these only after a release branch is merged and the final commit is verified. The `v0.1.1-local-preview` tag already exists on #140 and must not be moved, deleted, recreated, or republished during post-v0.1.1 cleanup. Use a future patch tag such as `v0.1.3-local-preview` if a later patch release is needed.
 
 ```bash
 git checkout main
