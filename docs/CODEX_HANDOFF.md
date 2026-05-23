@@ -9,7 +9,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - MVP tag: `v0.1.0-mvp`
 - Final readiness result: **PASS WITH GAPS**
 - Public feedback issue: https://github.com/AIgnitron/ignisprompt/issues/56
-- Latest known main commit: `0b622bd ci: add reproducible security review checks (#152)`
+- Latest known main commit: `d95c9c7 feat: add ignispromptctl evidence bundle validation (#155)`
 - Open PRs at this handoff: none
 - Open issues at this handoff: #56 only
 
@@ -52,6 +52,9 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - PR #150 added feature-gated GGUF subprocess timeout handling and local runner preflight hardening while keeping `StubLegalRunner` as the default fallback.
 - PR #151 hardened Aethra live-local contracts with fixture/schema contract tests, optional-field tolerance, model/runner status hint summaries, audit proxy estimate coverage, sustainability report redaction, and minimal current-state docs cleanup.
 - PR #152 added reproducible local security review checks: hidden Unicode scanning, conservative local secret scanning, optional `cargo-audit`, optional CycloneDX SBOM dry-run/generation under ignored local evidence, and docs that avoid certification or complete supply-chain assurance claims.
+- PR #153 added `ignispromptctl` local audit and route inspection commands.
+- PR #154 added `ignispromptctl` evidence bundle generation from local endpoints.
+- PR #155 added `ignispromptctl` evidence bundle list and validate commands plus bundle metadata hardening.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
 - Issue #43 is closed after Saul 7B local legal candidate evidence was documented.
 
@@ -211,7 +214,7 @@ Add `--include-route-explain` only when you intentionally want to append a local
 5. Keep Aethra live-local diagnostics limited to local connection/debugging state; avoid polling, persistence, external lookup, cloud calls, update checks, readiness claims, or controls.
 6. Keep copyable command helpers local and explicit; avoid dashboard-side command execution, remote command language, telemetry, or persistence.
 7. Keep any future model and runner status work limited to hints; avoid readiness, certification, legal-quality, or compliance claims.
-8. For v0.1.3 planning, use the contributor MCP usage docs and Aethra public/demo package as review material.
+8. For v0.1.3 release prep, use the contributor MCP usage docs, the Aethra public/demo package, and the new local preview release record as review material.
 
 Avoid cloud telemetry, analytics, auth providers, a SaaS backend, model install/delete controls, and production/legal/compliance/sustainability overclaims unless a future task explicitly scopes and reviews those changes.
 
