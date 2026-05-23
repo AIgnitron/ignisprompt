@@ -9,7 +9,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - MVP tag: `v0.1.0-mvp`
 - Final readiness result: **PASS WITH GAPS**
 - Public feedback issue: https://github.com/AIgnitron/ignisprompt/issues/56
-- Latest known main commit: `1fb0cf7 test: harden audit evidence validation (#149)`
+- Latest known main commit: `0744227 test: harden GGUF timeout and runner preflight (#150)`
 - Open PRs at this handoff: none
 - Open issues at this handoff: #56 only
 
@@ -49,7 +49,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - PR #147 hardened model availability semantics, model/runner status hints, and the feature-gated GGUF subprocess contract. `StubLegalRunner` remains the default fallback and GGUF remains opt-in.
 - PR #148 hardened the Golden Legal adversarial demo path, expanded Golden Legal v0.3 from 6 to 9 cases, added demo transcript self-test behavior, and strengthened local-only evidence guardrails.
 - PR #149 hardened audit evidence validation and added `generate-local-only-attestation.sh --self-test`. The normal script still generates local-only developer evidence only; it does not implement signed attestation reports or tamper-evident audit storage.
-- Adapter concepts are documented as a design direction for possible future local LiteLLM-style and DreamServer-style integration. No adapter is implemented, no compatibility guarantee is made, and IgnisPrompt remains a local policy/routing/audit control plane rather than another model server.
+- PR #150 added feature-gated GGUF subprocess timeout handling and local runner preflight hardening while keeping `StubLegalRunner` as the default fallback.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
 - Issue #43 is closed after Saul 7B local legal candidate evidence was documented.
 
@@ -76,9 +76,6 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - The experimental stdio MCP stub exposes `route_explain` plus read-only local observability tools: `audit_events`, `status_version`, and `sustainability_summary`. The observability tools reuse existing local audit, version status, and sustainability summary logic. MCP `audit_events` now returns object-shaped structured content with an `events` array for stricter MCP client compatibility. They do not add telemetry, cloud calls, GitHub calls, update checks, external lookups, command execution, prompt/resource/sampling support, remote transports, model controls, runner controls, config changes, persistence, uploads, or global aggregation. Sustainability output remains estimated, counterfactual, proxy, methodology-dependent, and not certified sustainability reporting.
 - `docs/releases/v0.1.1-local-preview.md` is the v0.1.1 release-readiness record and post-release planning note. It does not claim production readiness. It should be reviewed with `docs/LOCAL_PREVIEW_RELEASE_CHECKLIST.md` before any future patch tag work.
 - `docs/releases/v0.1.2-local-preview.md` is the v0.1.2 patch release record. It documents post-v0.1.1 MCP compatibility and docs guardrail cleanup, includes upgrade notes and historical pre-tag checks, and does not claim production readiness.
-- `docs/ADAPTER_CONCEPTS.md` is docs-only design material. It does not add LiteLLM support, DreamServer support, proxying, runner controls, model controls, cloud calls, telemetry, external lookups, or API behavior.
-- `docs/LOCAL_ADAPTER_IMPLEMENTATION_CHECKLIST.md` is a docs-only future implementation gate for local adapter work. It does not implement adapters, change API behavior, add proxying, or add runner/model controls.
-- `docs/LITELLM_LOCAL_GATEWAY_PLAN.md` is a docs-only future implementation plan for a LiteLLM-style OpenAI-compatible local gateway path. It does not implement adapter code, proxying, API behavior, cloud fallback, runner controls, or model controls.
 - Local-preview schema-lock tests protect the JSON field names and high-level response shapes consumed by local-preview users, Aethra, smoke checks, and `ignispromptctl` for health, models, model/runner status, version status, audit events, sustainability metrics, invalid sustainability period errors, OpenAI-compatible chat completion responses, and existing MCP stdio responses. Route-policy regression tests cover legal Tier 3 routing, general non-legal local routing, local-only fail-closed routing, adversarial document-instruction warnings, conservative route explanations, and local audit emission for route explanations and chat completions. Model availability tests cover configured manifests, route eligibility, missing local files, missing runners, staged GGUF prerequisites, and feature-gated GGUF fallback/error metadata without requiring real model weights or external binaries. GGUF subprocess tests use temporary fake local scripts for fast success, timeout/hang fallback, non-zero exit fallback, and invalid JSON metadata. Chat completion locks cover non-streaming responses, streaming SSE chunks, route metadata, local-only route flags, UTF-8-safe streaming fragments, and representative invalid-input error shape for future local gateway planning. MCP locks cover initialize, tools/list, route_explain tool success/error payloads, read-only audit_events/status_version/sustainability_summary success and error payloads, notification no-response behavior, and JSON-RPC error envelopes.
 - Aethra Overview can manually load daemon version status in live-local mode and otherwise shows fixture fallback release status metadata.
 - Aethra Overview shows live-local connection diagnostics derived from manual local loads only. Diagnostics distinguish fixture mode active, live-local ready, live-local connected, daemon unreachable, endpoint unavailable, invalid response shape, last refresh failed, and last refresh succeeded states.
@@ -208,9 +205,7 @@ Add `--include-route-explain` only when you intentionally want to append a local
 5. Keep Aethra live-local diagnostics limited to local connection/debugging state; avoid polling, persistence, external lookup, cloud calls, update checks, readiness claims, or controls.
 6. Keep copyable command helpers local and explicit; avoid dashboard-side command execution, remote command language, telemetry, or persistence.
 7. Keep any future model and runner status work limited to hints; avoid readiness, certification, legal-quality, or compliance claims.
-8. For v0.1.3 planning, use the contributor MCP usage docs and Aethra public/demo package as review material, and keep LiteLLM-style local gateway work as planning only, not implementation. DreamServer remains out of scope unless a future task explicitly scopes it.
-9. Use `docs/LOCAL_ADAPTER_IMPLEMENTATION_CHECKLIST.md` before any adapter implementation begins; preserve route explanations, audit events, local-only defaults, and adversarial document-instruction behavior.
-10. Treat `docs/LITELLM_LOCAL_GATEWAY_PLAN.md` as the focused plan for any future OpenAI-compatible local gateway path; DreamServer work is out of scope for v0.1.3 planning unless a future task explicitly scopes it.
+8. For v0.1.3 planning, use the contributor MCP usage docs and Aethra public/demo package as review material.
 
 Avoid cloud telemetry, analytics, auth providers, a SaaS backend, model install/delete controls, and production/legal/compliance/sustainability overclaims unless a future task explicitly scopes and reviews those changes.
 

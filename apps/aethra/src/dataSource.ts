@@ -337,14 +337,15 @@ function describeEndpointLoadError(
       case "invalid-json":
         return {
           label: "Invalid JSON",
-          message: "The local daemon returned a response that was not valid JSON.",
+          message:
+            "The local daemon returned a response that was not valid JSON. Fixture fallback remains available; confirm the current local-preview daemon is running before retrying manual refresh.",
           diagnosticKind: "invalid-response-shape",
         };
       case "unexpected-shape":
         return {
           label: "Unsupported schema",
           message:
-            `The local daemon returned JSON that did not match the expected ${noun} schema.`,
+            `The local daemon returned JSON that did not match the expected ${noun} schema. Fixture fallback remains available; confirm the daemon is from the current local-preview build before retrying manual refresh.`,
           diagnosticKind: "invalid-response-shape",
         };
       case "http-error":

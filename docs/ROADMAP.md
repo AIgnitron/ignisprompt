@@ -21,7 +21,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 
 ## Near-term work
 
-- v0.1.3 planning: use the contributor MCP usage docs and Aethra public/demo package as review material, and keep LiteLLM-style local gateway work in planning only. Do not implement LiteLLM in this planning pass. DreamServer work is out of scope.
+- v0.1.3 planning: use the contributor MCP usage docs and Aethra public/demo package as review material.
 - Keep default CI green without local model weights.
 - Keep route-policy regression coverage current for legal Tier 3 routing, general local routing, adversarial document-instruction handling, conservative explanations, and local audit emission.
 - Keep model availability semantics explicit: route eligibility, manifest configuration, local file presence, runner hints, and executable local inference are separate states.
@@ -29,9 +29,6 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Keep local evidence validation strict while avoiding signed attestation or tamper-evident storage claims until those features are explicitly implemented.
 - Continue local legal model bakeoffs with evidence stored under `./local-evidence/`.
 - Continue improving GGUF subprocess diagnostics while keeping the path feature-gated and local-only.
-- Explore documented adapter concepts for local LiteLLM-style stacks without claiming implemented support or compatibility.
-- Use the local adapter implementation checklist before any adapter code is proposed.
-- Refine the LiteLLM-style OpenAI-compatible local gateway plan before any implementation work begins. LiteLLM local gateway work remains planning only, and DreamServer remains out of scope.
 
 ## Candidate model work
 
@@ -48,7 +45,6 @@ Future model selection should compare larger general models and legal-domain can
 - Tier 4 edge routing.
 - Tier 5 cloud routing.
 - Cloud BYOK provider integrations.
-- LiteLLM-style or DreamServer-style adapters for local model stacks.
 - Signed Local-Only Attestation Report generation.
 - Tamper-evident audit log storage.
 - Production legal-quality evaluation.

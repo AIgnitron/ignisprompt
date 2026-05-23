@@ -66,6 +66,8 @@ export const sustainabilityReportExportNotes = [
 const requiredFraming =
   "These values are routing-aware counterfactual proxy estimates. They are methodology-dependent and are not measured energy use, not actual carbon accounting, not ESG certification, and not production compliance evidence.";
 
+const redactedReportText = "[redacted local-only report field]";
+
 export function buildSustainabilityMarkdownReport(
   input: SustainabilityReportInput,
 ): string {
@@ -154,15 +156,15 @@ export function buildSustainabilityJsonReport(
     },
     tier_breakdown: sortTierBreakdown(metrics.tier_breakdown),
     baseline: {
-      provider: metrics.baseline_provider,
-      model: metrics.baseline_model,
+      provider: sanitizeReportText(metrics.baseline_provider),
+      model: sanitizeReportText(metrics.baseline_model),
     },
     methodology: {
-      version: metrics.methodology_version,
+      version: sanitizeReportText(metrics.methodology_version),
       framing: requiredFraming,
     },
-    confidence: metrics.confidence,
-    disclaimer: metrics.disclaimer,
+    confidence: sanitizeReportText(metrics.confidence),
+    disclaimer: sanitizeReportText(metrics.disclaimer),
     limitations: [...sustainabilityReportLimitations],
     local_only: true,
     export_notes: [...sustainabilityReportExportNotes],
@@ -210,4 +212,22 @@ function formatRate(value: number): string {
 
 function formatFixed(value: number): string {
   return value.toFixed(6);
+}
+
+function sanitizeReportText(value: string): string {
+  if (containsSensitiveLocalText(value)) {
+    return redactedReportText;
+  }
+
+  return value;
+}
+
+function containsSensitiveLocalText(value: string): boolean {
+  return [
+    /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+    /\b(?:sk|api|token|secret|key)[-_]?[A-Za-z0-9]{12,}\b/i,
+    /(?:^|\s)(?:\/Users|\/home|\/private|\/var|\/tmp|[A-Za-z]:\\)[^\s]*/i,
+    /\b(?:localhost|[A-Za-z0-9-]+\.(?:local|lan|internal|corp))\b/i,
+    /\b(?:host(?:name)?|machine|username|user)\s*[:=]\s*[A-Za-z0-9._-]+/i,
+  ].some((pattern) => pattern.test(value));
 }

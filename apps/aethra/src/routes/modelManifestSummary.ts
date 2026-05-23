@@ -71,7 +71,7 @@ export function getManifestStatusHints(model: ModelManifest): string[] {
     model.promptPack == null
       ? "Prompt pack not declared"
       : "Prompt pack declared",
-    "Runner readiness unknown",
+    "Runner status unknown",
     "File existence not verified by Aethra in fixture mode",
   ];
 }

@@ -28,7 +28,7 @@ Use this framing for public material:
 - model and runner status hints, not controls
 - sustainability proxy indicators with methodology and confidence labels
 
-Avoid positive claims about production deployment, legal advice, model-quality proof, compliance evidence, broad MCP compatibility, LiteLLM support, or DreamServer support. Keep the explicit non-claims visible: not ESG certification and not certified sustainability reporting.
+Avoid positive claims about production deployment, legal advice, model-quality proof, compliance evidence, or broad MCP compatibility. Keep the explicit non-claims visible: not ESG certification and not certified sustainability reporting.
 
 ## Audience Fit
 
@@ -77,8 +77,6 @@ Keep these boundaries visible in every public/demo use:
 - Aethra is not a production deployment.
 - Aethra does not provide legal advice.
 - Aethra sustainability preview is not ESG certification.
-- LiteLLM-style local gateway work remains planning only, not implemented.
-- DreamServer work is out of scope unless explicitly reopened by a future task.
 
 ## Carousel / Demo Order
 
@@ -180,12 +178,12 @@ Screenshot guidance:
 
 ### 5. Model / Runner Status
 
-Purpose: show local readiness hints without implying controls.
+Purpose: show local status hints without implying controls.
 
 Caption:
 
 ```text
-Model / Runner Status shows manifest and runner readiness hints so operators can understand local prerequisites without installing, deleting, or controlling models from Aethra.
+Model / Runner Status shows manifest, local file, runner executable, and inference-attempt status hints so operators can understand local prerequisites without installing, deleting, or controlling models from Aethra.
 ```
 
 Talk track:
@@ -247,8 +245,6 @@ Before publishing or presenting:
 - Keep no-telemetry and no-cloud-by-default wording visible.
 - Confirm model and runner status values are described as hints, not controls.
 - Confirm sustainability values are described as estimated, proxy, counterfactual, methodology-dependent, and non-certified.
-- Confirm LiteLLM local gateway work is described as planning only.
-- Confirm DreamServer work is described as out of scope unless explicitly reopened.
 
 ## Related Docs
 

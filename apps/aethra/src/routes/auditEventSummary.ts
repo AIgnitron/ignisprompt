@@ -11,6 +11,7 @@ export type AuditEventRow = {
   dataLeftDevice: boolean;
   warningCount: number;
   cacheHit: boolean;
+  proxyEstimateCount: number;
 };
 
 export function toAuditEventRows(events: AuditEvent[]): AuditEventRow[] {
@@ -27,6 +28,7 @@ export function toAuditEventRows(events: AuditEvent[]): AuditEventRow[] {
       dataLeftDevice: event.data_left_device,
       warningCount: event.warnings.length,
       cacheHit: event.cache?.hit === true,
+      proxyEstimateCount: countProxyEstimateFields(event),
     }));
 }
 
@@ -43,4 +45,20 @@ export function countAuditWarnings(events: AuditEvent[]): number {
 
 export function countAuditCacheHits(events: AuditEvent[]): number {
   return events.filter((event) => event.cache?.hit === true).length;
+}
+
+export function countProxyEstimateFields(event: AuditEvent): number {
+  return [
+    event.input_tokens_est,
+    event.output_tokens_est,
+    event.baseline_provider,
+    event.baseline_model,
+    event.estimated_cloud_cost_usd,
+    event.estimated_cloud_cost_avoided_usd,
+    event.estimated_local_energy_wh,
+    event.estimated_cloud_baseline_wh,
+    event.estimated_carbon_avoided_gco2e,
+    event.methodology_version,
+    event.confidence,
+  ].filter((value) => value !== undefined).length;
 }

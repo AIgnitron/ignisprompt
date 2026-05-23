@@ -365,6 +365,7 @@ function AuditEventTable({
               <th>Model</th>
               <th>Data left</th>
               <th>Warnings</th>
+              <th>Proxy estimates</th>
               <th>Cache</th>
             </tr>
           </thead>
@@ -392,6 +393,7 @@ function AuditEventTable({
                 <td>{row.modelId}</td>
                 <td>{String(row.dataLeftDevice)}</td>
                 <td>{row.warningCount}</td>
+                <td>{row.proxyEstimateCount}</td>
                 <td>{row.cacheHit ? "hit" : "none"}</td>
               </tr>
             ))}
