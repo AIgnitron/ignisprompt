@@ -6,8 +6,11 @@ use anyhow::{Context, Result};
 #[cfg(feature = "gguf-runner-spike")]
 use std::{
     fs,
+    fs::File,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Output, Stdio},
+    thread,
+    time::{Duration, Instant},
 };
 #[cfg(feature = "gguf-runner-spike")]
 use tracing::{info, warn};
@@ -173,6 +176,10 @@ impl GgufRunner {
         std::env::temp_dir().join(format!("ignisprompt-gguf-prompt-{}.txt", Uuid::new_v4()))
     }
 
+    fn subprocess_output_path(kind: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("ignisprompt-gguf-{kind}-{}.txt", Uuid::new_v4()))
+    }
+
     fn write_prompt_file(prompt: &str) -> Result<PathBuf> {
         let path = Self::prompt_file_path();
         fs::write(&path, prompt)
@@ -186,6 +193,63 @@ impl GgufRunner {
             .as_deref()
             .filter(|value| !value.trim().is_empty())
             .unwrap_or("none")
+    }
+
+    fn run_subprocess_with_timeout(
+        mut command: Command,
+        runner_bin: &Path,
+        timeout: Duration,
+    ) -> Result<Output> {
+        let stdout_path = Self::subprocess_output_path("stdout");
+        let stderr_path = Self::subprocess_output_path("stderr");
+        let stdout = File::create(&stdout_path)
+            .with_context(|| format!("failed to create {}", stdout_path.display()))?;
+        let stderr = File::create(&stderr_path)
+            .with_context(|| format!("failed to create {}", stderr_path.display()))?;
+
+        let mut child = command
+            .stdin(Stdio::null())
+            .stdout(Stdio::from(stdout))
+            .stderr(Stdio::from(stderr))
+            .spawn()
+            .with_context(|| format!("failed to execute GGUF runner {}", runner_bin.display()))?;
+
+        let started_at = Instant::now();
+        let poll_interval = Duration::from_millis(10);
+        let status = loop {
+            if let Some(status) = child
+                .try_wait()
+                .with_context(|| format!("failed to poll GGUF runner {}", runner_bin.display()))?
+            {
+                break status;
+            }
+
+            if started_at.elapsed() >= timeout {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = fs::remove_file(&stdout_path);
+                let _ = fs::remove_file(&stderr_path);
+                bail!("GGUF runner timed out after {} ms", timeout.as_millis());
+            }
+
+            let remaining = timeout
+                .checked_sub(started_at.elapsed())
+                .unwrap_or(Duration::ZERO);
+            thread::sleep(std::cmp::min(poll_interval, remaining));
+        };
+
+        let stdout = fs::read(&stdout_path)
+            .with_context(|| format!("failed to read {}", stdout_path.display()))?;
+        let stderr = fs::read(&stderr_path)
+            .with_context(|| format!("failed to read {}", stderr_path.display()))?;
+        let _ = fs::remove_file(&stdout_path);
+        let _ = fs::remove_file(&stderr_path);
+
+        Ok(Output {
+            status,
+            stdout,
+            stderr,
+        })
     }
 }
 
@@ -272,9 +336,11 @@ impl ModelRunner for GgufRunner {
             _ => {}
         }
 
-        let output = command
-            .output()
-            .with_context(|| format!("failed to execute GGUF runner {}", runner_bin.display()));
+        let output = Self::run_subprocess_with_timeout(
+            command,
+            runner_bin,
+            Duration::from_millis(context.config.gguf_runner_timeout_ms),
+        );
 
         let _ = fs::remove_file(&prompt_file);
         let output = output?;
@@ -382,6 +448,7 @@ mod tests {
             gguf_runner_bin: Some(PathBuf::from("ollama-gguf-runner.sh")),
             prompt_dir: PathBuf::from("./config/prompts"),
             gguf_max_tokens: 256,
+            gguf_runner_timeout_ms: 30_000,
         };
 
         let err = GgufRunner::configured_runner_bin(&config).unwrap_err();
@@ -404,6 +471,7 @@ mod tests {
             gguf_runner_bin: Some(PathBuf::from("./scripts/ollama-gguf-runner.sh")),
             prompt_dir: PathBuf::from("./config/prompts"),
             gguf_max_tokens: 256,
+            gguf_runner_timeout_ms: 30_000,
         };
         let absolute = Args {
             gguf_runner_bin: Some(PathBuf::from("/tmp/ollama-gguf-runner.sh")),
