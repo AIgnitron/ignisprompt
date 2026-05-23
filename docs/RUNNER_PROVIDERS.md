@@ -190,6 +190,8 @@ Execution behavior:
 Failure behavior:
 
 - invalid runner config, missing files, non-zero exit status, empty stdout, or prompt-pack read failures all cause fallback to the next runner
+- invalid or schema-mismatched legal JSON stdout is returned as structured local `legal_json` error metadata rather than hidden
+- the current spike does not implement a separate subprocess timeout contract; future runner work should define timeout behavior before relying on it
 
 ## Rules for new runner providers
 

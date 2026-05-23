@@ -9,7 +9,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - MVP tag: `v0.1.0-mvp`
 - Final readiness result: **PASS WITH GAPS**
 - Public feedback issue: https://github.com/AIgnitron/ignisprompt/issues/56
-- Latest known main commit: `c8064f6 docs: add Aethra public demo package (#145)`
+- Latest known main commit: `ce0c687 test: harden route policy regression coverage (#146)`
 - Open PRs at this handoff: none
 - Open issues at this handoff: #56 only
 
@@ -45,6 +45,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - `v0.1.2-local-preview` is published from #143 and is the current latest local-preview release. It includes #141, #142, and the #143 patch release package. Do not move or recreate `v0.1.1-local-preview`.
 - PR #144 added contributor MCP usage docs and conservative v0.1.3 planning notes.
 - PR #145 added `docs/AETHRA_DEMO_PACKAGE.md` for a public-safe, text-only Aethra demo package. It did not add screenshots, generated images, Aethra behavior, telemetry, cloud calls, model controls, or API changes.
+- PR #146 hardened route-policy regression coverage for legal Tier 3 routing, general local routing, adversarial document-instruction handling, conservative explanations, and local audit emission.
 - Adapter concepts are documented as a design direction for possible future local LiteLLM-style and DreamServer-style integration. No adapter is implemented, no compatibility guarantee is made, and IgnisPrompt remains a local policy/routing/audit control plane rather than another model server.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
 - Issue #43 is closed after Saul 7B local legal candidate evidence was documented.
@@ -54,6 +55,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - Default no-model path works without Ollama, GGUF, external model weights, or local model binaries.
 - `StubLegalRunner` remains the default fallback.
 - The optional GGUF path is feature-gated and local-only.
+- Model manifests distinguish route eligibility from local file and runner availability. `/v1/models` reports configured manifest fields, while `/v1/status/models` reports read-only local hints for declared path presence, runner configuration, runner executable presence, and conservative availability labels.
 - Generated evidence and transcripts live under ignored `local-evidence/`.
 - Local model files live under ignored `models/`.
 - Model weights, local evidence, generated transcripts, demo bundles, attestation bundles, audit logs, `target/`, and `dist/` must not be committed.
@@ -71,7 +73,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - `docs/ADAPTER_CONCEPTS.md` is docs-only design material. It does not add LiteLLM support, DreamServer support, proxying, runner controls, model controls, cloud calls, telemetry, external lookups, or API behavior.
 - `docs/LOCAL_ADAPTER_IMPLEMENTATION_CHECKLIST.md` is a docs-only future implementation gate for local adapter work. It does not implement adapters, change API behavior, add proxying, or add runner/model controls.
 - `docs/LITELLM_LOCAL_GATEWAY_PLAN.md` is a docs-only future implementation plan for a LiteLLM-style OpenAI-compatible local gateway path. It does not implement adapter code, proxying, API behavior, cloud fallback, runner controls, or model controls.
-- Local-preview schema-lock tests protect the JSON field names and high-level response shapes consumed by local-preview users, Aethra, smoke checks, and `ignispromptctl` for health, models, model/runner status, version status, audit events, sustainability metrics, invalid sustainability period errors, OpenAI-compatible chat completion responses, and existing MCP stdio responses. Route-policy regression tests cover legal Tier 3 routing, general non-legal local routing, local-only fail-closed routing, adversarial document-instruction warnings, conservative route explanations, and local audit emission for route explanations and chat completions. Chat completion locks cover non-streaming responses, streaming SSE chunks, route metadata, local-only route flags, UTF-8-safe streaming fragments, and representative invalid-input error shape for future local gateway planning. MCP locks cover initialize, tools/list, route_explain tool success/error payloads, read-only audit_events/status_version/sustainability_summary success and error payloads, notification no-response behavior, and JSON-RPC error envelopes.
+- Local-preview schema-lock tests protect the JSON field names and high-level response shapes consumed by local-preview users, Aethra, smoke checks, and `ignispromptctl` for health, models, model/runner status, version status, audit events, sustainability metrics, invalid sustainability period errors, OpenAI-compatible chat completion responses, and existing MCP stdio responses. Route-policy regression tests cover legal Tier 3 routing, general non-legal local routing, local-only fail-closed routing, adversarial document-instruction warnings, conservative route explanations, and local audit emission for route explanations and chat completions. Model availability tests cover configured manifests, route eligibility, missing local files, missing runners, staged GGUF prerequisites, and feature-gated GGUF fallback/error metadata without requiring real model weights or external binaries. Chat completion locks cover non-streaming responses, streaming SSE chunks, route metadata, local-only route flags, UTF-8-safe streaming fragments, and representative invalid-input error shape for future local gateway planning. MCP locks cover initialize, tools/list, route_explain tool success/error payloads, read-only audit_events/status_version/sustainability_summary success and error payloads, notification no-response behavior, and JSON-RPC error envelopes.
 - Aethra Overview can manually load daemon version status in live-local mode and otherwise shows fixture fallback release status metadata.
 - Aethra Overview shows live-local connection diagnostics derived from manual local loads only. Diagnostics distinguish fixture mode active, live-local ready, live-local connected, daemon unreachable, endpoint unavailable, invalid response shape, last refresh failed, and last refresh succeeded states.
 - Aethra Overview shows copyable local commands for starting the daemon, starting Aethra, smoke/release checks, and local API endpoint inspection. Copying writes text to the browser clipboard only; Aethra does not execute commands.
