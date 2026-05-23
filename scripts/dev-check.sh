@@ -119,6 +119,9 @@ cargo test
 echo "[dev-check] sustainability language check"
 ./scripts/check-sustainability-language.sh
 
+echo "[dev-check] security review helper checks"
+make security-check
+
 echo "[dev-check] starting daemon with ./scripts/start-dev.sh"
 ./scripts/start-dev.sh >"$DAEMON_LOG" 2>&1 &
 daemon_pid=$!

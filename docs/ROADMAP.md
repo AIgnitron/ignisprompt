@@ -18,6 +18,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Optional `gguf-runner-spike` feature that can call a local subprocess runner when configured and when the local `.gguf` file exists, with a deterministic subprocess timeout.
 - Local JSON extraction and validation shim for the GGUF legal spike.
 - Default CI path that does not need Ollama, GGUF files, or model weights.
+- Local security review helper checks for hidden Unicode markers and conservative accidental secret patterns.
 
 ## Near-term work
 
@@ -27,6 +28,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Keep model availability semantics explicit: route eligibility, manifest configuration, local file presence, runner hints, and executable local inference are separate states.
 - Keep the Golden Legal adversarial fixture matrix small, synthetic, deterministic, and local-only.
 - Keep local evidence validation strict while avoiding signed attestation or tamper-evident storage claims until those features are explicitly implemented.
+- Keep dependency advisory and SBOM review helpers optional unless CI installs their tools deterministically.
 - Continue local legal model bakeoffs with evidence stored under `./local-evidence/`.
 - Continue improving GGUF subprocess diagnostics while keeping the path feature-gated and local-only.
 
@@ -47,6 +49,7 @@ Future model selection should compare larger general models and legal-domain can
 - Cloud BYOK provider integrations.
 - Signed Local-Only Attestation Report generation.
 - Tamper-evident audit log storage.
+- Required dependency advisory gate or complete supply-chain assurance.
 - Production legal-quality evaluation.
 - Enterprise compliance certification or enterprise attestation.
 - No certified sustainability reporting, not ESG certification, not measured energy reporting, and not actual carbon accounting.

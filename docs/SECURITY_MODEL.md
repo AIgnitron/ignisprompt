@@ -56,6 +56,37 @@ Model weights belong outside git. Local model files are expected under `./models
 
 Demo, golden, and bakeoff outputs belong under `./local-evidence/`, which is ignored. Evidence may contain request text, route decisions, model output, logs, and local paths. Treat it as sensitive.
 
+## Local security review helpers
+
+The repo includes reproducible local helper checks for security review. These are developer checks, not certification, audit approval, compliance approval, production security approval, or complete supply-chain assurance.
+
+Run the deterministic local checks with:
+
+```bash
+make security-check
+```
+
+That target scans tracked text files for hidden Unicode format/control characters and conservative secret patterns such as private key headers, common token formats, tracked `.env` files, and credential-like assignments. It does not upload repository contents or call external services.
+
+Optional dependency advisory checking uses `cargo-audit` when installed:
+
+```bash
+cargo install cargo-audit --locked
+make cargo-audit
+```
+
+This is intentionally optional unless a workflow installs the tool deterministically. A missing local `cargo-audit` binary should be treated as a missing prerequisite, not as a clean advisory result.
+
+Optional SBOM planning/generation uses `cargo-cyclonedx` when installed:
+
+```bash
+./scripts/generate-sbom-local.sh --dry-run
+cargo install cargo-cyclonedx --locked
+./scripts/generate-sbom-local.sh
+```
+
+The default SBOM output path is under ignored `local-evidence/sbom/`. Review any generated SBOM before intentionally tracking it. SBOM generation here does not claim completeness, certification, or compliance.
+
 ## Current security gaps
 
 - No authentication or authorization on the local HTTP API.
@@ -66,5 +97,7 @@ Demo, golden, and bakeoff outputs belong under `./local-evidence/`, which is ign
 - No sandbox, signature verification, or allowlist around the optional GGUF subprocess.
 - No enterprise policy engine.
 - No production secrets manager integration.
+- No required CI dependency advisory gate yet; local `cargo-audit` is optional unless CI installs it deterministically.
+- No complete supply-chain assurance or SBOM completeness guarantee.
 
 Run the daemon only in a trusted local development environment unless these gaps are explicitly addressed.
