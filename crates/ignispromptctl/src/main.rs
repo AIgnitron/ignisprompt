@@ -49,11 +49,22 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Build a local-only evidence bundle from existing daemon endpoints
+    /// Build, list, or validate a local-only evidence bundle
+    #[command(group(
+        ArgGroup::new("bundle_mode")
+            .args(["output", "validate", "list"])
+            .multiple(false)
+    ))]
     EvidenceBundle {
-        /// Output directory for the bundle; use an ignored local-evidence/ path
+        /// Output directory for a new bundle; use an ignored local-evidence/ path
         #[arg(long)]
-        output: String,
+        output: Option<String>,
+        /// Validate an existing bundle directory without calling the daemon
+        #[arg(long)]
+        validate: Option<String>,
+        /// List files and metadata for an existing bundle directory without calling the daemon
+        #[arg(long)]
+        list: Option<String>,
         /// Include the raw local audit events endpoint response in the bundle
         #[arg(long)]
         include_audit_events: bool,
@@ -112,9 +123,18 @@ fn main() {
         Commands::AuditEvents { json } => cmd_audit_events(&cli.daemon_url, *json),
         Commands::EvidenceBundle {
             output,
+            validate,
+            list,
             include_audit_events,
             json,
-        } => cmd_evidence_bundle(&cli.daemon_url, output, *include_audit_events, *json),
+        } => cmd_evidence_bundle(
+            &cli.daemon_url,
+            output,
+            validate,
+            list,
+            *include_audit_events,
+            *json,
+        ),
         Commands::RouteExplain {
             text,
             input,
@@ -876,6 +896,19 @@ fn cmd_audit_events(base_url: &str, json_output: bool) {
     }
 }
 
+const EVIDENCE_BUNDLE_SCHEMA_VERSION: &str = "ignisprompt-local-evidence-bundle-v1";
+const EVIDENCE_BUNDLE_BUNDLE_TYPE: &str = "ignisprompt-local-evidence-bundle";
+const EVIDENCE_BUNDLE_BUNDLE_MODE: &str = "local-preview";
+
+#[derive(Clone, Copy, Debug)]
+struct EvidenceBundleFileSpec {
+    file_name: &'static str,
+    kind: &'static str,
+    required: bool,
+    json_expected: bool,
+    endpoint_name: Option<&'static str>,
+}
+
 #[derive(Clone, Copy, Debug)]
 struct EvidenceBundleCaptureSpec {
     name: &'static str,
@@ -895,13 +928,58 @@ struct EvidenceBundleCapture {
 
 #[derive(Clone, Debug)]
 struct EvidenceBundleReport {
+    bundle_schema_version: &'static str,
+    bundle_type: &'static str,
+    bundle_mode: &'static str,
     output_dir: PathBuf,
     include_audit_events: bool,
     generated_at_unix_seconds: u64,
     captures: Vec<EvidenceBundleCapture>,
+    generated_file_names: Vec<String>,
+    included_endpoints: Vec<String>,
     summary_json: Value,
     manifest_json: Value,
     readme: String,
+}
+
+#[derive(Clone, Debug, Default)]
+struct EvidenceBundleMetadata {
+    bundle_schema_version: Option<String>,
+    bundle_type: Option<String>,
+    bundle_mode: Option<String>,
+    local_only: Option<bool>,
+    non_certified: Option<bool>,
+    signed: Option<bool>,
+    production_attestation: Option<bool>,
+    include_audit_events: Option<bool>,
+    generated_at_unix_seconds: Option<u64>,
+    generated_file_names: Vec<String>,
+    included_endpoints: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+struct EvidenceBundleFileState {
+    file_name: &'static str,
+    required: bool,
+    kind: &'static str,
+    endpoint_name: Option<&'static str>,
+    present: bool,
+    read_error: Option<String>,
+    json: Option<Value>,
+    text: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct EvidenceBundleSnapshot {
+    bundle_dir: PathBuf,
+    files: Vec<EvidenceBundleFileState>,
+}
+
+#[derive(Clone, Debug)]
+struct EvidenceBundleValidationReport {
+    snapshot: EvidenceBundleSnapshot,
+    metadata: EvidenceBundleMetadata,
+    issues: Vec<String>,
 }
 
 fn evidence_bundle_capture_specs(include_audit_events: bool) -> Vec<EvidenceBundleCaptureSpec> {
@@ -914,7 +992,7 @@ fn evidence_bundle_capture_specs(include_audit_events: bool) -> Vec<EvidenceBund
         },
         EvidenceBundleCaptureSpec {
             name: "version_status",
-            file_name: "status-version.json",
+            file_name: "version.json",
             endpoint_path: "/v1/status/version",
             validate: validate_doctor_version_status,
         },
@@ -926,7 +1004,7 @@ fn evidence_bundle_capture_specs(include_audit_events: bool) -> Vec<EvidenceBund
         },
         EvidenceBundleCaptureSpec {
             name: "model_status_hints",
-            file_name: "status-models.json",
+            file_name: "model-status.json",
             endpoint_path: "/v1/status/models",
             validate: validate_doctor_model_status_hints,
         },
@@ -950,16 +1028,181 @@ fn evidence_bundle_capture_specs(include_audit_events: bool) -> Vec<EvidenceBund
     specs
 }
 
+fn evidence_bundle_file_specs() -> Vec<EvidenceBundleFileSpec> {
+    vec![
+        EvidenceBundleFileSpec {
+            file_name: "README.md",
+            kind: "readme",
+            required: true,
+            json_expected: false,
+            endpoint_name: None,
+        },
+        EvidenceBundleFileSpec {
+            file_name: "manifest.json",
+            kind: "manifest",
+            required: true,
+            json_expected: true,
+            endpoint_name: None,
+        },
+        EvidenceBundleFileSpec {
+            file_name: "summary.json",
+            kind: "summary",
+            required: true,
+            json_expected: true,
+            endpoint_name: None,
+        },
+        EvidenceBundleFileSpec {
+            file_name: "health.json",
+            kind: "endpoint_response",
+            required: true,
+            json_expected: true,
+            endpoint_name: Some("health"),
+        },
+        EvidenceBundleFileSpec {
+            file_name: "version.json",
+            kind: "endpoint_response",
+            required: true,
+            json_expected: true,
+            endpoint_name: Some("version_status"),
+        },
+        EvidenceBundleFileSpec {
+            file_name: "models.json",
+            kind: "endpoint_response",
+            required: true,
+            json_expected: true,
+            endpoint_name: Some("models"),
+        },
+        EvidenceBundleFileSpec {
+            file_name: "model-status.json",
+            kind: "endpoint_response",
+            required: true,
+            json_expected: true,
+            endpoint_name: Some("model_status_hints"),
+        },
+        EvidenceBundleFileSpec {
+            file_name: "sustainability-30d.json",
+            kind: "endpoint_response",
+            required: true,
+            json_expected: true,
+            endpoint_name: Some("sustainability_metrics"),
+        },
+        EvidenceBundleFileSpec {
+            file_name: "audit-events.json",
+            kind: "endpoint_response",
+            required: false,
+            json_expected: true,
+            endpoint_name: Some("audit_events"),
+        },
+    ]
+}
+
+fn evidence_bundle_generated_file_names(include_audit_events: bool) -> Vec<String> {
+    evidence_bundle_capture_specs(include_audit_events)
+        .into_iter()
+        .map(|spec| spec.file_name.to_string())
+        .chain(
+            ["README.md", "manifest.json", "summary.json"]
+                .into_iter()
+                .map(str::to_string),
+        )
+        .collect()
+}
+
+fn evidence_bundle_included_endpoints(include_audit_events: bool) -> Vec<String> {
+    evidence_bundle_capture_specs(include_audit_events)
+        .into_iter()
+        .map(|spec| spec.name.to_string())
+        .collect()
+}
+
+fn evidence_bundle_manifest_files(include_audit_events: bool) -> Vec<Value> {
+    let mut files = vec![
+        json!({"file_name": "README.md", "kind": "readme", "required": true}),
+        json!({"file_name": "manifest.json", "kind": "manifest", "required": true}),
+        json!({"file_name": "summary.json", "kind": "summary", "required": true}),
+    ];
+
+    files.extend(
+        evidence_bundle_capture_specs(include_audit_events)
+            .into_iter()
+            .map(|capture| {
+                json!({
+                    "file_name": capture.file_name,
+                    "kind": "endpoint_response",
+                    "required": true,
+                    "endpoint_name": capture.name,
+                })
+            }),
+    );
+
+    files
+}
+
+fn evidence_bundle_bundle_boundary() -> Value {
+    json!({
+        "bundle_mode": EVIDENCE_BUNDLE_BUNDLE_MODE,
+        "local_only": true,
+        "non_certified": true,
+        "signed": false,
+        "production_attestation": false,
+    })
+}
+
 fn cmd_evidence_bundle(
     base_url: &str,
-    output: &str,
+    output: &Option<String>,
+    validate: &Option<String>,
+    list: &Option<String>,
     include_audit_events: bool,
     json_output: bool,
 ) {
-    let output_dir = match validate_evidence_bundle_output_dir(output) {
-        Ok(path) => path,
-        Err(message) => {
-            eprintln!("error: {}", message);
+    if let Some(bundle_dir) = validate {
+        let report = match build_evidence_bundle_validation_report(Path::new(bundle_dir)) {
+            Ok(report) => report,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        if json_output {
+            println!("{}", format_evidence_bundle_validation_json(&report));
+        } else {
+            println!("{}", format_evidence_bundle_validation_summary(&report));
+        }
+        if !report.issues.is_empty() {
+            process::exit(1);
+        }
+        return;
+    }
+
+    if let Some(bundle_dir) = list {
+        let report = match build_evidence_bundle_validation_report(Path::new(bundle_dir)) {
+            Ok(report) => report,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        if json_output {
+            println!("{}", format_evidence_bundle_list_json(&report));
+        } else {
+            println!("{}", format_evidence_bundle_list_summary(&report));
+        }
+        return;
+    }
+
+    let output_dir = match output {
+        Some(output) => match validate_evidence_bundle_output_dir(output) {
+            Ok(path) => path,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        },
+        None => {
+            eprintln!(
+                "error: provide --output for bundle creation, or --validate/--list for an existing bundle"
+            );
             process::exit(1);
         }
     };
@@ -1054,17 +1297,23 @@ fn build_evidence_bundle_report(
 ) -> Result<EvidenceBundleReport, String> {
     let generated_at_unix_seconds = current_unix_seconds()?;
     let output_dir_string = output_dir.to_string_lossy().to_string();
+    let generated_file_names = evidence_bundle_generated_file_names(include_audit_events);
+    let included_endpoints = evidence_bundle_included_endpoints(include_audit_events);
 
     let summary_json = build_evidence_bundle_summary_json(
         &output_dir_string,
         generated_at_unix_seconds,
         include_audit_events,
+        &generated_file_names,
+        &included_endpoints,
         &captures,
     );
     let manifest_json = build_evidence_bundle_manifest_json(
         &output_dir_string,
         generated_at_unix_seconds,
         include_audit_events,
+        &generated_file_names,
+        &included_endpoints,
         &captures,
     );
     let readme = build_evidence_bundle_readme(include_audit_events);
@@ -1073,10 +1322,15 @@ fn build_evidence_bundle_report(
     validate_no_placeholder_string_values("manifest", &manifest_json)?;
 
     Ok(EvidenceBundleReport {
+        bundle_schema_version: EVIDENCE_BUNDLE_SCHEMA_VERSION,
+        bundle_type: EVIDENCE_BUNDLE_BUNDLE_TYPE,
+        bundle_mode: EVIDENCE_BUNDLE_BUNDLE_MODE,
         output_dir,
         include_audit_events,
         generated_at_unix_seconds,
         captures,
+        generated_file_names,
+        included_endpoints,
         summary_json,
         manifest_json,
         readme,
@@ -1087,17 +1341,25 @@ fn build_evidence_bundle_summary_json(
     output_dir: &str,
     generated_at_unix_seconds: u64,
     include_audit_events: bool,
+    generated_file_names: &[String],
+    included_endpoints: &[String],
     captures: &[EvidenceBundleCapture],
 ) -> Value {
     json!({
-        "bundle_type": "ignisprompt-local-evidence-bundle",
+        "bundle_schema_version": EVIDENCE_BUNDLE_SCHEMA_VERSION,
+        "bundle_type": EVIDENCE_BUNDLE_BUNDLE_TYPE,
+        "bundle_mode": EVIDENCE_BUNDLE_BUNDLE_MODE,
         "output_dir": output_dir,
         "generated_at_unix_seconds": generated_at_unix_seconds,
         "local_only": true,
         "developer_evidence_only": true,
         "non_certified": true,
         "signed": false,
+        "production_attestation": false,
         "include_audit_events": include_audit_events,
+        "generated_file_names": generated_file_names,
+        "included_endpoints": included_endpoints,
+        "bundle_boundary": evidence_bundle_bundle_boundary(),
         "captured_endpoints": captures
             .iter()
             .map(|capture| json!({
@@ -1109,8 +1371,9 @@ fn build_evidence_bundle_summary_json(
             .collect::<Vec<_>>(),
         "notes": [
             "Local-preview diagnostic bundle only.",
-            "Not a signed attestation report.",
-            "Not formal attestation.",
+            "Local-only bundle metadata only.",
+            "Not signed.",
+            "Not production attestation.",
         ],
     })
 }
@@ -1119,33 +1382,35 @@ fn build_evidence_bundle_manifest_json(
     output_dir: &str,
     generated_at_unix_seconds: u64,
     include_audit_events: bool,
+    generated_file_names: &[String],
+    included_endpoints: &[String],
     captures: &[EvidenceBundleCapture],
 ) -> Value {
-    let mut files = vec![
-        json!({"file_name": "README.md", "kind": "readme"}),
-        json!({"file_name": "manifest.json", "kind": "manifest"}),
-        json!({"file_name": "summary.json", "kind": "summary"}),
-    ];
-
-    files.extend(captures.iter().map(|capture| {
-        json!({
-            "file_name": capture.file_name,
-            "kind": "endpoint_response",
-            "endpoint_path": capture.endpoint_path,
-            "summary": capture.summary,
-        })
-    }));
-
     json!({
-        "bundle_type": "ignisprompt-local-evidence-bundle",
+        "bundle_schema_version": EVIDENCE_BUNDLE_SCHEMA_VERSION,
+        "bundle_type": EVIDENCE_BUNDLE_BUNDLE_TYPE,
+        "bundle_mode": EVIDENCE_BUNDLE_BUNDLE_MODE,
         "output_dir": output_dir,
         "generated_at_unix_seconds": generated_at_unix_seconds,
         "local_only": true,
         "developer_evidence_only": true,
         "non_certified": true,
         "signed": false,
+        "production_attestation": false,
         "include_audit_events": include_audit_events,
-        "files": files,
+        "generated_file_names": generated_file_names,
+        "included_endpoints": included_endpoints,
+        "bundle_boundary": evidence_bundle_bundle_boundary(),
+        "files": evidence_bundle_manifest_files(include_audit_events),
+        "captured_endpoints": captures
+            .iter()
+            .map(|capture| json!({
+                "name": capture.name,
+                "file_name": capture.file_name,
+                "endpoint_path": capture.endpoint_path,
+                "summary": capture.summary,
+            }))
+            .collect::<Vec<_>>(),
     })
 }
 
@@ -1164,8 +1429,8 @@ fn build_evidence_bundle_readme(include_audit_events: bool) -> String {
         "Boundaries:",
         "- local-only",
         "- not signed",
-        "- not certified",
-        "- not production evidence",
+        "- non-certified",
+        "- not production attestation",
         "- no prompts or raw user text are added by the CLI summary files",
         "- the bundle uses existing local daemon endpoints only",
         "",
@@ -1175,7 +1440,12 @@ fn build_evidence_bundle_readme(include_audit_events: bool) -> String {
         "- README.md",
         "- manifest.json",
         "- summary.json",
-        "- endpoint response JSON files for the captured local endpoints",
+        "- health.json",
+        "- version.json",
+        "- models.json",
+        "- model-status.json",
+        "- sustainability-30d.json",
+        "- optional audit-events.json when explicitly requested",
         "",
         "Keep this output under ignored `local-evidence/` and do not commit the generated bundle.",
         "",
@@ -1242,9 +1512,11 @@ fn format_evidence_bundle_summary(report: &EvidenceBundleReport) -> String {
         .get("output_dir")
         .and_then(|value| value.as_str())
         .unwrap_or("-");
-    let include_audit_events = report.include_audit_events;
     let mut lines = vec![
         "IgnisPrompt Local Evidence Bundle".to_string(),
+        format!("Schema version: {}", report.bundle_schema_version),
+        format!("Bundle type: {}", report.bundle_type),
+        format!("Bundle mode: {}", report.bundle_mode),
         format!("Output dir: {}", output_dir),
         format!(
             "Generated at (unix seconds): {}",
@@ -1281,25 +1553,31 @@ fn format_evidence_bundle_summary(report: &EvidenceBundleReport) -> String {
             )
         ),
         format!(
+            "Production attestation: {}",
+            bool_label(
+                report
+                    .summary_json
+                    .get("production_attestation")
+                    .and_then(|value| value.as_bool())
+                    .unwrap_or(false),
+            )
+        ),
+        format!(
             "Audit events included: {}",
-            bool_label(include_audit_events)
+            bool_label(report.include_audit_events)
         ),
         "".to_string(),
-        "Captured endpoints:".to_string(),
+        "Generated files:".to_string(),
     ];
 
-    for capture in &report.captures {
-        lines.push(format!("- {} -> {}", capture.name, capture.file_name));
-        lines.push(format!("  {}", capture.summary));
+    for file_name in &report.generated_file_names {
+        lines.push(format!("- {}", file_name));
     }
 
     lines.push("".to_string());
-    lines.push("Files:".to_string());
-    lines.push("- README.md".to_string());
-    lines.push("- manifest.json".to_string());
-    lines.push("- summary.json".to_string());
-    for capture in &report.captures {
-        lines.push(format!("- {}", capture.file_name));
+    lines.push("Included endpoints:".to_string());
+    for endpoint in &report.included_endpoints {
+        lines.push(format!("- {}", endpoint));
     }
 
     lines.join("\n")
@@ -1366,13 +1644,599 @@ fn validate_evidence_bundle_output_dir(output: &str) -> Result<PathBuf, String> 
     Ok(path.to_path_buf())
 }
 
-fn validate_bundle_audit_events(body: &Value) -> Result<String, String> {
-    if !is_audit_event_list(body) {
-        return Err("missing required audit event fields".to_string());
+fn build_evidence_bundle_validation_report(
+    bundle_dir: &Path,
+) -> Result<EvidenceBundleValidationReport, String> {
+    let snapshot = read_evidence_bundle_snapshot(bundle_dir)?;
+    let metadata = evidence_bundle_snapshot_metadata(&snapshot);
+    let mut issues = evidence_bundle_validation_issues(&snapshot, &metadata);
+    if let Some(summary_issue) = validate_summary_and_manifest_parity(&metadata) {
+        issues.push(summary_issue);
     }
 
-    let events = body.as_array().map(|events| events.len()).unwrap_or(0);
-    Ok(format!("{} audit events captured", events))
+    Ok(EvidenceBundleValidationReport {
+        snapshot,
+        metadata,
+        issues,
+    })
+}
+
+fn read_evidence_bundle_snapshot(bundle_dir: &Path) -> Result<EvidenceBundleSnapshot, String> {
+    if !bundle_dir.exists() {
+        return Err(format!(
+            "bundle directory does not exist: {}",
+            bundle_dir.display()
+        ));
+    }
+
+    if !bundle_dir.is_dir() {
+        return Err(format!(
+            "bundle path is not a directory: {}",
+            bundle_dir.display()
+        ));
+    }
+
+    let mut files = Vec::new();
+    for spec in evidence_bundle_file_specs() {
+        let path = bundle_dir.join(spec.file_name);
+        if !path.exists() {
+            files.push(EvidenceBundleFileState {
+                file_name: spec.file_name,
+                required: spec.required,
+                kind: spec.kind,
+                endpoint_name: spec.endpoint_name,
+                present: false,
+                read_error: None,
+                json: None,
+                text: None,
+            });
+            continue;
+        }
+
+        let text = match fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(error) => {
+                files.push(EvidenceBundleFileState {
+                    file_name: spec.file_name,
+                    required: spec.required,
+                    kind: spec.kind,
+                    endpoint_name: spec.endpoint_name,
+                    present: true,
+                    read_error: Some(format!("could not read {}: {}", path.display(), error)),
+                    json: None,
+                    text: None,
+                });
+                continue;
+            }
+        };
+
+        let json = if spec.json_expected {
+            match serde_json::from_str(&text) {
+                Ok(value) => Some(value),
+                Err(error) => {
+                    files.push(EvidenceBundleFileState {
+                        file_name: spec.file_name,
+                        required: spec.required,
+                        kind: spec.kind,
+                        endpoint_name: spec.endpoint_name,
+                        present: true,
+                        read_error: Some(format!("invalid JSON in {}: {}", path.display(), error)),
+                        json: None,
+                        text: Some(text),
+                    });
+                    continue;
+                }
+            }
+        } else {
+            None
+        };
+
+        files.push(EvidenceBundleFileState {
+            file_name: spec.file_name,
+            required: spec.required,
+            kind: spec.kind,
+            endpoint_name: spec.endpoint_name,
+            present: true,
+            read_error: None,
+            json,
+            text: Some(text),
+        });
+    }
+
+    Ok(EvidenceBundleSnapshot {
+        bundle_dir: bundle_dir.to_path_buf(),
+        files,
+    })
+}
+
+fn evidence_bundle_snapshot_metadata(snapshot: &EvidenceBundleSnapshot) -> EvidenceBundleMetadata {
+    let mut metadata = EvidenceBundleMetadata::default();
+
+    if let Some(summary) = snapshot.file_state("summary.json").and_then(|file| file.json.as_ref()) {
+        metadata = evidence_bundle_metadata_from_value(summary);
+    }
+
+    if let Some(manifest) = snapshot
+        .file_state("manifest.json")
+        .and_then(|file| file.json.as_ref())
+    {
+        let manifest_metadata = evidence_bundle_metadata_from_value(manifest);
+        if metadata.bundle_schema_version.is_none() {
+            metadata.bundle_schema_version = manifest_metadata.bundle_schema_version;
+        }
+        if metadata.bundle_type.is_none() {
+            metadata.bundle_type = manifest_metadata.bundle_type;
+        }
+        if metadata.bundle_mode.is_none() {
+            metadata.bundle_mode = manifest_metadata.bundle_mode;
+        }
+        if metadata.local_only.is_none() {
+            metadata.local_only = manifest_metadata.local_only;
+        }
+        if metadata.non_certified.is_none() {
+            metadata.non_certified = manifest_metadata.non_certified;
+        }
+        if metadata.signed.is_none() {
+            metadata.signed = manifest_metadata.signed;
+        }
+        if metadata.production_attestation.is_none() {
+            metadata.production_attestation = manifest_metadata.production_attestation;
+        }
+        if metadata.include_audit_events.is_none() {
+            metadata.include_audit_events = manifest_metadata.include_audit_events;
+        }
+        if metadata.generated_at_unix_seconds.is_none() {
+            metadata.generated_at_unix_seconds = manifest_metadata.generated_at_unix_seconds;
+        }
+        if metadata.generated_file_names.is_empty() {
+            metadata.generated_file_names = manifest_metadata.generated_file_names;
+        }
+        if metadata.included_endpoints.is_empty() {
+            metadata.included_endpoints = manifest_metadata.included_endpoints;
+        }
+    }
+
+    metadata
+}
+
+fn evidence_bundle_metadata_from_value(value: &Value) -> EvidenceBundleMetadata {
+    EvidenceBundleMetadata {
+        bundle_schema_version: value
+            .get("bundle_schema_version")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        bundle_type: value
+            .get("bundle_type")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        bundle_mode: value
+            .get("bundle_mode")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        local_only: value.get("local_only").and_then(|v| v.as_bool()),
+        non_certified: value.get("non_certified").and_then(|v| v.as_bool()),
+        signed: value.get("signed").and_then(|v| v.as_bool()),
+        production_attestation: value
+            .get("production_attestation")
+            .and_then(|v| v.as_bool()),
+        include_audit_events: value.get("include_audit_events").and_then(|v| v.as_bool()),
+        generated_at_unix_seconds: value
+            .get("generated_at_unix_seconds")
+            .and_then(|v| v.as_u64()),
+        generated_file_names: value
+            .get("generated_file_names")
+            .and_then(|v| v.as_array())
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default(),
+        included_endpoints: value
+            .get("included_endpoints")
+            .and_then(|v| v.as_array())
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| item.as_str().map(|s| s.to_string()))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default(),
+    }
+}
+
+fn evidence_bundle_validation_issues(
+    snapshot: &EvidenceBundleSnapshot,
+    metadata: &EvidenceBundleMetadata,
+) -> Vec<String> {
+    let mut issues = Vec::new();
+    let expected_files = evidence_bundle_file_specs();
+
+    for spec in expected_files {
+        let file = snapshot.file_state(spec.file_name);
+        if spec.required && file.map(|file| file.present).unwrap_or(false) == false {
+            issues.push(format!("missing required file: {}", spec.file_name));
+            continue;
+        }
+        if let Some(file) = file {
+            if let Some(error) = &file.read_error {
+                issues.push(error.clone());
+            }
+            if spec.json_expected {
+                if file.json.is_none() {
+                    if file.present {
+                        issues.push(format!("invalid JSON in {}", spec.file_name));
+                    }
+                }
+            }
+        }
+    }
+
+    if metadata.bundle_schema_version.as_deref() != Some(EVIDENCE_BUNDLE_SCHEMA_VERSION) {
+        issues.push(format!(
+            "summary/manifest bundle_schema_version must be {}",
+            EVIDENCE_BUNDLE_SCHEMA_VERSION
+        ));
+    }
+    if metadata.bundle_type.as_deref() != Some(EVIDENCE_BUNDLE_BUNDLE_TYPE) {
+        issues.push(format!(
+            "summary/manifest bundle_type must be {}",
+            EVIDENCE_BUNDLE_BUNDLE_TYPE
+        ));
+    }
+    if metadata.bundle_mode.as_deref() != Some(EVIDENCE_BUNDLE_BUNDLE_MODE) {
+        issues.push(format!(
+            "summary/manifest bundle_mode must be {}",
+            EVIDENCE_BUNDLE_BUNDLE_MODE
+        ));
+    }
+    if metadata.local_only != Some(true) {
+        issues.push("summary/manifest local_only must be true".to_string());
+    }
+    if metadata.non_certified != Some(true) {
+        issues.push("summary/manifest non_certified must be true".to_string());
+    }
+    if metadata.signed != Some(false) {
+        issues.push("summary/manifest signed must be false".to_string());
+    }
+    if metadata.production_attestation != Some(false) {
+        issues.push("summary/manifest production_attestation must be false".to_string());
+    }
+    if metadata.include_audit_events.is_none() {
+        issues.push("summary/manifest include_audit_events is missing".to_string());
+    }
+    if metadata.generated_at_unix_seconds.is_none() {
+        issues.push("summary/manifest generated_at_unix_seconds is missing".to_string());
+    }
+
+    let expected_generated_file_names = evidence_bundle_generated_file_names(
+        metadata.include_audit_events.unwrap_or(false),
+    );
+    if metadata.generated_file_names != expected_generated_file_names {
+        issues.push("summary/manifest generated_file_names do not match the bundle files".to_string());
+    }
+
+    let expected_included_endpoints = evidence_bundle_included_endpoints(
+        metadata.include_audit_events.unwrap_or(false),
+    );
+    if metadata.included_endpoints != expected_included_endpoints {
+        issues.push("summary/manifest included_endpoints do not match the captured endpoints".to_string());
+    }
+
+    if let Some(summary) = snapshot.file_state("summary.json").and_then(|file| file.json.as_ref()) {
+        if contains_placeholder_string(summary) {
+            issues.push("summary contains placeholder-like literal \"string\" values".to_string());
+        }
+        if contains_forbidden_bundle_keys(summary) {
+            issues.push("summary contains obvious prompt or sensitive keys".to_string());
+        }
+    }
+    if let Some(manifest) = snapshot.file_state("manifest.json").and_then(|file| file.json.as_ref()) {
+        if contains_placeholder_string(manifest) {
+            issues.push("manifest contains placeholder-like literal \"string\" values".to_string());
+        }
+        if contains_forbidden_bundle_keys(manifest) {
+            issues.push("manifest contains obvious prompt or sensitive keys".to_string());
+        }
+    }
+
+    if let Some(readme) = snapshot.readme_text() {
+        let readme_lower = readme.to_ascii_lowercase();
+        for needle in [
+            "local-preview",
+            "local-only",
+            "not signed",
+            "not production attestation",
+        ] {
+            if !readme_lower.contains(needle) {
+                issues.push(format!("README.md is missing required phrase: {}", needle));
+            }
+        }
+        if !readme_lower.contains("non-certified") && !readme_lower.contains("not certified") {
+            issues.push("README.md is missing required phrase: non-certified".to_string());
+        }
+    } else {
+        issues.push("missing required file: README.md".to_string());
+    }
+
+    issues
+}
+
+fn validate_summary_and_manifest_parity(metadata: &EvidenceBundleMetadata) -> Option<String> {
+    if metadata.bundle_schema_version.as_deref() != Some(EVIDENCE_BUNDLE_SCHEMA_VERSION) {
+        return Some("summary/manifest schema version mismatch".to_string());
+    }
+    None
+}
+
+fn format_evidence_bundle_list_summary(report: &EvidenceBundleValidationReport) -> String {
+    let metadata = &report.metadata;
+    let mut lines = vec![
+        "IgnisPrompt Local Evidence Bundle Listing".to_string(),
+        format!("Bundle dir: {}", report.snapshot.bundle_dir.display()),
+        format!(
+            "Schema version: {}",
+            metadata
+                .bundle_schema_version
+                .as_deref()
+                .unwrap_or("-")
+        ),
+        format!(
+            "Bundle type: {}",
+            metadata.bundle_type.as_deref().unwrap_or("-")
+        ),
+        format!("Bundle mode: {}", metadata.bundle_mode.as_deref().unwrap_or("-")),
+        format!(
+            "Local-only: {}",
+            bool_label(metadata.local_only.unwrap_or(false))
+        ),
+        format!(
+            "Non-certified: {}",
+            bool_label(metadata.non_certified.unwrap_or(false))
+        ),
+        format!("Signed: {}", bool_label(metadata.signed.unwrap_or(true))),
+        format!(
+            "Production attestation: {}",
+            bool_label(metadata.production_attestation.unwrap_or(true))
+        ),
+        format!(
+            "Audit events included: {}",
+            bool_label(metadata.include_audit_events.unwrap_or(false))
+        ),
+        "".to_string(),
+        "Files:".to_string(),
+    ];
+
+    for file in &report.snapshot.files {
+        lines.push(format!(
+            "- {}: {}{}",
+            file.file_name,
+            if file.present { "present" } else { "missing" },
+            if file.required { " (required)" } else { " (optional)" }
+        ));
+    }
+
+    lines.push("".to_string());
+    lines.push("Included endpoints:".to_string());
+    if metadata.included_endpoints.is_empty() {
+        lines.push("- none".to_string());
+    } else {
+        for endpoint in &metadata.included_endpoints {
+            lines.push(format!("- {}", endpoint));
+        }
+    }
+
+    lines
+        .push("audit-events.json is optional and is shown only as present or missing.".to_string());
+
+    lines.join("\n")
+}
+
+fn format_evidence_bundle_list_json(report: &EvidenceBundleValidationReport) -> String {
+    let files = report
+        .snapshot
+        .files
+        .iter()
+        .map(|file| {
+            json!({
+                "file_name": file.file_name,
+                "required": file.required,
+                "present": file.present,
+                "kind": file.kind,
+                "endpoint_name": file.endpoint_name,
+                "has_json": file.json.is_some(),
+                "has_text": file.text.as_ref().map(|text| !text.is_empty()).unwrap_or(false),
+                "read_error": file.read_error,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    serde_json::to_string_pretty(&json!({
+        "bundle_dir": report.snapshot.bundle_dir.display().to_string(),
+        "metadata": {
+            "bundle_schema_version": report.metadata.bundle_schema_version,
+            "bundle_type": report.metadata.bundle_type,
+            "bundle_mode": report.metadata.bundle_mode,
+            "local_only": report.metadata.local_only,
+            "non_certified": report.metadata.non_certified,
+            "signed": report.metadata.signed,
+            "production_attestation": report.metadata.production_attestation,
+            "include_audit_events": report.metadata.include_audit_events,
+            "generated_at_unix_seconds": report.metadata.generated_at_unix_seconds,
+            "generated_file_names": report.metadata.generated_file_names,
+            "included_endpoints": report.metadata.included_endpoints,
+        },
+        "files": files,
+    }))
+    .unwrap_or_default()
+}
+
+fn format_evidence_bundle_validation_summary(report: &EvidenceBundleValidationReport) -> String {
+    let mut lines = vec![
+        "IgnisPrompt Local Evidence Bundle Validation".to_string(),
+        format!("Bundle dir: {}", report.snapshot.bundle_dir.display()),
+        format!(
+            "Result: {}",
+            if report.issues.is_empty() { "ok" } else { "failed" }
+        ),
+        "".to_string(),
+        "Files:".to_string(),
+    ];
+
+    for file in &report.snapshot.files {
+        let mut status = if file.present { "present" } else { "missing" }.to_string();
+        if let Some(error) = &file.read_error {
+            status = format!("{} ({})", status, error);
+        }
+        lines.push(format!(
+            "- {}: {}{}",
+            file.file_name,
+            status,
+            if file.required { " (required)" } else { " (optional)" }
+        ));
+    }
+
+    lines.push("".to_string());
+    lines.push("Metadata:".to_string());
+    lines.push(format!(
+        "- schema_version: {}",
+        report
+            .metadata
+            .bundle_schema_version
+            .as_deref()
+            .unwrap_or("-")
+    ));
+    lines.push(format!(
+        "- bundle_type: {}",
+        report.metadata.bundle_type.as_deref().unwrap_or("-")
+    ));
+    lines.push(format!(
+        "- bundle_mode: {}",
+        report.metadata.bundle_mode.as_deref().unwrap_or("-")
+    ));
+    lines.push(format!(
+        "- local_only: {}",
+        bool_label(report.metadata.local_only.unwrap_or(false))
+    ));
+    lines.push(format!(
+        "- non_certified: {}",
+        bool_label(report.metadata.non_certified.unwrap_or(false))
+    ));
+    lines.push(format!(
+        "- signed: {}",
+        bool_label(report.metadata.signed.unwrap_or(true))
+    ));
+    lines.push(format!(
+        "- production_attestation: {}",
+        bool_label(report.metadata.production_attestation.unwrap_or(true))
+    ));
+    lines.push(format!(
+        "- audit_events_included: {}",
+        bool_label(report.metadata.include_audit_events.unwrap_or(false))
+    ));
+
+    lines.push("".to_string());
+    if report.issues.is_empty() {
+        lines.push("[ok] bundle validation passed.".to_string());
+    } else {
+        lines.push("[failed] bundle validation found issues.".to_string());
+        lines.push("Issues:".to_string());
+        for issue in &report.issues {
+            lines.push(format!("- {}", issue));
+        }
+    }
+
+    lines.join("\n")
+}
+
+fn format_evidence_bundle_validation_json(report: &EvidenceBundleValidationReport) -> String {
+    let files = report
+        .snapshot
+        .files
+        .iter()
+        .map(|file| {
+            json!({
+                "file_name": file.file_name,
+                "required": file.required,
+                "present": file.present,
+                "kind": file.kind,
+                "endpoint_name": file.endpoint_name,
+                "read_error": file.read_error,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    serde_json::to_string_pretty(&json!({
+        "bundle_dir": report.snapshot.bundle_dir.display().to_string(),
+        "status": if report.issues.is_empty() { "ok" } else { "failed" },
+        "metadata": {
+            "bundle_schema_version": report.metadata.bundle_schema_version,
+            "bundle_type": report.metadata.bundle_type,
+            "bundle_mode": report.metadata.bundle_mode,
+            "local_only": report.metadata.local_only,
+            "non_certified": report.metadata.non_certified,
+            "signed": report.metadata.signed,
+            "production_attestation": report.metadata.production_attestation,
+            "include_audit_events": report.metadata.include_audit_events,
+            "generated_at_unix_seconds": report.metadata.generated_at_unix_seconds,
+            "generated_file_names": report.metadata.generated_file_names,
+            "included_endpoints": report.metadata.included_endpoints,
+        },
+        "files": files,
+        "issues": report.issues,
+    }))
+    .unwrap_or_default()
+}
+
+fn build_evidence_bundle_list_report(
+    bundle_dir: &Path,
+) -> Result<EvidenceBundleValidationReport, String> {
+    let snapshot = read_evidence_bundle_snapshot(bundle_dir)?;
+    let metadata = evidence_bundle_snapshot_metadata(&snapshot);
+    Ok(EvidenceBundleValidationReport {
+        snapshot,
+        metadata,
+        issues: Vec::new(),
+    })
+}
+
+impl EvidenceBundleSnapshot {
+    fn file_state(&self, file_name: &str) -> Option<&EvidenceBundleFileState> {
+        self.files.iter().find(|file| file.file_name == file_name)
+    }
+
+    fn readme_text(&self) -> Option<&str> {
+        self.file_state("README.md")
+            .and_then(|file| file.text.as_deref())
+    }
+}
+
+fn contains_forbidden_bundle_keys(value: &Value) -> bool {
+    match value {
+        Value::Object(map) => map.iter().any(|(key, nested)| {
+            let lowered = key.to_ascii_lowercase();
+            let banned = [
+                "prompt",
+                "content",
+                "message",
+                "secret",
+                "token",
+                "hostname",
+                "username",
+                "machine_id",
+                "machine",
+                "api_key",
+                "request_text",
+                "raw_model_output",
+            ]
+            .iter()
+            .any(|needle| lowered.contains(needle));
+            banned || contains_forbidden_bundle_keys(nested)
+        }),
+        Value::Array(values) => values.iter().any(contains_forbidden_bundle_keys),
+        _ => false,
+    }
 }
 
 fn validate_no_placeholder_string_values(label: &str, value: &Value) -> Result<(), String> {
@@ -1622,6 +2486,15 @@ fn is_audit_event_list(value: &Value) -> bool {
         .unwrap_or(false)
 }
 
+fn validate_bundle_audit_events(body: &Value) -> Result<String, String> {
+    if !is_audit_event_list(body) {
+        return Err("missing required audit event fields".to_string());
+    }
+
+    let events = body.as_array().map(|events| events.len()).unwrap_or(0);
+    Ok(format!("{} audit events captured", events))
+}
+
 fn is_audit_event(value: &Value) -> bool {
     value.get("request_id").and_then(|v| v.as_str()).is_some()
         && value.get("event_type").and_then(|v| v.as_str()).is_some()
@@ -1865,14 +2738,17 @@ fn format_invalid_response_error(kind: &str, endpoint: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        audit_events_url, build_evidence_bundle_report, build_route_explain_body,
-        current_unix_seconds, doctor_endpoint_url, format_audit_events_summary, format_doctor_json,
-        format_doctor_summary, format_evidence_bundle_summary,
-        format_evidence_bundle_unreachable_error, format_http_error, format_invalid_response_error,
-        format_model_manifest_line, format_route_explain_summary, format_sustainability_summary,
-        format_unreachable_error, is_audit_event_list, is_route_explain_response,
-        is_sustainability_metrics_response, route_explain_url, string_field, sustainability_url,
-        validate_doctor_health, validate_doctor_model_status_hints, validate_doctor_models,
+        audit_events_url, build_evidence_bundle_list_report, build_evidence_bundle_report,
+        build_evidence_bundle_validation_report, build_route_explain_body, current_unix_seconds,
+        doctor_endpoint_url, format_audit_events_summary, format_doctor_json, format_doctor_summary,
+        format_evidence_bundle_list_json, format_evidence_bundle_list_summary,
+        format_evidence_bundle_summary, format_evidence_bundle_unreachable_error,
+        format_evidence_bundle_validation_json, format_evidence_bundle_validation_summary,
+        format_http_error, format_invalid_response_error, format_model_manifest_line,
+        format_route_explain_summary, format_sustainability_summary, format_unreachable_error,
+        is_audit_event_list, is_route_explain_response, is_sustainability_metrics_response,
+        route_explain_url, string_field, sustainability_url, validate_doctor_health,
+        validate_doctor_model_status_hints, validate_doctor_models,
         validate_doctor_sustainability_metrics, validate_doctor_version_status,
         validate_evidence_bundle_output_dir, validate_no_placeholder_string_values,
         validate_sustainability_period, write_evidence_bundle_report, DoctorCheckLevel,
@@ -2408,6 +3284,149 @@ mod tests {
         }
     }
 
+    fn fake_evidence_bundle_captures(include_audit_events: bool) -> Vec<EvidenceBundleCapture> {
+        let mut captures = vec![
+            fake_evidence_bundle_capture(
+                "health",
+                "health.json",
+                "/health",
+                "ok",
+                json!({
+                    "status": "ok",
+                    "service": "ignispromptd",
+                    "version": "0.1.0",
+                    "local_only": true
+                }),
+            ),
+            fake_evidence_bundle_capture(
+                "version_status",
+                "version.json",
+                "/v1/status/version",
+                "local-preview / 0.1.0",
+                json!({
+                    "service": "ignispromptd",
+                    "version": "0.1.0",
+                    "release_channel": "local-preview",
+                    "local_only": true,
+                    "build_profile": "debug",
+                    "git_commit": null,
+                    "warnings": []
+                }),
+            ),
+            fake_evidence_bundle_capture(
+                "models",
+                "models.json",
+                "/v1/models",
+                "1 model listed",
+                json!({
+                    "models": [
+                        {
+                            "modelId": "legal-qwen2.5-0.5b",
+                            "displayName": "Qwen2.5 0.5B Instruct",
+                            "tier": 3,
+                            "domains": ["legal"],
+                            "installed": true
+                        }
+                    ]
+                }),
+            ),
+            fake_evidence_bundle_capture(
+                "model_status_hints",
+                "model-status.json",
+                "/v1/status/models",
+                "available (1 hint; status hints only)",
+                json!({
+                    "schemaVersion": "v0.1",
+                    "generatedAt": "2026-05-23T00:00:00Z",
+                    "source": "local-daemon",
+                    "statusHints": [
+                        {
+                            "modelId": "legal-qwen2.5-0.5b",
+                            "displayName": "Qwen2.5 0.5B Instruct",
+                            "tier": 3,
+                            "domains": ["legal"],
+                            "configured": true,
+                            "localPathDeclared": true,
+                            "localPathExists": false,
+                            "runnerConfigured": false,
+                            "runnerKind": "stub-legal-runner",
+                            "runnerExecutableExists": false,
+                            "availability": "configured",
+                            "lastCheckedAt": "2026-05-23T00:00:00Z",
+                            "warnings": []
+                        }
+                    ]
+                }),
+            ),
+            fake_evidence_bundle_capture(
+                "sustainability_metrics",
+                "sustainability-30d.json",
+                "/v1/metrics/sustainability?period=30d",
+                "methodology aethra-impact-0.1, confidence low",
+                json!({
+                    "period": "30d",
+                    "requests_total": 1,
+                    "local_request_rate": 1.0,
+                    "tier_breakdown": { "TIER_3": 1 },
+                    "estimated_cloud_cost_avoided_usd": 0.000001,
+                    "estimated_carbon_avoided_kgco2e": 0.000001,
+                    "estimated_data_kept_local_gb": 0.000001,
+                    "methodology_version": "aethra-impact-0.1",
+                    "confidence": "low",
+                    "disclaimer": "Local-only counterfactual proxy estimates."
+                }),
+            ),
+        ];
+
+        if include_audit_events {
+            captures.push(fake_evidence_bundle_capture(
+                "audit_events",
+                "audit-events.json",
+                "/v1/audit/events",
+                "1 audit events captured",
+                json!([
+                    {
+                        "request_id": "req-1",
+                        "timestamp": "2026-05-23T00:00:00Z",
+                        "event_type": "route_explain",
+                        "route_code": "DOMAIN_MODEL_SELECTED",
+                        "tier": "TIER_3",
+                        "domain": "legal",
+                        "data_left_device": false,
+                        "warnings": []
+                    }
+                ]),
+            ));
+        }
+
+        captures
+    }
+
+    fn write_fake_evidence_bundle(output_dir: &std::path::Path, include_audit_events: bool) {
+        static WRITE_LOCK: std::sync::OnceLock<std::sync::Mutex<()>> =
+            std::sync::OnceLock::new();
+        let _guard = WRITE_LOCK
+            .get_or_init(|| std::sync::Mutex::new(()))
+            .lock()
+            .unwrap();
+        let report = build_evidence_bundle_report(
+            output_dir.to_path_buf(),
+            include_audit_events,
+            fake_evidence_bundle_captures(include_audit_events),
+        )
+        .unwrap();
+        write_evidence_bundle_report(&report).unwrap();
+    }
+
+    fn unique_bundle_test_dir(label: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "ignispromptctl-{}-{}-{}",
+            label,
+            std::process::id(),
+            current_unix_seconds().unwrap()
+        ))
+    }
+
     #[test]
     fn evidence_bundle_output_path_validation_requires_ignored_local_evidence_paths() {
         assert!(validate_evidence_bundle_output_dir("local-evidence/demo-bundle").is_ok());
@@ -2551,127 +3570,9 @@ mod tests {
 
     #[test]
     fn evidence_bundle_writes_files_for_fake_local_responses() {
-        let unique = format!(
-            "test-bundle-{}-{}",
-            std::process::id(),
-            current_unix_seconds().unwrap()
-        );
-        let output_dir = std::path::PathBuf::from(format!("local-evidence/{}", unique));
+        let output_dir = unique_bundle_test_dir("write");
         let _ = std::fs::remove_dir_all(&output_dir);
-
-        let captures = vec![
-            fake_evidence_bundle_capture(
-                "health",
-                "health.json",
-                "/health",
-                "ok",
-                json!({
-                    "status": "ok",
-                    "service": "ignispromptd",
-                    "version": "0.1.0",
-                    "local_only": true
-                }),
-            ),
-            fake_evidence_bundle_capture(
-                "version_status",
-                "status-version.json",
-                "/v1/status/version",
-                "local-preview / 0.1.0",
-                json!({
-                    "service": "ignispromptd",
-                    "version": "0.1.0",
-                    "release_channel": "local-preview",
-                    "local_only": true,
-                    "build_profile": "debug",
-                    "git_commit": null,
-                    "warnings": []
-                }),
-            ),
-            fake_evidence_bundle_capture(
-                "models",
-                "models.json",
-                "/v1/models",
-                "1 model listed",
-                json!({
-                    "models": [
-                        {
-                            "modelId": "legal-qwen2.5-0.5b",
-                            "displayName": "Qwen2.5 0.5B Instruct",
-                            "tier": 3,
-                            "domains": ["legal"],
-                            "installed": true
-                        }
-                    ]
-                }),
-            ),
-            fake_evidence_bundle_capture(
-                "model_status_hints",
-                "status-models.json",
-                "/v1/status/models",
-                "available (1 hint; status hints only)",
-                json!({
-                    "schemaVersion": "v0.1",
-                    "generatedAt": "2026-05-23T00:00:00Z",
-                    "source": "local-daemon",
-                    "statusHints": [
-                        {
-                            "modelId": "legal-qwen2.5-0.5b",
-                            "displayName": "Qwen2.5 0.5B Instruct",
-                            "tier": 3,
-                            "domains": ["legal"],
-                            "configured": true,
-                            "localPathDeclared": true,
-                            "localPathExists": false,
-                            "runnerConfigured": false,
-                            "runnerKind": "stub-legal-runner",
-                            "runnerExecutableExists": false,
-                            "availability": "configured",
-                            "lastCheckedAt": "2026-05-23T00:00:00Z",
-                            "warnings": []
-                        }
-                    ]
-                }),
-            ),
-            fake_evidence_bundle_capture(
-                "sustainability_metrics",
-                "sustainability-30d.json",
-                "/v1/metrics/sustainability?period=30d",
-                "methodology aethra-impact-0.1, confidence low",
-                json!({
-                    "period": "30d",
-                    "requests_total": 1,
-                    "local_request_rate": 1.0,
-                    "tier_breakdown": { "TIER_3": 1 },
-                    "estimated_cloud_cost_avoided_usd": 0.000001,
-                    "estimated_carbon_avoided_kgco2e": 0.000001,
-                    "estimated_data_kept_local_gb": 0.000001,
-                    "methodology_version": "aethra-impact-0.1",
-                    "confidence": "low",
-                    "disclaimer": "Local-only counterfactual proxy estimates."
-                }),
-            ),
-            fake_evidence_bundle_capture(
-                "audit_events",
-                "audit-events.json",
-                "/v1/audit/events",
-                "1 audit events captured",
-                json!([
-                    {
-                        "request_id": "req-1",
-                        "timestamp": "2026-05-23T00:00:00Z",
-                        "event_type": "route_explain",
-                        "route_code": "DOMAIN_MODEL_SELECTED",
-                        "tier": "TIER_3",
-                        "domain": "legal",
-                        "data_left_device": false,
-                        "warnings": []
-                    }
-                ]),
-            ),
-        ];
-
-        let report = build_evidence_bundle_report(output_dir.clone(), true, captures).unwrap();
-        write_evidence_bundle_report(&report).unwrap();
+        write_fake_evidence_bundle(&output_dir, true);
 
         assert!(output_dir.exists());
         let summary: serde_json::Value = serde_json::from_str(
@@ -2679,10 +3580,15 @@ mod tests {
         )
         .unwrap();
         assert_eq!(summary["bundle_type"], "ignisprompt-local-evidence-bundle");
+        assert_eq!(summary["bundle_schema_version"], "ignisprompt-local-evidence-bundle-v1");
+        assert_eq!(summary["bundle_mode"], "local-preview");
         assert_eq!(summary["local_only"], true);
         assert_eq!(summary["non_certified"], true);
         assert_eq!(summary["signed"], false);
+        assert_eq!(summary["production_attestation"], false);
         assert_eq!(summary["include_audit_events"], true);
+        assert_eq!(summary["generated_file_names"].as_array().unwrap().len(), 9);
+        assert_eq!(summary["included_endpoints"].as_array().unwrap().len(), 6);
         assert_eq!(summary["captured_endpoints"].as_array().unwrap().len(), 6);
 
         let manifest: serde_json::Value = serde_json::from_str(
@@ -2691,6 +3597,8 @@ mod tests {
         .unwrap();
         assert_eq!(manifest["files"].as_array().unwrap().len(), 9);
         assert_eq!(manifest["include_audit_events"], true);
+        assert_eq!(manifest["generated_file_names"].as_array().unwrap().len(), 9);
+        assert_eq!(manifest["included_endpoints"].as_array().unwrap().len(), 6);
 
         let readme = std::fs::read_to_string(output_dir.join("README.md")).unwrap();
         assert!(readme.contains("local-preview diagnostic bundle"));
@@ -2702,6 +3610,155 @@ mod tests {
         assert!(!summary_text.contains("secret prompt"));
         assert!(!summary_text.contains("\"prompt\""));
         assert!(!summary_text.contains("\"content\""));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn evidence_bundle_validation_passes_for_valid_bundle() {
+        let output_dir = unique_bundle_test_dir("validate-ok");
+        let _ = std::fs::remove_dir_all(&output_dir);
+        write_fake_evidence_bundle(&output_dir, false);
+
+        let report = build_evidence_bundle_validation_report(&output_dir).unwrap();
+        assert!(report.issues.is_empty());
+        assert_eq!(report.metadata.include_audit_events, Some(false));
+        assert!(format_evidence_bundle_validation_summary(&report).contains("[ok] bundle validation passed."));
+        assert!(format_evidence_bundle_validation_json(&report).contains("\"status\": \"ok\""));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn evidence_bundle_validation_reports_missing_required_file() {
+        let output_dir = unique_bundle_test_dir("validate-missing");
+        let _ = std::fs::remove_dir_all(&output_dir);
+        write_fake_evidence_bundle(&output_dir, false);
+        std::fs::remove_file(output_dir.join("version.json")).unwrap();
+
+        let report = build_evidence_bundle_validation_report(&output_dir).unwrap();
+        assert!(report
+            .issues
+            .iter()
+            .any(|issue| issue.contains("missing required file: version.json")));
+        assert!(format_evidence_bundle_validation_summary(&report).contains("[failed] bundle validation found issues."));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn evidence_bundle_validation_reports_invalid_json() {
+        let output_dir = unique_bundle_test_dir("validate-invalid-json");
+        let _ = std::fs::remove_dir_all(&output_dir);
+        write_fake_evidence_bundle(&output_dir, false);
+        std::fs::write(output_dir.join("manifest.json"), "{").unwrap();
+
+        let report = build_evidence_bundle_validation_report(&output_dir).unwrap();
+        assert!(report
+            .issues
+            .iter()
+            .any(|issue| issue.contains("invalid JSON in")));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn evidence_bundle_validation_rejects_placeholder_string_values() {
+        let output_dir = unique_bundle_test_dir("validate-placeholder");
+        let _ = std::fs::remove_dir_all(&output_dir);
+        write_fake_evidence_bundle(&output_dir, false);
+        let mut summary: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(output_dir.join("summary.json")).unwrap(),
+        )
+        .unwrap();
+        summary["notes"][0] = json!("string");
+        std::fs::write(
+            output_dir.join("summary.json"),
+            serde_json::to_string_pretty(&summary).unwrap(),
+        )
+        .unwrap();
+
+        let report = build_evidence_bundle_validation_report(&output_dir).unwrap();
+        assert!(report
+            .issues
+            .iter()
+            .any(|issue| issue.contains("placeholder-like literal \"string\" values")));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn evidence_bundle_validation_accepts_optional_audit_events_file() {
+        let output_dir = unique_bundle_test_dir("validate-audit");
+        let _ = std::fs::remove_dir_all(&output_dir);
+        write_fake_evidence_bundle(&output_dir, true);
+
+        let report = build_evidence_bundle_validation_report(&output_dir).unwrap();
+        assert!(report.issues.is_empty());
+        assert_eq!(report.metadata.include_audit_events, Some(true));
+        assert!(report
+            .snapshot
+            .file_state("audit-events.json")
+            .unwrap()
+            .present);
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn evidence_bundle_list_human_output_shows_optional_audit_file_presence() {
+        let output_dir = unique_bundle_test_dir("list-human");
+        let _ = std::fs::remove_dir_all(&output_dir);
+        write_fake_evidence_bundle(&output_dir, true);
+
+        let report = build_evidence_bundle_list_report(&output_dir).unwrap();
+        let summary = format_evidence_bundle_list_summary(&report);
+        assert!(summary.contains("IgnisPrompt Local Evidence Bundle Listing"));
+        assert!(summary.contains("audit-events.json: present (optional)"));
+        assert!(summary.contains("Bundle mode: local-preview"));
+        assert!(!summary.contains("req-1"));
+        assert!(!summary.contains("route_explain"));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn evidence_bundle_list_json_output_reports_file_presence() {
+        let output_dir = unique_bundle_test_dir("list-json");
+        let _ = std::fs::remove_dir_all(&output_dir);
+        write_fake_evidence_bundle(&output_dir, true);
+
+        let report = build_evidence_bundle_list_report(&output_dir).unwrap();
+        let json_output = format_evidence_bundle_list_json(&report);
+        let value: serde_json::Value = serde_json::from_str(&json_output).unwrap();
+        assert_eq!(value["metadata"]["include_audit_events"], true);
+        assert_eq!(value["files"].as_array().unwrap().len(), 9);
+        assert_eq!(
+            value["files"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|file| file["file_name"] == "audit-events.json")
+                .unwrap()["present"],
+            true
+        );
+        assert!(!json_output.contains("req-1"));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn evidence_bundle_validation_json_output_reports_status() {
+        let output_dir = unique_bundle_test_dir("validate-json");
+        let _ = std::fs::remove_dir_all(&output_dir);
+        write_fake_evidence_bundle(&output_dir, false);
+
+        let report = build_evidence_bundle_validation_report(&output_dir).unwrap();
+        let json_output = format_evidence_bundle_validation_json(&report);
+        let value: serde_json::Value = serde_json::from_str(&json_output).unwrap();
+        assert_eq!(value["status"], "ok");
+        assert_eq!(value["metadata"]["bundle_mode"], "local-preview");
+        assert!(value["issues"].as_array().unwrap().is_empty());
 
         let _ = std::fs::remove_dir_all(&output_dir);
     }
