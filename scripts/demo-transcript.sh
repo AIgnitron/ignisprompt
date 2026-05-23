@@ -22,6 +22,7 @@ Creates transcript.md from a local legal-review demo evidence bundle.
 Modes:
   --latest       Read the latest complete bundle under local-evidence/demo-local-legal-review. This is the default.
   --generate    Run ./scripts/demo-local-legal-review.sh first, then read the generated bundle.
+  --self-test    Create a tiny ignored fixture bundle and verify transcript safety checks.
   <evidence-dir> Read a specific demo evidence directory.
 EOF
 }
@@ -74,6 +75,132 @@ run_demo() {
   printf '%s\n' "$after"
 }
 
+self_test() {
+  require_cmd git
+
+  local test_dir="$ROOT_DIR/local-evidence/demo-local-legal-review/self-test-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  local transcript_output="$test_dir/transcript.out"
+  local placeholder_dir="$test_dir-placeholder"
+  local placeholder_output="$placeholder_dir/transcript.out"
+
+  mkdir -p "$test_dir" "$placeholder_dir"
+
+  cat >"$test_dir/request.json" <<'JSON'
+{
+  "model": "ignisprompt/legal",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Review this fully synthetic demo clause and identify one local-preview risk."
+    }
+  ],
+  "stream": false,
+  "metadata": {
+    "domain": "legal",
+    "fixture": "synthetic_public_demo"
+  }
+}
+JSON
+
+  cat >"$test_dir/route_explain.json" <<'JSON'
+{
+  "request_id": "self-test-route",
+  "decision": {
+    "tier": "TIER_3",
+    "route_code": "DOMAIN_MODEL_SELECTED",
+    "domain": "legal",
+    "model_id": "self-test-model",
+    "cloud_considered": false,
+    "cloud_allowed": false,
+    "data_left_device": false
+  },
+  "explanation": "The request was routed to Tier 3 for local preview review. No cloud route was considered.",
+  "warnings": []
+}
+JSON
+
+  cat >"$test_dir/chat_completion.json" <<'JSON'
+{
+  "id": "self-test-completion",
+  "object": "chat.completion",
+  "created": 0,
+  "model": "ignisprompt/legal",
+  "route": {
+    "tier": "TIER_3",
+    "route_code": "DOMAIN_MODEL_SELECTED",
+    "domain": "legal",
+    "model_id": "self-test-model",
+    "cloud_considered": false,
+    "cloud_allowed": false,
+    "data_left_device": false
+  },
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"clause_type\":\"service suspension\",\"jurisdiction\":\"not specified\",\"key_obligations\":[\"review prepaid fee handling\"],\"risks\":[{\"risk_type\":\"commercial\",\"severity\":\"medium\",\"finding\":\"The clause may let the vendor retain prepaid fees after suspension.\",\"supporting_text\":\"may retain prepaid fees after suspension\",\"recommended_review\":\"Confirm refund language before relying on the clause.\"}],\"missing_information\":[],\"confidence\":\"medium\"}"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "local_output": {
+    "runner": "self-test",
+    "legal_json": {
+      "status": "ok",
+      "source": "raw_json",
+      "schema_valid": true,
+      "raw_model_output": "{\"clause_type\":\"service suspension\"}"
+    }
+  }
+}
+JSON
+
+  cat >"$test_dir/audit_events.json" <<'JSON'
+[
+  {
+    "request_id": "self-test-route",
+    "timestamp": "2026-01-01T00:00:00Z",
+    "event_type": "route_explain",
+    "route_code": "DOMAIN_MODEL_SELECTED",
+    "tier": "TIER_3",
+    "domain": "legal",
+    "model_id": "self-test-model",
+    "data_left_device": false,
+    "explanation": "The request was routed to Tier 3 for local preview review.",
+    "warnings": []
+  }
+]
+JSON
+
+  IGNISPROMPT_DEMO_REQUEST_FILE="$test_dir/request.json" "$0" "$test_dir" >"$transcript_output"
+  [ -f "$test_dir/transcript.md" ] || {
+    echo "self-test did not write transcript under $test_dir" >&2
+    exit 1
+  }
+  git -C "$ROOT_DIR" check-ignore -q "${test_dir#$ROOT_DIR/}/transcript.md" || {
+    echo "self-test transcript path is not ignored: $test_dir/transcript.md" >&2
+    exit 1
+  }
+  grep -q "not legal advice" "$test_dir/transcript.md"
+  grep -q "not production legal quality" "$test_dir/transcript.md"
+  grep -q "not compliance certification" "$test_dir/transcript.md"
+
+  cp "$test_dir/request.json" "$placeholder_dir/request.json"
+  cp "$test_dir/route_explain.json" "$placeholder_dir/route_explain.json"
+  cp "$test_dir/audit_events.json" "$placeholder_dir/audit_events.json"
+  jq '.choices[0].message.content = "{\"clause_type\":\"string\",\"jurisdiction\":\"not specified\",\"key_obligations\":[\"string\"],\"risks\":[],\"missing_information\":[],\"confidence\":\"medium\"}"' \
+    "$test_dir/chat_completion.json" >"$placeholder_dir/chat_completion.json"
+
+  if IGNISPROMPT_DEMO_REQUEST_FILE="$placeholder_dir/request.json" "$0" "$placeholder_dir" >"$placeholder_output" 2>&1; then
+    echo "self-test expected placeholder-like successful output to be rejected" >&2
+    exit 1
+  fi
+  grep -q "placeholder string values" "$placeholder_output"
+
+  echo "[OK] demo transcript self-test passed"
+}
+
 require_cmd jq
 
 case "$MODE" in
@@ -86,6 +213,10 @@ case "$MODE" in
     ;;
   --generate)
     EVIDENCE_DIR="$(run_demo)"
+    ;;
+  --self-test)
+    self_test
+    exit 0
     ;;
   -h|--help)
     usage
@@ -117,11 +248,21 @@ if [ -f "$EVIDENCE_DIR/demo-summary.json" ]; then
   AUDIT_PATH="$(jq -r --arg fallback "$AUDIT_PATH" '.audit_event_location // $fallback' "$EVIDENCE_DIR/demo-summary.json")"
 fi
 
+if jq -e '(.local_output.legal_json.status == "ok" and .local_output.legal_json.schema_valid == true) and ([.choices[0].message.content | fromjson | .. | strings | ascii_downcase] | any(. == "string"))' "$EVIDENCE_DIR/chat_completion.json" >/dev/null; then
+  echo "Transcript source has schema-valid legal JSON, but it still contains placeholder string values." >&2
+  echo "Refusing to present placeholder-like output as a successful demo transcript." >&2
+  exit 1
+fi
+
 {
   printf '# Local Legal Review Demo Transcript\n\n'
   printf '%s\n' "- evidence bundle: \`$EVIDENCE_DIR\`"
   printf '%s\n' "- request fixture: \`$TRANSCRIPT_REQUEST_FILE\`"
   printf '%s\n\n' "- audit evidence path: \`$AUDIT_PATH\`"
+
+  printf '## Safety Boundary\n\n'
+  printf '%s\n' "This transcript is local preview evidence from synthetic demo data only. It is not legal advice, not production legal quality, and not compliance certification."
+  printf '%s\n\n' "Keep generated transcripts and evidence under ignored local-evidence paths; do not commit them."
 
   printf '## Request Summary\n\n'
   jq -r '

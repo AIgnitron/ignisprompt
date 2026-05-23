@@ -9,7 +9,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - MVP tag: `v0.1.0-mvp`
 - Final readiness result: **PASS WITH GAPS**
 - Public feedback issue: https://github.com/AIgnitron/ignisprompt/issues/56
-- Latest known main commit: `ce0c687 test: harden route policy regression coverage (#146)`
+- Latest known main commit: `21c6984 test: harden local model availability and GGUF contract (#147)`
 - Open PRs at this handoff: none
 - Open issues at this handoff: #56 only
 
@@ -46,6 +46,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - PR #144 added contributor MCP usage docs and conservative v0.1.3 planning notes.
 - PR #145 added `docs/AETHRA_DEMO_PACKAGE.md` for a public-safe, text-only Aethra demo package. It did not add screenshots, generated images, Aethra behavior, telemetry, cloud calls, model controls, or API changes.
 - PR #146 hardened route-policy regression coverage for legal Tier 3 routing, general local routing, adversarial document-instruction handling, conservative explanations, and local audit emission.
+- PR #147 hardened model availability semantics, model/runner status hints, and the feature-gated GGUF subprocess contract. `StubLegalRunner` remains the default fallback and GGUF remains opt-in.
 - Adapter concepts are documented as a design direction for possible future local LiteLLM-style and DreamServer-style integration. No adapter is implemented, no compatibility guarantee is made, and IgnisPrompt remains a local policy/routing/audit control plane rather than another model server.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
 - Issue #43 is closed after Saul 7B local legal candidate evidence was documented.
@@ -61,6 +62,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - Model weights, local evidence, generated transcripts, demo bundles, attestation bundles, audit logs, `target/`, and `dist/` must not be committed.
 - The synthetic public demo fixture is `tests/golden-legal/demo-synthetic-contract-request.json`.
 - The default synthetic demo avoids placeholder-like `"string"` output in the checked demo path.
+- Golden Legal adversarial fixtures are synthetic and deterministic; document-contained routing, cloud, fake system/developer, and audit-bypass instructions must stay untrusted content and preserve local Tier 3 routing/audit behavior.
 - The demo proves local routing, audit capture, strict schema validation, and transcript generation. It does not prove legal answer quality for production use.
 - `ignispromptctl models` should display current camelCase model manifest fields from the daemon and tolerate legacy snake_case model ids.
 - `GET /v1/status/version` reports daemon service, crate version, release channel `local-preview`, local-only flag, build profile, start time, nullable git commit metadata, and conservative warning language. It is local-only support/debugging metadata, not telemetry, an update checker, an external release lookup, or a production readiness signal.
