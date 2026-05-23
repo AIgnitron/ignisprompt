@@ -328,9 +328,9 @@ fn format_doctor_summary(report: &DoctorReport) -> String {
 
     lines.push("Result:".to_string());
     if report.required_checks_passed() {
-        lines.push("✓ Local preview daemon appears ready.".to_string());
+        lines.push("[ok] Local preview daemon appears ready.".to_string());
     } else {
-        lines.push("✗ Required local preview checks failed.".to_string());
+        lines.push("[failed] Required local preview checks failed.".to_string());
         lines.push("".to_string());
         lines.push("Next steps:".to_string());
         for step in report.next_steps() {
@@ -347,10 +347,10 @@ fn format_doctor_summary(report: &DoctorReport) -> String {
 
 fn format_doctor_check_line(check: &DoctorCheckResult) -> String {
     if check.ok {
-        format!("✓ {}: {}", check.label, check.summary)
+        format!("[ok] {}: {}", check.label, check.summary)
     } else {
         format!(
-            "✗ {}: {}",
+            "[failed] {}: {}",
             check.label,
             check.error.as_deref().unwrap_or(&check.summary)
         )
@@ -535,7 +535,7 @@ fn cmd_sustainability(base_url: &str, period: &str, json_output: bool) {
             process::exit(1);
         }
         Err(e) => {
-            eprintln!("error: daemon not reachable — {}", e);
+            eprintln!("error: daemon not reachable - {}", e);
             eprintln!("confirm the daemon is running with ./scripts/start-dev.sh");
             eprintln!("endpoint: {}", url);
             process::exit(1);
@@ -606,7 +606,7 @@ fn format_sustainability_summary(body: &Value) -> String {
                 .unwrap_or_else(|| "-".to_string())
         ),
         format!(
-            "Estimated CO₂e avoided: {}",
+            "Estimated CO2e avoided: {}",
             body.get("estimated_carbon_avoided_kgco2e")
                 .and_then(|v| v.as_f64())
                 .map(format_kgco2e)
@@ -705,7 +705,7 @@ fn cmd_health(base_url: &str) {
             );
         }
         Err(e) => {
-            eprintln!("error: daemon not reachable — {}", e);
+            eprintln!("error: daemon not reachable - {}", e);
             process::exit(1);
         }
     }
@@ -1517,9 +1517,9 @@ mod tests {
 
         let summary = format_doctor_summary(&report);
         assert!(summary.contains("IgnisPrompt Doctor"));
-        assert!(summary.contains("✓ health: ok"));
+        assert!(summary.contains("[ok] health: ok"));
         assert!(summary.contains("Informational checks:"));
-        assert!(summary.contains("✓ Local preview daemon appears ready."));
+        assert!(summary.contains("[ok] Local preview daemon appears ready."));
     }
 
     #[test]
@@ -1539,7 +1539,7 @@ mod tests {
 
         assert!(!report.required_checks_passed());
         let summary = format_doctor_summary(&report);
-        assert!(summary.contains("✗ health: daemon unreachable"));
+        assert!(summary.contains("[failed] health: daemon unreachable"));
         assert!(summary.contains("start the daemon with ./scripts/start-dev.sh"));
         assert!(summary.contains("check http://127.0.0.1:8765/health"));
 
@@ -1725,7 +1725,7 @@ mod tests {
         assert!(summary.contains("Requests total: 3"));
         assert!(summary.contains("Local request rate: 100%"));
         assert!(summary.contains("Estimated cloud cost avoided: $0.000034"));
-        assert!(summary.contains("Estimated CO₂e avoided: 0.000003 kgCO2e"));
+        assert!(summary.contains("Estimated CO2e avoided: 0.000003 kgCO2e"));
         assert!(summary.contains("Estimated data kept local: 0.000001 GB"));
         assert!(summary.contains("Methodology: aethra-impact-0.1"));
         assert!(summary.contains("Confidence: low"));
