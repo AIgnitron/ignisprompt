@@ -32,7 +32,11 @@ TEXT_NAMES = {
     "Cargo.toml",
     "Makefile",
 }
-ALLOWED_CONTROL = {"\n", "\r", "\t"}
+ALLOWED_CONTROL_CODEPOINTS = {
+    0x09,  # tab
+    0x0A,  # line feed
+    0x0D,  # carriage return
+}
 
 
 def tracked_files() -> list[pathlib.Path]:
@@ -68,7 +72,7 @@ def hidden_unicode_findings(path: pathlib.Path) -> list[str]:
         column += 1
 
         category = unicodedata.category(char)
-        if char in ALLOWED_CONTROL:
+        if ord(char) in ALLOWED_CONTROL_CODEPOINTS:
             continue
         if category in {"Cf", "Cc"}:
             codepoint = f"U+{ord(char):04X}"
