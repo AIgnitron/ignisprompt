@@ -405,8 +405,20 @@ fn validate_doctor_model_status_hints(body: &Value) -> Result<String, String> {
     required_string(body, "source")?;
     let hints = required_array(body, "statusHints")?;
 
+    for hint in hints {
+        required_string(hint, "modelId")?;
+        required_bool(hint, "configured")?;
+        required_bool(hint, "localPathDeclared")?;
+        required_bool(hint, "localPathExists")?;
+        required_bool(hint, "runnerConfigured")?;
+        required_string(hint, "runnerKind")?;
+        required_bool(hint, "runnerExecutableExists")?;
+        required_string(hint, "availability")?;
+        required_array(hint, "warnings")?;
+    }
+
     Ok(format!(
-        "available ({} {})",
+        "available ({} {}; status hints only)",
         hints.len(),
         if hints.len() == 1 { "hint" } else { "hints" }
     ))
@@ -1032,10 +1044,22 @@ mod tests {
                 "schemaVersion": "ignisprompt.model-status.v1",
                 "generatedAt": "2026-05-21T00:00:00Z",
                 "source": "local-daemon",
-                "statusHints": [{ "modelId": "legal" }]
+                "statusHints": [{
+                    "modelId": "legal",
+                    "configured": true,
+                    "localPathDeclared": true,
+                    "localPathExists": false,
+                    "runnerConfigured": true,
+                    "runnerKind": "stub-legal-runner",
+                    "runnerExecutableExists": true,
+                    "availability": "model-file-missing",
+                    "warnings": [
+                        "Status is a local hint, not a production readiness, legal accuracy, or compliance claim."
+                    ]
+                }]
             }))
             .unwrap(),
-            "available (1 hint)"
+            "available (1 hint; status hints only)"
         );
         assert_eq!(
             validate_doctor_sustainability_metrics(&json!({
@@ -1076,6 +1100,17 @@ mod tests {
             "schemaVersion": "ignisprompt.model-status.v1",
             "generatedAt": "2026-05-21T00:00:00Z",
             "source": "local-daemon"
+        }))
+        .is_err());
+        assert!(validate_doctor_model_status_hints(&json!({
+            "schemaVersion": "ignisprompt.model-status.v1",
+            "generatedAt": "2026-05-21T00:00:00Z",
+            "source": "local-daemon",
+            "statusHints": [{
+                "modelId": "legal",
+                "configured": true,
+                "runnerKind": "stub-legal-runner"
+            }]
         }))
         .is_err());
     }

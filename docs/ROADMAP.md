@@ -15,7 +15,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Adversarial document-instruction detection for known instruction strings.
 - OpenAI-compatible chat completion request shape, including a `stream: true` compatibility scaffold that frames an already-produced local completion as SSE chunks.
 - `StubLegalRunner` as the default Tier 3 legal fallback.
-- Optional `gguf-runner-spike` feature that can call a local subprocess runner when configured and when the local `.gguf` file exists.
+- Optional `gguf-runner-spike` feature that can call a local subprocess runner when configured and when the local `.gguf` file exists, with a deterministic subprocess timeout.
 - Local JSON extraction and validation shim for the GGUF legal spike.
 - Default CI path that does not need Ollama, GGUF files, or model weights.
 
@@ -28,10 +28,10 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Keep the Golden Legal adversarial fixture matrix small, synthetic, deterministic, and local-only.
 - Keep local evidence validation strict while avoiding signed attestation or tamper-evident storage claims until those features are explicitly implemented.
 - Continue local legal model bakeoffs with evidence stored under `./local-evidence/`.
-- Improve the GGUF subprocess contract while keeping it feature-gated.
+- Continue improving GGUF subprocess diagnostics while keeping the path feature-gated and local-only.
 - Explore documented adapter concepts for local LiteLLM-style stacks without claiming implemented support or compatibility.
 - Use the local adapter implementation checklist before any adapter code is proposed.
-- Refine the LiteLLM-style OpenAI-compatible local gateway plan before any implementation work begins.
+- Refine the LiteLLM-style OpenAI-compatible local gateway plan before any implementation work begins. LiteLLM local gateway work remains planning only, and DreamServer remains out of scope.
 
 ## Candidate model work
 

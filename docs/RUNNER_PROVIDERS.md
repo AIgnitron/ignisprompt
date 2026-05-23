@@ -108,7 +108,7 @@ Current `GgufRunner` support rules:
 - the configured runner binary path exists locally
 - manifest `localPath` exists locally
 
-The prompt pack is still validated during execution, not in `supports()`. If prompt-pack loading fails, `run()` returns an error and the adapter falls back to the next eligible runner.
+The prompt pack and subprocess response are still validated during execution, not in `supports()`. If prompt-pack loading fails, the subprocess times out, the subprocess exits non-zero, stdout is empty, or local legal JSON normalization records invalid output, `run()` returns the current local result or error path and the adapter/fallback behavior remains local-only.
 
 Practical guidance for new runners:
 
@@ -184,14 +184,15 @@ Execution behavior:
 - builds a prompt from the request plus legal prompt-pack content
 - writes the prompt to a temp file
 - invokes a local runner binary with `--model`, `--prompt-file`, and `--max-tokens`
+- enforces a deterministic subprocess timeout, configurable with `IGNISPROMPT_GGUF_RUNNER_TIMEOUT_MS` or `--gguf-runner-timeout-ms` and defaulting to 30 seconds
 - optionally sets structured-output env vars for `json` or `schema` response modes
 - normalizes local legal JSON output and returns metadata
 
 Failure behavior:
 
-- invalid runner config, missing files, non-zero exit status, empty stdout, or prompt-pack read failures all cause fallback to the next runner
+- invalid runner config, missing files, subprocess timeout, non-zero exit status, empty stdout, or prompt-pack read failures all cause fallback to the next runner
 - invalid or schema-mismatched legal JSON stdout is returned as structured local `legal_json` error metadata rather than hidden
-- the current spike does not implement a separate subprocess timeout contract; future runner work should define timeout behavior before relying on it
+- local file presence and runner executable presence are status hints only; they do not prove model quality, legal accuracy, compliance status, or production-grade runner management
 
 ## Rules for new runner providers
 

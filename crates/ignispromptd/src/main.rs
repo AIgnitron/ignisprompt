@@ -117,6 +117,15 @@ struct Args {
     /// Maximum completion tokens requested from the GGUF runner spike.
     #[arg(long, env = "IGNISPROMPT_GGUF_MAX_TOKENS", default_value_t = 256)]
     gguf_max_tokens: u32,
+
+    #[cfg(feature = "gguf-runner-spike")]
+    /// Timeout in milliseconds for the optional GGUF subprocess spike.
+    #[arg(
+        long,
+        env = "IGNISPROMPT_GGUF_RUNNER_TIMEOUT_MS",
+        default_value_t = 30_000
+    )]
+    gguf_runner_timeout_ms: u64,
 }
 
 #[derive(Clone)]
@@ -733,6 +742,14 @@ struct RunnerStatusHint {
     warning: Option<String>,
 }
 
+struct LocalRunnerPreflight {
+    manifest_route_eligible: bool,
+    local_path_declared: bool,
+    local_path_exists: bool,
+    runner: RunnerStatusHint,
+    executable_inference_attempted: bool,
+}
+
 async fn model_status(State(state): State<AppState>) -> Json<ModelStatusResponse> {
     let generated_at = Utc::now();
     let registry = state.model_registry.read().await.clone();
@@ -755,6 +772,63 @@ async fn model_status_hint_for_manifest(
     model: ModelManifest,
     checked_at: DateTime<Utc>,
 ) -> ModelStatusHint {
+    let preflight = local_runner_preflight(config, &model).await;
+    let availability = model_availability(
+        preflight.local_path_declared,
+        preflight.local_path_exists,
+        &preflight.runner,
+    );
+    let mut warnings = vec![
+        "Status is a local hint, not a production readiness, legal accuracy, or compliance claim."
+            .to_string(),
+    ];
+
+    if !preflight.manifest_route_eligible {
+        warnings.push(
+            "Manifest is configured but is not route-eligible for the current local policy hints."
+                .to_string(),
+        );
+    }
+    if preflight.local_path_declared && !preflight.local_path_exists {
+        warnings.push(
+            "Declared local model path was not found by a daemon-side filesystem check."
+                .to_string(),
+        );
+    }
+    if !preflight.runner.executable_exists {
+        warnings.push(
+            "Configured runner executable was not found by a daemon-side filesystem check."
+                .to_string(),
+        );
+    }
+    if !preflight.executable_inference_attempted {
+        warnings.push(
+            "Local file and runner presence are prerequisites only; this status check does not attempt executable inference."
+                .to_string(),
+        );
+    }
+    if let Some(warning) = preflight.runner.warning {
+        warnings.push(warning);
+    }
+
+    ModelStatusHint {
+        model_id: model.model_id,
+        display_name: model.display_name,
+        tier: model.tier,
+        domains: model.domains,
+        configured: true,
+        local_path_declared: preflight.local_path_declared,
+        local_path_exists: preflight.local_path_exists,
+        runner_configured: preflight.runner.configured,
+        runner_kind: preflight.runner.kind,
+        runner_executable_exists: preflight.runner.executable_exists,
+        availability,
+        last_checked_at: checked_at,
+        warnings,
+    }
+}
+
+async fn local_runner_preflight(config: &Args, model: &ModelManifest) -> LocalRunnerPreflight {
     let local_path = model
         .local_path
         .as_deref()
@@ -766,42 +840,17 @@ async fn model_status_hint_for_manifest(
         None => false,
     };
     let runner = runner_status_hint(config, &model).await;
-    let availability = model_availability(local_path_declared, local_path_exists, &runner);
-    let mut warnings = vec![
-        "Status is a local hint, not a production readiness, legal accuracy, or compliance claim."
-            .to_string(),
-    ];
-
-    if local_path_declared && !local_path_exists {
-        warnings.push(
-            "Declared local model path was not found by a daemon-side filesystem check."
-                .to_string(),
-        );
-    }
-    if !runner.executable_exists {
-        warnings.push(
-            "Configured runner executable was not found by a daemon-side filesystem check."
-                .to_string(),
-        );
-    }
-    if let Some(warning) = runner.warning {
-        warnings.push(warning);
-    }
-
-    ModelStatusHint {
-        model_id: model.model_id,
-        display_name: model.display_name,
-        tier: model.tier,
-        domains: model.domains,
-        configured: true,
+    LocalRunnerPreflight {
+        manifest_route_eligible: model.installed
+            && model.tier == 3
+            && model
+                .domains
+                .iter()
+                .any(|domain| domain.eq_ignore_ascii_case("legal")),
         local_path_declared,
         local_path_exists,
-        runner_configured: runner.configured,
-        runner_kind: runner.kind,
-        runner_executable_exists: runner.executable_exists,
-        availability,
-        last_checked_at: checked_at,
-        warnings,
+        runner,
+        executable_inference_attempted: false,
     }
 }
 
@@ -2274,6 +2323,8 @@ mod tests {
             prompt_dir: PathBuf::from("./config/prompts"),
             #[cfg(feature = "gguf-runner-spike")]
             gguf_max_tokens: 256,
+            #[cfg(feature = "gguf-runner-spike")]
+            gguf_runner_timeout_ms: 30_000,
         }
     }
 
@@ -2945,6 +2996,7 @@ mod tests {
         assert!(warnings.contains("not a production readiness"));
         assert!(warnings.contains("legal accuracy"));
         assert!(warnings.contains("compliance claim"));
+        assert!(warnings.contains("does not attempt executable inference"));
     }
 
     #[tokio::test]
@@ -3169,7 +3221,10 @@ mod tests {
         assert!(events[1].completion_output.is_none());
 
         let encoded = serde_json::to_value(&events).unwrap();
-        assert!(encoded.is_array(), "GET /v1/audit/events must stay an array");
+        assert!(
+            encoded.is_array(),
+            "GET /v1/audit/events must stay an array"
+        );
         assert_eq!(encoded.as_array().unwrap().len(), 2);
     }
 
@@ -3177,9 +3232,11 @@ mod tests {
     async fn adversarial_route_audit_event_preserves_warning_and_local_boundary() {
         let state = state_with_models(vec![legal_model()]);
 
-        let (status, route_response) =
-            call_route_explain(&state, golden_legal_fixture("adversarial-cloud-route-request"))
-                .await;
+        let (status, route_response) = call_route_explain(
+            &state,
+            golden_legal_fixture("adversarial-cloud-route-request"),
+        )
+        .await;
 
         assert_eq!(status, StatusCode::OK);
         assert_eq!(route_response.decision.route_code, "DOMAIN_MODEL_SELECTED");
@@ -4221,6 +4278,60 @@ mod tests {
             Some(&model),
         );
 
+        assert!(output
+            .content
+            .contains("StubLegalRunner handled this Tier 3 legal request locally"));
+        assert!(output.metadata.is_none());
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[cfg(all(feature = "gguf-runner-spike", unix))]
+    #[test]
+    fn tier_3_completion_falls_back_to_stub_when_gguf_runner_times_out() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("ignispromptd-gguf-timeout-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let model_path = temp_dir.join("legal.gguf");
+        std::fs::write(&model_path, "gguf-placeholder").unwrap();
+        let runner_path = temp_dir.join("fake-gguf-runner.sh");
+        make_executable_script(
+            &runner_path,
+            "#!/bin/sh\nsleep 2\nprintf '{\"clause_type\":\"test\",\"jurisdiction\":\"not specified\",\"key_obligations\":[],\"risks\":[],\"missing_information\":[],\"confidence\":\"low\"}'\n",
+        );
+
+        let model = gguf_spike_model_with_local_path(model_path.display().to_string());
+        let request = req(
+            "Review this indemnification clause in a vendor services agreement.",
+            Some("ignisprompt/legal"),
+        );
+        let decision = gguf_spike_decision(&model);
+        let mut config = test_args(temp_dir.join("events.jsonl"));
+        config.gguf_runner_bin = Some(runner_path);
+        config.gguf_runner_timeout_ms = 50;
+        let prompt_dir = temp_dir.join("prompts");
+        std::fs::create_dir_all(&prompt_dir).unwrap();
+        std::fs::write(
+            prompt_dir.join("legal-contract-review-compact-v0.1.md"),
+            "COMPACT PROMPT PACK TEST\nJSON only.\n",
+        )
+        .unwrap();
+        config.prompt_dir = prompt_dir;
+
+        let started_at = std::time::Instant::now();
+        let output = completion_output_for_decision(
+            &runner_adapter(),
+            &config,
+            &request,
+            &decision,
+            Some(&model),
+        );
+
+        assert!(
+            started_at.elapsed() < std::time::Duration::from_secs(1),
+            "timeout should return before the fake runner sleep completes"
+        );
         assert!(output
             .content
             .contains("StubLegalRunner handled this Tier 3 legal request locally"));
