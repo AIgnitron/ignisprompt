@@ -159,9 +159,15 @@ jq -n \
     binary_sha256: $binary_sha256
   }' >"$BINARY_INFO_JSON"
 
-git check-ignore -v "models/example.gguf" "local-evidence/attestation/example/evidence.json" >"$IGNORE_CHECKS"
+git check-ignore -v \
+  "models/example.gguf" \
+  "local-evidence/attestation/example/evidence.json" \
+  "local-evidence/demo-local-legal-review/example/transcript.md" \
+  "local-evidence/golden-legal-v0.3/example/summary.jsonl" >"$IGNORE_CHECKS"
 git check-ignore -q "models/example.gguf"
 git check-ignore -q "local-evidence/attestation/example/evidence.json"
+git check-ignore -q "local-evidence/demo-local-legal-review/example/transcript.md"
+git check-ignore -q "local-evidence/golden-legal-v0.3/example/summary.jsonl"
 
 start_daemon
 

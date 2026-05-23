@@ -216,16 +216,16 @@ These scripts require local Ollama and local model files:
 
 They write evidence under `./local-evidence/`. Do not commit evidence bundles.
 
-`./scripts/generate-local-only-attestation.sh` writes a developer-generated evidence bundle under `./local-evidence/attestation/<timestamp>/`. It captures git SHA, build mode, built binary path and hash, `/health`, legal route explanation, audit snapshot, `data_left_device=false` evidence, and git-ignore safety for `models/**` and `local-evidence/**`. It is not a signed attestation report or compliance certification.
+`./scripts/generate-local-only-attestation.sh` writes a developer-generated evidence bundle under `./local-evidence/attestation/<timestamp>/`. It captures git SHA, build mode, built binary path and hash, `/health`, legal route explanation, audit snapshot, `data_left_device=false` evidence, and git-ignore safety for `models/**`, attestation evidence, demo transcripts, and Golden Legal evidence under `local-evidence/**`. It is not a signed attestation report or compliance certification.
 
-Current local reliability note as of May 2, 2026: the latest local Golden Legal v0.3 evidence available in this workspace records all six control-plane cases as passing with the Qwen2.5 0.5B pipe baseline. The Tier 3 success case records `legal_json.status = "ok"` and `schema_valid = true`. This does not prove legal accuracy, production readiness, enterprise attestation, or compliance certification.
+The Golden Legal v0.3 script now includes nine local control-plane cases: the original Tier 3 success, fail-closed, no-cloud, explanation, and subtle legal-language cases plus an expanded adversarial fixture matrix. Passing this path validates local routing, audit capture, and schema handling under local prerequisites. It does not prove legal accuracy, production readiness, enterprise attestation, or compliance certification.
 
 ## What tests assert today
 
 - Legal requests route to Tier 3 when a legal manifest is installed.
 - Legal requests fail closed when a local legal model is unavailable.
 - Cloud fallback is not allowed without explicit consent.
-- Adversarial document instructions are treated as untrusted content.
+- Adversarial document instructions are treated as untrusted content across the Golden Legal fixture matrix.
 - Route explanations remain human-readable.
 - Chat completions append audit events.
 - `stream: false` and missing `stream` preserve the current JSON chat-completion shape.
@@ -237,6 +237,7 @@ Current local reliability note as of May 2, 2026: the latest local Golden Legal 
 - Feature-gated GGUF subprocess tests use temporary fake runner scripts and placeholder local files to cover missing runner binaries, missing `.gguf` paths, non-zero subprocess exits, invalid legal JSON output, malformed legal JSON schema output, and fallback to `StubLegalRunner`.
 - The feature-gated GGUF tests require an explicit local runner path and reject bare executable names.
 - The legal JSON normalizer accepts realistic local noisy output forms and records schema failures as structured local failures.
+- `./scripts/demo-transcript.sh --self-test` writes a tiny ignored fixture bundle, verifies transcript safety language, and rejects placeholder-like successful demo JSON containing literal `"string"` values.
 - The experimental MCP stub can initialize, list tools, and call `route_explain` while reusing the existing local route and audit behavior.
 
 ## What tests do not prove

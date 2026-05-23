@@ -24,7 +24,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Keep default CI green without local model weights.
 - Keep route-policy regression coverage current for legal Tier 3 routing, general local routing, adversarial document-instruction handling, conservative explanations, and local audit emission.
 - Keep model availability semantics explicit: route eligibility, manifest configuration, local file presence, runner hints, and executable local inference are separate states.
-- Expand adversarial document-instruction fixtures.
+- Keep the Golden Legal adversarial fixture matrix small, synthetic, deterministic, and local-only.
 - Continue local legal model bakeoffs with evidence stored under `./local-evidence/`.
 - Improve the GGUF subprocess contract while keeping it feature-gated.
 - Explore documented adapter concepts for local LiteLLM-style stacks without claiming implemented support or compatibility.
