@@ -16,12 +16,15 @@ It also runs `./scripts/check-sustainability-language.sh` after `cargo test`. Th
 
 The guardrail is intended to catch wording that conflicts with the estimated/proxy/counterfactual/methodology-dependent sustainability boundary, including carbon-saved claims, measured-emissions certainty, zero-emissions certainty, certification language, ESG claims, and production or compliance claims. It does not replace careful review of sustainability wording.
 
+`./scripts/dev-check.sh` also runs `make security-check`. That target is deterministic and local-only: it scans tracked text files for hidden Unicode format/control characters and conservative accidental secret patterns. It does not upload content, call external services, add telemetry, or claim certification, compliance approval, production security approval, or complete supply-chain assurance.
+
 The same checks can still be run separately:
 
 ```bash
 cargo build
 cargo test
 ./scripts/check-sustainability-language.sh
+make security-check
 ```
 
 For the lower-level manual daemon smoke path:
@@ -158,6 +161,44 @@ Run the repository language guardrail before sustainability copy, docs, or UI ch
 ```
 
 The check is also part of `./scripts/dev-check.sh`. It blocks unsupported sustainability certainty or certification phrases unless the line uses an approved negated disclaimer. Keep Aethra language framed as estimated, proxy, counterfactual, and methodology-dependent.
+
+## Security review helper checks
+
+Run deterministic local security helper checks with:
+
+```bash
+make security-check
+```
+
+This runs:
+
+```bash
+./scripts/check-hidden-unicode.sh
+./scripts/check-secrets-local.sh
+```
+
+The hidden Unicode scan covers tracked Rust source, shell scripts, docs, JSON fixtures, GitHub workflow files, TypeScript/React files, TOML/config files, lockfiles, and Markdown where practical. It flags Unicode format/control characters, including bidirectional text markers, while allowing ordinary tab/newline/carriage-return whitespace.
+
+The local secret scan is intentionally conservative. It checks tracked text files for obvious private key headers, common token formats, tracked `.env` files, and credential-like assignments. It is not a replacement for a full security review or a hosted secret-scanning product, and it does not call external services.
+
+Optional Rust dependency advisory checking is available when `cargo-audit` is installed:
+
+```bash
+cargo install cargo-audit --locked
+make cargo-audit
+```
+
+If `cargo-audit` is not installed, `./scripts/cargo-audit-local.sh` exits with a missing-prerequisite message. The default CI path does not depend on this optional tool unless a future workflow installs it deterministically.
+
+Optional local SBOM planning/generation is available with:
+
+```bash
+./scripts/generate-sbom-local.sh --dry-run
+cargo install cargo-cyclonedx --locked
+./scripts/generate-sbom-local.sh
+```
+
+The default SBOM output path is ignored under `local-evidence/sbom/`. Do not commit generated SBOM output unless it is intentionally reviewed and scoped in a future PR. These helpers do not claim SBOM completeness, supply-chain certification, compliance approval, or production security readiness.
 
 ## Experimental MCP stub
 

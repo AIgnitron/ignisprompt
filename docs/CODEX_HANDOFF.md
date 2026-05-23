@@ -9,7 +9,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - MVP tag: `v0.1.0-mvp`
 - Final readiness result: **PASS WITH GAPS**
 - Public feedback issue: https://github.com/AIgnitron/ignisprompt/issues/56
-- Latest known main commit: `0744227 test: harden GGUF timeout and runner preflight (#150)`
+- Latest known main commit: `55ffd5b test: harden Aethra live-local contracts (#151)`
 - Open PRs at this handoff: none
 - Open issues at this handoff: #56 only
 
@@ -50,6 +50,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - PR #148 hardened the Golden Legal adversarial demo path, expanded Golden Legal v0.3 from 6 to 9 cases, added demo transcript self-test behavior, and strengthened local-only evidence guardrails.
 - PR #149 hardened audit evidence validation and added `generate-local-only-attestation.sh --self-test`. The normal script still generates local-only developer evidence only; it does not implement signed attestation reports or tamper-evident audit storage.
 - PR #150 added feature-gated GGUF subprocess timeout handling and local runner preflight hardening while keeping `StubLegalRunner` as the default fallback.
+- PR #151 hardened Aethra live-local contracts with fixture/schema contract tests, optional-field tolerance, model/runner status hint summaries, audit proxy estimate coverage, sustainability report redaction, and minimal current-state docs cleanup.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
 - Issue #43 is closed after Saul 7B local legal candidate evidence was documented.
 
@@ -68,6 +69,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - The demo proves local routing, audit capture, strict schema validation, and transcript generation. It does not prove legal answer quality for production use.
 - Audit integrity regression coverage checks route-explain and chat-completion audit events for local route/domain/tier signals, request IDs, timestamps, conservative warning/explanation metadata, and optional Aethra estimate fields while preserving the HTTP `GET /v1/audit/events` JSON array shape.
 - `./scripts/generate-local-only-attestation.sh --self-test` validates ignored local evidence, audit log, model, `target/`, and Aethra `dist/` paths, and rejects placeholder-like summary JSON containing literal `"string"` values. The normal script still generates developer local-only evidence only; it does not generate signed attestation reports or tamper-evident audit storage.
+- `make security-check` runs deterministic local helper scans for hidden Unicode format/control characters and conservative accidental secret patterns. Optional `make cargo-audit` and `./scripts/generate-sbom-local.sh` support local dependency advisory and SBOM review when their tools are installed. These helpers do not claim certification, compliance approval, production security approval, or complete supply-chain assurance.
 - `ignispromptctl models` should display current camelCase model manifest fields from the daemon and tolerate legacy snake_case model ids.
 - `GET /v1/status/version` reports daemon service, crate version, release channel `local-preview`, local-only flag, build profile, start time, nullable git commit metadata, and conservative warning language. It is local-only support/debugging metadata, not telemetry, an update checker, an external release lookup, or a production readiness signal.
 - `ignispromptctl status-version` reads `GET /v1/status/version` and prints the same local preview metadata.
