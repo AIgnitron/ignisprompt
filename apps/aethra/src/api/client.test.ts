@@ -170,6 +170,23 @@ describe("IgnisPromptClient", () => {
     });
   });
 
+  it("accepts audit events without optional cache, completion, and proxy estimate fields", async () => {
+    const minimalAuditEvent = {
+      request_id: "fixture-minimal-audit-001",
+      timestamp: "2026-05-21T00:00:00Z",
+      event_type: "route_explain",
+      route_code: "DOMAIN_MODEL_SELECTED",
+      tier: "TIER_3",
+      domain: "legal",
+      data_left_device: false,
+      explanation: "Synthetic minimal local audit event.",
+      warnings: [],
+    };
+    const fetchImpl = vi.fn(async () => jsonResponse([minimalAuditEvent]));
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.auditEvents()).resolves.toEqual([minimalAuditEvent]);
+  });
 
   it("sends route explain as an explicit POST action", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse(routeExplainFixture));

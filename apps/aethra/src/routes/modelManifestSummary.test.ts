@@ -45,12 +45,12 @@ describe("model manifest fixture summaries", () => {
     expect(countDeclaredPromptPacks(modelFixtures)).toBe(1);
   });
 
-  it("does not infer runner readiness from manifest fields", () => {
+  it("does not infer runner status from manifest fields", () => {
     expect(getManifestStatusHints(modelFixtures[0])).toEqual([
       "Manifest loaded",
       "Local path declared",
       "Prompt pack declared",
-      "Runner readiness unknown",
+      "Runner status unknown",
       "File existence not verified by Aethra in fixture mode",
     ]);
   });
@@ -79,7 +79,7 @@ describe("model manifest fixture summaries", () => {
       "Manifest loaded",
       "Local path not declared",
       "Prompt pack not declared",
-      "Runner readiness unknown",
+      "Runner status unknown",
       "File existence not verified by Aethra in fixture mode",
     ]);
   });
@@ -118,7 +118,7 @@ describe("model manifest fixture summaries", () => {
       "Manifest loaded",
       "Local path not declared",
       "Prompt pack not declared",
-      "Runner readiness unknown",
+      "Runner status unknown",
       "File existence not verified by Aethra in fixture mode",
     ]);
   });

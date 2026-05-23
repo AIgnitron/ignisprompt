@@ -127,6 +127,33 @@ describe("sustainability report export formatting", () => {
     expect(report).not.toHaveProperty("pii");
   });
 
+  it("redacts sensitive local identifiers from report text fields", () => {
+    const sensitiveInput = {
+      ...reportInput,
+      metrics: {
+        ...sustainabilityMetricsFixture,
+        baseline_provider: "api_keyABCDEF1234567890",
+        baseline_model: "/Users/alice/models/legal.gguf",
+        methodology_version: "hostname=workstation.local",
+        confidence: "username=alice",
+        disclaimer:
+          "Contact alice@example.com; prompt: synthetic private request text.",
+      },
+    };
+    const markdown = buildSustainabilityMarkdownReport(sensitiveInput);
+    const jsonText = buildSustainabilityJsonReportText(sensitiveInput);
+
+    for (const reportText of [markdown, jsonText]) {
+      expect(reportText).not.toContain("api_keyABCDEF1234567890");
+      expect(reportText).not.toContain("/Users/alice");
+      expect(reportText).not.toContain("workstation.local");
+      expect(reportText).not.toContain("username=alice");
+      expect(reportText).not.toContain("alice@example.com");
+      expect(reportText).not.toContain("synthetic private request text");
+      expect(reportText).toContain("[redacted local-only report field]");
+    }
+  });
+
   it("supports live-local displayed metrics without changing report shape", () => {
     const report = buildSustainabilityJsonReport({
       ...reportInput,

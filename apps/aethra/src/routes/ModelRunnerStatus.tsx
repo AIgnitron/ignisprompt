@@ -19,6 +19,12 @@ import {
   toModelManifestRows,
 } from "./modelManifestSummary";
 import {
+  describeExecutableInferenceStatus,
+  describeLocalPathStatus,
+  describeRunnerStatus,
+  formatAvailability,
+} from "./modelStatusSummary";
+import {
   buildLiveErrorEmptyState,
   localPreviewEmptyStates,
 } from "./emptyStates";
@@ -425,6 +431,7 @@ function ModelStatusHintTable({ statusHints }: ModelStatusHintTableProps) {
             <th>Availability</th>
             <th>Local path</th>
             <th>Runner</th>
+            <th>Inference</th>
             <th>Last checked</th>
             <th>Warnings</th>
           </tr>
@@ -438,19 +445,10 @@ function ModelStatusHintTable({ statusHints }: ModelStatusHintTableProps) {
               </td>
               <td>{formatAvailability(hint.availability)}</td>
               <td>
-                {hint.localPathDeclared
-                  ? hint.localPathExists
-                    ? "declared and found"
-                    : "declared, not found"
-                  : "not declared"}
+                {describeLocalPathStatus(hint)}
               </td>
-              <td>
-                {hint.runnerConfigured
-                  ? `${hint.runnerKind}; executable ${
-                      hint.runnerExecutableExists ? "found" : "not found"
-                    }`
-                  : "not configured"}
-              </td>
+              <td>{describeRunnerStatus(hint)}</td>
+              <td>{describeExecutableInferenceStatus(hint)}</td>
               <td>{formatTimestamp(hint.lastCheckedAt)}</td>
               <td>
                 {hint.warnings.length > 0 ? hint.warnings.join(" ") : "none"}
@@ -617,22 +615,16 @@ function ModelManifestDetail({
             <div>
               <dt>Local path</dt>
               <dd>
-                {statusHint.localPathDeclared
-                  ? statusHint.localPathExists
-                    ? "declared and found"
-                    : "declared, not found"
-                  : "not declared"}
+                {describeLocalPathStatus(statusHint)}
               </dd>
             </div>
             <div>
               <dt>Runner</dt>
-              <dd>
-                {statusHint.runnerConfigured
-                  ? `${statusHint.runnerKind}; executable ${
-                      statusHint.runnerExecutableExists ? "found" : "not found"
-                    }`
-                  : "not configured"}
-              </dd>
+              <dd>{describeRunnerStatus(statusHint)}</dd>
+            </div>
+            <div>
+              <dt>Executable inference</dt>
+              <dd>{describeExecutableInferenceStatus(statusHint)}</dd>
             </div>
             <div>
               <dt>Last checked</dt>
@@ -745,7 +737,7 @@ function getModelsStateLabel(
 }
 
 function manifestStatusHintLabel(hint: string, isLiveModel: boolean): string {
-  if (hint === "Runner readiness unknown") {
+  if (hint === "Runner status unknown") {
     return "Runner status not inferred from manifest metadata";
   }
 
@@ -756,25 +748,6 @@ function manifestStatusHintLabel(hint: string, isLiveModel: boolean): string {
   }
 
   return hint;
-}
-
-function formatAvailability(
-  availability: ModelStatusHint["availability"],
-): string {
-  switch (availability) {
-    case "configured":
-      return "configured";
-    case "staged":
-      return "staged locally";
-    case "runner-missing":
-      return "runner missing";
-    case "model-file-missing":
-      return "model file missing";
-    case "unavailable":
-      return "unavailable";
-    case "unknown":
-      return "unknown";
-  }
 }
 
 function formatTimestamp(timestamp: string): string {

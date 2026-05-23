@@ -121,6 +121,7 @@ describe("Aethra data source helpers", () => {
       describeModelsLoadError(new AethraApiError("invalid-json", "bad json")),
     ).toMatchObject({
       label: "Invalid JSON",
+      message: expect.stringContaining("current local-preview daemon"),
     });
     expect(
       describeModelsLoadError(
@@ -129,7 +130,7 @@ describe("Aethra data source helpers", () => {
     ).toEqual({
       label: "Unsupported schema",
       message:
-        "The local daemon returned JSON that did not match the expected model manifest schema.",
+        "The local daemon returned JSON that did not match the expected model manifest schema. Fixture fallback remains available; confirm the daemon is from the current local-preview build before retrying manual refresh.",
       diagnosticKind: "invalid-response-shape",
     });
   });
@@ -141,6 +142,7 @@ describe("Aethra data source helpers", () => {
       ),
     ).toMatchObject({
       label: "Invalid JSON",
+      message: expect.stringContaining("current local-preview daemon"),
     });
     expect(
       describeModelStatusLoadError(
@@ -149,7 +151,7 @@ describe("Aethra data source helpers", () => {
     ).toEqual({
       label: "Unsupported schema",
       message:
-        "The local daemon returned JSON that did not match the expected model and runner status hint schema.",
+        "The local daemon returned JSON that did not match the expected model and runner status hint schema. Fixture fallback remains available; confirm the daemon is from the current local-preview build before retrying manual refresh.",
       diagnosticKind: "invalid-response-shape",
     });
   });
@@ -161,6 +163,7 @@ describe("Aethra data source helpers", () => {
       ),
     ).toMatchObject({
       label: "Invalid JSON",
+      message: expect.stringContaining("current local-preview daemon"),
     });
     expect(
       describeVersionStatusLoadError(
@@ -169,7 +172,7 @@ describe("Aethra data source helpers", () => {
     ).toEqual({
       label: "Unsupported schema",
       message:
-        "The local daemon returned JSON that did not match the expected daemon version status schema.",
+        "The local daemon returned JSON that did not match the expected daemon version status schema. Fixture fallback remains available; confirm the daemon is from the current local-preview build before retrying manual refresh.",
       diagnosticKind: "invalid-response-shape",
     });
   });
@@ -194,6 +197,7 @@ describe("Aethra data source helpers", () => {
       ),
     ).toMatchObject({
       label: "Invalid JSON",
+      message: expect.stringContaining("current local-preview daemon"),
     });
     expect(
       describeAuditEventsLoadError(
@@ -202,7 +206,7 @@ describe("Aethra data source helpers", () => {
     ).toEqual({
       label: "Unsupported schema",
       message:
-        "The local daemon returned JSON that did not match the expected audit event schema.",
+        "The local daemon returned JSON that did not match the expected audit event schema. Fixture fallback remains available; confirm the daemon is from the current local-preview build before retrying manual refresh.",
       diagnosticKind: "invalid-response-shape",
     });
   });
@@ -214,6 +218,7 @@ describe("Aethra data source helpers", () => {
       ),
     ).toMatchObject({
       label: "Invalid JSON",
+      message: expect.stringContaining("current local-preview daemon"),
     });
     expect(
       describeSustainabilityMetricsLoadError(
@@ -222,7 +227,7 @@ describe("Aethra data source helpers", () => {
     ).toEqual({
       label: "Unsupported schema",
       message:
-        "The local daemon returned JSON that did not match the expected sustainability metrics schema.",
+        "The local daemon returned JSON that did not match the expected sustainability metrics schema. Fixture fallback remains available; confirm the daemon is from the current local-preview build before retrying manual refresh.",
       diagnosticKind: "invalid-response-shape",
     });
   });

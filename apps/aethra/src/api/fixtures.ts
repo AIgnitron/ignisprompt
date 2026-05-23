@@ -31,7 +31,7 @@ export const versionStatusFixture: VersionStatusResponse = {
 export const modelFixtures: ModelManifest[] = [
   {
     modelId: "legal-qwen2.5-0.5b-instruct-q4-k-m-local",
-    displayName: "Qwen2.5 0.5B Instruct Q4_K_M Local Legal Adapter",
+    displayName: "Qwen2.5 0.5B Instruct Q4_K_M Local Legal Model",
     tier: 3,
     domains: ["legal", "contracts", "compliance"],
     format: "gguf",
@@ -52,7 +52,7 @@ export const modelStatusFixture: ModelStatusResponse = {
   statusHints: [
     {
       modelId: "legal-qwen2.5-0.5b-instruct-q4-k-m-local",
-      displayName: "Qwen2.5 0.5B Instruct Q4_K_M Local Legal Adapter",
+      displayName: "Qwen2.5 0.5B Instruct Q4_K_M Local Legal Model",
       tier: 3,
       domains: ["legal", "contracts", "compliance"],
       configured: true,
