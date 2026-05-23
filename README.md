@@ -51,6 +51,7 @@ The docs set under `docs/` describes the current scaffold and clearly separates 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Aethra MVP plan](docs/AETHRA.md)
 - [Aethra MVP checkpoint](docs/AETHRA_MVP_CHECKPOINT.md) for the current fixture-backed local dashboard status
+- [Aethra public demo package](docs/AETHRA_DEMO_PACKAGE.md)
 - [Runner providers](docs/RUNNER_PROVIDERS.md)
 - [Demo flows](docs/DEMO.md)
 - [Testing](docs/TESTING.md)

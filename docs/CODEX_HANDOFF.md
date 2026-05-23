@@ -9,7 +9,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - MVP tag: `v0.1.0-mvp`
 - Final readiness result: **PASS WITH GAPS**
 - Public feedback issue: https://github.com/AIgnitron/ignisprompt/issues/56
-- Latest known main commit: `653cf9b docs: draft v0.1.2 local preview patch package (#143)`
+- Latest known main commit: `15aee15 docs: add contributor MCP usage guide and v0.1.3 planning notes (#144)`
 - Open PRs at this handoff: none
 - Open issues at this handoff: #56 only
 
@@ -116,6 +116,8 @@ Aethra Overview includes a Local Commands panel with copyable local preview help
 
 Aethra includes a local preview banner and grouped manual live-local refresh controls. Fixture mode remains the default, live local loading remains explicit/manual, and no polling, local/session storage persistence, telemetry, cloud calls, GitHub calls, update checks, command execution, backend changes, or API shape changes are added by this UI polish.
 
+`docs/AETHRA_DEMO_PACKAGE.md` documents a public-safe Aethra demo package with a recommended Hero -> Overview -> Routing Explorer -> Audit Events -> Model / Runner Status -> Sustainability Preview sequence, screenshot captions, audience guidance, and conservative local-preview boundaries. It is docs-only and does not add screenshots, generated images, Aethra behavior, telemetry, cloud calls, model controls, or API changes.
+
 Aethra main pages include small guidance panels that explain local preview status, route inspection, local audit records, model and runner status hints, and sustainability proxy indicators. These panels are static help copy and do not add model controls, runner controls, polling, telemetry, storage persistence, cloud calls, GitHub calls, update checks, command execution, backend changes, or API shape changes.
 
 Aethra empty states explain what data is missing, why fixture fallback may still be visible, and what local action to try next, such as starting `./scripts/start-dev.sh`, running `./scripts/smoke.sh`, or manually refreshing the relevant panel. These empty states are local-only UI copy. They do not auto-load data, poll endpoints, persist state, add telemetry, call cloud services, call GitHub, or perform update checks.
@@ -196,7 +198,7 @@ Add `--include-route-explain` only when you intentionally want to append a local
 5. Keep Aethra live-local diagnostics limited to local connection/debugging state; avoid polling, persistence, external lookup, cloud calls, update checks, readiness claims, or controls.
 6. Keep copyable command helpers local and explicit; avoid dashboard-side command execution, remote command language, telemetry, or persistence.
 7. Keep any future model and runner status work limited to hints; avoid readiness, certification, legal-quality, or compliance claims.
-8. For v0.1.3 planning, polish contributor MCP usage docs, prepare an Aethra public/demo package, and keep LiteLLM-style local gateway work as planning only, not implementation.
+8. For v0.1.3 planning, use the contributor MCP usage docs and Aethra public/demo package as review material, and keep LiteLLM-style local gateway work as planning only, not implementation.
 9. Use `docs/LOCAL_ADAPTER_IMPLEMENTATION_CHECKLIST.md` before any adapter implementation begins; preserve route explanations, audit events, local-only defaults, and adversarial document-instruction behavior.
 10. Treat `docs/LITELLM_LOCAL_GATEWAY_PLAN.md` as the focused plan for any future OpenAI-compatible local gateway path; DreamServer work is out of scope for v0.1.3 planning unless a future task explicitly scopes it.
 
