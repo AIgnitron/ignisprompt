@@ -38,6 +38,19 @@ ALLOWED_CONTROL_CODEPOINTS = {
     0x0D,  # carriage return
 }
 
+HIDDEN_UNICODE_CATEGORIES = {"Cf", "Cc", "Cs", "Zl", "Zp"}
+HIDDEN_BIDI_CLASSES = {
+    "LRE",
+    "RLE",
+    "LRO",
+    "RLO",
+    "PDF",
+    "LRI",
+    "RLI",
+    "FSI",
+    "PDI",
+}
+
 
 def tracked_files() -> list[pathlib.Path]:
     import subprocess
@@ -74,7 +87,7 @@ def hidden_unicode_findings(path: pathlib.Path) -> list[str]:
         category = unicodedata.category(char)
         if ord(char) in ALLOWED_CONTROL_CODEPOINTS:
             continue
-        if category in {"Cf", "Cc"}:
+        if category in HIDDEN_UNICODE_CATEGORIES or unicodedata.bidirectional(char) in HIDDEN_BIDI_CLASSES:
             codepoint = f"U+{ord(char):04X}"
             name = unicodedata.name(char, "UNNAMED")
             findings.append(f"{path}:{line}:{column}: {codepoint} {name}")
