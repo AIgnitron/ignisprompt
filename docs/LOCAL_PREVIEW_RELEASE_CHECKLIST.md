@@ -292,7 +292,7 @@ Do not tag if verification fails or if untracked release artifacts are present.
 - #141 is post-v0.1.1 material and fixed MCP `audit_events` compatibility by changing MCP tool-call `structuredContent` to object-shaped `{ "events": [...] }`.
 - The HTTP `GET /v1/audit/events` response remains the existing JSON array shape.
 - #142 is post-v0.1.1 docs-only guardrail cleanup and reinforced sustainability guardrail wiring, demo warnings, tag immutability, `git pull --ff-only origin main`, and artifact hygiene.
-- Use `docs/releases/v0.1.2-local-preview.md` as the draft package for a future `v0.1.2-local-preview` patch release. Do not tag or publish from the checklist until the v0.1.2 draft's final pre-tag checklist passes.
+- `v0.1.2-local-preview` is published from #143 and is the current latest local-preview release. Use `docs/releases/v0.1.2-local-preview.md` as the release record.
 
 ## Rollback Notes
 

@@ -26,7 +26,7 @@ For details, see the [demo flows](docs/DEMO.md), [testing notes](docs/TESTING.md
 - legal chat completions default to `StubLegalRunner`
 - `stream: false` or a missing `stream` field keeps the current JSON completion shape, while `stream: true` returns a basic SSE-compatible scaffold
 - an opt-in `GgufRunner` spike can invoke a local GGUF runner binary when both the runner executable and the configured `.gguf` model file are present
-- an experimental stdio MCP stub can expose the existing local `route_explain` logic without changing the default HTTP daemon path
+- an experimental stdio MCP stub can expose `route_explain` plus read-only local observability tools without changing the default HTTP daemon path
 - a developer local-only evidence script can capture health, route, audit, binary-hash, and ignore-safety evidence under ignored `./local-evidence/attestation/`
 
 ## CI status
@@ -46,7 +46,8 @@ The docs set under `docs/` describes the current scaffold and clearly separates 
 - [Local preview release checklist](docs/LOCAL_PREVIEW_RELEASE_CHECKLIST.md)
 - [Local Preview 0.1.0 release notes draft](docs/releases/LOCAL_PREVIEW_0_1_0.md)
 - [Local Preview v0.1.1 release readiness](docs/releases/v0.1.1-local-preview.md)
-- [Local Preview v0.1.2 patch release draft](docs/releases/v0.1.2-local-preview.md)
+- [Local Preview v0.1.2 patch release record](docs/releases/v0.1.2-local-preview.md)
+- [Contributor MCP usage](docs/MCP_USAGE.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Aethra MVP plan](docs/AETHRA.md)
 - [Aethra MVP checkpoint](docs/AETHRA_MVP_CHECKPOINT.md) for the current fixture-backed local dashboard status
@@ -98,7 +99,7 @@ Contributor entry points:
 - production-grade GGUF/ONNX inference
 - Apple Foundation Models bridge
 - semantic cache
-- production-grade MCP server surface beyond the experimental stdio `route_explain` stub
+- production-grade MCP server surface beyond the experimental stdio stub
 - production-grade token-by-token streaming
 - real hardware RAM/thermal telemetry
 - signed Local-Only Attestation Report generation
@@ -186,6 +187,8 @@ For the real local GGUF path, start Ollama locally and then run:
 ## Experimental MCP Stub
 
 The repo now includes an experimental stdio MCP stub inside `ignispromptd`. It does not change default daemon startup, default CI, or the fallback to `StubLegalRunner`.
+
+For contributor-focused examples and response-shape notes, see [Contributor MCP usage](docs/MCP_USAGE.md).
 
 Current scope:
 

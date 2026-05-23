@@ -20,13 +20,14 @@ This roadmap describes intended direction, not completed functionality. Any item
 
 ## Near-term work
 
+- v0.1.3 planning: polish contributor MCP usage docs, prepare an Aethra public/demo package, and keep LiteLLM-style local gateway work in planning only. Do not implement LiteLLM in this planning pass. DreamServer work is out of scope.
 - Keep default CI green without local model weights.
 - Improve legal route tests and explanation-quality tests.
 - Expand adversarial document-instruction fixtures.
 - Make model manifest semantics clearer, especially the difference between route eligibility and actual local weight availability.
 - Continue local legal model bakeoffs with evidence stored under `./local-evidence/`.
 - Improve the GGUF subprocess contract while keeping it feature-gated.
-- Explore documented adapter concepts for local LiteLLM-style and DreamServer-style stacks without claiming implemented support or compatibility.
+- Explore documented adapter concepts for local LiteLLM-style stacks without claiming implemented support or compatibility.
 - Use the local adapter implementation checklist before any adapter code is proposed.
 - Refine the LiteLLM-style OpenAI-compatible local gateway plan before any implementation work begins.
 
@@ -38,7 +39,7 @@ Future model selection should compare larger general models and legal-domain can
 
 ## Planned but not implemented
 
-- MCP server.
+- Production-grade MCP server surface beyond the experimental stdio stub.
 - Production dashboard beyond the current Aethra fixture-backed, local-first MVP scaffold.
 - Production-grade incremental token streaming.
 - Tier 2 Apple Foundation Models or OS-native bridge.

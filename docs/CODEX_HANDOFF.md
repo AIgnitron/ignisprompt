@@ -9,7 +9,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - MVP tag: `v0.1.0-mvp`
 - Final readiness result: **PASS WITH GAPS**
 - Public feedback issue: https://github.com/AIgnitron/ignisprompt/issues/56
-- Latest known main commit: `941d1e8 docs: tighten post-v0.1.1 release guardrails (#142)`
+- Latest known main commit: `653cf9b docs: draft v0.1.2 local preview patch package (#143)`
 - Open PRs at this handoff: none
 - Open issues at this handoff: #56 only
 
@@ -40,9 +40,9 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - Post-v0.1.0 hardening branch `feat/aethra-copyable-local-commands` adds an Aethra Overview Local Commands panel with copyable terminal commands for local preview verification/debugging.
 - Aethra local preview polish adds a concise local preview banner and clearer manual live-local refresh grouping without backend or API changes.
 - The v0.1.1 local preview release-readiness package is documented in `docs/releases/v0.1.1-local-preview.md`. `v0.1.1-local-preview` was tagged and published from #140 and must not be moved or recreated during post-release cleanup.
-- PR #141 landed after v0.1.1 and fixed MCP `audit_events` compatibility by returning object-shaped MCP tool-call `structuredContent` as `{ "events": [...] }`. The HTTP `GET /v1/audit/events` array response remains preserved. Treat #141 as future `v0.1.2-local-preview` patch-release material if a patch release is needed.
+- PR #141 landed after v0.1.1 and fixed MCP `audit_events` compatibility by returning object-shaped MCP tool-call `structuredContent` as `{ "events": [...] }`. The HTTP `GET /v1/audit/events` array response remains preserved. This is included in `v0.1.2-local-preview`.
 - PR #142 landed after v0.1.1 and tightened post-release guardrail/release documentation. It documented sustainability language guardrail wiring, added a demo safety warning, reinforced v0.1.1 tag immutability and future v0.1.2 planning, and kept release workflows on `git pull --ff-only origin main`.
-- `docs/releases/v0.1.2-local-preview.md` is the draft patch release package for #141 and #142. It is docs-only, not tagged, not published, and should not modify the existing v0.1.1 tag or GitHub Release.
+- `v0.1.2-local-preview` is published from #143 and is the current latest local-preview release. It includes #141, #142, and the #143 patch release package. Do not move or recreate `v0.1.1-local-preview`.
 - Adapter concepts are documented as a design direction for possible future local LiteLLM-style and DreamServer-style integration. No adapter is implemented, no compatibility guarantee is made, and IgnisPrompt remains a local policy/routing/audit control plane rather than another model server.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
 - Issue #43 is closed after Saul 7B local legal candidate evidence was documented.
@@ -65,7 +65,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - `ignispromptctl sustainability --period 30d` reads `GET /v1/metrics/sustainability?period=<period>` and prints aggregate local sustainability metrics. Supported periods are `7d`, `30d`, and `90d`; the default is `30d`, and `--json` prints the same local endpoint response as formatted JSON.
 - The experimental stdio MCP stub exposes `route_explain` plus read-only local observability tools: `audit_events`, `status_version`, and `sustainability_summary`. The observability tools reuse existing local audit, version status, and sustainability summary logic. MCP `audit_events` now returns object-shaped structured content with an `events` array for stricter MCP client compatibility. They do not add telemetry, cloud calls, GitHub calls, update checks, external lookups, command execution, prompt/resource/sampling support, remote transports, model controls, runner controls, config changes, persistence, uploads, or global aggregation. Sustainability output remains estimated, counterfactual, proxy, methodology-dependent, and not certified sustainability reporting.
 - `docs/releases/v0.1.1-local-preview.md` is the v0.1.1 release-readiness record and post-release planning note. It does not claim production readiness. It should be reviewed with `docs/LOCAL_PREVIEW_RELEASE_CHECKLIST.md` before any future patch tag work.
-- `docs/releases/v0.1.2-local-preview.md` is a draft patch-release package only. It documents post-v0.1.1 MCP compatibility and docs guardrail cleanup, includes upgrade notes and pre-tag checks, and does not tag, publish, or claim production readiness.
+- `docs/releases/v0.1.2-local-preview.md` is the v0.1.2 patch release record. It documents post-v0.1.1 MCP compatibility and docs guardrail cleanup, includes upgrade notes and historical pre-tag checks, and does not claim production readiness.
 - `docs/ADAPTER_CONCEPTS.md` is docs-only design material. It does not add LiteLLM support, DreamServer support, proxying, runner controls, model controls, cloud calls, telemetry, external lookups, or API behavior.
 - `docs/LOCAL_ADAPTER_IMPLEMENTATION_CHECKLIST.md` is a docs-only future implementation gate for local adapter work. It does not implement adapters, change API behavior, add proxying, or add runner/model controls.
 - `docs/LITELLM_LOCAL_GATEWAY_PLAN.md` is a docs-only future implementation plan for a LiteLLM-style OpenAI-compatible local gateway path. It does not implement adapter code, proxying, API behavior, cloud fallback, runner controls, or model controls.
@@ -196,9 +196,9 @@ Add `--include-route-explain` only when you intentionally want to append a local
 5. Keep Aethra live-local diagnostics limited to local connection/debugging state; avoid polling, persistence, external lookup, cloud calls, update checks, readiness claims, or controls.
 6. Keep copyable command helpers local and explicit; avoid dashboard-side command execution, remote command language, telemetry, or persistence.
 7. Keep any future model and runner status work limited to hints; avoid readiness, certification, legal-quality, or compliance claims.
-8. Treat any LiteLLM-style or DreamServer-style adapter work as future local-preview design until implementation, tests, docs, and review land; keep adapters explicit, local, configurable, and disabled by default.
+8. For v0.1.3 planning, polish contributor MCP usage docs, prepare an Aethra public/demo package, and keep LiteLLM-style local gateway work as planning only, not implementation.
 9. Use `docs/LOCAL_ADAPTER_IMPLEMENTATION_CHECKLIST.md` before any adapter implementation begins; preserve route explanations, audit events, local-only defaults, and adversarial document-instruction behavior.
-10. Treat `docs/LITELLM_LOCAL_GATEWAY_PLAN.md` as the focused plan for any future OpenAI-compatible local gateway path; do not expand DreamServer work unless a future task explicitly scopes it.
+10. Treat `docs/LITELLM_LOCAL_GATEWAY_PLAN.md` as the focused plan for any future OpenAI-compatible local gateway path; DreamServer work is out of scope for v0.1.3 planning unless a future task explicitly scopes it.
 
 Avoid cloud telemetry, analytics, auth providers, a SaaS backend, model install/delete controls, and production/legal/compliance/sustainability overclaims unless a future task explicitly scopes and reviews those changes.
 
