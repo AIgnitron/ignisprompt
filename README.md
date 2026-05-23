@@ -172,6 +172,9 @@ cargo run -p ignispromptctl -- sustainability --period 30d
 cargo run -p ignispromptctl -- sustainability --period 30d --json
 cargo run -p ignispromptctl -- audit-events
 cargo run -p ignispromptctl -- audit-events --json
+cargo run -p ignispromptctl -- evidence-bundle --output local-evidence/demo-bundle
+cargo run -p ignispromptctl -- evidence-bundle --output local-evidence/demo-bundle --include-audit-events
+cargo run -p ignispromptctl -- evidence-bundle --output local-evidence/demo-bundle --json
 cargo run -p ignispromptctl -- route-explain --text "Review this synthetic contract clause."
 cargo run -p ignispromptctl -- route-explain --input ./tests/golden-legal/smoke-legal-request.json
 cargo run -p ignispromptctl -- route-explain --input ./tests/golden-legal/smoke-legal-request.json --json
@@ -183,6 +186,8 @@ cargo run -p ignispromptctl -- audit tail
 `sustainability` reads aggregate local metrics from `GET /v1/metrics/sustainability?period=<period>`, defaults to `30d`, supports `7d`, `30d`, and `90d`, and can print the daemon JSON with `--json`. It does not include prompts, raw audit text, PII, or machine identifiers.
 
 `audit-events` reads the existing local `GET /v1/audit/events` endpoint and can print either a terminal summary or formatted JSON. It is read-only and does not mutate, upload, persist, or redact audit events through external services.
+
+`evidence-bundle` writes a small local-only bundle under an ignored `local-evidence/` path from the existing local health, version status, model, model and runner status hint, and sustainability endpoints. `--include-audit-events` adds the raw local audit event response only when explicitly requested. `--json` prints the bundle summary JSON. The command is diagnostic/demo output only: it is not signed, not certified, not production evidence, and does not call cloud services or external endpoints.
 
 `route-explain` calls the existing local `POST /v1/route/explain` endpoint with either `--text` or `--input`. Use synthetic or non-sensitive text. This is route inspection, not legal advice or legal accuracy validation. For a legal route example, use a file that already carries legal context such as `./tests/golden-legal/smoke-legal-request.json`, which sets `model` to `ignisprompt/legal`.
 
