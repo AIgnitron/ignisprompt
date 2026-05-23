@@ -95,6 +95,8 @@ That variant uses synthetic text and appends a local audit event.
 
 ## Suggested Screenshot Set
 
+For a public-safe carousel order, captions, and demo talking points, see the [Aethra Public Demo Package](AETHRA_DEMO_PACKAGE.md).
+
 - Overview
 - Routing Explorer
 - Audit Events

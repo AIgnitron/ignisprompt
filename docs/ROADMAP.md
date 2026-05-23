@@ -20,7 +20,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 
 ## Near-term work
 
-- v0.1.3 planning: polish contributor MCP usage docs, prepare an Aethra public/demo package, and keep LiteLLM-style local gateway work in planning only. Do not implement LiteLLM in this planning pass. DreamServer work is out of scope.
+- v0.1.3 planning: use the contributor MCP usage docs and Aethra public/demo package as review material, and keep LiteLLM-style local gateway work in planning only. Do not implement LiteLLM in this planning pass. DreamServer work is out of scope.
 - Keep default CI green without local model weights.
 - Improve legal route tests and explanation-quality tests.
 - Expand adversarial document-instruction fixtures.
