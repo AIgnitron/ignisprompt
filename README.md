@@ -169,7 +169,12 @@ cargo run -p ignispromptctl -- health
 cargo run -p ignispromptctl -- status-version
 cargo run -p ignispromptctl -- models
 cargo run -p ignispromptctl -- sustainability --period 30d
-cargo run -p ignispromptctl -- route-explain --file ./tests/golden-legal/smoke-legal-request.json
+cargo run -p ignispromptctl -- sustainability --period 30d --json
+cargo run -p ignispromptctl -- audit-events
+cargo run -p ignispromptctl -- audit-events --json
+cargo run -p ignispromptctl -- route-explain --text "Review this synthetic contract clause."
+cargo run -p ignispromptctl -- route-explain --input ./tests/golden-legal/smoke-legal-request.json
+cargo run -p ignispromptctl -- route-explain --input ./tests/golden-legal/smoke-legal-request.json --json
 cargo run -p ignispromptctl -- audit tail
 ```
 
@@ -177,7 +182,9 @@ cargo run -p ignispromptctl -- audit tail
 
 `sustainability` reads aggregate local metrics from `GET /v1/metrics/sustainability?period=<period>`, defaults to `30d`, supports `7d`, `30d`, and `90d`, and can print the daemon JSON with `--json`. It does not include prompts, raw audit text, PII, or machine identifiers.
 
-`route-explain` reads a JSON request file. For a legal route example, use a file that already carries legal context such as `./tests/golden-legal/smoke-legal-request.json`, which sets `model` to `ignisprompt/legal`.
+`audit-events` reads the existing local `GET /v1/audit/events` endpoint and can print either a terminal summary or formatted JSON. It is read-only and does not mutate, upload, persist, or redact audit events through external services.
+
+`route-explain` calls the existing local `POST /v1/route/explain` endpoint with either `--text` or `--input`. Use synthetic or non-sensitive text. This is route inspection, not legal advice or legal accuracy validation. For a legal route example, use a file that already carries legal context such as `./tests/golden-legal/smoke-legal-request.json`, which sets `model` to `ignisprompt/legal`.
 
 For the real local GGUF path, start Ollama locally and then run:
 

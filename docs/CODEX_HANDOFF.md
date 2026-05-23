@@ -9,7 +9,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - MVP tag: `v0.1.0-mvp`
 - Final readiness result: **PASS WITH GAPS**
 - Public feedback issue: https://github.com/AIgnitron/ignisprompt/issues/56
-- Latest known main commit: `55ffd5b test: harden Aethra live-local contracts (#151)`
+- Latest known main commit: `0b622bd ci: add reproducible security review checks (#152)`
 - Open PRs at this handoff: none
 - Open issues at this handoff: #56 only
 
@@ -51,6 +51,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - PR #149 hardened audit evidence validation and added `generate-local-only-attestation.sh --self-test`. The normal script still generates local-only developer evidence only; it does not implement signed attestation reports or tamper-evident audit storage.
 - PR #150 added feature-gated GGUF subprocess timeout handling and local runner preflight hardening while keeping `StubLegalRunner` as the default fallback.
 - PR #151 hardened Aethra live-local contracts with fixture/schema contract tests, optional-field tolerance, model/runner status hint summaries, audit proxy estimate coverage, sustainability report redaction, and minimal current-state docs cleanup.
+- PR #152 added reproducible local security review checks: hidden Unicode scanning, conservative local secret scanning, optional `cargo-audit`, optional CycloneDX SBOM dry-run/generation under ignored local evidence, and docs that avoid certification or complete supply-chain assurance claims.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
 - Issue #43 is closed after Saul 7B local legal candidate evidence was documented.
 
@@ -75,6 +76,8 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - `ignispromptctl status-version` reads `GET /v1/status/version` and prints the same local preview metadata.
 - `ignispromptctl doctor` checks required local preview endpoints for `/health`, `/v1/status/version`, `/v1/models`, and `/v1/status/models`, plus an informational sustainability metrics check for `/v1/metrics/sustainability?period=30d`. It supports `--json`, exits non-zero when required checks fail, and prints local next steps for common failures. It does not add telemetry, cloud calls, GitHub calls, update checks, external lookup, persistence, uploads, model controls, runner controls, or command execution beyond local HTTP reads.
 - `ignispromptctl sustainability --period 30d` reads `GET /v1/metrics/sustainability?period=<period>` and prints aggregate local sustainability metrics. Supported periods are `7d`, `30d`, and `90d`; the default is `30d`, and `--json` prints the same local endpoint response as formatted JSON.
+- `ignispromptctl audit-events` reads the existing local `GET /v1/audit/events` endpoint as a read-only terminal inspection command. It can print a human-readable summary or formatted JSON and does not mutate, persist, upload, or externally redact audit events.
+- `ignispromptctl route-explain` calls the existing local `POST /v1/route/explain` endpoint with synthetic/non-sensitive `--text` or a request JSON `--input`, with optional formatted JSON output. It is route inspection only, not legal advice or legal accuracy validation.
 - The experimental stdio MCP stub exposes `route_explain` plus read-only local observability tools: `audit_events`, `status_version`, and `sustainability_summary`. The observability tools reuse existing local audit, version status, and sustainability summary logic. MCP `audit_events` now returns object-shaped structured content with an `events` array for stricter MCP client compatibility. They do not add telemetry, cloud calls, GitHub calls, update checks, external lookups, command execution, prompt/resource/sampling support, remote transports, model controls, runner controls, config changes, persistence, uploads, or global aggregation. Sustainability output remains estimated, counterfactual, proxy, methodology-dependent, and not certified sustainability reporting.
 - `docs/releases/v0.1.1-local-preview.md` is the v0.1.1 release-readiness record and post-release planning note. It does not claim production readiness. It should be reviewed with `docs/LOCAL_PREVIEW_RELEASE_CHECKLIST.md` before any future patch tag work.
 - `docs/releases/v0.1.2-local-preview.md` is the v0.1.2 patch release record. It documents post-v0.1.1 MCP compatibility and docs guardrail cleanup, includes upgrade notes and historical pre-tag checks, and does not claim production readiness.
