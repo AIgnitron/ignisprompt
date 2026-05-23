@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 BUILD_MODE="${IGNISPROMPT_ATTESTATION_BUILD_MODE:-debug}"
+MODE="${1:-}"
 ATTESTATION_PORT="${IGNISPROMPT_ATTESTATION_PORT:-8765}"
 MODEL_DIR="${IGNISPROMPT_ATTESTATION_MODEL_DIR:-./config/models}"
 REQUEST_FILE="${IGNISPROMPT_ATTESTATION_REQUEST_FILE:-$ROOT_DIR/tests/golden-legal/smoke-legal-request.json}"
@@ -43,6 +44,112 @@ require_cmd() {
     echo "missing required command: $1" >&2
     exit 1
   }
+}
+
+usage() {
+  cat <<EOF
+Usage: ./scripts/generate-local-only-attestation.sh [--self-test]
+
+Generates a developer local-only evidence bundle under ignored local-evidence/.
+
+Modes:
+  --self-test    Verify ignored-path and placeholder-value validation without starting the daemon.
+EOF
+}
+
+relative_to_root() {
+  local path="$1"
+
+  case "$path" in
+    "$ROOT_DIR"/*)
+      printf '%s\n' "${path#$ROOT_DIR/}"
+      ;;
+    *)
+      printf '%s\n' "$path"
+      ;;
+  esac
+}
+
+require_ignored_path() {
+  local path="$1"
+  local relative
+
+  relative="$(relative_to_root "$path")"
+  git check-ignore -q "$relative" || {
+    echo "expected path to be git-ignored: $relative" >&2
+    exit 1
+  }
+}
+
+validate_evidence_root() {
+  case "$EVIDENCE_ROOT" in
+    "$ROOT_DIR/local-evidence"/*)
+      ;;
+    *)
+      echo "evidence root must stay under ignored local-evidence/: $EVIDENCE_ROOT" >&2
+      exit 1
+      ;;
+  esac
+
+  require_ignored_path "$EVIDENCE_ROOT"
+}
+
+validate_summary_json() {
+  local summary_path="$1"
+
+  jq -e '.developer_evidence_only == true' "$summary_path" >/dev/null
+  jq -e '[.. | strings] | all(. != "string")' "$summary_path" >/dev/null || {
+    echo "summary contains placeholder-like literal string values: $summary_path" >&2
+    return 1
+  }
+  jq -e '.notes | any(. == "Not a signed attestation report.")' "$summary_path" >/dev/null
+}
+
+self_test() {
+  require_cmd git
+  require_cmd jq
+
+  local test_root="$ROOT_DIR/local-evidence/attestation/self-test-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  local valid_summary="$test_root/summary-valid.json"
+  local placeholder_summary="$test_root/summary-placeholder.json"
+
+  mkdir -p "$test_root"
+  require_ignored_path "$test_root/summary-valid.json"
+  require_ignored_path "$ROOT_DIR/local-evidence/demo-local-legal-review/example/transcript.md"
+  require_ignored_path "$ROOT_DIR/local-evidence/golden-legal-v0.3/example/summary.jsonl"
+  require_ignored_path "$ROOT_DIR/data/audit/example.events.jsonl"
+  require_ignored_path "$ROOT_DIR/models/example.gguf"
+  require_ignored_path "$ROOT_DIR/target/debug/ignispromptd"
+  require_ignored_path "$ROOT_DIR/apps/aethra/dist/example.js"
+
+  jq -n \
+    --arg evidence_root "$test_root" \
+    '{
+      developer_evidence_only: true,
+      evidence_root: $evidence_root,
+      git_sha: "self-test",
+      local_only: true,
+      route_decision: {
+        tier: "TIER_3",
+        route_code: "DOMAIN_MODEL_SELECTED",
+        domain: "legal",
+        data_left_device: false
+      },
+      notes: [
+        "Developer-generated local-only evidence only.",
+        "Not a signed attestation report.",
+        "Not formal certification or compliance certification."
+      ]
+    }' >"$valid_summary"
+  validate_summary_json "$valid_summary"
+
+  jq '.route_decision.domain = "string"' "$valid_summary" >"$placeholder_summary"
+  if validate_summary_json "$placeholder_summary" >/dev/null 2>&1; then
+    echo "self-test expected placeholder-like summary values to be rejected" >&2
+    exit 1
+  fi
+
+  echo "[OK] local-only attestation validation self-test passed"
 }
 
 wait_for_health() {
@@ -111,6 +218,23 @@ stop_daemon() {
   BASE_URL=""
 }
 
+case "$MODE" in
+  "")
+    ;;
+  --self-test)
+    self_test
+    exit 0
+    ;;
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  *)
+    usage >&2
+    exit 1
+    ;;
+esac
+
 require_cmd cargo
 require_cmd curl
 require_cmd git
@@ -121,6 +245,7 @@ require_cmd jq
   exit 1
 }
 
+validate_evidence_root
 mkdir -p "$EVIDENCE_ROOT"
 mkdir -p "$ROOT_DIR/data/audit"
 DAEMON_PID=""
@@ -163,11 +288,17 @@ git check-ignore -v \
   "models/example.gguf" \
   "local-evidence/attestation/example/evidence.json" \
   "local-evidence/demo-local-legal-review/example/transcript.md" \
-  "local-evidence/golden-legal-v0.3/example/summary.jsonl" >"$IGNORE_CHECKS"
+  "local-evidence/golden-legal-v0.3/example/summary.jsonl" \
+  "data/audit/example.events.jsonl" \
+  "target/debug/ignispromptd" \
+  "apps/aethra/dist/example.js" >"$IGNORE_CHECKS"
 git check-ignore -q "models/example.gguf"
 git check-ignore -q "local-evidence/attestation/example/evidence.json"
 git check-ignore -q "local-evidence/demo-local-legal-review/example/transcript.md"
 git check-ignore -q "local-evidence/golden-legal-v0.3/example/summary.jsonl"
+git check-ignore -q "data/audit/example.events.jsonl"
+git check-ignore -q "target/debug/ignispromptd"
+git check-ignore -q "apps/aethra/dist/example.js"
 
 start_daemon
 
@@ -215,6 +346,8 @@ jq -n \
       "Not formal certification or compliance certification."
     ]
   }' >"$SUMMARY_JSON"
+
+validate_summary_json "$SUMMARY_JSON"
 
 cat >"$SUMMARY_README" <<EOF
 # Local-Only Attestation Evidence

@@ -125,7 +125,7 @@ npm run smoke:local-api -- --start-daemon --include-route-explain
 
 The default Rust tests cover the Aethra v0.1 methodology fields on audit events, valid JSON shape for `GET /v1/metrics/sustainability?period=30d`, safe zero values with no audit data, local fail-closed/cloud-denied route counting, and always-present methodology/disclaimer fields.
 
-Local-preview API schema-lock tests cover the JSON field names and high-level response shapes consumed by Aethra, smoke checks, and `ignispromptctl` for `GET /health`, `GET /v1/models`, `GET /v1/status/models`, `GET /v1/status/version`, `GET /v1/audit/events`, `GET /v1/metrics/sustainability?period=30d`, and invalid sustainability period errors. OpenAI-compatible `POST /v1/chat/completions` tests also lock the non-streaming response shape, streaming SSE chunk shape, route metadata, local-only route flags, UTF-8-safe streaming fragments, and representative invalid-input error shape for local-preview users and future local gateway planning. Existing MCP response shape tests lock `initialize`, `tools/list`, `route_explain` tool success/error payloads, notification behavior, and JSON-RPC error envelopes before any future MCP expansion.
+Local-preview API schema-lock tests cover the JSON field names and high-level response shapes consumed by Aethra, smoke checks, and `ignispromptctl` for `GET /health`, `GET /v1/models`, `GET /v1/status/models`, `GET /v1/status/version`, `GET /v1/audit/events`, `GET /v1/metrics/sustainability?period=30d`, and invalid sustainability period errors. Audit integrity regression tests also check route-explain and chat-completion audit events for local route/domain/tier signals, request IDs, timestamps, conservative warning/explanation metadata, and optional Aethra estimate fields while preserving the HTTP audit endpoint's JSON array shape. OpenAI-compatible `POST /v1/chat/completions` tests also lock the non-streaming response shape, streaming SSE chunk shape, route metadata, local-only route flags, UTF-8-safe streaming fragments, and representative invalid-input error shape for local-preview users and future local gateway planning. Existing MCP response shape tests lock `initialize`, `tools/list`, `route_explain` tool success/error payloads, notification behavior, and JSON-RPC error envelopes before any future MCP expansion.
 
 Route-policy regression tests cover legal Tier 3 routing, general non-legal local routing, local-only fail-closed legal routing, adversarial document-instruction warnings, conservative route explanation text, and local audit emission for route explanations and chat completions. The tests use existing deterministic golden legal fixtures and do not add generated evidence, model weights, cloud calls, telemetry, or HTTP response shape changes.
 
@@ -216,7 +216,13 @@ These scripts require local Ollama and local model files:
 
 They write evidence under `./local-evidence/`. Do not commit evidence bundles.
 
-`./scripts/generate-local-only-attestation.sh` writes a developer-generated evidence bundle under `./local-evidence/attestation/<timestamp>/`. It captures git SHA, build mode, built binary path and hash, `/health`, legal route explanation, audit snapshot, `data_left_device=false` evidence, and git-ignore safety for `models/**`, attestation evidence, demo transcripts, and Golden Legal evidence under `local-evidence/**`. It is not a signed attestation report or compliance certification.
+`./scripts/generate-local-only-attestation.sh` writes a developer-generated evidence bundle under `./local-evidence/attestation/<timestamp>/`. It captures git SHA, build mode, built binary path and hash, `/health`, legal route explanation, audit snapshot, `data_left_device=false` evidence, and git-ignore safety for `models/**`, `data/audit/*.jsonl`, `target/`, Aethra `dist/`, attestation evidence, demo transcripts, and Golden Legal evidence under `local-evidence/**`. It validates that the evidence root stays under ignored `local-evidence/` and that the summary does not contain placeholder-like literal `"string"` values. It is not a signed attestation report or compliance certification.
+
+For a deterministic default-path validation of those local evidence guardrails without starting the daemon:
+
+```bash
+./scripts/generate-local-only-attestation.sh --self-test
+```
 
 The Golden Legal v0.3 script now includes nine local control-plane cases: the original Tier 3 success, fail-closed, no-cloud, explanation, and subtle legal-language cases plus an expanded adversarial fixture matrix. Passing this path validates local routing, audit capture, and schema handling under local prerequisites. It does not prove legal accuracy, production readiness, enterprise attestation, or compliance certification.
 
@@ -238,6 +244,7 @@ The Golden Legal v0.3 script now includes nine local control-plane cases: the or
 - The feature-gated GGUF tests require an explicit local runner path and reject bare executable names.
 - The legal JSON normalizer accepts realistic local noisy output forms and records schema failures as structured local failures.
 - `./scripts/demo-transcript.sh --self-test` writes a tiny ignored fixture bundle, verifies transcript safety language, and rejects placeholder-like successful demo JSON containing literal `"string"` values.
+- `./scripts/generate-local-only-attestation.sh --self-test` verifies ignored local evidence, audit log, model, `target/`, and Aethra `dist/` paths, and rejects placeholder-like summary JSON containing literal `"string"` values.
 - The experimental MCP stub can initialize, list tools, and call `route_explain` while reusing the existing local route and audit behavior.
 
 ## What tests do not prove

@@ -2594,6 +2594,41 @@ mod tests {
         assert!(choices[0]["message"]["content"].is_string());
     }
 
+    fn assert_local_audit_integrity(
+        event: &AuditEvent,
+        event_type: &str,
+        route_code: &str,
+        tier: &str,
+        domain: &str,
+    ) {
+        assert_eq!(event.event_type, event_type);
+        assert!(Uuid::parse_str(&event.request_id).is_ok());
+        assert!(
+            event.timestamp <= Utc::now(),
+            "audit timestamp should not be in the future: {:?}",
+            event.timestamp
+        );
+        assert_eq!(event.route_code, route_code);
+        assert_eq!(event.tier, tier);
+        assert_eq!(event.domain, domain);
+        assert!(!event.data_left_device);
+        assert_conservative_route_explanation(&event.explanation);
+        assert!(event.input_tokens_est.is_some());
+        assert!(event.output_tokens_est.is_some());
+        assert_eq!(event.baseline_provider.as_deref(), Some("openai"));
+        assert_eq!(event.baseline_model.as_deref(), Some("gpt-4.1-mini"));
+        assert!(event.estimated_cloud_cost_usd.unwrap_or(-1.0) >= 0.0);
+        assert!(event.estimated_cloud_cost_avoided_usd.unwrap_or(-1.0) >= 0.0);
+        assert!(event.estimated_local_energy_wh.unwrap_or(-1.0) >= 0.0);
+        assert!(event.estimated_cloud_baseline_wh.unwrap_or(-1.0) >= 0.0);
+        assert!(event.estimated_carbon_avoided_gco2e.unwrap_or(-1.0) >= 0.0);
+        assert_eq!(
+            event.methodology_version.as_deref(),
+            Some("aethra-impact-0.1")
+        );
+        assert_eq!(event.confidence.as_deref(), Some("low"));
+    }
+
     fn assert_chat_completion_chunk_schema(encoded: &Value) {
         assert_json_contains_keys(encoded, &["id", "object", "created", "model", "choices"]);
         assert!(encoded["id"].as_str().is_some_and(|id| !id.is_empty()));
@@ -3087,6 +3122,89 @@ mod tests {
         assert_eq!(event["baseline_model"], "gpt-4.1-mini");
         assert_eq!(event["methodology_version"], "aethra-impact-0.1");
         assert_eq!(event["confidence"], "low");
+    }
+
+    #[tokio::test]
+    async fn audit_events_keep_local_integrity_for_route_explain_and_chat_completion() {
+        let state = state_with_models(vec![legal_model()]);
+        let route_request = req(
+            "Review this indemnification clause in a vendor services agreement.",
+            Some("ignisprompt/legal"),
+        );
+        let chat_request = req(
+            "Summarize the local-preview risks in this synthetic contract clause.",
+            Some("ignisprompt/legal"),
+        );
+
+        let (route_status, route_response) = call_route_explain(&state, route_request).await;
+        let (chat_status, chat_response) = call_chat_completions(&state, chat_request).await;
+
+        assert_eq!(route_status, StatusCode::OK);
+        assert_eq!(chat_status, StatusCode::OK);
+        assert!(!route_response.decision.data_left_device);
+        assert!(!chat_response.route.data_left_device);
+
+        let events = call_audit_events(&state).await;
+        assert_eq!(events.len(), 2);
+        assert_local_audit_integrity(
+            &events[0],
+            "route_explain",
+            "DOMAIN_MODEL_SELECTED",
+            "TIER_3",
+            "legal",
+        );
+        assert_eq!(events[0].request_id, route_response.request_id);
+        assert!(events[0].cache.is_none());
+        assert!(events[0].completion_output.is_none());
+
+        assert_local_audit_integrity(
+            &events[1],
+            "chat_completion",
+            "DOMAIN_MODEL_SELECTED",
+            "TIER_3",
+            "legal",
+        );
+        assert_eq!(events[1].request_id, chat_response.id);
+        assert!(events[1].cache.is_none());
+        assert!(events[1].completion_output.is_none());
+
+        let encoded = serde_json::to_value(&events).unwrap();
+        assert!(encoded.is_array(), "GET /v1/audit/events must stay an array");
+        assert_eq!(encoded.as_array().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn adversarial_route_audit_event_preserves_warning_and_local_boundary() {
+        let state = state_with_models(vec![legal_model()]);
+
+        let (status, route_response) =
+            call_route_explain(&state, golden_legal_fixture("adversarial-cloud-route-request"))
+                .await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(route_response.decision.route_code, "DOMAIN_MODEL_SELECTED");
+        assert!(!route_response.decision.cloud_considered);
+        assert!(!route_response.decision.cloud_allowed);
+        assert!(!route_response.decision.data_left_device);
+        assert!(route_response
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("treated as untrusted content")));
+
+        let events = call_audit_events(&state).await;
+        assert_eq!(events.len(), 1);
+        assert_local_audit_integrity(
+            &events[0],
+            "route_explain",
+            "DOMAIN_MODEL_SELECTED",
+            "TIER_3",
+            "legal",
+        );
+        assert_eq!(events[0].request_id, route_response.request_id);
+        assert!(events[0]
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("treated as untrusted content")));
     }
 
     #[tokio::test]

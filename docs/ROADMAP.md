@@ -9,6 +9,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Manifest loading from `config/models`.
 - Route explanations for legal and general requests.
 - Local audit events for route explanations and chat completions.
+- Audit integrity regression coverage for route-explain and chat-completion audit event shape, local route signals, timestamps, warnings, and optional proxy estimate fields.
 - Aethra v0.1 local-only sustainability metrics endpoint with counterfactual proxy estimates derived from local audit events.
 - Aethra fixture-backed, local-first MVP scaffold for observing local preview metadata and proxy sustainability indicators. It is not a production dashboard.
 - Adversarial document-instruction detection for known instruction strings.
@@ -25,6 +26,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Keep route-policy regression coverage current for legal Tier 3 routing, general local routing, adversarial document-instruction handling, conservative explanations, and local audit emission.
 - Keep model availability semantics explicit: route eligibility, manifest configuration, local file presence, runner hints, and executable local inference are separate states.
 - Keep the Golden Legal adversarial fixture matrix small, synthetic, deterministic, and local-only.
+- Keep local evidence validation strict while avoiding signed attestation or tamper-evident storage claims until those features are explicitly implemented.
 - Continue local legal model bakeoffs with evidence stored under `./local-evidence/`.
 - Improve the GGUF subprocess contract while keeping it feature-gated.
 - Explore documented adapter concepts for local LiteLLM-style stacks without claiming implemented support or compatibility.
