@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AuditEvents } from "./routes/AuditEvents";
 import { EvidenceBundleViewer } from "./routes/EvidenceBundleViewer";
 import { LocalCommandCenter } from "./routes/LocalCommandCenter";
+import { LocalOperatorConsole } from "./routes/LocalOperatorConsole";
 import { LocalReadiness } from "./routes/LocalReadiness";
 import { StatusBadge } from "./components/StatusBadge";
 import { createIgnisPromptClient } from "./api/client";
@@ -33,6 +34,7 @@ import { SustainabilityPreview } from "./routes/SustainabilityPreview";
 type AethraRoute =
   | "overview"
   | "local-readiness"
+  | "local-operator-console"
   | "local-command-center"
   | "routing-explorer"
   | "audit-events"
@@ -287,6 +289,15 @@ export default function App() {
           <button
             type="button"
             aria-current={
+              activeRoute === "local-operator-console" ? "page" : undefined
+            }
+            onClick={() => setActiveRoute("local-operator-console")}
+          >
+            Local operator console
+          </button>
+          <button
+            type="button"
+            aria-current={
               activeRoute === "routing-explorer" ? "page" : undefined
             }
             onClick={() => setActiveRoute("routing-explorer")}
@@ -397,6 +408,9 @@ export default function App() {
           />
         ) : null}
         {activeRoute === "local-command-center" ? <LocalCommandCenter /> : null}
+        {activeRoute === "local-operator-console" ? (
+          <LocalOperatorConsole />
+        ) : null}
         {activeRoute === "routing-explorer" ? (
           <RoutingExplorer
             localBaseUrl={localBaseUrl}

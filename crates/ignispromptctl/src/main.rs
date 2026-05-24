@@ -53,6 +53,12 @@ enum Commands {
         #[arg(long)]
         package_list: Option<String>,
     },
+    /// Summarize the local preview operator workflow without calling the daemon
+    OperatorSummary {
+        /// Print structured JSON operator guidance
+        #[arg(long)]
+        json: bool,
+    },
     /// Check daemon health
     Health,
     /// Print daemon version and local preview status
@@ -165,6 +171,7 @@ fn main() {
             package_validate,
             package_list,
         ),
+        Commands::OperatorSummary { json } => cmd_operator_summary(*json),
         Commands::Health => cmd_health(&cli.daemon_url),
         Commands::StatusVersion => cmd_status_version(&cli.daemon_url),
         Commands::Sustainability { period, json } => {
@@ -283,6 +290,131 @@ const READINESS_PACKAGE_REQUIRED_FILES: &[&str] = &[
     "readiness-summary.json",
     "readiness-report.json",
     "readiness-report.md",
+];
+const OPERATOR_SUMMARY_SCHEMA_VERSION: &str = "ignisprompt-operator-summary-0.1";
+
+#[derive(Clone, Copy, Debug)]
+struct OperatorSummarySection {
+    id: &'static str,
+    name: &'static str,
+    status: &'static str,
+    summary: &'static str,
+    next_step: &'static str,
+    boundary_note: &'static str,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct OperatorCommandRecipe {
+    id: &'static str,
+    label: &'static str,
+    command: &'static str,
+    purpose: &'static str,
+}
+
+const OPERATOR_SUMMARY_SECTIONS: &[OperatorSummarySection] = &[
+    OperatorSummarySection {
+        id: "local-readiness",
+        name: "Local preview readiness",
+        status: "status_hints",
+        summary: "Review daemon, endpoint, model, runner, audit, and Aethra readiness signals.",
+        next_step: "Run cargo run -p ignispromptctl -- readiness, then make readiness-check.",
+        boundary_note: "status hints, not controls",
+    },
+    OperatorSummarySection {
+        id: "readiness-package",
+        name: "CLI readiness package",
+        status: "local_helper",
+        summary: "Generate, list, and validate local readiness packages under ignored local-evidence/readiness/ paths.",
+        next_step: "Run cargo run -p ignispromptctl -- readiness --package-output local-evidence/readiness/demo.",
+        boundary_note: "package validation is structural/local only",
+    },
+    OperatorSummarySection {
+        id: "evidence-workflow",
+        name: "Evidence bundle workflow",
+        status: "local_helper",
+        summary: "Use local evidence helpers and demo workflow self-tests for local preview notes.",
+        next_step: "Run make evidence-check and ./scripts/demo-local-evidence-workflow.sh --self-test.",
+        boundary_note: "local helper checks, not certification",
+    },
+    OperatorSummarySection {
+        id: "aethra-demo-path",
+        name: "Aethra demo path",
+        status: "fixture_backed",
+        summary: "Open Aethra views for fixture-backed readiness, evidence, and command guidance.",
+        next_step: "Use manual live-local loading only when local daemon metadata is needed.",
+        boundary_note: "read-only with manual live-local loading",
+    },
+    OperatorSummarySection {
+        id: "local-boundaries",
+        name: "Local safety boundaries",
+        status: "boundary_notes",
+        summary: "Keep results local preview only with no telemetry, cloud calls by default, or global aggregation.",
+        next_step: "Treat command recipes as copy-only local guidance.",
+        boundary_note: "archives and packages are not signed",
+    },
+];
+
+const OPERATOR_COMMAND_RECIPES: &[OperatorCommandRecipe] = &[
+    OperatorCommandRecipe {
+        id: "start-dev",
+        label: "Start local daemon",
+        command: "./scripts/start-dev.sh",
+        purpose: "Start the local preview daemon from the repo root.",
+    },
+    OperatorCommandRecipe {
+        id: "doctor",
+        label: "Run local doctor",
+        command: "cargo run -p ignispromptctl -- doctor",
+        purpose: "Check local daemon endpoint shape from the terminal.",
+    },
+    OperatorCommandRecipe {
+        id: "readiness",
+        label: "Run readiness summary",
+        command: "cargo run -p ignispromptctl -- readiness",
+        purpose: "Summarize local preview readiness.",
+    },
+    OperatorCommandRecipe {
+        id: "readiness-json",
+        label: "Run readiness JSON",
+        command: "cargo run -p ignispromptctl -- readiness --json",
+        purpose: "Print safe structured readiness diagnostics.",
+    },
+    OperatorCommandRecipe {
+        id: "readiness-package-output",
+        label: "Generate readiness package",
+        command: "cargo run -p ignispromptctl -- readiness --package-output local-evidence/readiness/demo",
+        purpose: "Write a local-only readiness package under ignored local-evidence/readiness/.",
+    },
+    OperatorCommandRecipe {
+        id: "readiness-package-list",
+        label: "List readiness package",
+        command: "cargo run -p ignispromptctl -- readiness --package-list local-evidence/readiness/demo",
+        purpose: "List package files without calling the daemon.",
+    },
+    OperatorCommandRecipe {
+        id: "readiness-package-validate",
+        label: "Validate readiness package",
+        command: "cargo run -p ignispromptctl -- readiness --package-validate local-evidence/readiness/demo",
+        purpose: "Validate required package files with local structural checks.",
+    },
+    OperatorCommandRecipe {
+        id: "readiness-check",
+        label: "Run readiness quality gate",
+        command: "make readiness-check",
+        purpose: "Run deterministic readiness and report safety checks.",
+    },
+    OperatorCommandRecipe {
+        id: "evidence-check",
+        label: "Run evidence quality gate",
+        command: "make evidence-check",
+        purpose: "Run deterministic local evidence workflow checks.",
+    },
+    OperatorCommandRecipe {
+        id: "demo-self-test",
+        label: "Run demo workflow self-test",
+        command: "./scripts/demo-local-evidence-workflow.sh --self-test",
+        purpose: "Verify demo workflow command construction and ignored paths.",
+    },
 ];
 
 const DOCTOR_CHECKS: &[DoctorCheckSpec] = &[
@@ -421,6 +553,14 @@ fn cmd_readiness(
 
     if !is_ready {
         process::exit(1);
+    }
+}
+
+fn cmd_operator_summary(json_output: bool) {
+    if json_output {
+        println!("{}", format_operator_summary_json());
+    } else {
+        println!("{}", format_operator_summary());
     }
 }
 
@@ -813,6 +953,104 @@ fn format_readiness_report_check_line(check: &DoctorCheckResult) -> String {
         readiness_check_severity(check),
         sanitize_readiness_report_text(&readiness_check_next_step(check))
     )
+}
+
+fn format_operator_summary() -> String {
+    let mut lines = vec![
+        "IgnisPrompt Local Operator Summary".to_string(),
+        "".to_string(),
+        "Scope:".to_string(),
+        "- local preview operator workflow only".to_string(),
+        "- status hints, not controls".to_string(),
+        "- local helper checks, not certification".to_string(),
+        "- package validation is structural/local only".to_string(),
+        "- archives and packages are not signed".to_string(),
+        "- no telemetry, no global aggregation, and no cloud calls by default".to_string(),
+        "- Aethra remains fixture-backed by default with manual live-local loading".to_string(),
+        "".to_string(),
+        "Operator sections:".to_string(),
+    ];
+
+    for section in OPERATOR_SUMMARY_SECTIONS {
+        lines.push(format!(
+            "- {}: {} ({})",
+            sanitize_readiness_report_text(section.name),
+            sanitize_readiness_report_text(section.summary),
+            sanitize_readiness_report_text(section.boundary_note)
+        ));
+        lines.push(format!(
+            "  next step: {}",
+            sanitize_readiness_report_text(section.next_step)
+        ));
+    }
+
+    lines.push("".to_string());
+    lines.push("Copy-only command recipes:".to_string());
+    for recipe in OPERATOR_COMMAND_RECIPES {
+        lines.push(format!(
+            "- {}",
+            sanitize_readiness_report_text(recipe.command)
+        ));
+    }
+
+    lines.join("\n")
+}
+
+fn format_operator_summary_json() -> String {
+    let sections = OPERATOR_SUMMARY_SECTIONS
+        .iter()
+        .map(|section| {
+            json!({
+                "id": section.id,
+                "name": sanitize_readiness_report_text(section.name),
+                "status": section.status,
+                "summary": sanitize_readiness_report_text(section.summary),
+                "local_next_step": sanitize_readiness_report_text(section.next_step),
+                "boundary_note": sanitize_readiness_report_text(section.boundary_note),
+            })
+        })
+        .collect::<Vec<_>>();
+    let commands = OPERATOR_COMMAND_RECIPES
+        .iter()
+        .map(|recipe| {
+            json!({
+                "id": recipe.id,
+                "label": sanitize_readiness_report_text(recipe.label),
+                "command": sanitize_readiness_report_text(recipe.command),
+                "purpose": sanitize_readiness_report_text(recipe.purpose),
+                "execution_mode": "copy_only",
+            })
+        })
+        .collect::<Vec<_>>();
+
+    serde_json::to_string_pretty(&json!({
+        "operator_summary_schema_version": OPERATOR_SUMMARY_SCHEMA_VERSION,
+        "mode": "local-preview",
+        "status": "operator_guidance",
+        "scope": {
+            "local_preview_operator_workflow_only": true,
+            "status_hints_not_controls": true,
+            "local_helper_checks_not_certification": true,
+            "structural_local_package_validation_only": true,
+            "archives_and_packages_not_signed": true,
+            "aethra_fixture_backed_by_default": true,
+            "manual_live_local_loading": true,
+            "no_telemetry": true,
+            "no_cloud_calls_by_default": true,
+            "no_global_aggregation": true,
+        },
+        "sections": sections,
+        "commands": commands,
+        "boundary_notes": [
+            "local preview operator workflow only",
+            "status hints, not controls",
+            "local helper checks, not certification",
+            "package validation is structural/local only",
+            "archives and packages are not signed",
+            "not production attestation",
+        ],
+    }))
+    .unwrap_or_default()
 }
 
 fn readiness_report_next_steps(report: &DoctorReport) -> Vec<String> {
@@ -4577,15 +4815,16 @@ mod tests {
         format_evidence_bundle_manifest_summary, format_evidence_bundle_summary,
         format_evidence_bundle_unreachable_error, format_evidence_bundle_validation_json,
         format_evidence_bundle_validation_summary, format_http_error,
-        format_invalid_response_error, format_model_manifest_line, format_readiness_json,
-        format_readiness_markdown, format_readiness_package_list_json,
-        format_readiness_package_list_summary, format_readiness_package_summary,
-        format_readiness_package_summary_json, format_readiness_package_validation_json,
-        format_readiness_package_validation_summary, format_readiness_summary,
-        format_route_explain_summary, format_sustainability_summary, format_unreachable_error,
-        is_audit_event_list, is_route_explain_response, is_sustainability_metrics_response,
-        readiness_report_next_steps, route_explain_url, string_field, sustainability_url,
-        validate_doctor_health, validate_doctor_model_status_hints, validate_doctor_models,
+        format_invalid_response_error, format_model_manifest_line, format_operator_summary,
+        format_operator_summary_json, format_readiness_json, format_readiness_markdown,
+        format_readiness_package_list_json, format_readiness_package_list_summary,
+        format_readiness_package_summary, format_readiness_package_summary_json,
+        format_readiness_package_validation_json, format_readiness_package_validation_summary,
+        format_readiness_summary, format_route_explain_summary, format_sustainability_summary,
+        format_unreachable_error, is_audit_event_list, is_route_explain_response,
+        is_sustainability_metrics_response, readiness_report_next_steps, route_explain_url,
+        string_field, sustainability_url, validate_doctor_health,
+        validate_doctor_model_status_hints, validate_doctor_models,
         validate_doctor_sustainability_metrics, validate_doctor_version_status,
         validate_evidence_bundle_archive_output_path, validate_evidence_bundle_output_dir,
         validate_no_placeholder_string_values, validate_readiness_package_output_dir,
@@ -5083,6 +5322,98 @@ mod tests {
         assert!(!lower_report.contains("cryptographic verification"));
         assert!(!lower_report.contains("model controls"));
         assert!(!lower_report.contains("runner controls"));
+    }
+
+    #[test]
+    fn operator_summary_human_output_is_conservative() {
+        let summary = format_operator_summary();
+        let lower_summary = summary.to_ascii_lowercase();
+
+        assert!(summary.contains("IgnisPrompt Local Operator Summary"));
+        assert!(summary.contains("local preview operator workflow only"));
+        assert!(summary.contains("status hints, not controls"));
+        assert!(summary.contains("local helper checks, not certification"));
+        assert!(summary.contains("package validation is structural/local only"));
+        assert!(summary.contains("archives and packages are not signed"));
+        assert!(summary.contains("manual live-local loading"));
+        assert!(summary.contains("cargo run -p ignispromptctl -- readiness --json"));
+        assert!(summary.contains("make evidence-check"));
+        assert!(!lower_summary.contains("production readiness"));
+        assert!(!lower_summary.contains("production deployment"));
+        assert!(!lower_summary.contains("legal accuracy"));
+        assert!(!lower_summary.contains("compliance certification"));
+        assert!(!lower_summary.contains("security certification"));
+        assert!(!lower_summary.contains("signed attestation"));
+        assert!(!lower_summary.contains("tamper-evident"));
+        assert!(!lower_summary.contains("cryptographic verification"));
+        assert!(!lower_summary.contains("model controls"));
+        assert!(!lower_summary.contains("runner controls"));
+        assert!(!lower_summary.contains("prompt:"));
+        assert!(!lower_summary.contains("raw user text"));
+        assert!(!lower_summary.contains("api key"));
+        assert!(!lower_summary.contains("api_key"));
+        assert!(!lower_summary.contains("localhost"));
+        assert!(!lower_summary.contains("127.0.0.1"));
+        assert!(!lower_summary.contains("/users/"));
+    }
+
+    #[test]
+    fn operator_summary_json_shape_is_safe() {
+        let json_text = format_operator_summary_json();
+        let lower_json = json_text.to_ascii_lowercase();
+        let report: serde_json::Value = serde_json::from_str(&json_text).unwrap();
+
+        assert_eq!(
+            report["operator_summary_schema_version"],
+            "ignisprompt-operator-summary-0.1"
+        );
+        assert_eq!(report["mode"], "local-preview");
+        assert_eq!(report["status"], "operator_guidance");
+        assert_eq!(
+            report["scope"]["local_preview_operator_workflow_only"],
+            true
+        );
+        assert_eq!(report["scope"]["status_hints_not_controls"], true);
+        assert_eq!(
+            report["scope"]["local_helper_checks_not_certification"],
+            true
+        );
+        assert_eq!(
+            report["scope"]["structural_local_package_validation_only"],
+            true
+        );
+        assert!(report["sections"].as_array().unwrap().len() >= 5);
+        assert!(report["commands"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|value| value["command"]
+                == "cargo run -p ignispromptctl -- readiness --package-output local-evidence/readiness/demo"));
+        assert!(report["commands"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|value| value["execution_mode"] == "copy_only"));
+        assert!(!json_text.contains("\"string\""));
+        assert!(!lower_json.contains("production readiness"));
+        assert!(!lower_json.contains("production deployment"));
+        assert!(!lower_json.contains("legal accuracy"));
+        assert!(!lower_json.contains("compliance certification"));
+        assert!(!lower_json.contains("signed attestation"));
+        assert!(!lower_json.contains("tamper-evident"));
+        assert!(!lower_json.contains("cryptographic verification"));
+        assert!(!lower_json.contains("model controls"));
+        assert!(!lower_json.contains("runner controls"));
+        assert!(!lower_json.contains("prompt:"));
+        assert!(!lower_json.contains("raw audit"));
+        assert!(!lower_json.contains("secret"));
+        assert!(!lower_json.contains("api_key"));
+        assert!(!lower_json.contains("api key"));
+        assert!(!lower_json.contains("localhost"));
+        assert!(!lower_json.contains("127.0.0.1"));
+        assert!(!lower_json.contains("hostname"));
+        assert!(!lower_json.contains("username"));
+        assert!(!lower_json.contains("/users/"));
     }
 
     #[test]
