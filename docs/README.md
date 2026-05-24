@@ -1,6 +1,8 @@
 # IgnisPrompt Documentation
 
-IgnisPrompt is currently a small local Rust daemon scaffold. The implemented milestone is the control-plane spine: accept a request, route it locally, explain the route, write a local audit event, and preserve fail-closed behavior for legal requests without cloud fallback.
+Latest local preview release: `v0.1.3-local-preview`.
+
+IgnisPrompt is currently local-preview infrastructure for local AI routing and inspection. The implemented milestone is the control-plane spine: accept a request, route it locally, explain the route, write a local audit event, and preserve fail-closed behavior for legal requests without cloud fallback.
 
 The default path does not require Ollama, GGUF tooling, model weights, or network access. `StubLegalRunner` is the default Tier 3 legal completion fallback. The feature-gated GGUF subprocess path is an opt-in spike.
 

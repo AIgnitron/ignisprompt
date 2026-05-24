@@ -1,12 +1,26 @@
 # IgnisPrompt
 
-**IgnisPrompt is the open-source local AI routing layer.**
+**IgnisPrompt is local-preview infrastructure for local AI routing.**
 
-This repository contains a minimal `ignispromptd` Rust daemon scaffold for the Apple Spine Smoke Test. It is intentionally small: it validates the control-plane shape before real model inference is wired in.
+Latest release: `v0.1.3-local-preview`.
 
-## MVP status: v0.1.0-mvp
+IgnisPrompt is local-first infrastructure for routing, audit, inspection, and local evidence review. By default it makes no cloud calls, sends no telemetry, performs no global aggregation, and is not production deployment software. It is not legal advice, does not claim legal accuracy, and does not claim compliance, ESG, supply-chain, or signed attestation certification.
+
+What `v0.1.3-local-preview` adds:
+
+- reproducible security review checks
+- Aethra live-local contract hardening
+- `ignispromptctl` audit-events and route-explain inspection
+- `ignispromptctl evidence-bundle` generation, list, and validate
+- GGUF timeout and runner preflight hardening
+- audit and evidence validation hardening
+- Golden Legal adversarial demo hardening
+
+## Project foundation: v0.1.0-mvp
 
 `v0.1.0-mvp` is a technical MVP snapshot with a conservative **PASS WITH GAPS** readiness result.
+
+This repository started as a minimal `ignispromptd` Rust daemon scaffold for the Apple Spine Smoke Test. It is intentionally small: it validates the control-plane shape before real model inference is wired in.
 
 It proves that the local-first control-plane scaffold works: the daemon can run locally, expose the core HTTP surfaces, explain routing decisions, treat adversarial document instructions as untrusted content, record local audit events, and exercise the default no-model smoke path in CI.
 
