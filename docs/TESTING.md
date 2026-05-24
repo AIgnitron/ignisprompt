@@ -92,6 +92,8 @@ cargo run -p ignispromptctl -- evidence-bundle --print-manifest local-evidence/d
 
 These snippets are local-preview examples only. Keep generated outputs under ignored `local-evidence/` paths. Archive verification is structural local validation only; it is not cryptographic verification.
 
+For the repeatable local evidence demo workflow, run `bash -n scripts/demo-local-evidence-workflow.sh` and then `./scripts/demo-local-evidence-workflow.sh --self-test` before using the full workflow. The self-test mode checks ignored-path handling and command construction without requiring a live daemon.
+
 The `route-explain` command calls the existing local `POST /v1/route/explain` endpoint with either `--text` or `--input`. Use synthetic or non-sensitive local preview text. `--json` prints the raw daemon response as formatted JSON. This is route inspection, not legal advice or legal accuracy validation. For a legal route example, use a request file that already carries legal context such as `./tests/golden-legal/smoke-legal-request.json`, which sets `model` to `ignisprompt/legal`.
 
 ## CI path

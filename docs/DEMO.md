@@ -102,6 +102,20 @@ If no complete bundle exists and the local GGUF prerequisites are available, the
 
 This is still a local-only demo path. It does not make cloud calls, does not use real customer or legal data, and does not produce legal advice, production readiness evidence, formal attestation, or compliance certification.
 
+## Local evidence workflow demo
+
+This path runs the local evidence demo workflow end to end with synthetic input and ignored output paths only. It stays local-preview only and does not add signing, certification, tamper-evident storage, cryptographic verification, telemetry, or cloud calls.
+
+Run:
+
+```bash
+./scripts/demo-local-evidence-workflow.sh
+```
+
+The script demonstrates `route-explain`, `audit-events`, evidence bundle generation, listing, validation, archiving, archive verification, and manifest inspection. Generated outputs stay under ignored `./local-evidence/` paths.
+
+Use `--dry-run` to print the planned workflow without starting the daemon. Use `--self-test` to verify ignored-path checks and command construction without a live daemon.
+
 ## Golden and bakeoff demos
 
 `./scripts/run-golden-legal-v0.3.sh` runs a nine-case local subset against the live GGUF path. It includes the Tier 3 success case, fail-closed local-only cases, adversarial document-instruction handling, explanation quality, a subtle legal-language routing-instruction case, and an expanded synthetic adversarial fixture matrix. It writes evidence under `./local-evidence/golden-legal-v0.3/`.
