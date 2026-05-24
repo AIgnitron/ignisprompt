@@ -119,7 +119,7 @@ npm test
 
 Do not make `make dev-check` depend on Node tooling unless a future task explicitly changes the repository-wide verification policy.
 
-The Aethra app checks cover the fixture-backed evidence bundle viewer, validation summary, archive metadata preview, and local-preview CLI snippets. The default render must stay read-only and must not surface prompts, raw audit event bodies, secrets, hostnames, usernames, machine identifiers, or absolute filesystem paths. The viewer must also show conservative empty states when evidence bundle metadata is missing or invalid, without inferring signing, certification, attestation, or production readiness.
+The Aethra app checks cover the fixture-backed evidence bundle viewer, validation summary, archive metadata preview, local-preview CLI snippets, and clipboard-only Markdown or JSON report export helpers. The default render must stay read-only and must not surface prompts, raw audit event bodies, secrets, hostnames, usernames, machine identifiers, or absolute filesystem paths. The viewer must also show conservative empty states when evidence bundle metadata is missing or invalid, without inferring signing, certification, attestation, production readiness, or cryptographic verification.
 
 For the opt-in local API smoke path, first run the Aethra app checks above, then run:
 

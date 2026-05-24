@@ -208,6 +208,8 @@ Caption:
 
 ```text
 Evidence Bundle Viewer surfaces fixture-backed manifest fields, local validation summary, and archive metadata preview for local-preview review only.
+
+The same surface also includes clipboard-only Markdown and JSON report export helpers that stay local-preview only and do not download, upload, or verify archives cryptographically.
 ```
 
 Talk track:
@@ -219,6 +221,7 @@ This view helps reviewers inspect the local evidence bundle workflow with local-
 Screenshot guidance:
 
 - Keep the safe manifest, validation summary, archive metadata preview, and command snippets visible.
+- If report export controls are shown, keep the Markdown and JSON copy actions visible and note that they are browser-local only.
 - Do not show raw audit event content, prompts, secrets, local machine identifiers, or absolute filesystem paths.
 
 ### 7. Sustainability Preview
