@@ -79,6 +79,19 @@ The `audit-events` command reads the existing local `GET /v1/audit/events` endpo
 
 The `evidence-bundle` command writes a local-only diagnostic bundle under an ignored `local-evidence/` path by reading the existing local health, version status, model, model and runner status hint, and sustainability endpoints. Audit events stay omitted unless `--include-audit-events` is passed. `--json` prints the bundle summary JSON. `--list` inspects an existing bundle without calling the daemon, `--validate` checks the on-disk bundle contract without daemon access, `--archive` creates a local tar.gz archive under `local-evidence/archives/` by default after validating the bundle, `--archive-output` can override that path when it stays under `local-evidence/`, `--verify-archive` inspects an existing archive without calling the daemon, and `--print-manifest` prints the manifest for an existing bundle without calling the daemon. The bundle is for local preview review only: it is not signed, not certified, not production evidence, and does not call cloud services or external endpoints.
 
+Safe local-preview examples:
+
+```bash
+cargo run -p ignispromptctl -- evidence-bundle --output local-evidence/demo-bundle
+cargo run -p ignispromptctl -- evidence-bundle --list local-evidence/demo-bundle
+cargo run -p ignispromptctl -- evidence-bundle --validate local-evidence/demo-bundle
+cargo run -p ignispromptctl -- evidence-bundle --archive local-evidence/demo-bundle
+cargo run -p ignispromptctl -- evidence-bundle --verify-archive local-evidence/archives/demo-bundle.tar.gz
+cargo run -p ignispromptctl -- evidence-bundle --print-manifest local-evidence/demo-bundle
+```
+
+These snippets are local-preview examples only. Keep generated outputs under ignored `local-evidence/` paths. Archive verification is structural local validation only; it is not cryptographic verification.
+
 The `route-explain` command calls the existing local `POST /v1/route/explain` endpoint with either `--text` or `--input`. Use synthetic or non-sensitive local preview text. `--json` prints the raw daemon response as formatted JSON. This is route inspection, not legal advice or legal accuracy validation. For a legal route example, use a request file that already carries legal context such as `./tests/golden-legal/smoke-legal-request.json`, which sets `model` to `ignisprompt/legal`.
 
 ## CI path
@@ -106,7 +119,7 @@ npm test
 
 Do not make `make dev-check` depend on Node tooling unless a future task explicitly changes the repository-wide verification policy.
 
-The Aethra app checks cover the fixture-backed evidence bundle viewer, validation summary, and archive metadata preview. The default render must stay read-only and must not surface prompts, raw audit event bodies, secrets, hostnames, usernames, machine identifiers, or absolute filesystem paths.
+The Aethra app checks cover the fixture-backed evidence bundle viewer, validation summary, archive metadata preview, and local-preview CLI snippets. The default render must stay read-only and must not surface prompts, raw audit event bodies, secrets, hostnames, usernames, machine identifiers, or absolute filesystem paths. The viewer must also show conservative empty states when evidence bundle metadata is missing or invalid, without inferring signing, certification, attestation, or production readiness.
 
 For the opt-in local API smoke path, first run the Aethra app checks above, then run:
 
