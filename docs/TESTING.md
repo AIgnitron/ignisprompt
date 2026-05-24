@@ -62,6 +62,9 @@ cargo run -p ignispromptctl -- evidence-bundle --output local-evidence/demo-bund
 cargo run -p ignispromptctl -- evidence-bundle --output local-evidence/demo-bundle --json
 cargo run -p ignispromptctl -- evidence-bundle --list local-evidence/demo-bundle
 cargo run -p ignispromptctl -- evidence-bundle --validate local-evidence/demo-bundle
+cargo run -p ignispromptctl -- evidence-bundle --archive local-evidence/demo-bundle
+cargo run -p ignispromptctl -- evidence-bundle --verify-archive local-evidence/archives/demo-bundle.tar.gz
+cargo run -p ignispromptctl -- evidence-bundle --print-manifest local-evidence/demo-bundle
 cargo run -p ignispromptctl -- route-explain --text "Review this synthetic contract clause."
 cargo run -p ignispromptctl -- route-explain --input ./tests/golden-legal/smoke-legal-request.json
 cargo run -p ignispromptctl -- route-explain --input ./tests/golden-legal/smoke-legal-request.json --json
@@ -74,7 +77,7 @@ The `sustainability` command reads `GET /v1/metrics/sustainability?period=<perio
 
 The `audit-events` command reads the existing local `GET /v1/audit/events` endpoint. Human-readable output includes request IDs, route/domain/tier signals, warnings, timestamps when present, and local-only/proxy fields only when present. `--json` prints the endpoint response as formatted JSON. The command is read-only and does not mutate, persist, upload, or redact audit events through external services.
 
-The `evidence-bundle` command writes a local-only diagnostic bundle under an ignored `local-evidence/` path by reading the existing local health, version status, model, model and runner status hint, and sustainability endpoints. Audit events stay omitted unless `--include-audit-events` is passed. `--json` prints the bundle summary JSON. `--list` inspects an existing bundle without calling the daemon, and `--validate` checks the on-disk bundle contract without daemon access. The bundle is for local preview review only: it is not signed, not certified, not production evidence, and does not call cloud services or external endpoints.
+The `evidence-bundle` command writes a local-only diagnostic bundle under an ignored `local-evidence/` path by reading the existing local health, version status, model, model and runner status hint, and sustainability endpoints. Audit events stay omitted unless `--include-audit-events` is passed. `--json` prints the bundle summary JSON. `--list` inspects an existing bundle without calling the daemon, `--validate` checks the on-disk bundle contract without daemon access, `--archive` creates a local tar.gz archive under `local-evidence/archives/` by default after validating the bundle, `--archive-output` can override that path when it stays under `local-evidence/`, `--verify-archive` inspects an existing archive without calling the daemon, and `--print-manifest` prints the manifest for an existing bundle without calling the daemon. The bundle is for local preview review only: it is not signed, not certified, not production evidence, and does not call cloud services or external endpoints.
 
 The `route-explain` command calls the existing local `POST /v1/route/explain` endpoint with either `--text` or `--input`. Use synthetic or non-sensitive local preview text. `--json` prints the raw daemon response as formatted JSON. This is route inspection, not legal advice or legal accuracy validation. For a legal route example, use a request file that already carries legal context such as `./tests/golden-legal/smoke-legal-request.json`, which sets `model` to `ignisprompt/legal`.
 

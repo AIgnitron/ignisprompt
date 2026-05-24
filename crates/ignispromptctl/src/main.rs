@@ -1,9 +1,11 @@
 use clap::{ArgGroup, Parser, Subcommand};
+use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use serde_json::{json, Value};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::process;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tar::{Archive, Builder};
 
 #[derive(Parser)]
 #[command(
@@ -52,7 +54,7 @@ enum Commands {
     /// Build, list, or validate a local-only evidence bundle
     #[command(group(
         ArgGroup::new("bundle_mode")
-            .args(["output", "validate", "list"])
+            .args(["output", "validate", "list", "archive", "verify_archive", "print_manifest"])
             .multiple(false)
     ))]
     EvidenceBundle {
@@ -65,6 +67,18 @@ enum Commands {
         /// List files and metadata for an existing bundle directory without calling the daemon
         #[arg(long)]
         list: Option<String>,
+        /// Archive an existing bundle directory without calling the daemon
+        #[arg(long)]
+        archive: Option<String>,
+        /// Archive output path under ignored local-evidence/; defaults to local-evidence/archives/<bundle-name>.tar.gz
+        #[arg(long)]
+        archive_output: Option<String>,
+        /// Verify an existing archive without calling the daemon
+        #[arg(long)]
+        verify_archive: Option<String>,
+        /// Print the manifest for an existing bundle directory without calling the daemon
+        #[arg(long)]
+        print_manifest: Option<String>,
         /// Include the raw local audit events endpoint response in the bundle
         #[arg(long)]
         include_audit_events: bool,
@@ -125,6 +139,10 @@ fn main() {
             output,
             validate,
             list,
+            archive,
+            archive_output,
+            verify_archive,
+            print_manifest,
             include_audit_events,
             json,
         } => cmd_evidence_bundle(
@@ -132,6 +150,10 @@ fn main() {
             output,
             validate,
             list,
+            archive,
+            archive_output,
+            verify_archive,
+            print_manifest,
             *include_audit_events,
             *json,
         ),
@@ -982,6 +1004,29 @@ struct EvidenceBundleValidationReport {
     issues: Vec<String>,
 }
 
+#[derive(Clone, Debug)]
+struct EvidenceBundleManifestReport {
+    bundle_dir: PathBuf,
+    manifest_json: Value,
+    metadata: EvidenceBundleMetadata,
+}
+
+#[derive(Clone, Debug)]
+struct EvidenceBundleArchiveReport {
+    bundle_dir: PathBuf,
+    archive_path: PathBuf,
+    validation: EvidenceBundleValidationReport,
+    archived_file_names: Vec<String>,
+    archive_size_bytes: u64,
+}
+
+#[derive(Clone, Debug)]
+struct EvidenceBundleArchiveVerificationReport {
+    archive_path: PathBuf,
+    bundle_root: String,
+    validation: EvidenceBundleValidationReport,
+}
+
 fn evidence_bundle_capture_specs(include_audit_events: bool) -> Vec<EvidenceBundleCaptureSpec> {
     let mut specs = vec![
         EvidenceBundleCaptureSpec {
@@ -1148,14 +1193,34 @@ fn evidence_bundle_bundle_boundary() -> Value {
     })
 }
 
+fn evidence_bundle_boundary_notes() -> Vec<&'static str> {
+    vec![
+        "Local-preview diagnostic bundle only.",
+        "Local-only bundle metadata only.",
+        "Non-certified.",
+        "Not signed.",
+        "Not production attestation.",
+        "No prompts or raw user text are added by the CLI summary files.",
+    ]
+}
+
 fn cmd_evidence_bundle(
     base_url: &str,
     output: &Option<String>,
     validate: &Option<String>,
     list: &Option<String>,
+    archive: &Option<String>,
+    archive_output: &Option<String>,
+    verify_archive: &Option<String>,
+    print_manifest: &Option<String>,
     include_audit_events: bool,
     json_output: bool,
 ) {
+    if archive_output.is_some() && archive.is_none() {
+        eprintln!("error: --archive-output requires --archive");
+        process::exit(1);
+    }
+
     if let Some(bundle_dir) = validate {
         let report = match build_evidence_bundle_validation_report(Path::new(bundle_dir)) {
             Ok(report) => report,
@@ -1191,6 +1256,60 @@ fn cmd_evidence_bundle(
         return;
     }
 
+    if let Some(archive_path) = verify_archive {
+        let report = match build_evidence_bundle_archive_verification_report(Path::new(archive_path)) {
+            Ok(report) => report,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        if json_output {
+            println!("{}", format_evidence_bundle_archive_verification_json(&report));
+        } else {
+            println!("{}", format_evidence_bundle_archive_verification_summary(&report));
+        }
+        if !report.validation.issues.is_empty() {
+            process::exit(1);
+        }
+        return;
+    }
+
+    if let Some(bundle_dir) = print_manifest {
+        let report = match build_evidence_bundle_manifest_report(Path::new(bundle_dir)) {
+            Ok(report) => report,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        if json_output {
+            println!("{}", format_evidence_bundle_manifest_json(&report));
+        } else {
+            println!("{}", format_evidence_bundle_manifest_summary(&report));
+        }
+        return;
+    }
+
+    if let Some(bundle_dir) = archive {
+        let report = match build_evidence_bundle_archive_report(
+            Path::new(bundle_dir),
+            archive_output.as_deref(),
+        ) {
+            Ok(report) => report,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        if json_output {
+            println!("{}", format_evidence_bundle_archive_json(&report));
+        } else {
+            println!("{}", format_evidence_bundle_archive_summary(&report));
+        }
+        return;
+    }
+
     let output_dir = match output {
         Some(output) => match validate_evidence_bundle_output_dir(output) {
             Ok(path) => path,
@@ -1200,8 +1319,8 @@ fn cmd_evidence_bundle(
             }
         },
         None => {
-            eprintln!(
-                "error: provide --output for bundle creation, or --validate/--list for an existing bundle"
+        eprintln!(
+                "error: provide --output for bundle creation, or --validate/--list/--archive/--verify-archive/--print-manifest for an existing bundle"
             );
             process::exit(1);
         }
@@ -1369,12 +1488,7 @@ fn build_evidence_bundle_summary_json(
                 "summary": capture.summary,
             }))
             .collect::<Vec<_>>(),
-        "notes": [
-            "Local-preview diagnostic bundle only.",
-            "Local-only bundle metadata only.",
-            "Not signed.",
-            "Not production attestation.",
-        ],
+        "notes": evidence_bundle_boundary_notes(),
     })
 }
 
@@ -1411,6 +1525,7 @@ fn build_evidence_bundle_manifest_json(
                 "summary": capture.summary,
             }))
             .collect::<Vec<_>>(),
+        "notes": evidence_bundle_boundary_notes(),
     })
 }
 
@@ -1581,6 +1696,631 @@ fn format_evidence_bundle_summary(report: &EvidenceBundleReport) -> String {
     }
 
     lines.join("\n")
+}
+
+fn build_evidence_bundle_manifest_report(
+    bundle_dir: &Path,
+) -> Result<EvidenceBundleManifestReport, String> {
+    let snapshot = read_evidence_bundle_snapshot(bundle_dir)?;
+    let manifest = snapshot
+        .file_state("manifest.json")
+        .ok_or_else(|| "missing required file: manifest.json".to_string())?;
+
+    if !manifest.present {
+        return Err("missing required file: manifest.json".to_string());
+    }
+    if let Some(error) = &manifest.read_error {
+        return Err(error.clone());
+    }
+
+    let manifest_json = manifest
+        .json
+        .clone()
+        .ok_or_else(|| "invalid JSON in manifest.json".to_string())?;
+    let metadata = evidence_bundle_metadata_from_value(&manifest_json);
+
+    Ok(EvidenceBundleManifestReport {
+        bundle_dir: bundle_dir.to_path_buf(),
+        manifest_json,
+        metadata,
+    })
+}
+
+fn build_evidence_bundle_archive_report(
+    bundle_dir: &Path,
+    archive_output: Option<&str>,
+) -> Result<EvidenceBundleArchiveReport, String> {
+    let validation = build_evidence_bundle_validation_report(bundle_dir)?;
+    if !validation.issues.is_empty() {
+        return Err(format!(
+            "bundle validation failed before archiving:\n{}",
+            validation
+                .issues
+                .iter()
+                .map(|issue| format!("- {}", issue))
+                .collect::<Vec<_>>()
+                .join("\n")
+        ));
+    }
+    validate_bundle_path_is_not_symlink(bundle_dir)?;
+
+    let archive_path = validate_evidence_bundle_archive_output(bundle_dir, archive_output)?;
+    if archive_path.exists() {
+        return Err(format!(
+            "archive output already exists: {}",
+            archive_path.display()
+        ));
+    }
+
+    if let Some(parent) = archive_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("could not create archive parent directory: {}", error))?;
+    }
+
+    let archived_file_names = evidence_bundle_generated_file_names(
+        validation.metadata.include_audit_events.unwrap_or(false),
+    );
+    write_evidence_bundle_archive(bundle_dir, &archive_path, &archived_file_names)?;
+    let archive_size_bytes = fs::metadata(&archive_path)
+        .map_err(|error| format!("could not stat archive {}: {}", archive_path.display(), error))?
+        .len();
+
+    Ok(EvidenceBundleArchiveReport {
+        bundle_dir: bundle_dir.to_path_buf(),
+        archive_path,
+        validation,
+        archived_file_names,
+        archive_size_bytes,
+    })
+}
+
+fn build_evidence_bundle_archive_verification_report(
+    archive_path: &Path,
+) -> Result<EvidenceBundleArchiveVerificationReport, String> {
+    let bundle_root = inspect_evidence_bundle_archive(archive_path)?;
+    let temp_root = create_unique_temp_dir("ignispromptctl-archive-verify")?;
+    let cleanup_root = temp_root.clone();
+    let verification_result = (|| -> Result<EvidenceBundleArchiveVerificationReport, String> {
+        extract_evidence_bundle_archive(archive_path, &temp_root)?;
+        let bundle_dir = temp_root.join(&bundle_root);
+        let validation = build_evidence_bundle_validation_report(&bundle_dir)?;
+        Ok(EvidenceBundleArchiveVerificationReport {
+            archive_path: archive_path.to_path_buf(),
+            bundle_root,
+            validation,
+        })
+    })();
+
+    let _ = fs::remove_dir_all(cleanup_root);
+    verification_result
+}
+
+fn validate_bundle_path_is_not_symlink(bundle_dir: &Path) -> Result<(), String> {
+    let metadata = fs::symlink_metadata(bundle_dir)
+        .map_err(|error| format!("could not inspect bundle directory {}: {}", bundle_dir.display(), error))?;
+    if metadata.file_type().is_symlink() {
+        return Err(format!(
+            "bundle directory must not be a symlink: {}",
+            bundle_dir.display()
+        ));
+    }
+    Ok(())
+}
+
+fn validate_evidence_bundle_archive_output(
+    bundle_dir: &Path,
+    archive_output: Option<&str>,
+) -> Result<PathBuf, String> {
+    let bundle_name = bundle_dir
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| {
+            format!(
+                "could not derive archive name from bundle directory: {}",
+                bundle_dir.display()
+            )
+        })?;
+
+    let default_output = Path::new("local-evidence")
+        .join("archives")
+        .join(format!("{}.tar.gz", bundle_name));
+
+    let output = match archive_output {
+        Some(output) => validate_evidence_bundle_archive_output_path(output)?,
+        None => default_output,
+    };
+
+    Ok(output)
+}
+
+fn validate_evidence_bundle_archive_output_path(output: &str) -> Result<PathBuf, String> {
+    let trimmed = output.trim();
+    if trimmed.is_empty() {
+        return Err(
+            "archive output is required; use an ignored local-evidence/ path such as local-evidence/archives/demo-bundle.tar.gz"
+                .to_string(),
+        );
+    }
+
+    let path = Path::new(trimmed);
+    if path.is_absolute() {
+        return Err(
+            "archive output must be relative and under ignored local-evidence/; use local-evidence/archives/demo-bundle.tar.gz"
+                .to_string(),
+        );
+    }
+
+    for component in path.components() {
+        match component {
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(
+                    "archive output must stay under ignored local-evidence/ without parent traversal"
+                        .to_string(),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    let mut components = path.components().peekable();
+    while matches!(components.peek(), Some(&Component::CurDir)) {
+        components.next();
+    }
+
+    match components.next() {
+        Some(Component::Normal(name)) if name == "local-evidence" => {}
+        _ => {
+            return Err(
+                "archive output must start with local-evidence/; use local-evidence/archives/demo-bundle.tar.gz"
+                    .to_string(),
+            );
+        }
+    }
+
+    if path.exists() {
+        return Err(format!("archive output already exists: {}", path.display()));
+    }
+
+    Ok(path.to_path_buf())
+}
+
+fn write_evidence_bundle_archive(
+    bundle_dir: &Path,
+    archive_path: &Path,
+    archived_file_names: &[String],
+) -> Result<(), String> {
+    let bundle_name = bundle_dir
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| {
+            format!(
+                "could not derive archive bundle root from {}",
+                bundle_dir.display()
+            )
+        })?;
+
+    let archive_file = fs::File::create(archive_path).map_err(|error| {
+        format!(
+            "could not create archive output {}: {}",
+            archive_path.display(),
+            error
+        )
+    })?;
+    let encoder = GzEncoder::new(archive_file, Compression::default());
+    let mut builder = Builder::new(encoder);
+
+    let write_result = (|| -> Result<(), String> {
+        for file_name in archived_file_names {
+            let source = bundle_dir.join(file_name);
+            let metadata = fs::symlink_metadata(&source).map_err(|error| {
+                format!("could not inspect {}: {}", source.display(), error)
+            })?;
+            if metadata.file_type().is_symlink() {
+                return Err(format!("refusing to archive symlinked file: {}", source.display()));
+            }
+            if !metadata.is_file() {
+                return Err(format!("expected regular file for archive entry: {}", source.display()));
+            }
+
+            builder
+                .append_path_with_name(&source, Path::new(bundle_name).join(file_name))
+                .map_err(|error| {
+                    format!("could not add {} to archive: {}", source.display(), error)
+                })?;
+        }
+
+        builder
+            .finish()
+            .map_err(|error| format!("could not finalize tar archive: {}", error))?;
+        let encoder = builder
+            .into_inner()
+            .map_err(|error| format!("could not finalize archive encoder: {}", error))?;
+        encoder
+            .finish()
+            .map_err(|error| format!("could not finish gzip archive: {}", error))?;
+        Ok(())
+    })();
+
+    if let Err(message) = write_result {
+        let _ = fs::remove_file(archive_path);
+        return Err(message);
+    }
+
+    Ok(())
+}
+
+fn inspect_evidence_bundle_archive(archive_path: &Path) -> Result<String, String> {
+    let archive_file = fs::File::open(archive_path).map_err(|error| {
+        format!(
+            "could not open archive {}: {}",
+            archive_path.display(),
+            error
+        )
+    })?;
+    let decoder = GzDecoder::new(archive_file);
+    let mut archive = Archive::new(decoder);
+    let mut bundle_root: Option<String> = None;
+    let mut has_entries = false;
+
+    for entry_result in archive
+        .entries()
+        .map_err(|error| format!("could not read archive entries: {}", error))?
+    {
+        let entry = entry_result.map_err(|error| format!("could not read archive entry: {}", error))?;
+        let entry_path = entry
+            .path()
+            .map_err(|error| format!("could not read archive entry path: {}", error))?;
+        validate_archive_entry_path(&entry_path)?;
+
+        let mut components = entry_path.components();
+        let root_component = components.next().ok_or_else(|| {
+            format!(
+                "archive entry path is empty in {}",
+                archive_path.display()
+            )
+        })?;
+        let root_name = root_component.as_os_str().to_string_lossy().to_string();
+        if root_name.is_empty() {
+            return Err(format!(
+                "archive entry path has an empty root in {}",
+                archive_path.display()
+            ));
+        }
+
+        if let Some(existing) = &bundle_root {
+            if existing != &root_name {
+                return Err(format!(
+                    "archive contains multiple bundle roots: {} and {}",
+                    existing, root_name
+                ));
+            }
+        } else {
+            bundle_root = Some(root_name);
+        }
+
+        let entry_type = entry.header().entry_type();
+        if entry_type.is_symlink() || entry_type.is_hard_link() {
+            return Err(format!(
+                "archive contains unsupported link entry: {}",
+                entry_path.display()
+            ));
+        }
+        has_entries = true;
+    }
+
+    if !has_entries {
+        return Err(format!("archive contains no entries: {}", archive_path.display()));
+    }
+
+    bundle_root.ok_or_else(|| {
+        format!(
+            "could not determine bundle root from archive {}",
+            archive_path.display()
+        )
+    })
+}
+
+fn extract_evidence_bundle_archive(archive_path: &Path, destination: &Path) -> Result<(), String> {
+    let archive_file = fs::File::open(archive_path).map_err(|error| {
+        format!(
+            "could not open archive {}: {}",
+            archive_path.display(),
+            error
+        )
+    })?;
+    let decoder = GzDecoder::new(archive_file);
+    let mut archive = Archive::new(decoder);
+    archive
+        .unpack(destination)
+        .map_err(|error| format!("could not extract archive to temporary directory: {}", error))
+}
+
+fn create_unique_temp_dir(prefix: &str) -> Result<PathBuf, String> {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "{}-{}-{}",
+        prefix,
+        process::id(),
+        current_unix_seconds()?
+    ));
+    fs::create_dir_all(&temp_dir)
+        .map_err(|error| format!("could not create temporary directory: {}", error))?;
+    Ok(temp_dir)
+}
+
+fn validate_archive_entry_path(path: &Path) -> Result<(), String> {
+    for component in path.components() {
+        match component {
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(format!(
+                    "archive entry path is not safe: {}",
+                    path.display()
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn format_evidence_bundle_manifest_summary(report: &EvidenceBundleManifestReport) -> String {
+    let metadata = &report.metadata;
+    let mut lines = vec![
+        "IgnisPrompt Local Evidence Bundle Manifest".to_string(),
+        format!("Bundle dir: {}", report.bundle_dir.display()),
+        format!(
+            "Schema version: {}",
+            metadata
+                .bundle_schema_version
+                .as_deref()
+                .unwrap_or("-")
+        ),
+        format!(
+            "Bundle type: {}",
+            metadata.bundle_type.as_deref().unwrap_or("-")
+        ),
+        format!("Bundle mode: {}", metadata.bundle_mode.as_deref().unwrap_or("-")),
+        format!(
+            "Local-only: {}",
+            bool_label(metadata.local_only.unwrap_or(false))
+        ),
+        format!(
+            "Non-certified: {}",
+            bool_label(metadata.non_certified.unwrap_or(false))
+        ),
+        format!("Signed: {}", bool_label(metadata.signed.unwrap_or(true))),
+        format!(
+            "Production attestation: {}",
+            bool_label(metadata.production_attestation.unwrap_or(true))
+        ),
+        format!(
+            "Audit events included: {}",
+            bool_label(metadata.include_audit_events.unwrap_or(false))
+        ),
+        "".to_string(),
+        "Generated files:".to_string(),
+    ];
+
+    for file_name in &metadata.generated_file_names {
+        lines.push(format!("- {}", file_name));
+    }
+
+    lines.push("".to_string());
+    lines.push("Included endpoints:".to_string());
+    if metadata.included_endpoints.is_empty() {
+        lines.push("- none".to_string());
+    } else {
+        for endpoint in &metadata.included_endpoints {
+            lines.push(format!("- {}", endpoint));
+        }
+    }
+
+    lines.push("".to_string());
+    lines.push("Notes:".to_string());
+    for note in report
+        .manifest_json
+        .get("notes")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default()
+    {
+        if let Some(text) = note.as_str() {
+            lines.push(format!("- {}", text));
+        }
+    }
+
+    lines.join("\n")
+}
+
+fn format_evidence_bundle_manifest_json(report: &EvidenceBundleManifestReport) -> String {
+    serde_json::to_string_pretty(&report.manifest_json).unwrap_or_default()
+}
+
+fn format_evidence_bundle_archive_summary(report: &EvidenceBundleArchiveReport) -> String {
+    let metadata = &report.validation.metadata;
+    let mut lines = vec![
+        "IgnisPrompt Local Evidence Bundle Archive".to_string(),
+        format!("Bundle dir: {}", report.bundle_dir.display()),
+        format!("Archive path: {}", report.archive_path.display()),
+        format!("Archive size (bytes): {}", report.archive_size_bytes),
+        format!(
+            "Local-only: {}",
+            bool_label(metadata.local_only.unwrap_or(false))
+        ),
+        format!(
+            "Non-certified: {}",
+            bool_label(metadata.non_certified.unwrap_or(false))
+        ),
+        format!("Signed: {}", bool_label(metadata.signed.unwrap_or(true))),
+        format!(
+            "Production attestation: {}",
+            bool_label(metadata.production_attestation.unwrap_or(true))
+        ),
+        format!(
+            "Audit events included: {}",
+            bool_label(metadata.include_audit_events.unwrap_or(false))
+        ),
+        "".to_string(),
+        "Archived files:".to_string(),
+    ];
+
+    for file_name in &report.archived_file_names {
+        lines.push(format!("- {}", file_name));
+    }
+
+    lines.join("\n")
+}
+
+fn format_evidence_bundle_archive_json(report: &EvidenceBundleArchiveReport) -> String {
+    serde_json::to_string_pretty(&json!({
+        "bundle_dir": report.bundle_dir.display().to_string(),
+        "archive_path": report.archive_path.display().to_string(),
+        "archive_size_bytes": report.archive_size_bytes,
+        "bundle_boundary": evidence_bundle_bundle_boundary(),
+        "metadata": {
+            "bundle_schema_version": report.validation.metadata.bundle_schema_version,
+            "bundle_type": report.validation.metadata.bundle_type,
+            "bundle_mode": report.validation.metadata.bundle_mode,
+            "local_only": report.validation.metadata.local_only,
+            "non_certified": report.validation.metadata.non_certified,
+            "signed": report.validation.metadata.signed,
+            "production_attestation": report.validation.metadata.production_attestation,
+            "include_audit_events": report.validation.metadata.include_audit_events,
+            "generated_at_unix_seconds": report.validation.metadata.generated_at_unix_seconds,
+            "generated_file_names": report.validation.metadata.generated_file_names,
+            "included_endpoints": report.validation.metadata.included_endpoints,
+        },
+        "archived_file_names": report.archived_file_names,
+    }))
+    .unwrap_or_default()
+}
+
+fn format_evidence_bundle_archive_verification_summary(
+    report: &EvidenceBundleArchiveVerificationReport,
+) -> String {
+    let metadata = &report.validation.metadata;
+    let mut lines = vec![
+        "IgnisPrompt Local Evidence Bundle Archive Verification".to_string(),
+        format!("Archive path: {}", report.archive_path.display()),
+        format!("Bundle root: {}", report.bundle_root),
+        format!(
+            "Result: {}",
+            if report.validation.issues.is_empty() {
+                "ok"
+            } else {
+                "failed"
+            }
+        ),
+        "".to_string(),
+        "Files:".to_string(),
+    ];
+
+    for file in &report.validation.snapshot.files {
+        let mut status = if file.present { "present" } else { "missing" }.to_string();
+        if let Some(error) = &file.read_error {
+            status = format!("{} ({})", status, error);
+        }
+        lines.push(format!(
+            "- {}: {}{}",
+            file.file_name,
+            status,
+            if file.required { " (required)" } else { " (optional)" }
+        ));
+    }
+
+    lines.push("".to_string());
+    lines.push("Metadata:".to_string());
+    lines.push(format!(
+        "- schema_version: {}",
+        metadata
+            .bundle_schema_version
+            .as_deref()
+            .unwrap_or("-")
+    ));
+    lines.push(format!(
+        "- bundle_type: {}",
+        metadata.bundle_type.as_deref().unwrap_or("-")
+    ));
+    lines.push(format!(
+        "- bundle_mode: {}",
+        metadata.bundle_mode.as_deref().unwrap_or("-")
+    ));
+    lines.push(format!(
+        "- local_only: {}",
+        bool_label(metadata.local_only.unwrap_or(false))
+    ));
+    lines.push(format!(
+        "- non_certified: {}",
+        bool_label(metadata.non_certified.unwrap_or(false))
+    ));
+    lines.push(format!(
+        "- signed: {}",
+        bool_label(metadata.signed.unwrap_or(true))
+    ));
+    lines.push(format!(
+        "- production_attestation: {}",
+        bool_label(metadata.production_attestation.unwrap_or(true))
+    ));
+    lines.push(format!(
+        "- audit_events_included: {}",
+        bool_label(metadata.include_audit_events.unwrap_or(false))
+    ));
+
+    lines.push("".to_string());
+    if report.validation.issues.is_empty() {
+        lines.push("[ok] archive verification passed.".to_string());
+    } else {
+        lines.push("[failed] archive verification found issues.".to_string());
+        lines.push("Issues:".to_string());
+        for issue in &report.validation.issues {
+            lines.push(format!("- {}", issue));
+        }
+    }
+
+    lines.join("\n")
+}
+
+fn format_evidence_bundle_archive_verification_json(
+    report: &EvidenceBundleArchiveVerificationReport,
+) -> String {
+    let files = report
+        .validation
+        .snapshot
+        .files
+        .iter()
+        .map(|file| {
+            json!({
+                "file_name": file.file_name,
+                "required": file.required,
+                "present": file.present,
+                "kind": file.kind,
+                "endpoint_name": file.endpoint_name,
+                "read_error": file.read_error,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    serde_json::to_string_pretty(&json!({
+        "archive_path": report.archive_path.display().to_string(),
+        "bundle_root": report.bundle_root,
+        "status": if report.validation.issues.is_empty() { "ok" } else { "failed" },
+        "metadata": {
+            "bundle_schema_version": report.validation.metadata.bundle_schema_version,
+            "bundle_type": report.validation.metadata.bundle_type,
+            "bundle_mode": report.validation.metadata.bundle_mode,
+            "local_only": report.validation.metadata.local_only,
+            "non_certified": report.validation.metadata.non_certified,
+            "signed": report.validation.metadata.signed,
+            "production_attestation": report.validation.metadata.production_attestation,
+            "include_audit_events": report.validation.metadata.include_audit_events,
+            "generated_at_unix_seconds": report.validation.metadata.generated_at_unix_seconds,
+            "generated_file_names": report.validation.metadata.generated_file_names,
+            "included_endpoints": report.validation.metadata.included_endpoints,
+        },
+        "files": files,
+        "issues": report.validation.issues,
+        "bundle_boundary": evidence_bundle_bundle_boundary(),
+    }))
+    .unwrap_or_default()
 }
 
 fn validate_evidence_bundle_output_dir(output: &str) -> Result<PathBuf, String> {
@@ -1931,6 +2671,9 @@ fn evidence_bundle_validation_issues(
         if contains_forbidden_bundle_keys(summary) {
             issues.push("summary contains obvious prompt or sensitive keys".to_string());
         }
+        for phrase in missing_bundle_boundary_phrases(summary) {
+            issues.push(format!("summary is missing required boundary phrase: {}", phrase));
+        }
     }
     if let Some(manifest) = snapshot.file_state("manifest.json").and_then(|file| file.json.as_ref()) {
         if contains_placeholder_string(manifest) {
@@ -1938,6 +2681,9 @@ fn evidence_bundle_validation_issues(
         }
         if contains_forbidden_bundle_keys(manifest) {
             issues.push("manifest contains obvious prompt or sensitive keys".to_string());
+        }
+        for phrase in missing_bundle_boundary_phrases(manifest) {
+            issues.push(format!("manifest is missing required boundary phrase: {}", phrase));
         }
     }
 
@@ -1961,6 +2707,31 @@ fn evidence_bundle_validation_issues(
     }
 
     issues
+}
+
+fn missing_bundle_boundary_phrases(value: &Value) -> Vec<&'static str> {
+    let notes = value
+        .get("notes")
+        .and_then(|value| value.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_str().map(|text| text.to_ascii_lowercase()))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    [
+        "local-preview",
+        "local-only",
+        "non-certified",
+        "not signed",
+        "not production attestation",
+    ]
+    .iter()
+    .copied()
+    .filter(|phrase| !notes.iter().any(|note| note.contains(phrase)))
+    .collect()
 }
 
 fn validate_summary_and_manifest_parity(metadata: &EvidenceBundleMetadata) -> Option<String> {
@@ -2726,10 +3497,16 @@ fn format_invalid_response_error(kind: &str, endpoint: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        audit_events_url, build_evidence_bundle_report, build_evidence_bundle_validation_report,
+        audit_events_url, build_evidence_bundle_archive_report,
+        build_evidence_bundle_archive_verification_report, build_evidence_bundle_manifest_report,
+        build_evidence_bundle_report, build_evidence_bundle_validation_report,
         build_route_explain_body, current_unix_seconds, doctor_endpoint_url,
         format_audit_events_summary, format_doctor_json, format_doctor_summary,
+        format_evidence_bundle_archive_json, format_evidence_bundle_archive_summary,
+        format_evidence_bundle_archive_verification_json,
+        format_evidence_bundle_archive_verification_summary,
         format_evidence_bundle_list_json, format_evidence_bundle_list_summary,
+        format_evidence_bundle_manifest_json, format_evidence_bundle_manifest_summary,
         format_evidence_bundle_summary, format_evidence_bundle_unreachable_error,
         format_evidence_bundle_validation_json, format_evidence_bundle_validation_summary,
         format_http_error, format_invalid_response_error, format_model_manifest_line,
@@ -2738,9 +3515,10 @@ mod tests {
         route_explain_url, string_field, sustainability_url, validate_doctor_health,
         validate_doctor_model_status_hints, validate_doctor_models,
         validate_doctor_sustainability_metrics, validate_doctor_version_status,
-        validate_evidence_bundle_output_dir, validate_no_placeholder_string_values,
-        validate_sustainability_period, write_evidence_bundle_report, DoctorCheckLevel,
-        DoctorCheckResult, DoctorReport, EvidenceBundleCapture, DOCTOR_CHECKS,
+        validate_evidence_bundle_archive_output_path, validate_evidence_bundle_output_dir,
+        validate_no_placeholder_string_values, validate_sustainability_period,
+        write_evidence_bundle_report, DoctorCheckLevel, DoctorCheckResult, DoctorReport,
+        EvidenceBundleCapture, DOCTOR_CHECKS,
     };
     use serde_json::json;
 
@@ -3747,6 +4525,180 @@ mod tests {
         assert_eq!(value["status"], "ok");
         assert_eq!(value["metadata"]["bundle_mode"], "local-preview");
         assert!(value["issues"].as_array().unwrap().is_empty());
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn evidence_bundle_archive_succeeds_for_valid_bundle() {
+        let output_dir = unique_bundle_test_dir("archive-ok");
+        let _ = std::fs::remove_dir_all(&output_dir);
+        write_fake_evidence_bundle(&output_dir, true);
+
+        let report = build_evidence_bundle_archive_report(&output_dir, None).unwrap();
+        assert!(report.archive_path.starts_with("local-evidence/archives"));
+        assert!(report.archive_path.exists());
+        assert!(report.validation.issues.is_empty());
+        assert!(report
+            .archived_file_names
+            .iter()
+            .any(|file_name| file_name == "audit-events.json"));
+
+        let summary = format_evidence_bundle_archive_summary(&report);
+        assert!(summary.contains("IgnisPrompt Local Evidence Bundle Archive"));
+        assert!(summary.contains("Archive path:"));
+        assert!(summary.contains("Audit events included: true"));
+
+        let archive_json = serde_json::from_str::<serde_json::Value>(
+            &format_evidence_bundle_archive_json(&report),
+        )
+        .unwrap();
+        assert_eq!(
+            archive_json["archive_path"],
+            report.archive_path.display().to_string()
+        );
+        assert_eq!(archive_json["metadata"]["bundle_mode"], "local-preview");
+
+        let _ = std::fs::remove_file(&report.archive_path);
+        let _ = std::fs::remove_dir_all("local-evidence");
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn evidence_bundle_archive_rejects_invalid_bundle() {
+        let output_dir = unique_bundle_test_dir("archive-invalid");
+        let _ = std::fs::remove_dir_all(&output_dir);
+        write_fake_evidence_bundle(&output_dir, false);
+        std::fs::remove_file(output_dir.join("summary.json")).unwrap();
+
+        let error = build_evidence_bundle_archive_report(&output_dir, None).unwrap_err();
+        assert!(error.contains("bundle validation failed before archiving"));
+        assert!(error.contains("missing required file: summary.json"));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn evidence_bundle_archive_refuses_unsafe_output_paths() {
+        let output_dir = unique_bundle_test_dir("archive-unsafe");
+        let _ = std::fs::remove_dir_all(&output_dir);
+        write_fake_evidence_bundle(&output_dir, false);
+
+        let error = build_evidence_bundle_archive_report(&output_dir, Some("/tmp/bad.tar.gz"))
+            .unwrap_err();
+        assert!(error.contains("must be relative and under ignored local-evidence/"));
+        assert!(validate_evidence_bundle_archive_output_path("/tmp/bad.tar.gz").is_err());
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn evidence_bundle_archive_rejects_symlinked_files_outside_bundle_directory() {
+        let output_dir = unique_bundle_test_dir("archive-symlink");
+        let _ = std::fs::remove_dir_all(&output_dir);
+        write_fake_evidence_bundle(&output_dir, false);
+
+        let external_path = std::env::temp_dir().join(format!(
+            "ignispromptctl-archive-external-{}-{}.json",
+            std::process::id(),
+            current_unix_seconds().unwrap()
+        ));
+        let summary_text = std::fs::read_to_string(output_dir.join("summary.json")).unwrap();
+        std::fs::write(&external_path, summary_text).unwrap();
+        std::fs::remove_file(output_dir.join("summary.json")).unwrap();
+        std::os::unix::fs::symlink(&external_path, output_dir.join("summary.json")).unwrap();
+
+        let error = build_evidence_bundle_archive_report(&output_dir, None).unwrap_err();
+        assert!(error.contains("refusing to archive symlinked file"));
+
+        let _ = std::fs::remove_file(&external_path);
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn evidence_bundle_verify_archive_passes_for_valid_archive() {
+        let output_dir = unique_bundle_test_dir("verify-ok");
+        let _ = std::fs::remove_dir_all(&output_dir);
+        write_fake_evidence_bundle(&output_dir, true);
+
+        let archive_report = build_evidence_bundle_archive_report(&output_dir, None).unwrap();
+        let report =
+            build_evidence_bundle_archive_verification_report(&archive_report.archive_path)
+                .unwrap();
+        assert!(report.validation.issues.is_empty());
+        assert_eq!(
+            report.bundle_root,
+            output_dir
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .to_string()
+        );
+        assert!(format_evidence_bundle_archive_verification_summary(&report)
+            .contains("[ok] archive verification passed."));
+        assert!(format_evidence_bundle_archive_verification_json(&report)
+            .contains("\"status\": \"ok\""));
+
+        let _ = std::fs::remove_file(&archive_report.archive_path);
+        let _ = std::fs::remove_dir_all("local-evidence");
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn evidence_bundle_verify_archive_rejects_corrupt_archive() {
+        let archive_path = std::path::PathBuf::from("local-evidence/archives/corrupt.tar.gz");
+        let _ = std::fs::remove_file(&archive_path);
+        if let Some(parent) = archive_path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(&archive_path, b"not-a-gzip").unwrap();
+
+        let error = build_evidence_bundle_archive_verification_report(&archive_path).unwrap_err();
+        assert!(error.contains("archive") || error.contains("gzip") || error.contains("tar"));
+
+        let _ = std::fs::remove_file(&archive_path);
+        let _ = std::fs::remove_dir_all("local-evidence");
+    }
+
+    #[test]
+    fn evidence_bundle_print_manifest_human_output_shows_boundary_notes() {
+        let output_dir = unique_bundle_test_dir("manifest-human");
+        let _ = std::fs::remove_dir_all(&output_dir);
+        write_fake_evidence_bundle(&output_dir, true);
+
+        let report = build_evidence_bundle_manifest_report(&output_dir).unwrap();
+        let summary = format_evidence_bundle_manifest_summary(&report);
+        assert!(summary.contains("IgnisPrompt Local Evidence Bundle Manifest"));
+        assert!(summary.contains("Bundle mode: local-preview"));
+        assert!(summary.contains("Audit events included: true"));
+        assert!(summary.contains("Not production attestation."));
+        assert!(!summary.contains("req-1"));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn evidence_bundle_print_manifest_json_output_reports_manifest_fields() {
+        let output_dir = unique_bundle_test_dir("manifest-json");
+        let _ = std::fs::remove_dir_all(&output_dir);
+        write_fake_evidence_bundle(&output_dir, false);
+
+        let report = build_evidence_bundle_manifest_report(&output_dir).unwrap();
+        let value: serde_json::Value =
+            serde_json::from_str(&format_evidence_bundle_manifest_json(&report)).unwrap();
+        assert_eq!(value["bundle_mode"], "local-preview");
+        assert_eq!(value["local_only"], true);
+        assert!(value["notes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|note| note
+                .as_str()
+                .unwrap()
+                .to_ascii_lowercase()
+                .contains("local-only")));
+        assert!(!format_evidence_bundle_manifest_json(&report).contains("req-1"));
 
         let _ = std::fs::remove_dir_all(&output_dir);
     }

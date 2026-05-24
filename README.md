@@ -11,7 +11,7 @@ What `v0.1.3-local-preview` adds:
 - reproducible security review checks
 - Aethra live-local contract hardening
 - `ignispromptctl` audit-events and route-explain inspection
-- `ignispromptctl evidence-bundle` generation, list, and validate
+- `ignispromptctl evidence-bundle` generation, list, validate, archive, verify archive, and manifest inspection
 - GGUF timeout and runner preflight hardening
 - audit and evidence validation hardening
 - Golden Legal adversarial demo hardening
@@ -192,6 +192,11 @@ cargo run -p ignispromptctl -- evidence-bundle --output local-evidence/demo-bund
 cargo run -p ignispromptctl -- evidence-bundle --output local-evidence/demo-bundle --json
 cargo run -p ignispromptctl -- evidence-bundle --list local-evidence/demo-bundle
 cargo run -p ignispromptctl -- evidence-bundle --validate local-evidence/demo-bundle
+cargo run -p ignispromptctl -- evidence-bundle --archive local-evidence/demo-bundle
+cargo run -p ignispromptctl -- evidence-bundle --archive local-evidence/demo-bundle --json
+cargo run -p ignispromptctl -- evidence-bundle --verify-archive local-evidence/archives/demo-bundle.tar.gz
+cargo run -p ignispromptctl -- evidence-bundle --print-manifest local-evidence/demo-bundle
+cargo run -p ignispromptctl -- evidence-bundle --print-manifest local-evidence/demo-bundle --json
 cargo run -p ignispromptctl -- route-explain --text "Review this synthetic contract clause."
 cargo run -p ignispromptctl -- route-explain --input ./tests/golden-legal/smoke-legal-request.json
 cargo run -p ignispromptctl -- route-explain --input ./tests/golden-legal/smoke-legal-request.json --json
@@ -204,7 +209,7 @@ cargo run -p ignispromptctl -- audit tail
 
 `audit-events` reads the existing local `GET /v1/audit/events` endpoint and can print either a terminal summary or formatted JSON. It is read-only and does not mutate, upload, persist, or redact audit events through external services.
 
-`evidence-bundle` writes a small local-only bundle under an ignored `local-evidence/` path from the existing local health, version status, model, model and runner status hint, and sustainability endpoints. `--include-audit-events` adds the raw local audit event response only when explicitly requested. `--json` prints the bundle summary JSON. `--list` inspects an existing bundle without calling the daemon, and `--validate` checks an existing bundle without calling the daemon. The command is diagnostic/demo output only: it is not signed, not certified, not production evidence, and does not call cloud services or external endpoints.
+`evidence-bundle` writes a small local-only bundle under an ignored `local-evidence/` path from the existing local health, version status, model, model and runner status hint, and sustainability endpoints. `--include-audit-events` adds the raw local audit event response only when explicitly requested. `--json` prints the bundle summary JSON. `--list` inspects an existing bundle without calling the daemon, `--validate` checks an existing bundle without calling the daemon, `--archive` validates and archives an existing bundle to `local-evidence/archives/<bundle-name>.tar.gz` by default, `--archive-output` can override the archive path when it stays under `local-evidence/`, `--verify-archive` inspects an existing archive without calling the daemon, and `--print-manifest` prints the manifest for an existing bundle without calling the daemon. The command is diagnostic/demo output only: it is not signed, not certified, not production evidence, and does not call cloud services or external endpoints.
 
 `route-explain` calls the existing local `POST /v1/route/explain` endpoint with either `--text` or `--input`. Use synthetic or non-sensitive text. This is route inspection, not legal advice or legal accuracy validation. For a legal route example, use a file that already carries legal context such as `./tests/golden-legal/smoke-legal-request.json`, which sets `model` to `ignisprompt/legal`.
 
