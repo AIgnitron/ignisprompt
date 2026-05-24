@@ -26,7 +26,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 
 ## Near-term work
 
-- v0.1.3 release prep: use the contributor MCP usage docs, the Aethra public/demo package, and the v0.1.3 release-readiness record as review material.
+- v0.1.4 release prep: use the contributor MCP usage docs, the Aethra public/demo package, the local command center guidance, and the v0.1.4 release-readiness record as review material.
 - v0.1.4 release readiness: keep the local evidence workflow regression check, the demo script self-test, and the Aethra boundary-language alignment check passing.
 - Keep default CI green without local model weights.
 - Keep route-policy regression coverage current for legal Tier 3 routing, general local routing, adversarial document-instruction handling, conservative explanations, and local audit emission.

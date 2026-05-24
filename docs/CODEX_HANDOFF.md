@@ -9,8 +9,8 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - MVP tag: `v0.1.0-mvp`
 - Final readiness result: **PASS WITH GAPS**
 - Public feedback issue: https://github.com/AIgnitron/ignisprompt/issues/56
-- Latest known main commit: `5e5f692 test: add local evidence workflow regression check (#165)`
-- Open PRs at this handoff: none
+- Latest known main commit: `6c97584 feat: add Aethra local command center (#166)`
+- Open PRs at this handoff: #166
 - Open issues at this handoff: #56 only
 
 ## Recent Completed Work
@@ -59,6 +59,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - PR #159 added the `ignispromptctl` evidence bundle archive workflow.
 - PR #160 added the Aethra local evidence workflow.
 - PR #165 added the local evidence workflow regression check.
+- PR #166 added the Aethra Local Command Center.
 - A repeatable local evidence demo workflow script now drives route-explain, audit-events, evidence-bundle generation, listing, validation, archiving, archive verification, and manifest inspection under ignored local-evidence paths. It includes dry-run and self-test modes that stay local-only.
 - `make evidence-check` runs the local evidence workflow regression checks without requiring a live daemon. It verifies the demo workflow script, the `ignispromptctl evidence-bundle` help surface, and the Aethra boundary-language alignment.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
@@ -227,7 +228,7 @@ Add `--include-route-explain` only when you intentionally want to append a local
 5. Keep Aethra live-local diagnostics limited to local connection/debugging state; avoid polling, persistence, external lookup, cloud calls, update checks, readiness claims, or controls.
 6. Keep copyable command helpers local and explicit; avoid dashboard-side command execution, remote command language, telemetry, or persistence.
 7. Keep any future model and runner status work limited to hints; avoid readiness, certification, legal-quality, or compliance claims.
-8. For v0.1.3 release prep, use the contributor MCP usage docs, the Aethra public/demo package, and the new local preview release record as review material.
+8. For v0.1.4 release prep, use the contributor MCP usage docs, the Aethra public/demo package, the local command center guidance, and the new local preview release record as review material.
 
 Avoid cloud telemetry, analytics, auth providers, a SaaS backend, model install/delete controls, and production/legal/compliance/sustainability overclaims unless a future task explicitly scopes and reviews those changes.
 

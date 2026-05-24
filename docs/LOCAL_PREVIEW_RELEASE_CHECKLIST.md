@@ -48,6 +48,23 @@ cargo test
 make evidence-check
 ```
 
+## v0.1.4 Release Prep
+
+Before tagging `v0.1.4-local-preview`, confirm the docs and checklist reflect the implemented local evidence and Aethra workflow arc:
+
+- `docs/releases/v0.1.4-local-preview.md` exists and stays conservative
+- `docs/README.md`, `README.md`, `docs/CODEX_HANDOFF.md`, `docs/ROADMAP.md`, and this checklist mention the v0.1.4 draft release note
+- Aethra remains fixture-backed by default with manual live-local loading
+- evidence archives are local-only and not signed
+- verification is structural local validation only, not cryptographic verification
+- the Aethra Local Command Center copy stays read-only and clipboard-only
+- `make evidence-check` passes
+- `./scripts/check-hidden-unicode.sh` passes
+- `make security-check` passes
+- `make dev-check` passes
+- `git diff --check` passes
+- `git status --short` is clean
+
 ## Default Developer Check
 
 ```bash
@@ -274,7 +291,7 @@ Confirm release notes, checklist updates, README links, and quickstart notes kee
 
 ## Release Tag Steps
 
-Use these only after a release branch is merged and the final commit is verified. The `v0.1.1-local-preview` tag already exists on #140 and must not be moved, deleted, recreated, or republished during post-v0.1.1 cleanup. Use a future patch tag such as `v0.1.3-local-preview` if a later patch release is needed.
+Use these only after a release branch is merged and the final commit is verified. The `v0.1.1-local-preview` tag already exists on #140 and must not be moved, deleted, recreated, or republished during post-v0.1.1 cleanup. Use a future patch tag such as `v0.1.4-local-preview` if a later patch release is needed.
 
 ```bash
 git checkout main
