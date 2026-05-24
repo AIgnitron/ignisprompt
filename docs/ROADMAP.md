@@ -16,6 +16,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Aethra guided demo path and clearer navigation labels for the safe local preview walkthrough.
 - Aethra local readiness surface with fixture-backed status hints, copy-only daemon guidance, and a local-preview checklist.
 - Aethra local command center with safe CLI recipes, an evidence workflow checklist, and demo readiness notes.
+- Local readiness quality gate for CLI help surfaces, Aethra readiness wording alignment, and evidence workflow regression integration.
 - Local evidence demo workflow automation script for route-explain, audit-events, evidence-bundle generation, listing, validation, archiving, archive verification, and manifest inspection.
 - Adversarial document-instruction detection for known instruction strings.
 - OpenAI-compatible chat completion request shape, including a `stream: true` compatibility scaffold that frames an already-produced local completion as SSE chunks.
@@ -27,7 +28,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 
 ## Near-term work
 
-- v0.1.5 planning: keep Aethra local readiness, command guidance, evidence workflow, and boundary-language checks conservative and fixture-backed by default.
+- v0.1.5 planning: keep Aethra local readiness, `ignispromptctl readiness`, command guidance, evidence workflow, and boundary-language checks conservative and fixture-backed by default.
 - Keep default CI green without local model weights.
 - Keep route-policy regression coverage current for legal Tier 3 routing, general local routing, adversarial document-instruction handling, conservative explanations, and local audit emission.
 - Keep model availability semantics explicit: route eligibility, manifest configuration, local file presence, runner hints, and executable local inference are separate states.

@@ -50,6 +50,13 @@ export const localReadinessCommands: ReadinessCommand[] = [
     detail: "Checks required local preview endpoints from your terminal.",
   },
   {
+    id: "readiness",
+    label: "Run local readiness summary",
+    command: "cargo run -p ignispromptctl -- readiness",
+    detail:
+      "Summarizes local preview readiness with the same status hint boundaries.",
+  },
+  {
     id: "dev-check",
     label: "Run development checks",
     command: "make dev-check",
@@ -82,7 +89,14 @@ export const localPreviewReadinessChecklist: ReadinessChecklistItem[] = [
   {
     id: "helper-checks",
     label: "Local helper checks",
-    detail: "Development and evidence checks are command snippets, not certification.",
+    detail:
+      "Readiness, development, and evidence checks are command snippets, not certification.",
+  },
+  {
+    id: "no-telemetry-cloud",
+    label: "No telemetry or cloud calls by default",
+    detail:
+      "Local readiness review does not add telemetry or cloud calls by default.",
   },
   {
     id: "local-preview-boundary",
@@ -178,7 +192,7 @@ export function buildLocalReadinessCards({
       label: "Security/evidence checks",
       value: "local helper checks",
       detail:
-        "Use make dev-check and make evidence-check as local helper checks only.",
+        "Use make readiness-check, make dev-check, and make evidence-check as local helper checks only.",
       source: "helper",
       tone: "neutral",
     },

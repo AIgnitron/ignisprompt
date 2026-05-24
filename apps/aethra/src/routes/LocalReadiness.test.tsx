@@ -26,6 +26,7 @@ describe("local readiness route", () => {
     expect(markup).toContain("local helper checks");
     expect(markup).toContain("./scripts/start-dev.sh");
     expect(markup).toContain("cargo run -p ignispromptctl -- doctor");
+    expect(markup).toContain("cargo run -p ignispromptctl -- readiness");
     expect(markup).toContain("make dev-check");
     expect(markup).toContain("make evidence-check");
   });

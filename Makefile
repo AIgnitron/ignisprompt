@@ -8,7 +8,7 @@ IGNISPROMPT_BASE_URL ?= http://127.0.0.1:8765
 IGNISPROMPT_MODEL_DIR ?= ./config/models
 IGNISPROMPT_AUDIT_LOG ?= ./data/audit/events.jsonl
 
-.PHONY: help build test smoke dev-check security-check evidence-check hidden-unicode-check secret-scan cargo-audit sbom-dry-run gguf-build gguf-test gguf-smoke golden bakeoff demo demo-transcript attestation clean-local-evidence
+.PHONY: help build test smoke dev-check security-check readiness-check evidence-check hidden-unicode-check secret-scan cargo-audit sbom-dry-run gguf-build gguf-test gguf-smoke golden bakeoff demo demo-transcript attestation clean-local-evidence
 
 help:
 	printf '%s\n' \
@@ -18,6 +18,7 @@ help:
 	  '  smoke                 start the default local daemon, run ./scripts/smoke.sh, stop the daemon' \
 	  '  dev-check             run ./scripts/dev-check.sh' \
 	  '  security-check        run deterministic local security review helper checks' \
+	  '  readiness-check       run local readiness CLI/Aethra alignment checks' \
 	  '  evidence-check        run local evidence workflow regression checks' \
 	  '  hidden-unicode-check  scan tracked text files for hidden Unicode controls' \
 	  '  secret-scan           scan tracked text files for obvious accidental secrets' \
@@ -63,6 +64,9 @@ dev-check:
 security-check:
 	./scripts/check-hidden-unicode.sh
 	./scripts/check-secrets-local.sh
+
+readiness-check:
+	./scripts/readiness-check.sh
 
 evidence-check:
 	./scripts/evidence-check.sh

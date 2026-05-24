@@ -78,6 +78,7 @@ describe("local readiness summaries", () => {
       "./scripts/start-dev.sh",
       "cargo run -p ignispromptctl -- health",
       "cargo run -p ignispromptctl -- doctor",
+      "cargo run -p ignispromptctl -- readiness",
       "make dev-check",
       "make evidence-check",
     ]);
@@ -92,6 +93,8 @@ describe("local readiness summaries", () => {
     expect(checklistText).toContain("Fixture-backed by default");
     expect(checklistText).toContain("Manual live-local loading");
     expect(checklistText).toContain("status hints");
+    expect(checklistText).toContain("No telemetry or cloud calls by default");
+    expect(checklistText).toContain("not certification");
     expect(checklistText).not.toContain("control plane");
     expect(checklistText).not.toContain("continuous monitoring");
   });
