@@ -9,6 +9,7 @@ import {
 import {
   buildLocalReadinessCards,
   buildLocalReadinessDiagnostics,
+  buildLocalReadinessPackagePreview,
   getAllReadinessCommandsText,
   localPreviewReadinessChecklist,
   localReadinessCommands,
@@ -122,6 +123,9 @@ describe("local readiness summaries", () => {
       "cargo run -p ignispromptctl -- doctor",
       "cargo run -p ignispromptctl -- readiness",
       "cargo run -p ignispromptctl -- readiness --markdown",
+      "cargo run -p ignispromptctl -- readiness --package-output local-evidence/readiness/demo-readiness",
+      "cargo run -p ignispromptctl -- readiness --package-list local-evidence/readiness/demo-readiness",
+      "cargo run -p ignispromptctl -- readiness --package-validate local-evidence/readiness/demo-readiness",
       "make dev-check",
       "make readiness-check",
       "make evidence-check",
@@ -141,5 +145,47 @@ describe("local readiness summaries", () => {
     expect(checklistText).toContain("not certification");
     expect(checklistText).not.toContain("control plane");
     expect(checklistText).not.toContain("continuous monitoring");
+  });
+
+  it("builds a fixture-backed readiness package preview", () => {
+    const cards = buildLocalReadinessCards({
+      health: healthFixture,
+      healthSource: "fixture",
+      versionStatus: versionStatusFixture,
+      versionSource: "fixture",
+      models: modelFixtures,
+      modelsSource: "fixture",
+      statusHints: modelStatusFixture.statusHints,
+      statusHintsSource: "fixture",
+      evidenceBundle: evidenceBundleFixture,
+    });
+    const diagnostics = buildLocalReadinessDiagnostics(cards);
+    const preview = buildLocalReadinessPackagePreview(diagnostics);
+    const previewText = [
+      preview.schemaVersion,
+      preview.packageRoot,
+      preview.status,
+      preview.generatedFiles.join(" "),
+      preview.boundaryNotes.join(" "),
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    expect(preview.schemaVersion).toBe("ignisprompt-readiness-package-0.1");
+    expect(preview.packageRoot).toBe("local-evidence/readiness/demo-readiness");
+    expect(preview.generatedFiles).toEqual([
+      "README.md",
+      "manifest.json",
+      "readiness-summary.json",
+      "readiness-report.json",
+      "readiness-report.md",
+    ]);
+    expect(preview.boundaryNotes).toContain("status hints, not controls");
+    expect(preview.boundaryNotes).toContain("local helper checks, not certification");
+    expect(previewText).not.toContain("production deployment");
+    expect(previewText).not.toContain("legal accuracy");
+    expect(previewText).not.toContain("compliance certification");
+    expect(previewText).not.toContain("tamper-evident");
+    expect(previewText).not.toContain("cryptographic verification");
   });
 });

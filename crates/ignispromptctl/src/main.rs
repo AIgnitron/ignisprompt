@@ -32,8 +32,8 @@ enum Commands {
     },
     /// Summarize local preview readiness from existing daemon checks
     #[command(group(
-        ArgGroup::new("readiness_output")
-            .args(["json", "markdown"])
+        ArgGroup::new("readiness_action")
+            .args(["package_output", "package_validate", "package_list"])
             .multiple(false)
     ))]
     Readiness {
@@ -43,6 +43,15 @@ enum Commands {
         /// Print a copy-safe Markdown report for local demo notes
         #[arg(long)]
         markdown: bool,
+        /// Generate a local readiness package under ignored local-evidence/readiness/
+        #[arg(long)]
+        package_output: Option<String>,
+        /// Validate an existing local readiness package without calling the daemon
+        #[arg(long)]
+        package_validate: Option<String>,
+        /// List files and metadata for an existing local readiness package without calling the daemon
+        #[arg(long)]
+        package_list: Option<String>,
     },
     /// Check daemon health
     Health,
@@ -142,7 +151,20 @@ fn main() {
     let cli = Cli::parse();
     match &cli.command {
         Commands::Doctor { json } => cmd_doctor(&cli.daemon_url, *json),
-        Commands::Readiness { json, markdown } => cmd_readiness(&cli.daemon_url, *json, *markdown),
+        Commands::Readiness {
+            json,
+            markdown,
+            package_output,
+            package_validate,
+            package_list,
+        } => cmd_readiness(
+            &cli.daemon_url,
+            *json,
+            *markdown,
+            package_output,
+            package_validate,
+            package_list,
+        ),
         Commands::Health => cmd_health(&cli.daemon_url),
         Commands::StatusVersion => cmd_status_version(&cli.daemon_url),
         Commands::Sustainability { period, json } => {
@@ -225,6 +247,44 @@ struct DoctorReport {
     checks: Vec<DoctorCheckResult>,
 }
 
+#[derive(Clone, Debug)]
+struct ReadinessPackageReport {
+    output_dir: PathBuf,
+    generated_at_unix_seconds: u64,
+    generated_file_names: Vec<String>,
+    readiness_json: Value,
+    report_json: Value,
+    manifest_json: Value,
+    report_markdown: String,
+    readme: String,
+}
+
+#[derive(Clone, Debug)]
+struct ReadinessPackageFileState {
+    file_name: &'static str,
+    present: bool,
+    json_valid: Option<bool>,
+    text: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct ReadinessPackageValidationReport {
+    package_dir: PathBuf,
+    files: Vec<ReadinessPackageFileState>,
+    issues: Vec<String>,
+}
+
+const READINESS_PACKAGE_SCHEMA_VERSION: &str = "ignisprompt-readiness-package-0.1";
+const READINESS_PACKAGE_TYPE: &str = "ignisprompt-local-readiness-package";
+const READINESS_PACKAGE_MODE: &str = "local-preview";
+const READINESS_PACKAGE_REQUIRED_FILES: &[&str] = &[
+    "README.md",
+    "manifest.json",
+    "readiness-summary.json",
+    "readiness-report.json",
+    "readiness-report.md",
+];
+
 const DOCTOR_CHECKS: &[DoctorCheckSpec] = &[
     DoctorCheckSpec {
         id: "health",
@@ -278,11 +338,80 @@ fn cmd_doctor(base_url: &str, json_output: bool) {
     }
 }
 
-fn cmd_readiness(base_url: &str, json_output: bool, markdown_output: bool) {
+fn cmd_readiness(
+    base_url: &str,
+    json_output: bool,
+    markdown_output: bool,
+    package_output: &Option<String>,
+    package_validate: &Option<String>,
+    package_list: &Option<String>,
+) {
+    if let Some(package_dir) = package_validate {
+        let report = match build_readiness_package_validation_report(Path::new(package_dir)) {
+            Ok(report) => report,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        if json_output {
+            println!("{}", format_readiness_package_validation_json(&report));
+        } else {
+            println!("{}", format_readiness_package_validation_summary(&report));
+        }
+        if !report.issues.is_empty() {
+            process::exit(1);
+        }
+        return;
+    }
+
+    if let Some(package_dir) = package_list {
+        let report = match build_readiness_package_validation_report(Path::new(package_dir)) {
+            Ok(report) => report,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        if json_output {
+            println!("{}", format_readiness_package_list_json(&report));
+        } else {
+            println!("{}", format_readiness_package_list_summary(&report));
+        }
+        return;
+    }
+
     let report = build_doctor_report(base_url);
     let is_ready = report.required_checks_passed();
 
-    if json_output {
+    if let Some(output) = package_output {
+        let output_dir = match validate_readiness_package_output_dir(output) {
+            Ok(path) => path,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        let package = match build_readiness_package_report(output_dir, &report) {
+            Ok(package) => package,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        if let Err(message) = write_readiness_package_report(&package) {
+            eprintln!("error: {}", message);
+            process::exit(1);
+        }
+
+        if json_output {
+            println!("{}", format_readiness_package_summary_json(&package));
+        } else if markdown_output {
+            println!("{}", package.report_markdown);
+        } else {
+            println!("{}", format_readiness_package_summary(&package));
+        }
+    } else if json_output {
         println!("{}", format_readiness_json(&report));
     } else if markdown_output {
         println!("{}", format_readiness_markdown(&report));
@@ -479,7 +608,7 @@ fn format_doctor_json(report: &DoctorReport) -> String {
 fn format_readiness_summary(report: &DoctorReport) -> String {
     let mut lines = vec![
         "IgnisPrompt Local Readiness".to_string(),
-        format!("Base URL: {}", report.base_url),
+        "Daemon endpoint details: summarized without local URL values".to_string(),
         "".to_string(),
         "Scope:".to_string(),
         "- local preview readiness only".to_string(),
@@ -498,7 +627,7 @@ fn format_readiness_summary(report: &DoctorReport) -> String {
     if !required_checks.is_empty() {
         lines.push("Readiness checks:".to_string());
         for check in required_checks {
-            lines.push(format_doctor_check_line(check));
+            lines.push(format_readiness_summary_check_line(check));
         }
         lines.push("".to_string());
     }
@@ -511,7 +640,7 @@ fn format_readiness_summary(report: &DoctorReport) -> String {
     if !informational_checks.is_empty() {
         lines.push("Status hints:".to_string());
         for check in informational_checks {
-            lines.push(format_doctor_check_line(check));
+            lines.push(format_readiness_summary_check_line(check));
         }
         lines.push("".to_string());
     }
@@ -529,16 +658,22 @@ fn format_readiness_summary(report: &DoctorReport) -> String {
         lines.push("[failed] Required local preview readiness checks failed.".to_string());
         lines.push("".to_string());
         lines.push("Next steps:".to_string());
-        for step in report.next_steps() {
-            if step.starts_with("http") {
-                lines.push(format!("- check {}", step));
-            } else {
-                lines.push(format!("- {}", step));
-            }
+        for step in readiness_report_next_steps(report) {
+            lines.push(format!("- {}", step));
         }
     }
 
     lines.join("\n")
+}
+
+fn format_readiness_summary_check_line(check: &DoctorCheckResult) -> String {
+    let status = if check.ok { "ok" } else { "failed" };
+    format!(
+        "[{}] {}: {}",
+        status,
+        sanitize_readiness_report_text(check.label),
+        sanitize_readiness_report_text(&check.summary)
+    )
 }
 
 fn format_readiness_json(report: &DoctorReport) -> String {
@@ -804,6 +939,519 @@ fn contains_sensitive_readiness_report_text(value: &str) -> bool {
             .contains(&needle.to_ascii_lowercase())
     }) || value.contains("sk-")
         || value.contains("ghp_")
+}
+
+fn build_readiness_package_report(
+    output_dir: PathBuf,
+    report: &DoctorReport,
+) -> Result<ReadinessPackageReport, String> {
+    let generated_at_unix_seconds = current_unix_seconds()?;
+    let generated_file_names = READINESS_PACKAGE_REQUIRED_FILES
+        .iter()
+        .map(|file_name| (*file_name).to_string())
+        .collect::<Vec<_>>();
+    let readiness_json: Value = serde_json::from_str(&format_readiness_json(report))
+        .map_err(|error| format!("could not build readiness JSON: {}", error))?;
+    let report_markdown = format_readiness_markdown(report).replace(
+        "no production deployment approval",
+        "no release approval claim",
+    );
+    let report_json = build_readiness_package_report_json(
+        generated_at_unix_seconds,
+        &generated_file_names,
+        &readiness_json,
+    );
+    let manifest_json = build_readiness_package_manifest_json(
+        generated_at_unix_seconds,
+        &generated_file_names,
+        &readiness_json,
+    );
+    let readme = build_readiness_package_readme();
+
+    validate_no_placeholder_string_values("readiness-summary", &readiness_json)?;
+    validate_no_placeholder_string_values("readiness-report", &report_json)?;
+    validate_no_placeholder_string_values("readiness-manifest", &manifest_json)?;
+    validate_readiness_package_safe_text("readiness-report.md", &report_markdown)?;
+    validate_readiness_package_safe_text("README.md", &readme)?;
+
+    Ok(ReadinessPackageReport {
+        output_dir,
+        generated_at_unix_seconds,
+        generated_file_names,
+        readiness_json,
+        report_json,
+        manifest_json,
+        report_markdown,
+        readme,
+    })
+}
+
+fn build_readiness_package_report_json(
+    generated_at_unix_seconds: u64,
+    generated_file_names: &[String],
+    readiness_json: &Value,
+) -> Value {
+    json!({
+        "readiness_package_schema_version": READINESS_PACKAGE_SCHEMA_VERSION,
+        "package_type": READINESS_PACKAGE_TYPE,
+        "package_mode": READINESS_PACKAGE_MODE,
+        "generated_at_unix_seconds": generated_at_unix_seconds,
+        "local_only": true,
+        "local_preview_readiness_only": true,
+        "no_cloud_calls_by_default": true,
+        "no_telemetry": true,
+        "no_global_aggregation": true,
+        "external_assurance_claim": false,
+        "external_integrity_claim": false,
+        "generated_file_names": generated_file_names,
+        "readiness_status": readiness_json.get("status").cloned().unwrap_or(Value::Null),
+        "checks": readiness_json.get("checks").cloned().unwrap_or_else(|| json!([])),
+        "local_next_steps": readiness_json.get("next_steps").cloned().unwrap_or_else(|| json!([])),
+        "package_boundaries": readiness_package_boundaries(),
+    })
+}
+
+fn build_readiness_package_manifest_json(
+    generated_at_unix_seconds: u64,
+    generated_file_names: &[String],
+    readiness_json: &Value,
+) -> Value {
+    json!({
+        "readiness_package_schema_version": READINESS_PACKAGE_SCHEMA_VERSION,
+        "package_type": READINESS_PACKAGE_TYPE,
+        "package_mode": READINESS_PACKAGE_MODE,
+        "generated_at_unix_seconds": generated_at_unix_seconds,
+        "local_only": true,
+        "generated_file_names": generated_file_names,
+        "files": generated_file_names
+            .iter()
+            .map(|file_name| json!({
+                "name": file_name,
+                "purpose": readiness_package_file_purpose(file_name),
+            }))
+            .collect::<Vec<_>>(),
+        "readiness_status": readiness_json.get("status").cloned().unwrap_or(Value::Null),
+        "package_boundaries": readiness_package_boundaries(),
+    })
+}
+
+fn readiness_package_file_purpose(file_name: &str) -> &'static str {
+    match file_name {
+        "README.md" => "local preview package guide",
+        "manifest.json" => "package manifest",
+        "readiness-summary.json" => "safe CLI readiness diagnostics",
+        "readiness-report.json" => "copy-safe package summary",
+        "readiness-report.md" => "copy-safe package report",
+        _ => "package file",
+    }
+}
+
+fn readiness_package_boundaries() -> Vec<&'static str> {
+    vec![
+        "local preview readiness only",
+        "status hints, not controls",
+        "local helper checks, not certification",
+        "manual live-local loading",
+        "no telemetry",
+        "no cloud calls by default",
+        "no global aggregation",
+        "no external assurance or integrity claim",
+        "no sensitive input content, audit event bodies, evidence payloads, model file payloads, private credentials, or local machine-specific values",
+    ]
+}
+
+fn build_readiness_package_readme() -> String {
+    [
+        "# IgnisPrompt Local Readiness Package",
+        "",
+        "This package is a local preview readiness summary generated by `ignispromptctl readiness --package-output`.",
+        "",
+        "Boundaries:",
+        "- local preview readiness only",
+        "- status hints, not controls",
+        "- local helper checks, not certification",
+        "- manual live-local loading",
+        "- no telemetry",
+        "- no cloud calls by default",
+        "- no global aggregation",
+        "- no external assurance or integrity claim",
+        "- no sensitive input content, audit event bodies, evidence payloads, model file payloads, private credentials, or local machine-specific values",
+        "",
+        "Contents:",
+        "- README.md",
+        "- manifest.json",
+        "- readiness-summary.json",
+        "- readiness-report.json",
+        "- readiness-report.md",
+        "",
+        "Keep this output under ignored `local-evidence/readiness/` and do not commit generated readiness packages.",
+        "",
+    ]
+    .join("\n")
+}
+
+fn write_readiness_package_report(report: &ReadinessPackageReport) -> Result<(), String> {
+    if report.output_dir.exists() {
+        return Err(format!(
+            "output directory already exists: {}",
+            report.output_dir.display()
+        ));
+    }
+
+    let parent = report.output_dir.parent().unwrap_or_else(|| Path::new("."));
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("could not create readiness package parent: {}", error))?;
+
+    let staging_dir = parent.join(format!(
+        ".ignispromptctl-readiness-package-{}-{}",
+        report.generated_at_unix_seconds,
+        process::id()
+    ));
+    if staging_dir.exists() {
+        let _ = fs::remove_dir_all(&staging_dir);
+    }
+    fs::create_dir_all(&staging_dir)
+        .map_err(|error| format!("could not create readiness package staging: {}", error))?;
+
+    let write_result = (|| -> Result<(), String> {
+        fs::write(staging_dir.join("README.md"), &report.readme)
+            .map_err(|error| format!("could not write README.md: {}", error))?;
+        write_pretty_json_file(&staging_dir.join("manifest.json"), &report.manifest_json)?;
+        write_pretty_json_file(
+            &staging_dir.join("readiness-summary.json"),
+            &report.readiness_json,
+        )?;
+        write_pretty_json_file(
+            &staging_dir.join("readiness-report.json"),
+            &report.report_json,
+        )?;
+        fs::write(
+            staging_dir.join("readiness-report.md"),
+            &report.report_markdown,
+        )
+        .map_err(|error| format!("could not write readiness-report.md: {}", error))?;
+        Ok(())
+    })();
+
+    if let Err(message) = write_result {
+        let _ = fs::remove_dir_all(&staging_dir);
+        return Err(message);
+    }
+
+    fs::rename(&staging_dir, &report.output_dir).map_err(|error| {
+        let _ = fs::remove_dir_all(&staging_dir);
+        format!(
+            "could not finalize readiness package at {}: {}",
+            report.output_dir.display(),
+            error
+        )
+    })?;
+
+    Ok(())
+}
+
+fn format_readiness_package_summary(report: &ReadinessPackageReport) -> String {
+    let status = report
+        .readiness_json
+        .get("status")
+        .and_then(|value| value.as_str())
+        .unwrap_or("unknown");
+    let mut lines = vec![
+        "IgnisPrompt Local Readiness Package".to_string(),
+        format!("Schema version: {}", READINESS_PACKAGE_SCHEMA_VERSION),
+        format!("Package mode: {}", READINESS_PACKAGE_MODE),
+        format!("Output dir: {}", report.output_dir.display()),
+        format!(
+            "Generated at (unix seconds): {}",
+            report.generated_at_unix_seconds
+        ),
+        format!("Readiness status: {}", status),
+        "Boundaries: local preview readiness only; status hints, not controls; local helper checks, not certification; no telemetry; no cloud calls by default.".to_string(),
+        "".to_string(),
+        "Generated files:".to_string(),
+    ];
+    for file_name in &report.generated_file_names {
+        lines.push(format!("- {}", file_name));
+    }
+    lines.push("".to_string());
+    lines.push("Next steps:".to_string());
+    lines.push(
+        "- run cargo run -p ignispromptctl -- readiness --package-validate <package-dir>"
+            .to_string(),
+    );
+    lines
+        .push("- review Aethra Local Readiness package preview as read-only guidance.".to_string());
+    lines.join("\n")
+}
+
+fn format_readiness_package_summary_json(report: &ReadinessPackageReport) -> String {
+    serde_json::to_string_pretty(&report.report_json).unwrap_or_default()
+}
+
+fn validate_relative_path(output: &str, label: &str) -> Result<PathBuf, String> {
+    if output.trim().is_empty() {
+        return Err(format!("{} is required", label));
+    }
+
+    let path = PathBuf::from(output);
+    if path.is_absolute() {
+        return Err(format!("{} must be a relative path", label));
+    }
+
+    for component in path.components() {
+        match component {
+            Component::Normal(_) => {}
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(format!("{} must not use parent traversal", label));
+            }
+        }
+    }
+
+    Ok(path)
+}
+
+fn validate_readiness_package_output_dir(output: &str) -> Result<PathBuf, String> {
+    let path = validate_relative_path(output, "readiness package output")?;
+    if !path.starts_with("local-evidence/readiness") {
+        return Err(
+            "readiness package output must stay under ignored local-evidence/readiness/"
+                .to_string(),
+        );
+    }
+    if path == Path::new("local-evidence/readiness") {
+        return Err(
+            "readiness package output must include a package directory under local-evidence/readiness/"
+                .to_string(),
+        );
+    }
+    if path.exists() {
+        return Err(format!(
+            "readiness package output already exists: {}",
+            path.display()
+        ));
+    }
+    Ok(path)
+}
+
+fn safe_readiness_package_path(path: &Path) -> String {
+    if path.is_absolute() {
+        "[redacted readiness package path]".to_string()
+    } else {
+        path.display().to_string()
+    }
+}
+
+fn build_readiness_package_validation_report(
+    package_dir: &Path,
+) -> Result<ReadinessPackageValidationReport, String> {
+    if !package_dir.exists() {
+        return Err(format!(
+            "readiness package directory does not exist: {}",
+            safe_readiness_package_path(package_dir)
+        ));
+    }
+    if !package_dir.is_dir() {
+        return Err(format!(
+            "readiness package path is not a directory: {}",
+            safe_readiness_package_path(package_dir)
+        ));
+    }
+
+    let mut files = Vec::new();
+    let mut issues = Vec::new();
+    for file_name in READINESS_PACKAGE_REQUIRED_FILES {
+        let path = package_dir.join(file_name);
+        if !path.exists() {
+            issues.push(format!("missing required file: {}", file_name));
+            files.push(ReadinessPackageFileState {
+                file_name,
+                present: false,
+                json_valid: None,
+                text: None,
+            });
+            continue;
+        }
+
+        let text = fs::read_to_string(&path)
+            .map_err(|error| format!("could not read {}: {}", file_name, error))?;
+        if let Err(message) = validate_readiness_package_safe_text(file_name, &text) {
+            issues.push(message);
+        }
+        let json_valid = if file_name.ends_with(".json") {
+            match serde_json::from_str::<Value>(&text) {
+                Ok(value) => {
+                    if let Err(message) = validate_no_placeholder_string_values(file_name, &value) {
+                        issues.push(message);
+                    }
+                    Some(true)
+                }
+                Err(error) => {
+                    issues.push(format!("invalid JSON in {}: {}", file_name, error));
+                    Some(false)
+                }
+            }
+        } else {
+            None
+        };
+        files.push(ReadinessPackageFileState {
+            file_name,
+            present: true,
+            json_valid,
+            text: Some(text),
+        });
+    }
+
+    if let Some(readme) = files
+        .iter()
+        .find(|file| file.file_name == "README.md")
+        .and_then(|file| file.text.as_deref())
+    {
+        for term in [
+            "local preview readiness only",
+            "status hints, not controls",
+            "local helper checks, not certification",
+            "no telemetry",
+            "no cloud calls by default",
+        ] {
+            if !readme.contains(term) {
+                issues.push(format!("README.md is missing boundary term: {}", term));
+            }
+        }
+    }
+
+    Ok(ReadinessPackageValidationReport {
+        package_dir: package_dir.to_path_buf(),
+        files,
+        issues,
+    })
+}
+
+fn validate_readiness_package_safe_text(label: &str, text: &str) -> Result<(), String> {
+    let lower = text.to_ascii_lowercase();
+    for unsafe_term in [
+        "prompt:",
+        "raw user text",
+        "raw audit text",
+        "generated evidence contents:",
+        "model file contents:",
+        "api_key",
+        "api key",
+        "sk-",
+        "ghp_",
+        "localhost",
+        "127.0.0.1",
+        "/users/",
+        "/home/",
+        "/private/",
+        "hostname",
+        "username",
+        "machine identifier",
+        "production security",
+        "production deployment",
+        "legal accuracy",
+        "esg certification",
+        "compliance certification",
+        "supply-chain certification",
+        "production-grade inference",
+        "production-grade security",
+        "tamper-evident",
+        "cryptographic verification",
+        "signed attestation",
+    ] {
+        if lower.contains(unsafe_term) {
+            return Err(format!(
+                "{} contains unsafe content: {}",
+                label, unsafe_term
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn format_readiness_package_validation_summary(
+    report: &ReadinessPackageValidationReport,
+) -> String {
+    let mut lines = vec![
+        "IgnisPrompt Local Readiness Package Validation".to_string(),
+        format!(
+            "Package dir: {}",
+            safe_readiness_package_path(&report.package_dir)
+        ),
+        format!(
+            "Status: {}",
+            if report.issues.is_empty() {
+                "ok"
+            } else {
+                "failed"
+            }
+        ),
+        "".to_string(),
+        "Files:".to_string(),
+    ];
+    for file in &report.files {
+        lines.push(format!(
+            "- {}: {}",
+            file.file_name,
+            if file.present { "present" } else { "missing" }
+        ));
+    }
+    if !report.issues.is_empty() {
+        lines.push("".to_string());
+        lines.push("Issues:".to_string());
+        for issue in &report.issues {
+            lines.push(format!("- {}", issue));
+        }
+    }
+    lines.join("\n")
+}
+
+fn format_readiness_package_list_summary(report: &ReadinessPackageValidationReport) -> String {
+    let mut lines = vec![
+        "IgnisPrompt Local Readiness Package Files".to_string(),
+        format!(
+            "Package dir: {}",
+            safe_readiness_package_path(&report.package_dir)
+        ),
+        "".to_string(),
+    ];
+    for file in &report.files {
+        let json_label = match file.json_valid {
+            Some(true) => " json=valid",
+            Some(false) => " json=invalid",
+            None => "",
+        };
+        lines.push(format!(
+            "- {}: {}{}",
+            file.file_name,
+            if file.present { "present" } else { "missing" },
+            json_label
+        ));
+    }
+    lines.join("\n")
+}
+
+fn format_readiness_package_validation_json(report: &ReadinessPackageValidationReport) -> String {
+    serde_json::to_string_pretty(&readiness_package_validation_value(report)).unwrap_or_default()
+}
+
+fn format_readiness_package_list_json(report: &ReadinessPackageValidationReport) -> String {
+    serde_json::to_string_pretty(&readiness_package_validation_value(report)).unwrap_or_default()
+}
+
+fn readiness_package_validation_value(report: &ReadinessPackageValidationReport) -> Value {
+    json!({
+        "readiness_package_schema_version": READINESS_PACKAGE_SCHEMA_VERSION,
+        "status": if report.issues.is_empty() { "ok" } else { "failed" },
+        "package_dir": safe_readiness_package_path(&report.package_dir),
+        "files": report.files.iter().map(|file| json!({
+            "name": file.file_name,
+            "present": file.present,
+            "json_valid": file.json_valid,
+        })).collect::<Vec<_>>(),
+        "issues": report.issues,
+        "package_boundaries": readiness_package_boundaries(),
+    })
 }
 
 fn validate_doctor_health(body: &Value) -> Result<String, String> {
@@ -3919,6 +4567,7 @@ mod tests {
         audit_events_url, build_evidence_bundle_archive_report,
         build_evidence_bundle_archive_verification_report, build_evidence_bundle_manifest_report,
         build_evidence_bundle_report, build_evidence_bundle_validation_report,
+        build_readiness_package_report, build_readiness_package_validation_report,
         build_route_explain_body, current_unix_seconds, doctor_endpoint_url,
         format_audit_events_summary, format_doctor_json, format_doctor_summary,
         format_evidence_bundle_archive_json, format_evidence_bundle_archive_summary,
@@ -3929,16 +4578,20 @@ mod tests {
         format_evidence_bundle_unreachable_error, format_evidence_bundle_validation_json,
         format_evidence_bundle_validation_summary, format_http_error,
         format_invalid_response_error, format_model_manifest_line, format_readiness_json,
-        format_readiness_markdown, format_readiness_summary, format_route_explain_summary,
-        format_sustainability_summary, format_unreachable_error, is_audit_event_list,
-        is_route_explain_response, is_sustainability_metrics_response, readiness_report_next_steps,
-        route_explain_url, string_field, sustainability_url, validate_doctor_health,
-        validate_doctor_model_status_hints, validate_doctor_models,
+        format_readiness_markdown, format_readiness_package_list_json,
+        format_readiness_package_list_summary, format_readiness_package_summary,
+        format_readiness_package_summary_json, format_readiness_package_validation_json,
+        format_readiness_package_validation_summary, format_readiness_summary,
+        format_route_explain_summary, format_sustainability_summary, format_unreachable_error,
+        is_audit_event_list, is_route_explain_response, is_sustainability_metrics_response,
+        readiness_report_next_steps, route_explain_url, string_field, sustainability_url,
+        validate_doctor_health, validate_doctor_model_status_hints, validate_doctor_models,
         validate_doctor_sustainability_metrics, validate_doctor_version_status,
         validate_evidence_bundle_archive_output_path, validate_evidence_bundle_output_dir,
-        validate_no_placeholder_string_values, validate_sustainability_period,
-        write_evidence_bundle_report, DoctorCheckLevel, DoctorCheckResult, DoctorReport,
-        EvidenceBundleCapture, DOCTOR_CHECKS,
+        validate_no_placeholder_string_values, validate_readiness_package_output_dir,
+        validate_sustainability_period, write_evidence_bundle_report,
+        write_readiness_package_report, DoctorCheckLevel, DoctorCheckResult, DoctorReport,
+        EvidenceBundleCapture, DOCTOR_CHECKS, READINESS_PACKAGE_REQUIRED_FILES,
     };
     use serde_json::json;
 
@@ -4430,6 +5083,164 @@ mod tests {
         assert!(!lower_report.contains("cryptographic verification"));
         assert!(!lower_report.contains("model controls"));
         assert!(!lower_report.contains("runner controls"));
+    }
+
+    #[test]
+    fn readiness_package_output_path_requires_ignored_readiness_root() {
+        assert!(
+            validate_readiness_package_output_dir("local-evidence/readiness/demo-readiness")
+                .is_ok()
+        );
+        assert!(validate_readiness_package_output_dir("local-evidence/readiness").is_err());
+        assert!(validate_readiness_package_output_dir("local-evidence/demo-readiness").is_err());
+        assert!(validate_readiness_package_output_dir("/tmp/readiness").is_err());
+        assert!(validate_readiness_package_output_dir("local-evidence/readiness/../bad").is_err());
+    }
+
+    #[test]
+    fn readiness_package_writes_and_validates_safe_files() {
+        let output_dir = std::path::PathBuf::from(format!(
+            "local-evidence/readiness/unit-{}-{}",
+            std::process::id(),
+            current_unix_seconds().unwrap()
+        ));
+        let _ = std::fs::remove_dir_all(&output_dir);
+        let report = DoctorReport {
+            base_url: "http://127.0.0.1:8765".to_string(),
+            checks: vec![
+                DoctorCheckResult {
+                    id: "health",
+                    label: "health",
+                    level: DoctorCheckLevel::Required,
+                    endpoint: "http://127.0.0.1:8765/health".to_string(),
+                    ok: true,
+                    summary: "ok".to_string(),
+                    error: None,
+                },
+                DoctorCheckResult {
+                    id: "model_status_hints",
+                    label: "model and runner status hints",
+                    level: DoctorCheckLevel::Required,
+                    endpoint: "http://127.0.0.1:8765/v1/status/models".to_string(),
+                    ok: true,
+                    summary: "available (1 hint; status hints only)".to_string(),
+                    error: None,
+                },
+            ],
+        };
+
+        let package = build_readiness_package_report(output_dir.clone(), &report).unwrap();
+        write_readiness_package_report(&package).unwrap();
+
+        for file_name in READINESS_PACKAGE_REQUIRED_FILES {
+            assert!(output_dir.join(file_name).exists());
+        }
+        let validation = build_readiness_package_validation_report(&output_dir).unwrap();
+        assert!(validation.issues.is_empty());
+        assert!(format_readiness_package_validation_summary(&validation).contains("Status: ok"));
+        assert!(format_readiness_package_list_summary(&validation).contains("readiness-report.md"));
+        assert!(
+            format_readiness_package_validation_json(&validation).contains("\"status\": \"ok\"")
+        );
+        assert!(format_readiness_package_list_json(&validation).contains("readiness-summary.json"));
+
+        let summary = format_readiness_package_summary(&package);
+        let summary_json = format_readiness_package_summary_json(&package);
+        let lower_package_text = [
+            summary.as_str(),
+            summary_json.as_str(),
+            package.report_markdown.as_str(),
+            package.readme.as_str(),
+        ]
+        .join("\n")
+        .to_ascii_lowercase();
+        assert!(summary.contains("IgnisPrompt Local Readiness Package"));
+        assert!(summary_json.contains("\"local_only\": true"));
+        assert!(!lower_package_text.contains("prompt:"));
+        assert!(!lower_package_text.contains("raw user text"));
+        assert!(!lower_package_text.contains("raw audit text"));
+        assert!(!lower_package_text.contains("api_key"));
+        assert!(!lower_package_text.contains("sk-"));
+        assert!(!lower_package_text.contains("localhost"));
+        assert!(!lower_package_text.contains("127.0.0.1"));
+        assert!(!lower_package_text.contains("hostname"));
+        assert!(!lower_package_text.contains("username"));
+        assert!(!lower_package_text.contains("/users/"));
+        assert!(!lower_package_text.contains("production deployment"));
+        assert!(!lower_package_text.contains("legal accuracy"));
+        assert!(!lower_package_text.contains("esg certification"));
+        assert!(!lower_package_text.contains("compliance certification"));
+        assert!(!lower_package_text.contains("supply-chain certification"));
+        assert!(!lower_package_text.contains("production-grade inference"));
+        assert!(!lower_package_text.contains("production-grade security"));
+        assert!(!lower_package_text.contains("tamper-evident"));
+        assert!(!lower_package_text.contains("cryptographic verification"));
+        assert!(!lower_package_text.contains("signed attestation"));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn readiness_package_validation_reports_unsafe_content() {
+        let output_dir = std::path::PathBuf::from(format!(
+            "local-evidence/readiness/unsafe-unit-{}-{}",
+            std::process::id(),
+            current_unix_seconds().unwrap()
+        ));
+        let _ = std::fs::remove_dir_all(&output_dir);
+        std::fs::create_dir_all(&output_dir).unwrap();
+        for file_name in READINESS_PACKAGE_REQUIRED_FILES {
+            let path = output_dir.join(file_name);
+            if file_name.ends_with(".json") {
+                std::fs::write(path, "{\"value\":\"string\"}\n").unwrap();
+            } else {
+                std::fs::write(
+                    path,
+                    "local preview readiness only\nstatus hints, not controls\nlocal helper checks, not certification\nno telemetry\nno cloud calls by default\nprompt: raw audit text /Users/alice api_key sk-test\n",
+                )
+                .unwrap();
+            }
+        }
+
+        let validation = build_readiness_package_validation_report(&output_dir).unwrap();
+        let issues = validation.issues.join("\n");
+        assert!(issues.contains("placeholder"));
+        assert!(issues.contains("unsafe content"));
+        assert!(format_readiness_package_validation_summary(&validation).contains("Status: failed"));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn readiness_package_validation_redacts_absolute_paths() {
+        let output_dir = std::path::PathBuf::from(format!(
+            "local-evidence/readiness/redact-unit-{}-{}",
+            std::process::id(),
+            current_unix_seconds().unwrap()
+        ));
+        let absolute_dir = std::env::current_dir().unwrap().join(&output_dir);
+        let _ = std::fs::remove_dir_all(&output_dir);
+        std::fs::create_dir_all(&output_dir).unwrap();
+
+        for file_name in READINESS_PACKAGE_REQUIRED_FILES {
+            let text = if file_name.ends_with(".json") {
+                "{}"
+            } else {
+                "local preview readiness only\nstatus hints, not controls\nlocal helper checks, not certification\nno telemetry\nno cloud calls by default\n"
+            };
+            std::fs::write(output_dir.join(file_name), text).unwrap();
+        }
+
+        let validation = build_readiness_package_validation_report(&absolute_dir).unwrap();
+        let summary = format_readiness_package_validation_summary(&validation);
+        let json_text = format_readiness_package_validation_json(&validation);
+
+        assert!(summary.contains("[redacted readiness package path]"));
+        assert!(json_text.contains("[redacted readiness package path]"));
+        assert!(!summary.contains("/Users/"));
+        assert!(!json_text.contains("/Users/"));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
     }
 
     #[test]

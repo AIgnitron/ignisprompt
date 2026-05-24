@@ -6,6 +6,7 @@ import {
 import type {
   ReadinessCard,
   ReadinessDiagnostic,
+  ReadinessPackagePreview,
 } from "./localReadinessSummary";
 
 const safeCards: ReadinessCard[] = [
@@ -50,11 +51,38 @@ const safeDiagnostics: ReadinessDiagnostic[] = [
   },
 ];
 
+const safePackagePreview: ReadinessPackagePreview = {
+  schemaVersion: "ignisprompt-readiness-package-0.1",
+  packageMode: "local-preview",
+  packageRoot: "local-evidence/readiness/demo-readiness",
+  status: "local_preview_ready",
+  generatedFiles: [
+    "README.md",
+    "manifest.json",
+    "readiness-summary.json",
+    "readiness-report.json",
+    "readiness-report.md",
+  ],
+  categories: [
+    { category: "daemon", severity: "info", status: "ok" },
+    { category: "runner hints", severity: "advisory", status: "status hint" },
+  ],
+  localNextSteps: ["No local action needed for this status hint."],
+  boundaryNotes: [
+    "local preview readiness only",
+    "status hints, not controls",
+    "local helper checks, not certification",
+    "no telemetry",
+    "no cloud calls by default",
+  ],
+};
+
 describe("readiness report export", () => {
   it("builds a copy-safe local preview readiness report", () => {
     const report = buildReadinessMarkdownReport({
       cards: safeCards,
       diagnostics: safeDiagnostics,
+      packagePreview: safePackagePreview,
     });
 
     expect(report).toContain("# Aethra Local Readiness Report");
@@ -66,6 +94,10 @@ describe("readiness report export", () => {
     expect(report).toContain("## Diagnostic Details");
     expect(report).toContain("category=runner hints");
     expect(report).toContain("next_step=Review model and runner status hints");
+    expect(report).toContain("## Readiness Package Preview");
+    expect(report).toContain("ignisprompt-readiness-package-0.1");
+    expect(report).toContain("local-evidence/readiness/demo-readiness");
+    expect(report).toContain("readiness-report.json");
     expect(report).toContain("cargo run -p ignispromptctl -- readiness");
     expect(report).toContain("make readiness-check");
   });
@@ -97,6 +129,13 @@ describe("readiness report export", () => {
           source: "fixture",
         },
       ],
+      packagePreview: {
+        ...safePackagePreview,
+        packageRoot: "/Users/alice/local-evidence/readiness",
+        boundaryNotes: [
+          "hostname username prompt: raw audit text production readiness compliance certification signed attestation tamper-evident storage cryptographic verification",
+        ],
+      },
       checklist: [
         {
           id: "unsafe-checklist",
@@ -138,6 +177,9 @@ describe("readiness report export", () => {
     expect(lowerReport).not.toContain("cryptographic verification");
     expect(lowerReport).not.toContain("model controls");
     expect(lowerReport).not.toContain("runner controls");
+    expect(lowerReport).not.toContain("production-grade inference");
+    expect(lowerReport).not.toContain("production-grade security");
+    expect(lowerReport).not.toContain("supply-chain certification");
   });
 
   it("keeps empty report inputs conservative", () => {

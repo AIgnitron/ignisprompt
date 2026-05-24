@@ -18,6 +18,7 @@ import {
 import {
   buildLocalReadinessCards,
   buildLocalReadinessDiagnostics,
+  buildLocalReadinessPackagePreview,
   getAllReadinessCommandsText,
   getReadinessSourceLabel,
   localPreviewReadinessChecklist,
@@ -75,7 +76,12 @@ export function LocalReadiness({
     evidenceBundle: evidenceBundleFixture,
   });
   const diagnostics = buildLocalReadinessDiagnostics(cards);
-  const readinessReport = buildReadinessMarkdownReport({ cards, diagnostics });
+  const packagePreview = buildLocalReadinessPackagePreview(diagnostics);
+  const readinessReport = buildReadinessMarkdownReport({
+    cards,
+    diagnostics,
+    packagePreview,
+  });
 
   async function copyCommand(id: string, command: string) {
     if (!globalThis.navigator?.clipboard?.writeText) {
@@ -247,6 +253,88 @@ export function LocalReadiness({
                 </dd>
               </div>
             ))}
+          </dl>
+        </div>
+      </section>
+
+      <section className="overview-section-group" aria-label="Readiness package preview">
+        <div className="section-heading">
+          <p className="eyebrow">Package</p>
+          <h3>Readiness package preview</h3>
+          <p className="muted">
+            Fixture-backed package manifest summary for local preview review.
+            Generate packages from the CLI under ignored local-evidence paths.
+          </p>
+        </div>
+        <div className="panel" aria-label="Readiness package details">
+          <div className="panel-heading">
+            <div>
+              <h3>Package manifest summary</h3>
+              <p className="muted">
+                Status values remain hints. Aethra does not generate, upload,
+                validate, or persist package files.
+              </p>
+            </div>
+            <StatusBadge tone="neutral">{packagePreview.packageMode}</StatusBadge>
+          </div>
+          <dl className="state-list">
+            <div className="state-list-item">
+              <dt>Package root</dt>
+              <dd>
+                <StatusBadge tone="neutral">ignored path</StatusBadge>
+                <code>{packagePreview.packageRoot}</code>
+              </dd>
+            </div>
+            <div className="state-list-item">
+              <dt>Readiness report status</dt>
+              <dd>
+                <StatusBadge
+                  tone={
+                    packagePreview.status === "local_preview_ready"
+                      ? "ok"
+                      : "warning"
+                  }
+                >
+                  {packagePreview.status}
+                </StatusBadge>
+                <span>Schema {packagePreview.schemaVersion}</span>
+              </dd>
+            </div>
+            <div className="state-list-item">
+              <dt>Generated files</dt>
+              <dd>
+                <StatusBadge tone="neutral">copy-safe</StatusBadge>
+                <span>{packagePreview.generatedFiles.join(", ")}</span>
+              </dd>
+            </div>
+            <div className="state-list-item">
+              <dt>Categories and severities</dt>
+              <dd>
+                <StatusBadge tone="neutral">status hints</StatusBadge>
+                <span>
+                  {packagePreview.categories
+                    .map(
+                      (item) =>
+                        `${item.category}:${item.severity}:${item.status}`,
+                    )
+                    .join("; ")}
+                </span>
+              </dd>
+            </div>
+            <div className="state-list-item">
+              <dt>Local next steps</dt>
+              <dd>
+                <StatusBadge tone="neutral">local helper</StatusBadge>
+                <span>{packagePreview.localNextSteps.join(" ")}</span>
+              </dd>
+            </div>
+            <div className="state-list-item">
+              <dt>Boundary notes</dt>
+              <dd>
+                <StatusBadge tone="neutral">local preview</StatusBadge>
+                <span>{packagePreview.boundaryNotes.join("; ")}</span>
+              </dd>
+            </div>
           </dl>
         </div>
       </section>

@@ -19,6 +19,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Local readiness quality gate for CLI help surfaces, Aethra readiness wording alignment, and evidence workflow regression integration.
 - Copy-safe local readiness report export parity across CLI Markdown output, Aethra Local Readiness, and readiness quality gates.
 - Safe local readiness diagnostics across CLI JSON output, Aethra read-only drilldown hints, and readiness quality gates.
+- Local readiness package workflow for ignored local-evidence/readiness output, CLI list/validate behavior, demo workflow integration, and Aethra read-only package preview.
 - Local evidence demo workflow automation script for route-explain, audit-events, evidence-bundle generation, listing, validation, archiving, archive verification, and manifest inspection.
 - Adversarial document-instruction detection for known instruction strings.
 - OpenAI-compatible chat completion request shape, including a `stream: true` compatibility scaffold that frames an already-produced local completion as SSE chunks.
@@ -30,7 +31,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 
 ## Near-term work
 
-- Keep Aethra local readiness, `ignispromptctl readiness`, copy-safe readiness reports, diagnostic drilldowns, command guidance, evidence workflow, and boundary-language checks conservative and fixture-backed by default.
+- Keep Aethra local readiness, `ignispromptctl readiness`, copy-safe readiness reports, readiness packages, diagnostic drilldowns, command guidance, evidence workflow, and boundary-language checks conservative and fixture-backed by default.
 - Keep default CI green without local model weights.
 - Keep route-policy regression coverage current for legal Tier 3 routing, general local routing, adversarial document-instruction handling, conservative explanations, and local audit emission.
 - Keep model availability semantics explicit: route eligibility, manifest configuration, local file presence, runner hints, and executable local inference are separate states.

@@ -33,6 +33,11 @@ describe("local readiness route", () => {
     expect(markup).toContain("Copy readiness report");
     expect(markup).toContain("# Aethra Local Readiness Report");
     expect(markup).toContain("Readiness diagnostic drilldown");
+    expect(markup).toContain("Readiness package preview");
+    expect(markup).toContain("Package manifest summary");
+    expect(markup).toContain("local-evidence/readiness/demo-readiness");
+    expect(markup).toContain("readiness-report.json");
+    expect(markup).toContain("readiness-report.md");
     expect(markup).toContain("Category: daemon");
     expect(markup).toContain("Category: runner hints");
     expect(markup).toContain("Category: audit");
@@ -59,9 +64,10 @@ describe("local readiness route", () => {
     expect(lowerMarkup).not.toContain("runner control");
     expect(lowerMarkup).not.toContain("run shell commands");
     expect(lowerMarkup).not.toContain("continuous monitoring");
-    expect(lowerMarkup).not.toContain("global aggregation");
+    expect(lowerMarkup).not.toContain("global aggregation enabled");
     expect(lowerMarkup).not.toContain("telemetry enabled");
     expect(lowerMarkup).not.toContain("cloud upload");
+    expect(lowerMarkup).not.toContain("file picker");
     expect(lowerMarkup).not.toContain("prompt:");
     expect(lowerMarkup).not.toContain("secret");
     expect(lowerMarkup).not.toContain("api_key");
@@ -73,6 +79,13 @@ describe("local readiness route", () => {
     expect(lowerMarkup).not.toContain("machine identifier");
     expect(lowerMarkup).not.toContain("/users/");
     expect(lowerMarkup).not.toContain("raw audit text");
+    expect(lowerMarkup).not.toContain("production-grade inference");
+    expect(lowerMarkup).not.toContain("production-grade security");
+    expect(lowerMarkup).not.toContain(["esg", "certification"].join(" "));
+    expect(lowerMarkup).not.toContain("compliance certification");
+    expect(lowerMarkup).not.toContain("supply-chain certification");
+    expect(lowerMarkup).not.toContain("signed attestation");
+    expect(lowerMarkup).not.toContain("cryptographic verification");
   });
 
   it("renders manual live-local labels only when loaded data is supplied", () => {
