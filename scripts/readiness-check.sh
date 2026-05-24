@@ -83,7 +83,7 @@ check_help_terms \
   "--json" \
   "--markdown"
 
-cargo test --quiet -p ignispromptctl readiness_markdown_report_is_copy_safe >/dev/null
+cargo test --quiet -p ignispromptctl readiness_ >/dev/null
 
 cargo run --quiet -p ignispromptctl -- health --help >"$tmp_dir/health-help.txt"
 check_help_terms "$tmp_dir/health-help.txt" "Check daemon health"

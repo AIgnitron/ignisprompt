@@ -17,6 +17,7 @@ import {
 } from "../api/fixtures";
 import {
   buildLocalReadinessCards,
+  buildLocalReadinessDiagnostics,
   getAllReadinessCommandsText,
   getReadinessSourceLabel,
   localPreviewReadinessChecklist,
@@ -73,7 +74,8 @@ export function LocalReadiness({
     statusHintsSource: useLiveModelStatus ? "live-local" : "fixture",
     evidenceBundle: evidenceBundleFixture,
   });
-  const readinessReport = buildReadinessMarkdownReport({ cards });
+  const diagnostics = buildLocalReadinessDiagnostics(cards);
+  const readinessReport = buildReadinessMarkdownReport({ cards, diagnostics });
 
   async function copyCommand(id: string, command: string) {
     if (!globalThis.navigator?.clipboard?.writeText) {
@@ -217,6 +219,38 @@ export function LocalReadiness({
         </div>
       </section>
 
+      <section className="overview-section-group" aria-label="Readiness diagnostic drilldown">
+        <div className="section-heading">
+          <p className="eyebrow">Diagnostics</p>
+          <h3>Readiness diagnostic drilldown</h3>
+          <p className="muted">
+            Read-only local next-step hints for warning checks and advisory
+            status hints. Values stay fixture-backed unless matching
+            live-local data has already been manually loaded.
+          </p>
+        </div>
+        <div className="panel" aria-label="Readiness diagnostic details">
+          <dl className="state-list">
+            {diagnostics.map((item) => (
+              <div key={item.id} className="state-list-item">
+                <dt>{item.label}</dt>
+                <dd>
+                  <StatusBadge tone={diagnosticTone(item.status)}>
+                    {item.status}
+                  </StatusBadge>
+                  <span>
+                    Category: {item.category}; severity: {item.severity};
+                    source: {getReadinessSourceLabel(item.source)}.
+                  </span>
+                  <span>Next step: {item.localNextStep}</span>
+                  <span>Boundary: {item.boundaryNote}</span>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </section>
+
       <section className="overview-section-group" aria-label="Local preview readiness checklist">
         <div className="section-heading">
           <p className="eyebrow">Checklist</p>
@@ -248,6 +282,18 @@ export function LocalReadiness({
       </section>
     </section>
   );
+}
+
+function diagnosticTone(status: string): "ok" | "neutral" | "warning" {
+  if (status === "ok") {
+    return "ok";
+  }
+
+  if (status === "needs attention") {
+    return "warning";
+  }
+
+  return "neutral";
 }
 
 function ReadinessCardView({ card }: { card: ReadinessCard }) {

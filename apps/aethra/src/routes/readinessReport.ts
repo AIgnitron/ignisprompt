@@ -5,16 +5,19 @@ import {
   type ReadinessCard,
   type ReadinessChecklistItem,
   type ReadinessCommand,
+  type ReadinessDiagnostic,
 } from "./localReadinessSummary";
 
 export type ReadinessReportInput = {
   cards: ReadinessCard[];
+  diagnostics?: ReadinessDiagnostic[];
   checklist?: ReadinessChecklistItem[];
   commands?: ReadinessCommand[];
 };
 
 export function buildReadinessMarkdownReport({
   cards,
+  diagnostics = [],
   checklist = localPreviewReadinessChecklist,
   commands = localReadinessCommands,
 }: ReadinessReportInput): string {
@@ -35,6 +38,10 @@ export function buildReadinessMarkdownReport({
     "",
     ...formatCards(cards),
     "",
+    "## Diagnostic Details",
+    "",
+    ...formatDiagnostics(diagnostics),
+    "",
     "## Local Preview Checklist",
     "",
     ...formatChecklist(checklist),
@@ -53,6 +60,25 @@ export function buildReadinessMarkdownReport({
     ...formatCommands(commands),
     "",
   ].join("\n");
+}
+
+function formatDiagnostics(diagnostics: ReadinessDiagnostic[]): string[] {
+  if (diagnostics.length === 0) {
+    return ["- No readiness diagnostic details available."];
+  }
+
+  return diagnostics.map(
+    (item) =>
+      `- ${sanitizeReadinessReportText(item.label)}: status=${sanitizeReadinessReportText(
+        item.status,
+      )}; category=${sanitizeReadinessReportText(
+        item.category,
+      )}; severity=${sanitizeReadinessReportText(
+        item.severity,
+      )}; next_step=${sanitizeReadinessReportText(
+        item.localNextStep,
+      )}; boundary=${sanitizeReadinessReportText(item.boundaryNote)}`,
+  );
 }
 
 export function sanitizeReadinessReportText(value: string): string {

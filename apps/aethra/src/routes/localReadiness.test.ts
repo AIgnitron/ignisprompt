@@ -8,6 +8,7 @@ import {
 } from "../api/fixtures";
 import {
   buildLocalReadinessCards,
+  buildLocalReadinessDiagnostics,
   getAllReadinessCommandsText,
   localPreviewReadinessChecklist,
   localReadinessCommands,
@@ -71,6 +72,47 @@ describe("local readiness summaries", () => {
     expect(cards.find((card) => card.id === "model-runner-hints")?.value).toBe(
       "0 hint(s)",
     );
+  });
+
+  it("builds local readiness diagnostic drilldown hints", () => {
+    const cards = buildLocalReadinessCards({
+      health: { ...healthFixture, status: "unknown", model_count: 0 },
+      healthSource: "fixture",
+      versionStatus: versionStatusFixture,
+      versionSource: "fixture",
+      models: [],
+      modelsSource: "fixture",
+      statusHints: [],
+      statusHintsSource: "fixture",
+      evidenceBundle: evidenceBundleFixture,
+    });
+    const diagnostics = buildLocalReadinessDiagnostics(cards);
+
+    expect(diagnostics.map((item) => item.category)).toEqual(
+      expect.arrayContaining([
+        "daemon",
+        "endpoints",
+        "models",
+        "runner hints",
+        "audit",
+        "evidence workflow",
+        "security checks",
+        "aethra",
+      ]),
+    );
+    expect(diagnostics.find((item) => item.id === "daemon-health")).toMatchObject({
+      status: "needs attention",
+      severity: "required",
+      localNextStep: expect.stringContaining("./scripts/start-dev.sh"),
+    });
+    expect(
+      diagnostics.find((item) => item.id === "model-runner-hints")
+        ?.boundaryNote,
+    ).toContain("status hints, not controls");
+    expect(
+      diagnostics.find((item) => item.id === "audit-local-records")
+        ?.boundaryNote,
+    ).toContain("not certification");
   });
 
   it("lists only safe copy-only readiness commands", () => {
