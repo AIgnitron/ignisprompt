@@ -548,19 +548,21 @@ fn format_readiness_json(report: &DoctorReport) -> String {
         .map(|check| {
             json!({
                 "id": check.id,
-                "label": check.label,
-                "level": check.level.as_str(),
-                "endpoint": check.endpoint,
-                "status": if check.ok { "ok" } else { "failed" },
-                "summary": check.summary,
-                "error": check.error,
+                "name": sanitize_readiness_report_text(check.label),
+                "category": readiness_check_category(check.id),
+                "severity": readiness_check_severity(check),
+                "status": if check.ok { "ok" } else { "needs_attention" },
+                "result": if check.ok { "passed" } else { "needs_attention" },
+                "local_next_step": readiness_check_next_step(check),
+                "boundary_note": readiness_check_boundary_note(check),
             })
         })
         .collect::<Vec<_>>();
 
     serde_json::to_string_pretty(&json!({
-        "base_url": report.base_url,
-        "overall_status": if report.required_checks_passed() { "local_preview_ready" } else { "failed" },
+        "readiness_schema_version": "ignisprompt-readiness-diagnostics-0.1",
+        "status": if report.required_checks_passed() { "local_preview_ready" } else { "needs_attention" },
+        "overall_status": if report.required_checks_passed() { "local_preview_ready" } else { "needs_attention" },
         "scope": {
             "local_preview_readiness_only": true,
             "status_hints_not_controls": true,
@@ -575,7 +577,7 @@ fn format_readiness_json(report: &DoctorReport) -> String {
             "make evidence-check",
             "make dev-check",
         ],
-        "next_steps": report.next_steps(),
+        "next_steps": readiness_report_next_steps(report),
     }))
     .unwrap_or_default()
 }
@@ -669,11 +671,78 @@ fn format_readiness_markdown(report: &DoctorReport) -> String {
 fn format_readiness_report_check_line(check: &DoctorCheckResult) -> String {
     let status = if check.ok { "ok" } else { "needs_attention" };
     format!(
-        "- {}: {} ({})",
+        "- {}: {} (category: {}; severity: {}; next step: {})",
         sanitize_readiness_report_text(check.label),
         status,
-        sanitize_readiness_report_text(&check.summary)
+        readiness_check_category(check.id),
+        readiness_check_severity(check),
+        sanitize_readiness_report_text(&readiness_check_next_step(check))
     )
+}
+
+fn readiness_report_next_steps(report: &DoctorReport) -> Vec<String> {
+    if report.required_checks_passed() {
+        return vec![
+            "Continue manual live-local loading in Aethra when needed.".to_string(),
+            "Run make readiness-check before sharing local preview notes.".to_string(),
+        ];
+    }
+
+    let mut steps = report
+        .checks
+        .iter()
+        .filter(|check| !check.ok)
+        .map(readiness_check_next_step)
+        .collect::<Vec<_>>();
+    steps.sort();
+    steps.dedup();
+    steps
+}
+
+fn readiness_check_category(check_id: &str) -> &'static str {
+    match check_id {
+        "health" => "daemon",
+        "version_status" => "endpoints",
+        "models" => "models",
+        "model_status_hints" => "runner hints",
+        "sustainability_metrics" => "endpoints",
+        _ => "endpoints",
+    }
+}
+
+fn readiness_check_severity(check: &DoctorCheckResult) -> &'static str {
+    if check.ok {
+        "info"
+    } else {
+        match check.level {
+            DoctorCheckLevel::Required => "required",
+            DoctorCheckLevel::Informational => "advisory",
+        }
+    }
+}
+
+fn readiness_check_next_step(check: &DoctorCheckResult) -> String {
+    if check.ok {
+        return "No local action needed for this status hint.".to_string();
+    }
+
+    match check.id {
+        "health" => "Start the local daemon with ./scripts/start-dev.sh, then rerun cargo run -p ignispromptctl -- readiness.".to_string(),
+        "version_status" => "Confirm the daemon is the current local preview build, then rerun cargo run -p ignispromptctl -- readiness.".to_string(),
+        "models" => "Review local model manifest configuration; model weights are optional and must stay under ignored models/ paths.".to_string(),
+        "model_status_hints" => "Review model and runner status hints as prerequisites only; Aethra remains read-only.".to_string(),
+        "sustainability_metrics" => "Treat sustainability metrics as advisory local preview data and continue if required checks pass.".to_string(),
+        _ => "Review the local preview endpoint shape and rerun cargo run -p ignispromptctl -- readiness.".to_string(),
+    }
+}
+
+fn readiness_check_boundary_note(check: &DoctorCheckResult) -> &'static str {
+    match check.id {
+        "model_status_hints" => "status hints, not controls",
+        "sustainability_metrics" => "local helper checks, not certification",
+        "models" => "configured models are readiness inputs, not operator actions",
+        _ => "local preview readiness only",
+    }
 }
 
 fn sanitize_readiness_report_text(value: &str) -> String {
@@ -3862,8 +3931,8 @@ mod tests {
         format_invalid_response_error, format_model_manifest_line, format_readiness_json,
         format_readiness_markdown, format_readiness_summary, format_route_explain_summary,
         format_sustainability_summary, format_unreachable_error, is_audit_event_list,
-        is_route_explain_response, is_sustainability_metrics_response, route_explain_url,
-        string_field, sustainability_url, validate_doctor_health,
+        is_route_explain_response, is_sustainability_metrics_response, readiness_report_next_steps,
+        route_explain_url, string_field, sustainability_url, validate_doctor_health,
         validate_doctor_model_status_hints, validate_doctor_models,
         validate_doctor_sustainability_metrics, validate_doctor_version_status,
         validate_evidence_bundle_archive_output_path, validate_evidence_bundle_output_dir,
@@ -4179,7 +4248,12 @@ mod tests {
 
         let json_report: serde_json::Value =
             serde_json::from_str(&format_readiness_json(&report)).unwrap();
-        assert_eq!(json_report["overall_status"], "failed");
+        assert_eq!(
+            json_report["readiness_schema_version"],
+            "ignisprompt-readiness-diagnostics-0.1"
+        );
+        assert_eq!(json_report["status"], "needs_attention");
+        assert_eq!(json_report["overall_status"], "needs_attention");
         assert_eq!(json_report["scope"]["status_hints_not_controls"], true);
         assert_eq!(
             json_report["scope"]["local_helper_checks_not_certification"],
@@ -4193,6 +4267,104 @@ mod tests {
             .unwrap()
             .iter()
             .any(|value| value == "make readiness-check"));
+        assert_eq!(json_report["checks"][0]["id"], "health");
+        assert_eq!(json_report["checks"][0]["name"], "health");
+        assert_eq!(json_report["checks"][0]["category"], "daemon");
+        assert_eq!(json_report["checks"][0]["severity"], "required");
+        assert_eq!(json_report["checks"][0]["status"], "needs_attention");
+        assert_eq!(json_report["checks"][0]["result"], "needs_attention");
+        assert!(json_report["checks"][0]["local_next_step"]
+            .as_str()
+            .unwrap()
+            .contains("./scripts/start-dev.sh"));
+        assert_eq!(
+            json_report["checks"][0]["boundary_note"],
+            "local preview readiness only"
+        );
+        assert!(json_report.get("base_url").is_none());
+        assert!(json_report["checks"][0].get("endpoint").is_none());
+        assert!(json_report["checks"][0].get("error").is_none());
+        assert!(!format_readiness_json(&report).contains("\"string\""));
+    }
+
+    #[test]
+    fn readiness_json_diagnostics_are_copy_safe() {
+        let report = DoctorReport {
+            base_url: "http://127.0.0.1:8765".to_string(),
+            checks: vec![DoctorCheckResult {
+                id: "model_status_hints",
+                label: "model controls and runner controls",
+                level: DoctorCheckLevel::Required,
+                endpoint: "http://localhost:8765/v1/status/models".to_string(),
+                ok: false,
+                summary: "prompt: raw audit text /Users/alice api_key sk-test production readiness"
+                    .to_string(),
+                error: Some("hostname devbox username alice ghp_secret".to_string()),
+            }],
+        };
+
+        let json_text = format_readiness_json(&report);
+        let lower_json = json_text.to_ascii_lowercase();
+        let json_report: serde_json::Value = serde_json::from_str(&json_text).unwrap();
+
+        assert_eq!(json_report["checks"][0]["category"], "runner hints");
+        assert_eq!(
+            json_report["checks"][0]["boundary_note"],
+            "status hints, not controls"
+        );
+        assert!(!lower_json.contains("prompt:"));
+        assert!(!lower_json.contains("raw audit"));
+        assert!(!lower_json.contains("api_key"));
+        assert!(!lower_json.contains("sk-test"));
+        assert!(!lower_json.contains("ghp_"));
+        assert!(!lower_json.contains("localhost"));
+        assert!(!lower_json.contains("127.0.0.1"));
+        assert!(!lower_json.contains("hostname"));
+        assert!(!lower_json.contains("username"));
+        assert!(!lower_json.contains("/users/"));
+        assert!(!lower_json.contains("production readiness"));
+        assert!(!lower_json.contains("compliance certification"));
+        assert!(!lower_json.contains("signed attestation"));
+        assert!(!lower_json.contains("tamper-evident"));
+        assert!(!lower_json.contains("cryptographic verification"));
+        assert!(!lower_json.contains("model controls"));
+        assert!(!lower_json.contains("runner controls"));
+    }
+
+    #[test]
+    fn readiness_next_steps_are_local_and_actionable() {
+        let report = DoctorReport {
+            base_url: "http://127.0.0.1:8765".to_string(),
+            checks: vec![
+                DoctorCheckResult {
+                    id: "health",
+                    label: "health",
+                    level: DoctorCheckLevel::Required,
+                    endpoint: "http://127.0.0.1:8765/health".to_string(),
+                    ok: false,
+                    summary: "daemon unreachable".to_string(),
+                    error: Some("daemon unreachable".to_string()),
+                },
+                DoctorCheckResult {
+                    id: "models",
+                    label: "models",
+                    level: DoctorCheckLevel::Required,
+                    endpoint: "http://127.0.0.1:8765/v1/models".to_string(),
+                    ok: false,
+                    summary: "invalid response shape".to_string(),
+                    error: Some("invalid response shape".to_string()),
+                },
+            ],
+        };
+
+        let steps = readiness_report_next_steps(&report);
+        let joined_steps = steps.join(" ");
+        assert!(joined_steps.contains("./scripts/start-dev.sh"));
+        assert!(joined_steps.contains("model manifest"));
+        assert!(!joined_steps.contains("http://"));
+        assert!(!joined_steps.contains("production ready"));
+        assert!(!joined_steps.contains("certified"));
+        assert!(!joined_steps.contains("legal accuracy"));
     }
 
     #[test]

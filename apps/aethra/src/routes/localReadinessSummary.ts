@@ -30,6 +30,27 @@ export type ReadinessCommand = {
   detail: string;
 };
 
+export type ReadinessDiagnosticCategory =
+  | "daemon"
+  | "endpoints"
+  | "models"
+  | "runner hints"
+  | "audit"
+  | "evidence workflow"
+  | "security checks"
+  | "aethra";
+
+export type ReadinessDiagnostic = {
+  id: string;
+  label: string;
+  category: ReadinessDiagnosticCategory;
+  status: "ok" | "needs attention" | "status hint";
+  severity: "required" | "advisory" | "info";
+  localNextStep: string;
+  boundaryNote: string;
+  source: ReadinessSource;
+};
+
 export const localReadinessCommands: ReadinessCommand[] = [
   {
     id: "start-dev",
@@ -210,6 +231,137 @@ export function buildLocalReadinessCards({
       tone: "neutral",
     },
   ];
+}
+
+export function buildLocalReadinessDiagnostics(
+  cards: ReadinessCard[],
+): ReadinessDiagnostic[] {
+  const cardDiagnostics = cards.map((card) => {
+    const category = readinessDiagnosticCategory(card.id);
+    return {
+      id: card.id,
+      label: card.label,
+      category,
+      status: readinessDiagnosticStatus(card),
+      severity: readinessDiagnosticSeverity(card),
+      localNextStep: readinessDiagnosticNextStep(card.id, card.tone),
+      boundaryNote: readinessDiagnosticBoundaryNote(category),
+      source: card.source,
+    };
+  });
+
+  return [
+    ...cardDiagnostics,
+    {
+      id: "audit-local-records",
+      label: "Audit record handling",
+      category: "audit",
+      status: "status hint",
+      severity: "advisory",
+      localNextStep:
+        "Use cargo run -p ignispromptctl -- audit-events with synthetic or non-sensitive local preview data when audit review is needed.",
+      boundaryNote:
+        "Audit summaries are local preview records and local helper checks, not certification.",
+      source: "helper",
+    },
+    {
+      id: "aethra-manual-loading",
+      label: "Aethra manual loading",
+      category: "aethra",
+      status: "status hint",
+      severity: "info",
+      localNextStep:
+        "Use explicit manual live-local refresh actions elsewhere in Aethra when live local data is needed.",
+      boundaryNote:
+        "Aethra remains read-only and does not poll, upload, persist, or execute commands.",
+      source: "helper",
+    },
+  ];
+}
+
+function readinessDiagnosticCategory(
+  cardId: string,
+): ReadinessDiagnosticCategory {
+  switch (cardId) {
+    case "daemon-health":
+      return "daemon";
+    case "version-status":
+      return "endpoints";
+    case "configured-models":
+      return "models";
+    case "model-runner-hints":
+      return "runner hints";
+    case "evidence-workflow":
+      return "evidence workflow";
+    case "security-evidence-checks":
+      return "security checks";
+    default:
+      return "endpoints";
+  }
+}
+
+function readinessDiagnosticStatus(
+  card: ReadinessCard,
+): ReadinessDiagnostic["status"] {
+  if (card.tone === "ok") {
+    return "ok";
+  }
+
+  if (card.tone === "warning") {
+    return "needs attention";
+  }
+
+  return "status hint";
+}
+
+function readinessDiagnosticSeverity(
+  card: ReadinessCard,
+): ReadinessDiagnostic["severity"] {
+  if (card.tone === "warning") {
+    return "required";
+  }
+
+  if (card.source === "helper") {
+    return "advisory";
+  }
+
+  return "info";
+}
+
+function readinessDiagnosticNextStep(cardId: string, tone: ReadinessCard["tone"]): string {
+  if (tone !== "warning") {
+    return "No local action needed for this status hint.";
+  }
+
+  switch (cardId) {
+    case "daemon-health":
+      return "Start the local daemon with ./scripts/start-dev.sh, then rerun cargo run -p ignispromptctl -- readiness.";
+    case "version-status":
+      return "Confirm the daemon is the current local preview build, then retry manual live-local loading.";
+    case "configured-models":
+      return "Review local model manifest configuration; model weights are optional and must stay under ignored models/ paths.";
+    case "model-runner-hints":
+      return "Review model and runner status hints as prerequisites only; Aethra remains read-only.";
+    default:
+      return "Run make readiness-check and review local preview readiness output.";
+  }
+}
+
+function readinessDiagnosticBoundaryNote(
+  category: ReadinessDiagnosticCategory,
+): string {
+  switch (category) {
+    case "runner hints":
+      return "status hints, not controls";
+    case "evidence workflow":
+    case "security checks":
+    case "audit":
+      return "local helper checks, not certification";
+    case "aethra":
+      return "manual live-local loading; no telemetry and no cloud calls by default";
+    default:
+      return "local preview readiness only";
+  }
 }
 
 export function getReadinessSourceLabel(source: ReadinessSource): string {

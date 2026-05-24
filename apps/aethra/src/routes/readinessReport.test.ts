@@ -3,7 +3,10 @@ import {
   buildReadinessMarkdownReport,
   sanitizeReadinessReportText,
 } from "./readinessReport";
-import type { ReadinessCard } from "./localReadinessSummary";
+import type {
+  ReadinessCard,
+  ReadinessDiagnostic,
+} from "./localReadinessSummary";
 
 const safeCards: ReadinessCard[] = [
   {
@@ -24,9 +27,35 @@ const safeCards: ReadinessCard[] = [
   },
 ];
 
+const safeDiagnostics: ReadinessDiagnostic[] = [
+  {
+    id: "daemon-health",
+    label: "Daemon health",
+    category: "daemon",
+    status: "ok",
+    severity: "info",
+    localNextStep: "No local action needed for this status hint.",
+    boundaryNote: "local preview readiness only",
+    source: "fixture",
+  },
+  {
+    id: "model-runner-hints",
+    label: "Model/runner status hints",
+    category: "runner hints",
+    status: "status hint",
+    severity: "advisory",
+    localNextStep: "Review model and runner status hints as prerequisites only.",
+    boundaryNote: "status hints, not controls",
+    source: "fixture",
+  },
+];
+
 describe("readiness report export", () => {
   it("builds a copy-safe local preview readiness report", () => {
-    const report = buildReadinessMarkdownReport({ cards: safeCards });
+    const report = buildReadinessMarkdownReport({
+      cards: safeCards,
+      diagnostics: safeDiagnostics,
+    });
 
     expect(report).toContain("# Aethra Local Readiness Report");
     expect(report).toContain("local preview readiness only");
@@ -34,6 +63,9 @@ describe("readiness report export", () => {
     expect(report).toContain("status hints, not controls");
     expect(report).toContain("local helper checks, not certification");
     expect(report).toContain("no production deployment approval");
+    expect(report).toContain("## Diagnostic Details");
+    expect(report).toContain("category=runner hints");
+    expect(report).toContain("next_step=Review model and runner status hints");
     expect(report).toContain("cargo run -p ignispromptctl -- readiness");
     expect(report).toContain("make readiness-check");
   });
@@ -49,6 +81,20 @@ describe("readiness report export", () => {
             "prompt: raw user text raw audit text /Users/alice/work localhost production readiness compliance certification signed attestation tamper-evident storage cryptographic verification model controls runner controls",
           source: "fixture",
           tone: "warning",
+        },
+      ],
+      diagnostics: [
+        {
+          id: "unsafe-diagnostic",
+          label: "hostname devbox",
+          category: "runner hints",
+          status: "needs attention",
+          severity: "required",
+          localNextStep:
+            "prompt: raw audit text /Users/alice token sk-test production readiness",
+          boundaryNote:
+            "compliance certification signed attestation tamper-evident storage cryptographic verification model controls runner controls",
+          source: "fixture",
         },
       ],
       checklist: [

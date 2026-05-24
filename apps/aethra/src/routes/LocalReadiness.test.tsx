@@ -32,6 +32,13 @@ describe("local readiness route", () => {
     expect(markup).toContain("Copy-safe readiness report");
     expect(markup).toContain("Copy readiness report");
     expect(markup).toContain("# Aethra Local Readiness Report");
+    expect(markup).toContain("Readiness diagnostic drilldown");
+    expect(markup).toContain("Category: daemon");
+    expect(markup).toContain("Category: runner hints");
+    expect(markup).toContain("Category: audit");
+    expect(markup).toContain("Category: aethra");
+    expect(markup).toContain("Next step:");
+    expect(markup).toContain("Boundary:");
   });
 
   it("avoids unsafe claims and sensitive default rendering", () => {
@@ -46,6 +53,8 @@ describe("local readiness route", () => {
     expect(lowerMarkup).not.toContain("tamper-evident");
     expect(lowerMarkup).not.toContain("cryptographic verification");
     expect(lowerMarkup).not.toContain("legal accuracy is solved");
+    expect(lowerMarkup).not.toContain("legal accuracy");
+    expect(lowerMarkup).not.toContain("certified");
     expect(lowerMarkup).not.toContain("model control");
     expect(lowerMarkup).not.toContain("runner control");
     expect(lowerMarkup).not.toContain("run shell commands");
