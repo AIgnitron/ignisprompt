@@ -39,6 +39,7 @@ The default path does not require Ollama, GGUF tooling, model weights, or networ
 - [Local Preview v0.1.1 Release Readiness](releases/v0.1.1-local-preview.md): v0.1.1 release-readiness record, published-tag boundary, post-v0.1.1 patch context, safety boundaries, and final checklist notes.
 - [Local Preview v0.1.2 Patch Release Record](releases/v0.1.2-local-preview.md): published patch package for post-v0.1.1 MCP compatibility and docs guardrail cleanup.
 - [Local Preview v0.1.3 Release Readiness](releases/v0.1.3-local-preview.md): draft release-readiness record for the next local preview package after v0.1.2.
+- [Local Preview v0.1.4 Release Readiness](releases/v0.1.4-local-preview.md): draft release-readiness record for the next local preview package after v0.1.3, including the local evidence workflow and Aethra command center arc.
 - [Runner Providers](RUNNER_PROVIDERS.md): `ModelRunner` trait, `ModelRunnerContext`, provider ordering, and rules for adding new local runners.
 - [Demo](DEMO.md): default smoke flow and optional GGUF/Ollama demo flow.
 - [Demo Readiness Checklist](DEMO_READINESS_CHECKLIST.md): short pre-demo checks for local-only behavior, synthetic data, evidence handling, and optional GGUF runs.
