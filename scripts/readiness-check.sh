@@ -32,6 +32,8 @@ check_alignment_terms() {
     "docs/CODEX_HANDOFF.md"
     "docs/LOCAL_PREVIEW_RELEASE_CHECKLIST.md"
     "apps/aethra/src/routes/LocalReadiness.tsx"
+    "apps/aethra/src/routes/readinessReport.ts"
+    "apps/aethra/src/routes/readinessReport.test.ts"
     "apps/aethra/src/routes/localReadinessSummary.ts"
     "apps/aethra/src/routes/localReadiness.test.ts"
   )
@@ -78,7 +80,10 @@ cargo run --quiet -p ignispromptctl -- readiness --help >"$tmp_dir/readiness-hel
 check_help_terms \
   "$tmp_dir/readiness-help.txt" \
   "Summarize local preview readiness from existing daemon checks" \
-  "--json"
+  "--json" \
+  "--markdown"
+
+cargo test --quiet -p ignispromptctl readiness_markdown_report_is_copy_safe >/dev/null
 
 cargo run --quiet -p ignispromptctl -- health --help >"$tmp_dir/health-help.txt"
 check_help_terms "$tmp_dir/health-help.txt" "Check daemon health"

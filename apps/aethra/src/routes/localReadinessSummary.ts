@@ -57,10 +57,23 @@ export const localReadinessCommands: ReadinessCommand[] = [
       "Summarizes local preview readiness with the same status hint boundaries.",
   },
   {
+    id: "readiness-report",
+    label: "Print local readiness report",
+    command: "cargo run -p ignispromptctl -- readiness --markdown",
+    detail:
+      "Prints a copy-safe local preview readiness report for issue or demo notes.",
+  },
+  {
     id: "dev-check",
     label: "Run development checks",
     command: "make dev-check",
     detail: "Runs local helper checks used during development.",
+  },
+  {
+    id: "readiness-check",
+    label: "Run readiness checks",
+    command: "make readiness-check",
+    detail: "Runs local readiness quality gates and report safety checks.",
   },
   {
     id: "evidence-check",

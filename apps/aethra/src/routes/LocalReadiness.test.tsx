@@ -29,6 +29,9 @@ describe("local readiness route", () => {
     expect(markup).toContain("cargo run -p ignispromptctl -- readiness");
     expect(markup).toContain("make dev-check");
     expect(markup).toContain("make evidence-check");
+    expect(markup).toContain("Copy-safe readiness report");
+    expect(markup).toContain("Copy readiness report");
+    expect(markup).toContain("# Aethra Local Readiness Report");
   });
 
   it("avoids unsafe claims and sensitive default rendering", () => {
@@ -53,8 +56,12 @@ describe("local readiness route", () => {
     expect(lowerMarkup).not.toContain("prompt:");
     expect(lowerMarkup).not.toContain("secret");
     expect(lowerMarkup).not.toContain("api_key");
+    expect(lowerMarkup).not.toContain("api key");
     expect(lowerMarkup).not.toContain("127.0.0.1");
     expect(lowerMarkup).not.toContain("localhost");
+    expect(lowerMarkup).not.toContain("hostname");
+    expect(lowerMarkup).not.toContain("username");
+    expect(lowerMarkup).not.toContain("machine identifier");
     expect(lowerMarkup).not.toContain("/users/");
     expect(lowerMarkup).not.toContain("raw audit text");
   });
