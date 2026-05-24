@@ -27,6 +27,7 @@ Use this framing for public material:
 - route explanations and local audit visibility
 - model and runner status hints, not controls
 - sustainability proxy indicators with methodology and confidence labels
+- evidence bundle viewer and validation summary as local-preview diagnostics only
 
 Avoid positive claims about production deployment, legal advice, model-quality proof, compliance evidence, or broad MCP compatibility. Keep the explicit non-claims visible: not ESG certification and not certified sustainability reporting.
 
@@ -88,6 +89,7 @@ Use this order for public carousels, short demos, or README-linked walkthroughs:
 4. Audit Events
 5. Model / Runner Status
 6. Sustainability Preview
+7. Evidence Bundle Viewer
 
 ### 1. Hero
 
@@ -218,6 +220,27 @@ Screenshot guidance:
 
 - Keep methodology, confidence, and disclaimer language visible.
 - Prefer fixture mode for public screenshots.
+
+### 7. Evidence Bundle Viewer
+
+Purpose: show local evidence bundle metadata, validation summary, and archive metadata preview without extracting archives or loading arbitrary local paths.
+
+Caption:
+
+```text
+Evidence Bundle Viewer surfaces fixture-backed manifest fields, local validation summary, and archive metadata preview for local-preview review only.
+```
+
+Talk track:
+
+```text
+This view helps reviewers inspect the local evidence bundle workflow without upload, archive extraction, telemetry, signing, or certification claims.
+```
+
+Screenshot guidance:
+
+- Keep the safe manifest, validation summary, and archive metadata preview visible.
+- Do not show raw audit event content, prompts, secrets, local machine identifiers, or absolute filesystem paths.
 - If showing export actions, state that reports are generated client-side from displayed aggregate metrics.
 
 ## Short Post Copy

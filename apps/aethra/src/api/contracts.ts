@@ -157,6 +157,54 @@ export type SustainabilityMetricsResponse = {
   disclaimer: string;
 };
 
+export type EvidenceBundleManifest = {
+  bundle_schema_version: string;
+  bundle_name: string;
+  generated_at: string;
+  generated_files: string[];
+  included_endpoints: string[];
+  audit_events_included: boolean;
+  local_preview_boundary: string;
+  non_certified_boundary: string;
+  not_signed_boundary: string;
+  not_production_attestation_boundary: string;
+};
+
+export type EvidenceBundleValidationSummary = {
+  bundle_schema_version: string;
+  validation_mode: string;
+  status: string;
+  required_files: string[];
+  optional_files: string[];
+  missing_files: string[];
+  parsed_json_files: string[];
+  placeholder_string_detected: boolean;
+  safe_fields_redacted: boolean;
+  note: string;
+};
+
+export type EvidenceBundleArchivePreview = {
+  archive_name: string;
+  archive_format: string;
+  bundle_name: string;
+  created_at: string;
+  generated_files: string[];
+  file_count: number;
+  byte_size_estimate: number;
+  includes_files_outside_bundle: boolean;
+  symlinks_followed: boolean;
+  signed: boolean;
+  certified: boolean;
+  tamper_evident: boolean;
+  note: string;
+};
+
+export type EvidenceBundlePreview = {
+  manifest: EvidenceBundleManifest;
+  validation: EvidenceBundleValidationSummary;
+  archivePreview?: EvidenceBundleArchivePreview | null;
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 

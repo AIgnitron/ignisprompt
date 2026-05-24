@@ -9,7 +9,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - MVP tag: `v0.1.0-mvp`
 - Final readiness result: **PASS WITH GAPS**
 - Public feedback issue: https://github.com/AIgnitron/ignisprompt/issues/56
-- Latest known main commit: `5a60f8e docs: prepare v0.1.3 local preview release (#156)`
+- Latest known main commit: `51a373b feat: add ignispromptctl evidence bundle archive workflow (#159)`
 - Open PRs at this handoff: none
 - Open issues at this handoff: #56 only
 
@@ -56,6 +56,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - PR #154 added `ignispromptctl` evidence bundle generation from local endpoints.
 - PR #155 added `ignispromptctl` evidence bundle list and validate commands plus bundle metadata hardening.
 - PR #156 aligned the README and docs landing pages with `v0.1.3-local-preview`.
+- PR #159 added the `ignispromptctl` evidence bundle archive workflow.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
 - Issue #43 is closed after Saul 7B local legal candidate evidence was documented.
 
@@ -118,6 +119,8 @@ Aethra currently provides fixture-backed screens for Overview, Routing Explorer,
 - `GET /v1/status/version`
 
 The live metadata controls use the configured loopback/local daemon base URL. They do not poll, do not persist state in local storage or session storage, do not add telemetry, and do not make cloud calls by default. The rollout did not add model or runner controls.
+
+Aethra also includes a fixture-backed evidence bundle viewer for manifest, validation summary, and archive metadata preview. It is read-only and local-preview only. It does not extract archives, upload data, persist bundle state, or read arbitrary local paths.
 
 `POST /v1/route/explain` remains local and inspection-oriented, but it appends a local audit event. Aethra now requires explicit confirmation before sending a live local route-explain request, resets that confirmation when the target daemon URL or request inputs change, and continues to recommend synthetic or non-sensitive text.
 

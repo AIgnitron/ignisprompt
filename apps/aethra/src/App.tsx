@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AuditEvents } from "./routes/AuditEvents";
+import { EvidenceBundleViewer } from "./routes/EvidenceBundleViewer";
 import { StatusBadge } from "./components/StatusBadge";
 import { createIgnisPromptClient } from "./api/client";
 import type {
@@ -32,6 +33,7 @@ type AethraRoute =
   | "routing-explorer"
   | "audit-events"
   | "model-runner-status"
+  | "evidence-bundle-viewer"
   | "sustainability-preview";
 
 export default function App() {
@@ -279,6 +281,15 @@ export default function App() {
           <button
             type="button"
             aria-current={
+              activeRoute === "evidence-bundle-viewer" ? "page" : undefined
+            }
+            onClick={() => setActiveRoute("evidence-bundle-viewer")}
+          >
+            Evidence Bundle Viewer
+          </button>
+          <button
+            type="button"
+            aria-current={
               activeRoute === "model-runner-status" ? "page" : undefined
             }
             onClick={() => setActiveRoute("model-runner-status")}
@@ -366,6 +377,9 @@ export default function App() {
             liveAuditEventsState={liveAuditEventsState}
             onLoadLiveAuditEvents={loadLiveAuditEvents}
           />
+        ) : null}
+        {activeRoute === "evidence-bundle-viewer" ? (
+          <EvidenceBundleViewer />
         ) : null}
         {activeRoute === "model-runner-status" ? (
           <ModelRunnerStatus
