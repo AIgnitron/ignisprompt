@@ -281,20 +281,20 @@ export default function App() {
           <button
             type="button"
             aria-current={
-              activeRoute === "evidence-bundle-viewer" ? "page" : undefined
-            }
-            onClick={() => setActiveRoute("evidence-bundle-viewer")}
-          >
-            Evidence Bundle Viewer
-          </button>
-          <button
-            type="button"
-            aria-current={
               activeRoute === "model-runner-status" ? "page" : undefined
             }
             onClick={() => setActiveRoute("model-runner-status")}
           >
             Model / Runner Status
+          </button>
+          <button
+            type="button"
+            aria-current={
+              activeRoute === "evidence-bundle-viewer" ? "page" : undefined
+            }
+            onClick={() => setActiveRoute("evidence-bundle-viewer")}
+          >
+            Evidence Bundle Viewer
           </button>
           <button
             type="button"
