@@ -202,6 +202,7 @@ export function LocalReadiness({
             Security and evidence checks are local helper checks only. They do
             not provide certification, attestation reports, production
             deployment approval, legal advice, or legal quality validation.
+            Use them for local preview readiness alignment only.
           </p>
         </div>
       </section>

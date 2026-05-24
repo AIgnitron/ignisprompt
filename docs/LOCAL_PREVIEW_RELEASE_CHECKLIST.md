@@ -45,8 +45,22 @@ cargo build
 ```bash
 ./scripts/check-sustainability-language.sh
 cargo test
+make readiness-check
 make evidence-check
 ```
+
+## v0.1.5 Readiness Notes
+
+For post-v0.1.4 v0.1.5 release-readiness work, keep the local readiness quality gate aligned with Aethra Local Readiness and the CLI:
+
+- `make readiness-check` passes
+- `cargo run -p ignispromptctl -- readiness` stays local preview readiness only
+- `cargo run -p ignispromptctl -- readiness --json` keeps status hints and local helper checks conservative
+- Aethra Local Readiness remains fixture-backed by default
+- live-local loading remains manual
+- status hints remain hints, not controls
+- local helper checks remain checks, not certification
+- no telemetry, cloud calls by default, model controls, runner controls, or persistence are added
 
 ## v0.1.4 Release Prep
 
@@ -59,6 +73,7 @@ Before tagging `v0.1.4-local-preview`, confirm the docs and checklist reflect th
 - verification is structural local validation only, not cryptographic verification
 - the Aethra Local Command Center copy stays read-only and clipboard-only
 - `make evidence-check` passes
+- `make readiness-check` passes
 - `./scripts/check-hidden-unicode.sh` passes
 - `make security-check` passes
 - `make dev-check` passes
@@ -168,12 +183,14 @@ With the daemon running:
 ```bash
 cargo run -p ignispromptctl -- doctor
 cargo run -p ignispromptctl -- doctor --json
+cargo run -p ignispromptctl -- readiness
+cargo run -p ignispromptctl -- readiness --json
 curl -fsS "http://127.0.0.1:8765/v1/metrics/sustainability?period=30d" | jq .
 cargo run -p ignispromptctl -- sustainability --period 30d
 cargo run -p ignispromptctl -- sustainability --period 30d --json
 ```
 
-`ignispromptctl doctor` should pass required checks for `/health`, `/v1/status/version`, `/v1/models`, and `/v1/status/models`. Its `/v1/metrics/sustainability?period=30d` check is informational. The command must remain a local-only diagnostic with no telemetry, cloud calls, GitHub calls, update checks, external lookup, persistence, uploads, model controls, or runner controls.
+`ignispromptctl doctor` and `ignispromptctl readiness` should pass required checks for `/health`, `/v1/status/version`, `/v1/models`, and `/v1/status/models`. Their `/v1/metrics/sustainability?period=30d` check is informational. The commands must remain local-only diagnostics with no telemetry, cloud calls, GitHub calls, update checks, external lookup, persistence, uploads, model controls, or runner controls.
 
 Confirm the response includes:
 

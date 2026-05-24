@@ -50,6 +50,8 @@ With the daemon already running, `ignispromptctl` can be used for quick local in
 ```bash
 cargo run -p ignispromptctl -- doctor
 cargo run -p ignispromptctl -- doctor --json
+cargo run -p ignispromptctl -- readiness
+cargo run -p ignispromptctl -- readiness --json
 cargo run -p ignispromptctl -- health
 cargo run -p ignispromptctl -- status-version
 cargo run -p ignispromptctl -- models
@@ -72,6 +74,8 @@ cargo run -p ignispromptctl -- audit tail
 ```
 
 The `doctor` command checks required local preview endpoints for health, version status, model manifests, and model and runner status hints. It also checks sustainability metrics as informational diagnostics. It exits non-zero only when required checks fail, supports `--json`, and should be used before Aethra live-local debugging when a terminal status summary is useful. It does not add telemetry, cloud calls, GitHub calls, update checks, external lookup, persistence, uploads, model controls, runner controls, or command execution beyond local HTTP reads.
+
+The `readiness` command reuses the same local endpoint checks and prints a local preview readiness summary. It aligns with Aethra Local Readiness wording: status hints, not controls; local helper checks, not certification; manual live-local loading; no telemetry; and no cloud calls by default.
 
 The `sustainability` command reads `GET /v1/metrics/sustainability?period=<period>` with supported periods `7d`, `30d`, and `90d`; it defaults to `30d` and rejects unsupported values before sending a request. It prints aggregate local sustainability metrics only. It does not include prompts, raw request text, raw audit event bodies, PII, machine identifiers, hostnames, usernames, filesystem paths, secrets, or API keys.
 
@@ -107,6 +111,16 @@ make evidence-check
 This verifies the demo workflow script dry-run and self-test modes, checks the `ignispromptctl evidence-bundle` help surface for the supported generate/list/validate/archive/verify-archive/print-manifest commands, and confirms the Aethra evidence fixture language stays aligned with the local-preview boundary terms. It does not require a live daemon or external services.
 
 It also keeps the Aethra local command center copy aligned with the same local-preview boundary terms, workflow stages, and demo readiness notes.
+
+## Local Readiness Quality Gate
+
+Run the local readiness quality gate with:
+
+```bash
+make readiness-check
+```
+
+This runs `scripts/readiness-check.sh`. The check validates deterministic CLI help surfaces for `doctor`, `readiness`, `health`, `route-explain`, `audit-events`, and `evidence-bundle`; verifies the demo local evidence workflow dry-run and self-test paths; runs the evidence workflow regression check; and checks Aethra Local Readiness wording alignment. It does not require model weights, GGUF files, external runners, cloud credentials, external network, or a live daemon.
 
 ## CI path
 
@@ -183,7 +197,7 @@ Feature-gated GGUF subprocess tests use temporary fake local scripts and placeho
 
 The endpoint is local-only and derived from in-memory audit events. Tests should not add telemetry, network calls, cloud calls, external coefficient lookup, or global opt-in pools. The output must remain framed as estimated, proxy, counterfactual, and methodology-dependent.
 
-The `ignispromptctl doctor` tests cover endpoint URL formatting, required/informational check lists, representative endpoint-shape validation including model and runner status hint fields, failed required-check summaries, and JSON output shape. The `ignispromptctl sustainability` tests cover default and custom period URL generation, supported-period validation, representative summary formatting, and invalid response-shape detection. The `ignispromptctl audit-events` and `route-explain` tests cover endpoint URL formatting, human-readable summaries, formatted JSON preservation, invalid response shapes, local next-step error messages, and invalid route input handling. JSON output is a CLI presentation option for the same local endpoint response; it is not a report upload or external lookup.
+The `ignispromptctl doctor` and `readiness` tests cover endpoint URL formatting, required/informational check lists, representative endpoint-shape validation including model and runner status hint fields, failed required-check summaries, conservative readiness scope wording, and JSON output shape. The `ignispromptctl sustainability` tests cover default and custom period URL generation, supported-period validation, representative summary formatting, and invalid response-shape detection. The `ignispromptctl audit-events` and `route-explain` tests cover endpoint URL formatting, human-readable summaries, formatted JSON preservation, invalid response shapes, local next-step error messages, and invalid route input handling. JSON output is a CLI presentation option for the same local endpoint response; it is not a report upload or external lookup.
 
 The Aethra client and contract tests cover current local-preview daemon response shapes for health, version status, model manifests, model and runner status hints, audit events, and sustainability metrics. They also cover missing optional model and audit fields, unsupported schema guidance, request IDs, route/domain/tier signals, warning metadata, and optional Aethra proxy estimate fields. Sustainability report tests cover structured Markdown sections, deterministic schema-versioned JSON shape, methodology/confidence/disclaimer fields, export limitations, fixture and live-local report sources, excluded prompt/raw audit/machine fields, redacted sensitive local identifiers, and conservative claim language. Sustainability Preview export guidance and methodology copy helpers should remain browser-local UI behavior; UI-level browser tests are not part of the current app test setup.
 
