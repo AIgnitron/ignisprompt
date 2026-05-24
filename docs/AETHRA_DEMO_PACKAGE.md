@@ -24,6 +24,7 @@ Use this framing for public material:
 - fixture-backed by default
 - manual live-local loading
 - read-only dashboard and observatory
+- local command center with safe CLI recipes and evidence workflow notes
 - route explanations and local audit visibility
 - model and runner status hints, not controls
 - sustainability proxy indicators with methodology and confidence labels
@@ -86,11 +87,12 @@ Use this order for public carousels, short demos, or README-linked walkthroughs:
 
 1. Hero
 2. Overview
-3. Routing Explorer
-4. Audit Events
-5. Model / Runner Status
-6. Evidence Bundle Viewer
-7. Sustainability Preview
+3. Local Command Center
+4. Routing Explorer
+5. Audit Events
+6. Model / Runner Status
+7. Evidence Bundle Viewer
+8. Sustainability Preview
 
 ### 1. Hero
 

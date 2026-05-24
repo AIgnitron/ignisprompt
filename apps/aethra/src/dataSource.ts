@@ -509,7 +509,7 @@ function nextActionForError(
     case "invalid-response-shape":
       return "Confirm the daemon is from the current local preview build and retry the manual refresh.";
     case "invalid-local-url":
-      return "Use a loopback daemon origin such as http://127.0.0.1:8765.";
+      return "Enter a local daemon URL before using live local mode.";
     case "unknown":
       return "Fixture mode remains available without a daemon while you inspect the local setup.";
   }

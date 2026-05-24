@@ -9,7 +9,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - MVP tag: `v0.1.0-mvp`
 - Final readiness result: **PASS WITH GAPS**
 - Public feedback issue: https://github.com/AIgnitron/ignisprompt/issues/56
-- Latest known main commit: `2c98e8a feat: add local evidence demo workflow (#164)`
+- Latest known main commit: `5e5f692 test: add local evidence workflow regression check (#165)`
 - Open PRs at this handoff: none
 - Open issues at this handoff: #56 only
 
@@ -58,6 +58,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - PR #156 aligned the README and docs landing pages with `v0.1.3-local-preview`.
 - PR #159 added the `ignispromptctl` evidence bundle archive workflow.
 - PR #160 added the Aethra local evidence workflow.
+- PR #165 added the local evidence workflow regression check.
 - A repeatable local evidence demo workflow script now drives route-explain, audit-events, evidence-bundle generation, listing, validation, archiving, archive verification, and manifest inspection under ignored local-evidence paths. It includes dry-run and self-test modes that stay local-only.
 - `make evidence-check` runs the local evidence workflow regression checks without requiring a live daemon. It verifies the demo workflow script, the `ignispromptctl evidence-bundle` help surface, and the Aethra boundary-language alignment.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.

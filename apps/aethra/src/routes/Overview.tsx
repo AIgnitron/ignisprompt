@@ -26,7 +26,7 @@ import {
 } from "./overviewSummary";
 import {
   getAllLocalCommandsText,
-  localCommands,
+  overviewLocalCommands,
   type LocalCommand,
 } from "./localCommands";
 import {
@@ -43,27 +43,32 @@ const warningExamples = getWarningExamples(auditEventFixtures);
 
 const guidedDemoSteps = [
   {
-    title: "Overview and mode",
+    title: "Overview",
     detail:
       "Confirm fixture-backed by default, then use live-local mode only for manual refreshes.",
   },
   {
-    title: "Route inspection",
+    title: "Local command center",
+    detail:
+      "Copy safe CLI recipes, review the evidence workflow checklist, and confirm demo readiness notes.",
+  },
+  {
+    title: "Route explorer",
     detail:
       "Open Routing Explorer to compare fixture examples with a local route explanation.",
   },
   {
-    title: "Audit records",
+    title: "Audit events",
     detail:
       "Inspect local audit history, warnings, and request IDs without leaving the browser.",
   },
   {
-    title: "Model / runner hints",
+    title: "Model and runner status",
     detail:
       "Review model manifests and local status hints as read-only prerequisites, not controls.",
   },
   {
-    title: "Evidence workflow",
+    title: "Evidence bundle",
     detail:
       "Open the Evidence Bundle Viewer and report export helpers for manifest, validation, archive, and local report review.",
   },
@@ -426,7 +431,7 @@ function LocalCommandsPanel() {
       ) : null}
 
       <div className="command-list">
-        {localCommands.map((item) => (
+        {overviewLocalCommands.map((item) => (
           <LocalCommandRow
             key={item.id}
             item={item}

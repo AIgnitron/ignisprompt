@@ -42,6 +42,7 @@ For details, see the [demo flows](docs/DEMO.md), [testing notes](docs/TESTING.md
 - an opt-in `GgufRunner` spike can invoke a local GGUF runner binary when both the runner executable and the configured `.gguf` model file are present
 - an experimental stdio MCP stub can expose `route_explain` plus read-only local observability tools without changing the default HTTP daemon path
 - a developer local-only evidence script can capture health, route, audit, binary-hash, and ignore-safety evidence under ignored `./local-evidence/attestation/`
+- Aethra also includes a local command center with safe CLI recipes, an evidence workflow checklist, and demo readiness notes for dashboard review.
 
 ## CI status
 
@@ -221,6 +222,8 @@ For a repeatable local evidence demo workflow that drives `route-explain`, `audi
 Use `--dry-run` to print the planned local workflow without starting the daemon, or `--self-test` to verify ignored-path checks and command construction without a live daemon.
 
 `make evidence-check` runs the workflow regression checks, including the demo script dry-run and self-test plus a local CLI help and boundary-language alignment check.
+
+The Aethra Local Command Center mirrors these safe CLI recipes, the evidence workflow checklist, and the demo readiness notes in the dashboard. It stays read-only and local-preview only.
 
 `route-explain` calls the existing local `POST /v1/route/explain` endpoint with either `--text` or `--input`. Use synthetic or non-sensitive text. This is route inspection, not legal advice or legal accuracy validation. For a legal route example, use a file that already carries legal context such as `./tests/golden-legal/smoke-legal-request.json`, which sets `model` to `ignisprompt/legal`.
 

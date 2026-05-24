@@ -106,6 +106,8 @@ make evidence-check
 
 This verifies the demo workflow script dry-run and self-test modes, checks the `ignispromptctl evidence-bundle` help surface for the supported generate/list/validate/archive/verify-archive/print-manifest commands, and confirms the Aethra evidence fixture language stays aligned with the local-preview boundary terms. It does not require a live daemon or external services.
 
+It also keeps the Aethra local command center copy aligned with the same local-preview boundary terms, workflow stages, and demo readiness notes.
+
 ## CI path
 
 `.github/workflows/ci.yml` runs:

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AuditEvents } from "./routes/AuditEvents";
 import { EvidenceBundleViewer } from "./routes/EvidenceBundleViewer";
+import { LocalCommandCenter } from "./routes/LocalCommandCenter";
 import { StatusBadge } from "./components/StatusBadge";
 import { createIgnisPromptClient } from "./api/client";
 import type {
@@ -30,6 +31,7 @@ import { SustainabilityPreview } from "./routes/SustainabilityPreview";
 
 type AethraRoute =
   | "overview"
+  | "local-command-center"
   | "routing-explorer"
   | "audit-events"
   | "model-runner-status"
@@ -39,7 +41,7 @@ type AethraRoute =
 export default function App() {
   const [activeRoute, setActiveRoute] = useState<AethraRoute>("overview");
   const [dataMode, setDataMode] = useState<AethraDataMode>("fixture");
-  const [baseUrlInput, setBaseUrlInput] = useState(DEFAULT_AETHRA_BASE_URL);
+  const [baseUrlInput, setBaseUrlInput] = useState("");
   const [liveHealthState, setLiveHealthState] = useState<LiveHealthState>({
     status: "not-loaded",
   });
@@ -260,7 +262,16 @@ export default function App() {
             aria-current={activeRoute === "overview" ? "page" : undefined}
             onClick={() => setActiveRoute("overview")}
           >
-            Overview and mode
+            Overview
+          </button>
+          <button
+            type="button"
+            aria-current={
+              activeRoute === "local-command-center" ? "page" : undefined
+            }
+            onClick={() => setActiveRoute("local-command-center")}
+          >
+            Local command center
           </button>
           <button
             type="button"
@@ -269,14 +280,14 @@ export default function App() {
             }
             onClick={() => setActiveRoute("routing-explorer")}
           >
-            Route inspection
+            Route explorer
           </button>
           <button
             type="button"
             aria-current={activeRoute === "audit-events" ? "page" : undefined}
             onClick={() => setActiveRoute("audit-events")}
           >
-            Audit records
+            Audit events
           </button>
           <button
             type="button"
@@ -285,7 +296,7 @@ export default function App() {
             }
             onClick={() => setActiveRoute("model-runner-status")}
           >
-            Model / runner hints
+            Model and runner status
           </button>
           <button
             type="button"
@@ -294,7 +305,7 @@ export default function App() {
             }
             onClick={() => setActiveRoute("evidence-bundle-viewer")}
           >
-            Evidence workflow
+            Evidence bundle
           </button>
           <button
             type="button"
@@ -365,6 +376,7 @@ export default function App() {
             onLoadLiveVersionStatus={loadLiveVersionStatus}
           />
         ) : null}
+        {activeRoute === "local-command-center" ? <LocalCommandCenter /> : null}
         {activeRoute === "routing-explorer" ? (
           <RoutingExplorer
             localBaseUrl={localBaseUrl}
@@ -479,12 +491,12 @@ function DataSourceControl({
         </button>
       </div>
 
-      <label className="base-url-field">
+        <label className="base-url-field">
         <span>Local daemon base URL</span>
         <input
           value={baseUrlInput}
           onChange={(event) => onBaseUrlInputChange(event.target.value)}
-          placeholder={DEFAULT_AETHRA_BASE_URL}
+          placeholder="local daemon base URL"
           aria-invalid={baseUrlError ? "true" : undefined}
         />
       </label>
