@@ -12,6 +12,9 @@ describe("local preview empty state copy", () => {
     expect(localPreviewEmptyStates.fixtureModeActive.message).toContain(
       "does not require a daemon",
     );
+    expect(localPreviewEmptyStates.fixtureModeActive.nextAction).toContain(
+      "guided demo path",
+    );
   });
 
   it("explains how to populate audit events", () => {
@@ -20,6 +23,9 @@ describe("local preview empty state copy", () => {
     );
     expect(localPreviewEmptyStates.auditEventsNotLoaded.nextAction).toContain(
       "refresh audit events",
+    );
+    expect(localPreviewEmptyStates.auditEventsNotLoaded.nextAction).toContain(
+      "guided demo path",
     );
   });
 
@@ -30,6 +36,9 @@ describe("local preview empty state copy", () => {
     expect(localPreviewEmptyStates.modelStatusNotLoaded.detail).toContain(
       "not runner controls",
     );
+    expect(localPreviewEmptyStates.modelStatusNotLoaded.nextAction).toContain(
+      "guided demo path",
+    );
   });
 
   it("describes sustainability metrics as manual local preview data", () => {
@@ -38,6 +47,9 @@ describe("local preview empty state copy", () => {
     );
     expect(localPreviewEmptyStates.sustainabilityNotLoaded.detail).toContain(
       "not telemetry",
+    );
+    expect(localPreviewEmptyStates.sustainabilityNotLoaded.nextAction).toContain(
+      "guided demo path",
     );
   });
 
@@ -52,8 +64,30 @@ describe("local preview empty state copy", () => {
       title: "Daemon unreachable",
       message: "Aethra could not reach the daemon.",
       nextAction:
-        "Start the daemon with ./scripts/start-dev.sh, confirm the loopback endpoint, then refresh manually.",
+        "Start the daemon with ./scripts/start-dev.sh, confirm the local endpoint, then refresh from the guided demo path.",
       detail: "Fixture data remains visible.",
     });
+  });
+
+  it("keeps empty states away from production readiness claims", () => {
+    const values = Object.values(localPreviewEmptyStates)
+      .flatMap((entry) => {
+        const parts = [entry.title, entry.message, entry.nextAction];
+        const detail = "detail" in entry ? entry.detail : undefined;
+
+        if (detail) {
+          parts.push(detail);
+        }
+
+        return parts;
+      })
+      .filter((value): value is string => Boolean(value));
+
+    for (const value of values) {
+      expect(value).not.toContain("signed attestation");
+      expect(value).not.toContain("tamper-evident");
+      expect(value).not.toContain("production attestation");
+      expect(value).not.toContain("production readiness");
+    }
   });
 });

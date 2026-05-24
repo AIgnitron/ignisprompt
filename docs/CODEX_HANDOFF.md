@@ -96,6 +96,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - Aethra groups live-local endpoint buttons as manual refresh actions. This is UI copy/layout only; it does not add polling, storage persistence, telemetry, cloud calls, GitHub calls, update checks, command execution, or backend behavior.
 - Aethra main pages now include lightweight "What this page shows" guidance panels and more consistent subtitles. This is UI guidance only and does not change data loading, routing, audit behavior, or endpoint shapes.
 - Aethra empty states now provide clearer local preview guidance for fixture mode, missing live-local data, unavailable daemon responses, valid empty endpoint responses, and panels that need manual refresh.
+- Aethra now includes a guided demo path and clearer sidebar labels so reviewers can move from route inspection to audit records, model and runner hints, the evidence workflow, and sustainability preview in a safe order.
 
 ## Aethra Status
 

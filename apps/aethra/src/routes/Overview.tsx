@@ -41,6 +41,39 @@ const summary = buildOverviewSummary(
 );
 const warningExamples = getWarningExamples(auditEventFixtures);
 
+const guidedDemoSteps = [
+  {
+    title: "Overview and mode",
+    detail:
+      "Confirm fixture-backed by default, then use live-local mode only for manual refreshes.",
+  },
+  {
+    title: "Route inspection",
+    detail:
+      "Open Routing Explorer to compare fixture examples with a local route explanation.",
+  },
+  {
+    title: "Audit records",
+    detail:
+      "Inspect local audit history, warnings, and request IDs without leaving the browser.",
+  },
+  {
+    title: "Model / runner hints",
+    detail:
+      "Review model manifests and local status hints as read-only prerequisites, not controls.",
+  },
+  {
+    title: "Evidence workflow",
+    detail:
+      "Open the Evidence Bundle Viewer and report export helpers for manifest, validation, archive, and local report review.",
+  },
+  {
+    title: "Sustainability preview",
+    detail:
+      "Finish with methodology-dependent proxy metrics and local export helpers.",
+  },
+] as const;
+
 type OverviewProps = {
   dataMode: AethraDataMode;
   baseUrl: string;
@@ -125,6 +158,34 @@ export function Overview({
           "Read fixture-backed route, warning, and local-only summaries before moving to detailed pages.",
         ]}
       />
+
+      <section className="overview-section-group" aria-label="Guided demo path">
+        <div className="section-heading">
+          <p className="eyebrow">Guided Demo Path</p>
+          <h3>Recommended safe walkthrough</h3>
+          <p className="muted">
+            Fixture-backed by default, live-local loading is manual, and the
+            dashboard stays read-only.
+          </p>
+        </div>
+        <div className="panel" aria-label="Recommended demo steps">
+          <ol className="guided-demo-list">
+            {guidedDemoSteps.map((step, index) => (
+              <li key={step.title}>
+                <strong>
+                  {index + 1}. {step.title}
+                </strong>
+                <span>{step.detail}</span>
+              </li>
+            ))}
+          </ol>
+          <p className="muted">
+            This path keeps route inspection, audit review, model and runner
+            hints, evidence workflow, and sustainability preview in a safe
+            order for demos and screenshots.
+          </p>
+        </div>
+      </section>
 
       <section className="overview-section-group" aria-label="Local preview operations">
         <div className="section-heading">
