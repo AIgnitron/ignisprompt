@@ -6,11 +6,13 @@ import {
   type ReadinessChecklistItem,
   type ReadinessCommand,
   type ReadinessDiagnostic,
+  type ReadinessPackagePreview,
 } from "./localReadinessSummary";
 
 export type ReadinessReportInput = {
   cards: ReadinessCard[];
   diagnostics?: ReadinessDiagnostic[];
+  packagePreview?: ReadinessPackagePreview;
   checklist?: ReadinessChecklistItem[];
   commands?: ReadinessCommand[];
 };
@@ -18,6 +20,7 @@ export type ReadinessReportInput = {
 export function buildReadinessMarkdownReport({
   cards,
   diagnostics = [],
+  packagePreview,
   checklist = localPreviewReadinessChecklist,
   commands = localReadinessCommands,
 }: ReadinessReportInput): string {
@@ -42,6 +45,10 @@ export function buildReadinessMarkdownReport({
     "",
     ...formatDiagnostics(diagnostics),
     "",
+    "## Readiness Package Preview",
+    "",
+    ...formatPackagePreview(packagePreview),
+    "",
     "## Local Preview Checklist",
     "",
     ...formatChecklist(checklist),
@@ -60,6 +67,40 @@ export function buildReadinessMarkdownReport({
     ...formatCommands(commands),
     "",
   ].join("\n");
+}
+
+function formatPackagePreview(
+  packagePreview: ReadinessPackagePreview | undefined,
+): string[] {
+  if (!packagePreview) {
+    return ["- No readiness package preview available."];
+  }
+
+  return [
+    `- schema_version: ${sanitizeReadinessReportText(packagePreview.schemaVersion)}`,
+    `- package_mode: ${sanitizeReadinessReportText(packagePreview.packageMode)}`,
+    `- package_root: ${sanitizeReadinessReportText(packagePreview.packageRoot)}`,
+    `- status: ${sanitizeReadinessReportText(packagePreview.status)}`,
+    "- generated_files:",
+    ...packagePreview.generatedFiles.map(
+      (fileName) => `  - ${sanitizeReadinessReportText(fileName)}`,
+    ),
+    "- categories:",
+    ...packagePreview.categories.map(
+      (item) =>
+        `  - ${sanitizeReadinessReportText(item.category)}:${sanitizeReadinessReportText(
+          item.severity,
+        )}:${sanitizeReadinessReportText(item.status)}`,
+    ),
+    "- local_next_steps:",
+    ...packagePreview.localNextSteps.map(
+      (step) => `  - ${sanitizeReadinessReportText(step)}`,
+    ),
+    "- boundary_notes:",
+    ...packagePreview.boundaryNotes.map(
+      (note) => `  - ${sanitizeReadinessReportText(note)}`,
+    ),
+  ];
 }
 
 function formatDiagnostics(diagnostics: ReadinessDiagnostic[]): string[] {

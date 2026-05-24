@@ -9,8 +9,8 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - MVP tag: `v0.1.0-mvp`
 - Final readiness result: **PASS WITH GAPS**
 - Public feedback issue: https://github.com/AIgnitron/ignisprompt/issues/56
-- Latest known main commit: `6c97584 feat: add Aethra local command center (#166)`
-- Open PRs at this handoff: #166
+- Latest known main commit: `8cf08c5 feat: improve local readiness diagnostics (#172)`
+- Open PRs at this handoff: none
 - Open issues at this handoff: #56 only
 
 ## Recent Completed Work
@@ -64,6 +64,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - Post-v0.1.4 development adds a local readiness quality gate and `ignispromptctl readiness` presentation over the existing doctor checks. The readiness command and `make readiness-check` are local-preview only, conservative, and aligned with Aethra Local Readiness wording.
 - Post-v0.1.4 development adds copy-safe local readiness report export parity across `ignispromptctl readiness --markdown`, Aethra Local Readiness, and `make readiness-check`. Reports are local helper outputs for issue or demo notes, not uploads, not persisted browser state, and not certification.
 - Post-v0.1.4 development improves local readiness diagnostics with safe `readiness --json` category/severity/result/next-step fields and Aethra read-only diagnostic drilldown hints. The diagnostics omit daemon URLs, local machine details, raw audit text, generated evidence contents, and private credentials.
+- Post-v0.1.4 development adds a local readiness package workflow under `local-evidence/readiness/` with CLI generation, list, validate, JSON and Markdown summary files, demo workflow integration, and Aethra read-only package preview. The package is local preview readiness only and remains ignored output.
 - A repeatable local evidence demo workflow script now drives route-explain, audit-events, evidence-bundle generation, listing, validation, archiving, archive verification, and manifest inspection under ignored local-evidence paths. It includes dry-run and self-test modes that stay local-only.
 - `make evidence-check` runs the local evidence workflow regression checks without requiring a live daemon. It verifies the demo workflow script, the `ignispromptctl evidence-bundle` help surface, and the Aethra boundary-language alignment.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
@@ -77,7 +78,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - Model manifests distinguish route eligibility from local file and runner availability. `/v1/models` reports configured manifest fields, while `/v1/status/models` reports read-only local hints for declared path presence, runner configuration, runner executable presence, conservative availability labels, and language that file/runner presence does not mean executable inference was attempted.
 - Generated evidence and transcripts live under ignored `local-evidence/`.
 - The local evidence demo workflow is a local-preview operator aid. It does not sign output, provide cryptographic verification, or claim production attestation.
-- The local evidence regression check stays local-only and does not replace full release verification, but it should be run before v0.1.4 release prep.
+- The local evidence regression check stays local-only and does not replace full release verification.
 - Local model files live under ignored `models/`.
 - Model weights, local evidence, generated transcripts, demo bundles, attestation bundles, audit logs, `target/`, and `dist/` must not be committed.
 - The synthetic public demo fixture is `tests/golden-legal/demo-synthetic-contract-request.json`.
@@ -92,6 +93,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - `ignispromptctl status-version` reads `GET /v1/status/version` and prints the same local preview metadata.
 - `ignispromptctl doctor` checks required local preview endpoints for `/health`, `/v1/status/version`, `/v1/models`, and `/v1/status/models`, plus an informational sustainability metrics check for `/v1/metrics/sustainability?period=30d`. It supports `--json`, exits non-zero when required checks fail, and prints local next steps for common failures. It does not add telemetry, cloud calls, GitHub calls, update checks, external lookup, persistence, uploads, model controls, runner controls, or command execution beyond local HTTP reads.
 - `ignispromptctl readiness` reuses the same local endpoint checks as `doctor` and prints a local preview readiness summary. `--json` prints safe local diagnostics with category, severity, result, local next step, and boundary note fields. `--markdown` prints a copy-safe local helper report for issue or demo notes. It frames model and runner data as status hints, local helper checks as checks rather than certification, and Aethra live-local loading as manual.
+- `ignispromptctl readiness --package-output local-evidence/readiness/<name>` writes a local readiness package with README, manifest, safe JSON summaries, and Markdown report output under an ignored readiness path. `--package-list` and `--package-validate` inspect package files locally without daemon access. Package outputs omit daemon URLs, prompts, raw audit text, generated evidence contents, private credentials, absolute paths, and local machine-specific values.
 - `ignispromptctl sustainability --period 30d` reads `GET /v1/metrics/sustainability?period=<period>` and prints aggregate local sustainability metrics. Supported periods are `7d`, `30d`, and `90d`; the default is `30d`, and `--json` prints the same local endpoint response as formatted JSON.
 - `ignispromptctl audit-events` reads the existing local `GET /v1/audit/events` endpoint as a read-only terminal inspection command. It can print a human-readable summary or formatted JSON and does not mutate, persist, upload, or externally redact audit events.
 - `ignispromptctl evidence-bundle --output local-evidence/demo-bundle` writes a local-only diagnostic bundle from the existing local health, version status, model, model and runner status hint, and sustainability endpoints. `--include-audit-events` adds the raw local audit event response only when explicitly requested, and `--json` prints the summary JSON. `--list` inspects an existing bundle without calling the daemon, `--validate` checks the on-disk bundle contract without daemon access, `--archive` creates a local archive after validating the bundle, `--verify-archive` inspects an existing archive without calling the daemon, and `--print-manifest` prints the manifest for an existing bundle without calling the daemon. The Evidence Bundle Viewer also offers clipboard-only Markdown and JSON report export helpers that stay local-preview only. The command keeps output under ignored `local-evidence/` by default guidance, and it is not signed, not certified, not production evidence, and does not call cloud services or external endpoints.
@@ -151,7 +153,7 @@ Aethra Overview includes a Local Commands panel with copyable local preview help
 
 Aethra includes a local preview banner and grouped manual live-local refresh controls. Fixture mode remains the default, live local loading remains explicit/manual, and no polling, local/session storage persistence, telemetry, cloud calls, GitHub calls, update checks, command execution, backend changes, or API shape changes are added by this UI polish.
 
-Aethra includes a Local Readiness page that summarizes daemon health, version/status, configured models, model and runner status hints, evidence workflow availability, and local helper checks. The page is fixture-backed by default, uses already-loaded live-local data only after manual refreshes elsewhere, provides copy-only snippets for `./scripts/start-dev.sh`, `cargo run -p ignispromptctl -- health`, `cargo run -p ignispromptctl -- doctor`, `cargo run -p ignispromptctl -- readiness`, `cargo run -p ignispromptctl -- readiness --markdown`, `make dev-check`, and `make evidence-check`, offers a browser-local copy-only readiness report snippet, and shows read-only diagnostic drilldown hints for category, status, severity, local next step, and boundary note.
+Aethra includes a Local Readiness page that summarizes daemon health, version/status, configured models, model and runner status hints, evidence workflow availability, and local helper checks. The page is fixture-backed by default, uses already-loaded live-local data only after manual refreshes elsewhere, provides copy-only snippets for `./scripts/start-dev.sh`, `cargo run -p ignispromptctl -- health`, `cargo run -p ignispromptctl -- doctor`, `cargo run -p ignispromptctl -- readiness`, `cargo run -p ignispromptctl -- readiness --markdown`, readiness package generation/list/validate commands, `make dev-check`, and `make evidence-check`, offers a browser-local copy-only readiness report snippet, shows a read-only readiness package preview, and shows read-only diagnostic drilldown hints for category, status, severity, local next step, and boundary note.
 
 `docs/AETHRA_DEMO_PACKAGE.md` documents a public-safe Aethra demo package with a recommended Hero -> Overview -> Local Readiness -> Local Command Center -> Routing Explorer -> Audit Events -> Model / Runner Status -> Evidence Bundle Viewer -> Sustainability Preview sequence, screenshot captions, audience guidance, and conservative local-preview boundaries. It is docs-only and does not add screenshots, generated images, Aethra behavior, telemetry, cloud calls, model controls, or API changes.
 
@@ -183,6 +185,8 @@ These commands have passed in recent local work when their prerequisites were pr
 cargo build
 cargo test
 make dev-check
+make readiness-check
+make evidence-check
 make smoke
 make gguf-smoke
 make golden
@@ -235,7 +239,7 @@ Add `--include-route-explain` only when you intentionally want to append a local
 5. Keep Aethra live-local diagnostics limited to local connection/debugging state; avoid polling, persistence, external lookup, cloud calls, update checks, readiness claims, or controls.
 6. Keep copyable command helpers local and explicit; avoid dashboard-side command execution, remote command language, telemetry, or persistence.
 7. Keep any future model and runner status work limited to hints; avoid readiness, certification, legal-quality, or compliance claims.
-8. For v0.1.4 release prep, use the contributor MCP usage docs, the Aethra public/demo package, the local command center guidance, and the new local preview release record as review material.
+8. Continue post-v0.1.4 implementation for the future v0.1.5 cycle without preparing release docs until explicitly requested.
 
 Avoid cloud telemetry, analytics, auth providers, a SaaS backend, model install/delete controls, and production/legal/compliance/sustainability overclaims unless a future task explicitly scopes and reviews those changes.
 

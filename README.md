@@ -2,11 +2,11 @@
 
 **IgnisPrompt is local-preview infrastructure for local AI routing.**
 
-Latest release: `v0.1.3-local-preview`.
+Latest release: `v0.1.4-local-preview`.
 
 IgnisPrompt is local-first infrastructure for routing, audit, inspection, and local evidence review. By default it makes no cloud calls, sends no telemetry, performs no global aggregation, and is not production deployment software. It is not legal advice, does not claim legal accuracy, and does not claim compliance, ESG, supply-chain, or signed attestation certification.
 
-What `v0.1.3-local-preview` adds:
+Recent local-preview work includes:
 
 - reproducible security review checks
 - Aethra live-local contract hardening
@@ -187,6 +187,10 @@ cargo run -p ignispromptctl -- doctor --json
 cargo run -p ignispromptctl -- readiness
 cargo run -p ignispromptctl -- readiness --json
 cargo run -p ignispromptctl -- readiness --markdown
+cargo run -p ignispromptctl -- readiness --package-output local-evidence/readiness/demo-readiness
+cargo run -p ignispromptctl -- readiness --package-output local-evidence/readiness/demo-readiness --json
+cargo run -p ignispromptctl -- readiness --package-list local-evidence/readiness/demo-readiness
+cargo run -p ignispromptctl -- readiness --package-validate local-evidence/readiness/demo-readiness
 cargo run -p ignispromptctl -- health
 cargo run -p ignispromptctl -- status-version
 cargo run -p ignispromptctl -- models
@@ -212,7 +216,7 @@ cargo run -p ignispromptctl -- audit tail
 
 `doctor` checks the local daemon health, version status, model manifest, and model and runner status hint endpoints, then reports local next steps for common failures. Its sustainability metrics check is informational. The command is local-only and does not perform telemetry, cloud calls, GitHub calls, update checks, external lookup, persistence, uploads, model controls, or runner controls.
 
-`readiness` reuses the same local endpoint checks as `doctor` and presents them as local preview readiness only. It keeps status hints framed as hints, not controls; local helper checks as checks, not certification; and Aethra live-local loading as manual. `--json` prints safe diagnostic fields for category, severity, result, local next step, and boundary note without daemon URLs or local machine details. `--markdown` prints a copy-safe local helper report for issue or demo notes without generated evidence contents or local machine details. It does not add telemetry, cloud calls, persistence, uploads, model controls, or runner controls.
+`readiness` reuses the same local endpoint checks as `doctor` and presents them as local preview readiness only. It keeps status hints framed as hints, not controls; local helper checks as checks, not certification; and Aethra live-local loading as manual. `--json` prints safe diagnostic fields for category, severity, result, local next step, and boundary note without daemon URLs or local machine details. `--markdown` prints a copy-safe local helper report for issue or demo notes without generated evidence contents or local machine details. `--package-output local-evidence/readiness/<name>` writes a local readiness package with README, manifest, JSON summaries, and Markdown report output under an ignored readiness path. `--package-list` and `--package-validate` inspect that package locally without calling the daemon. It does not add telemetry, cloud calls, persistence, uploads, model controls, or runner controls.
 
 `sustainability` reads aggregate local metrics from `GET /v1/metrics/sustainability?period=<period>`, defaults to `30d`, supports `7d`, `30d`, and `90d`, and can print the daemon JSON with `--json`. It does not include prompts, raw audit text, PII, or machine identifiers.
 
@@ -220,7 +224,7 @@ cargo run -p ignispromptctl -- audit tail
 
 `evidence-bundle` writes a small local-only bundle under an ignored `local-evidence/` path from the existing local health, version status, model, model and runner status hint, and sustainability endpoints. `--include-audit-events` adds the raw local audit event response only when explicitly requested. `--json` prints the bundle summary JSON. `--list` inspects an existing bundle without calling the daemon, `--validate` checks an existing bundle without calling the daemon, `--archive` validates and archives an existing bundle to `local-evidence/archives/<bundle-name>.tar.gz` by default, `--archive-output` can override the archive path when it stays under `local-evidence/`, `--verify-archive` inspects an existing archive without calling the daemon, and `--print-manifest` prints the manifest for an existing bundle without calling the daemon. The command is diagnostic/demo output only: it is not signed, not certified, not production evidence, and does not call cloud services or external endpoints.
 
-For a repeatable local evidence demo workflow that drives `route-explain`, `audit-events`, bundle generation, listing, validation, archiving, archive verification, and manifest inspection, run:
+For a repeatable local evidence demo workflow that drives `route-explain`, `audit-events`, bundle generation, listing, validation, archiving, archive verification, manifest inspection, and readiness package generation, run:
 
 ```bash
 ./scripts/demo-local-evidence-workflow.sh
@@ -230,9 +234,9 @@ Use `--dry-run` to print the planned local workflow without starting the daemon,
 
 `make evidence-check` runs the workflow regression checks, including the demo script dry-run and self-test plus a local CLI help and boundary-language alignment check.
 
-`make readiness-check` runs deterministic local readiness quality gates for CLI help surfaces, readiness JSON and Markdown report safety, the demo workflow dry-run/self-test path, evidence-check integration, and Aethra readiness wording alignment. It does not require model weights, GGUF tooling, external runners, cloud credentials, or a live daemon.
+`make readiness-check` runs deterministic local readiness quality gates for CLI help surfaces, readiness JSON, Markdown report, and readiness package safety, the demo workflow dry-run/self-test path, evidence-check integration, and Aethra readiness wording alignment. It does not require model weights, GGUF tooling, external runners, cloud credentials, or a live daemon.
 
-The Aethra Local Readiness page and Local Command Center mirror these safe CLI recipes, the evidence workflow checklist, copy-safe readiness report snippets, local diagnostic drilldown hints, and the demo readiness notes in the dashboard. They stay read-only and local-preview only.
+The Aethra Local Readiness page and Local Command Center mirror these safe CLI recipes, the evidence workflow checklist, copy-safe readiness report snippets, local diagnostic drilldown hints, readiness package preview, and the demo readiness notes in the dashboard. They stay read-only and local-preview only.
 
 `route-explain` calls the existing local `POST /v1/route/explain` endpoint with either `--text` or `--input`. Use synthetic or non-sensitive text. This is route inspection, not legal advice or legal accuracy validation. For a legal route example, use a file that already carries legal context such as `./tests/golden-legal/smoke-legal-request.json`, which sets `model` to `ignisprompt/legal`.
 

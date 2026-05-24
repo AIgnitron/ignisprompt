@@ -51,6 +51,21 @@ export type ReadinessDiagnostic = {
   source: ReadinessSource;
 };
 
+export type ReadinessPackagePreview = {
+  schemaVersion: string;
+  packageMode: "local-preview";
+  packageRoot: string;
+  status: string;
+  generatedFiles: string[];
+  categories: Array<{
+    category: ReadinessDiagnosticCategory;
+    severity: ReadinessDiagnostic["severity"];
+    status: ReadinessDiagnostic["status"];
+  }>;
+  localNextSteps: string[];
+  boundaryNotes: string[];
+};
+
 export const localReadinessCommands: ReadinessCommand[] = [
   {
     id: "start-dev",
@@ -83,6 +98,28 @@ export const localReadinessCommands: ReadinessCommand[] = [
     command: "cargo run -p ignispromptctl -- readiness --markdown",
     detail:
       "Prints a copy-safe local preview readiness report for issue or demo notes.",
+  },
+  {
+    id: "readiness-package",
+    label: "Generate readiness package",
+    command:
+      "cargo run -p ignispromptctl -- readiness --package-output local-evidence/readiness/demo-readiness",
+    detail:
+      "Writes a local preview readiness package under ignored local-evidence/readiness/.",
+  },
+  {
+    id: "readiness-package-list",
+    label: "List readiness package",
+    command:
+      "cargo run -p ignispromptctl -- readiness --package-list local-evidence/readiness/demo-readiness",
+    detail: "Lists generated package files without calling the daemon.",
+  },
+  {
+    id: "readiness-package-validate",
+    label: "Validate readiness package",
+    command:
+      "cargo run -p ignispromptctl -- readiness --package-validate local-evidence/readiness/demo-readiness",
+    detail: "Validates package files and conservative boundaries locally.",
   },
   {
     id: "dev-check",
@@ -277,6 +314,44 @@ export function buildLocalReadinessDiagnostics(
       source: "helper",
     },
   ];
+}
+
+export function buildLocalReadinessPackagePreview(
+  diagnostics: ReadinessDiagnostic[],
+): ReadinessPackagePreview {
+  return {
+    schemaVersion: "ignisprompt-readiness-package-0.1",
+    packageMode: "local-preview",
+    packageRoot: "local-evidence/readiness/demo-readiness",
+    status: diagnostics.some((item) => item.status === "needs attention")
+      ? "needs_attention"
+      : "local_preview_ready",
+    generatedFiles: [
+      "README.md",
+      "manifest.json",
+      "readiness-summary.json",
+      "readiness-report.json",
+      "readiness-report.md",
+    ],
+    categories: diagnostics.map((item) => ({
+      category: item.category,
+      severity: item.severity,
+      status: item.status,
+    })),
+    localNextSteps: diagnostics
+      .map((item) => item.localNextStep)
+      .filter((step, index, steps) => steps.indexOf(step) === index),
+    boundaryNotes: [
+      "local preview readiness only",
+      "status hints, not controls",
+      "local helper checks, not certification",
+      "manual live-local loading",
+      "no telemetry",
+      "no cloud calls by default",
+      "no global aggregation",
+      "no external assurance or integrity claim",
+    ],
+  };
 }
 
 function readinessDiagnosticCategory(
