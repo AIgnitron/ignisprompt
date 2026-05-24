@@ -9,7 +9,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - MVP tag: `v0.1.0-mvp`
 - Final readiness result: **PASS WITH GAPS**
 - Public feedback issue: https://github.com/AIgnitron/ignisprompt/issues/56
-- Latest known main commit: `d95c9c7 feat: add ignispromptctl evidence bundle validation (#155)`
+- Latest known main commit: `5a60f8e docs: prepare v0.1.3 local preview release (#156)`
 - Open PRs at this handoff: none
 - Open issues at this handoff: #56 only
 
@@ -55,6 +55,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - PR #153 added `ignispromptctl` local audit and route inspection commands.
 - PR #154 added `ignispromptctl` evidence bundle generation from local endpoints.
 - PR #155 added `ignispromptctl` evidence bundle list and validate commands plus bundle metadata hardening.
+- PR #156 aligned the README and docs landing pages with `v0.1.3-local-preview`.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
 - Issue #43 is closed after Saul 7B local legal candidate evidence was documented.
 
