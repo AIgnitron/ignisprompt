@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
 import { PageHelp } from "../components/PageHelp";
@@ -9,6 +10,14 @@ import type {
   EvidenceBundleValidationSummary,
 } from "../api/contracts";
 import { evidenceBundleFixture } from "../fixtures/aethraFixture";
+import {
+  buildEvidenceBundleJsonReportText,
+  buildEvidenceBundleMarkdownReport,
+} from "./evidenceBundleReport";
+import {
+  sanitizeEvidenceBundleText,
+  sanitizeEvidenceBundleTextList,
+} from "./evidenceBundleText";
 
 type EvidenceBundleViewerProps = {
   preview?: Partial<EvidenceBundlePreview> | null;
@@ -39,6 +48,14 @@ type BundleIssueState = {
 type EvidenceBundleCommandSnippet = {
   command: string;
   note: string;
+};
+
+type ReportCopyKind = "markdown" | "json";
+
+type ReportCopyStatus = {
+  kind: ReportCopyKind;
+  tone: "ok" | "warning";
+  message: string;
 };
 
 const evidenceBundleCommandSnippets: EvidenceBundleCommandSnippet[] = [
@@ -73,6 +90,8 @@ const evidenceBundleCommandSnippets: EvidenceBundleCommandSnippet[] = [
   },
 ];
 
+export { sanitizeEvidenceBundleText } from "./evidenceBundleText";
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -93,22 +112,6 @@ function asStringArray(value: unknown): string[] | undefined {
   return Array.isArray(value) && value.every((item) => typeof item === "string")
     ? value
     : undefined;
-}
-
-export function sanitizeEvidenceBundleText(value: string): string {
-  return value
-    .replace(/https?:\/\/[^\s]+/g, "[redacted url]")
-    .replace(
-      /\b(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/[^\s]*)?/g,
-      "[redacted local host]",
-    )
-    .replace(/\/(?:Users|home|private)\/[^\s]+/g, "[redacted local path]")
-    .replace(/[A-Za-z]:\\[^\s]+/g, "[redacted local path]")
-    .replace(/\b(?:sk-[A-Za-z0-9_-]+|ghp_[A-Za-z0-9_-]+)\b/g, "[redacted secret]");
-}
-
-function sanitizeTextList(values: string[]): string[] {
-  return values.map((value) => sanitizeEvidenceBundleText(value));
 }
 
 function missingState(
@@ -426,7 +429,7 @@ function renderManifestState(
         <section>
           <h4>Generated files</h4>
           <ul>
-            {sanitizeTextList(manifest.generated_files).map((file) => (
+            {sanitizeEvidenceBundleTextList(manifest.generated_files).map((file) => (
               <li key={file}>{file}</li>
             ))}
           </ul>
@@ -434,7 +437,7 @@ function renderManifestState(
         <section>
           <h4>Included endpoints</h4>
           <ul>
-            {sanitizeTextList(manifest.included_endpoints).map((endpoint) => (
+            {sanitizeEvidenceBundleTextList(manifest.included_endpoints).map((endpoint) => (
               <li key={endpoint}>{endpoint}</li>
             ))}
           </ul>
@@ -486,7 +489,7 @@ function renderValidationState(
         <section>
           <h4>Required file coverage</h4>
           <ul>
-            {sanitizeTextList(validation.required_files).map((file) => (
+            {sanitizeEvidenceBundleTextList(validation.required_files).map((file) => (
               <li key={file}>{file}</li>
             ))}
           </ul>
@@ -494,7 +497,7 @@ function renderValidationState(
         <section>
           <h4>Parsed JSON files</h4>
           <ul>
-            {sanitizeTextList(validation.parsed_json_files).map((file) => (
+            {sanitizeEvidenceBundleTextList(validation.parsed_json_files).map((file) => (
               <li key={file}>{file}</li>
             ))}
           </ul>
@@ -554,7 +557,7 @@ function renderArchiveState(
         <section>
           <h4>Archive contents preview</h4>
           <ul>
-            {sanitizeTextList(archivePreview.generated_files).map((file) => (
+            {sanitizeEvidenceBundleTextList(archivePreview.generated_files).map((file) => (
               <li key={file}>{file}</li>
             ))}
           </ul>
@@ -624,6 +627,7 @@ function renderCommandSnippets() {
 
 export function EvidenceBundleViewer({ preview }: EvidenceBundleViewerProps) {
   const source = preview === undefined ? evidenceBundleFixture : preview;
+  const [copyStatus, setCopyStatus] = useState<ReportCopyStatus>();
   const manifestState = buildManifestState(source);
   const validationState = buildValidationState(source);
   const archiveState = buildArchiveState(source);
@@ -632,6 +636,38 @@ export function EvidenceBundleViewer({ preview }: EvidenceBundleViewerProps) {
   const validationValue =
     validationState.kind === "ready" ? validationState.value : null;
   const archiveValue = archiveState.kind === "ready" ? archiveState.value : null;
+
+  async function copyReport(kind: ReportCopyKind) {
+    const generatedAt = new Date().toISOString();
+    const text =
+      kind === "markdown"
+        ? buildEvidenceBundleMarkdownReport({ generatedAt, preview: source })
+        : buildEvidenceBundleJsonReportText({ generatedAt, preview: source });
+
+    if (!globalThis.navigator?.clipboard?.writeText) {
+      setCopyStatus({
+        kind,
+        tone: "warning",
+        message: "Clipboard unavailable; use browser clipboard permissions.",
+      });
+      return;
+    }
+
+    try {
+      await globalThis.navigator.clipboard.writeText(text);
+      setCopyStatus({
+        kind,
+        tone: "ok",
+        message: "Copied",
+      });
+    } catch {
+      setCopyStatus({
+        kind,
+        tone: "warning",
+        message: "Copy failed; use browser clipboard permissions.",
+      });
+    }
+  }
 
   return (
     <section id="evidence-bundle-viewer" className="page-section">
@@ -661,6 +697,68 @@ export function EvidenceBundleViewer({ preview }: EvidenceBundleViewerProps) {
       />
 
       {renderCommandSnippets()}
+
+      <section className="panel" aria-label="Evidence bundle report export">
+        <div className="panel-heading">
+          <div>
+            <h3>Report export</h3>
+            <p className="muted">
+              Copy local-preview Markdown or JSON reports from the currently
+              displayed bundle metadata.
+            </p>
+          </div>
+          <StatusBadge tone="neutral">Clipboard only</StatusBadge>
+        </div>
+
+        <PageHelp
+          items={[
+            "Reports are generated locally from the displayed evidence metadata.",
+            "Raw audit events stay omitted by default.",
+            "The report text is local-preview only and is not signed, certified, or cryptographically verified.",
+          ]}
+        />
+
+        <div className="command-list">
+          <div className="command-row">
+            <div className="command-copy">
+              <strong>Markdown report</strong>
+              <code>Clipboard export</code>
+              <span>Copies a local-only Markdown report snapshot.</span>
+              {copyStatus?.kind === "markdown" ? (
+                <span className={`copy-feedback copy-feedback-${copyStatus.tone}`}>
+                  {copyStatus.message}
+                </span>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => copyReport("markdown")}
+            >
+              Copy Markdown report
+            </button>
+          </div>
+          <div className="command-row">
+            <div className="command-copy">
+              <strong>JSON report</strong>
+              <code>Clipboard export</code>
+              <span>Copies a local-only JSON report snapshot.</span>
+              {copyStatus?.kind === "json" ? (
+                <span className={`copy-feedback copy-feedback-${copyStatus.tone}`}>
+                  {copyStatus.message}
+                </span>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => copyReport("json")}
+            >
+              Copy JSON report
+            </button>
+          </div>
+        </div>
+      </section>
 
       <div className="metric-grid" aria-label="Evidence bundle metrics">
         <MetricCard
