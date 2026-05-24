@@ -45,6 +45,7 @@ cargo build
 ```bash
 ./scripts/check-sustainability-language.sh
 cargo test
+make evidence-check
 ```
 
 ## Default Developer Check
@@ -68,6 +69,8 @@ The daemon smoke includes `GET /v1/status/version` for local preview support/deb
 This combines the repository sustainability language guardrail, Rust tests, default developer check, Aethra tests, Aethra production build, and `git diff --check`. It runs `./scripts/check-sustainability-language.sh` directly and also includes the same guardrail again through `./scripts/dev-check.sh`.
 
 The guardrail is intended to catch unsupported or overconfident sustainability wording such as carbon-saved claims, measured-emissions certainty, zero-emissions certainty, certification language, ESG claims, and production or compliance claims that conflict with the estimated/proxy/counterfactual/methodology-dependent boundaries. It is a repository language check, not a substitute for reviewer judgment.
+
+For v0.1.4 release prep, also confirm `make evidence-check` passes and that the local evidence workflow still keeps outputs under ignored `local-evidence/` paths.
 
 ## Aethra Checks
 

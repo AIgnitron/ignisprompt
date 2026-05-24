@@ -9,7 +9,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - MVP tag: `v0.1.0-mvp`
 - Final readiness result: **PASS WITH GAPS**
 - Public feedback issue: https://github.com/AIgnitron/ignisprompt/issues/56
-- Latest known main commit: `42c14d3 feat: add Aethra local evidence workflow (#160)`
+- Latest known main commit: `2c98e8a feat: add local evidence demo workflow (#164)`
 - Open PRs at this handoff: none
 - Open issues at this handoff: #56 only
 
@@ -59,6 +59,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - PR #159 added the `ignispromptctl` evidence bundle archive workflow.
 - PR #160 added the Aethra local evidence workflow.
 - A repeatable local evidence demo workflow script now drives route-explain, audit-events, evidence-bundle generation, listing, validation, archiving, archive verification, and manifest inspection under ignored local-evidence paths. It includes dry-run and self-test modes that stay local-only.
+- `make evidence-check` runs the local evidence workflow regression checks without requiring a live daemon. It verifies the demo workflow script, the `ignispromptctl evidence-bundle` help surface, and the Aethra boundary-language alignment.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
 - Issue #43 is closed after Saul 7B local legal candidate evidence was documented.
 
@@ -70,6 +71,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - Model manifests distinguish route eligibility from local file and runner availability. `/v1/models` reports configured manifest fields, while `/v1/status/models` reports read-only local hints for declared path presence, runner configuration, runner executable presence, conservative availability labels, and language that file/runner presence does not mean executable inference was attempted.
 - Generated evidence and transcripts live under ignored `local-evidence/`.
 - The local evidence demo workflow is a local-preview operator aid. It does not sign output, provide cryptographic verification, or claim production attestation.
+- The local evidence regression check stays local-only and does not replace full release verification, but it should be run before v0.1.4 release prep.
 - Local model files live under ignored `models/`.
 - Model weights, local evidence, generated transcripts, demo bundles, attestation bundles, audit logs, `target/`, and `dist/` must not be committed.
 - The synthetic public demo fixture is `tests/golden-legal/demo-synthetic-contract-request.json`.

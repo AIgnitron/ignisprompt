@@ -96,6 +96,16 @@ For the repeatable local evidence demo workflow, run `bash -n scripts/demo-local
 
 The `route-explain` command calls the existing local `POST /v1/route/explain` endpoint with either `--text` or `--input`. Use synthetic or non-sensitive local preview text. `--json` prints the raw daemon response as formatted JSON. This is route inspection, not legal advice or legal accuracy validation. For a legal route example, use a request file that already carries legal context such as `./tests/golden-legal/smoke-legal-request.json`, which sets `model` to `ignisprompt/legal`.
 
+## Local Evidence Workflow Regression
+
+Run the local evidence workflow regression check with:
+
+```bash
+make evidence-check
+```
+
+This verifies the demo workflow script dry-run and self-test modes, checks the `ignispromptctl evidence-bundle` help surface for the supported generate/list/validate/archive/verify-archive/print-manifest commands, and confirms the Aethra evidence fixture language stays aligned with the local-preview boundary terms. It does not require a live daemon or external services.
+
 ## CI path
 
 `.github/workflows/ci.yml` runs:

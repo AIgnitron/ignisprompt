@@ -116,6 +116,8 @@ The script demonstrates `route-explain`, `audit-events`, evidence bundle generat
 
 Use `--dry-run` to print the planned workflow without starting the daemon. Use `--self-test` to verify ignored-path checks and command construction without a live daemon.
 
+For a regression check that verifies the CLI command shape and the Aethra boundary wording stay aligned, run `make evidence-check`.
+
 ## Golden and bakeoff demos
 
 `./scripts/run-golden-legal-v0.3.sh` runs a nine-case local subset against the live GGUF path. It includes the Tier 3 success case, fail-closed local-only cases, adversarial document-instruction handling, explanation quality, a subtle legal-language routing-instruction case, and an expanded synthetic adversarial fixture matrix. It writes evidence under `./local-evidence/golden-legal-v0.3/`.
