@@ -116,11 +116,13 @@ The script demonstrates `route-explain`, `audit-events`, evidence bundle generat
 
 Use `--dry-run` to print the planned workflow without starting the daemon. Use `--self-test` to verify ignored-path checks and command construction without a live daemon.
 
-For regression checks that verify the CLI command shape and the Aethra boundary wording stay aligned, run `make readiness-check` and `make evidence-check`.
+For regression checks that verify the CLI command shape and the Aethra boundary wording stay aligned, run `make readiness-check`, `make operator-check`, and `make evidence-check`.
 
 The Aethra Local Readiness page summarizes fixture-backed local preview readiness cards for daemon health, version/status, configured models, model and runner status hints, evidence workflow availability, and local helper checks. Its daemon guidance is copy-only and includes the matching `ignispromptctl readiness` summary, safe JSON diagnostics, a copy-safe Markdown readiness report for local demo notes, local readiness package preview, and read-only diagnostic drilldown hints. Aethra does not execute commands, add polling, add telemetry, or add controls.
 
 The Aethra Local Command Center mirrors the same local-preview command recipes, the evidence workflow checklist, and the demo readiness notes for safe dashboard review.
+
+The Aethra Local Operator Console adds a read-only operator workflow view that combines local preview readiness, readiness package status, evidence workflow status, demo next steps, and copy-only command recipes. It is fixture-backed by default, keeps live-local loading manual, and does not execute commands, upload files, persist data, add polling, add telemetry, or add cloud calls.
 
 ## Golden and bakeoff demos
 

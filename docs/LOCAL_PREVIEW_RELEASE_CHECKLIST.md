@@ -48,6 +48,7 @@ cargo test
 ./scripts/check-hidden-unicode.sh
 make security-check
 make readiness-check
+make operator-check
 make evidence-check
 make dev-check
 git diff --check
@@ -73,6 +74,21 @@ For v0.1.5 release-readiness work, keep the local readiness quality gate aligned
 - readiness packages remain local-only helper outputs and are not signed
 - readiness package verification remains structural local validation only
 - no telemetry, cloud calls by default, global aggregation, model controls, runner controls, command execution, upload, polling, or persistence are added
+
+## v0.1.6 Operator Console Planning Notes
+
+For v0.1.6 planning, keep the local operator workflow aligned across Aethra, CLI, scripts, and docs:
+
+- `make operator-check` passes
+- `cargo run -p ignispromptctl -- operator-summary` stays local preview operator workflow only
+- `cargo run -p ignispromptctl -- operator-summary --json` keeps copy-only command recipes and boundary notes conservative
+- Aethra Local Operator Console remains fixture-backed by default and read-only
+- command recipes remain copy-only and are not executed from Aethra
+- readiness package validation remains structural/local only
+- archives and packages remain local-only helper outputs and are not signed
+- local helper checks remain checks, not certification
+- status values remain hints, not controls
+- no telemetry, cloud calls by default, global aggregation, model controls, runner controls, command execution, upload, polling, file picker, or persistence are added
 - no production deployment, legal advice, legal accuracy, or compliance, supply-chain, signed-attestation, tamper-evident, cryptographic, production-grade inference, or production-grade security claims are added; wording must say not ESG certification where sustainability boundaries are mentioned
 - LiteLLM remains planning only
 
@@ -345,18 +361,19 @@ Confirm release notes, checklist updates, README links, and quickstart notes kee
 
 ## Release Tag Steps
 
-Use these only after a release branch is merged and the final commit is verified. Existing local-preview tags must not be moved, deleted, recreated, or republished. Use the future patch tag `v0.1.5-local-preview` only after final verification and explicit release approval.
+Use these only after a release branch is merged and the final commit is verified. Existing local-preview tags must not be moved, deleted, recreated, or republished. Use a future patch tag only after final verification and explicit release approval.
 
 ```bash
 git checkout main
 git pull --ff-only origin main
 ./scripts/release-check.sh
 make readiness-check
+make operator-check
 make evidence-check
 git status --short
 git status --short --ignored apps/aethra/dist models local-evidence data/audit
-git tag -a v0.1.5-local-preview -m "v0.1.5 local preview"
-git push origin v0.1.5-local-preview
+git tag -a <next-local-preview-tag> -m "<next local preview>"
+git push origin <next-local-preview-tag>
 ```
 
 Do not tag if verification fails or if untracked release artifacts are present.
@@ -368,7 +385,7 @@ Do not tag if verification fails or if untracked release artifacts are present.
 - #141 is post-v0.1.1 material and fixed MCP `audit_events` compatibility by changing MCP tool-call `structuredContent` to object-shaped `{ "events": [...] }`.
 - The HTTP `GET /v1/audit/events` response remains the existing JSON array shape.
 - #142 is post-v0.1.1 docs-only guardrail cleanup and reinforced sustainability guardrail wiring, demo warnings, tag immutability, `git pull --ff-only origin main`, and artifact hygiene.
-- `v0.1.4-local-preview` is published and remains the latest release until v0.1.5 is explicitly tagged and published.
+- `v0.1.5-local-preview` is published and remains the latest release until a future local-preview release is explicitly tagged and published.
 
 ## Rollback Notes
 

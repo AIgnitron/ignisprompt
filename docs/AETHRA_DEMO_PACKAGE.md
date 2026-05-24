@@ -25,6 +25,7 @@ Use this framing for public material:
 - manual live-local loading
 - read-only dashboard and observatory
 - local readiness surface with status hints and copy-only daemon guidance
+- local operator console with readiness, evidence, package, and copy-only command guidance
 - local command center with safe CLI recipes and evidence workflow notes
 - route explanations and local audit visibility
 - model and runner status hints, not controls
@@ -89,12 +90,13 @@ Use this order for public carousels, short demos, or README-linked walkthroughs:
 1. Hero
 2. Overview
 3. Local Readiness
-4. Local Command Center
-5. Routing Explorer
-6. Audit Events
-7. Model / Runner Status
-8. Evidence Bundle Viewer
-9. Sustainability Preview
+4. Local Operator Console
+5. Local Command Center
+6. Routing Explorer
+7. Audit Events
+8. Model / Runner Status
+9. Evidence Bundle Viewer
+10. Sustainability Preview
 
 ### 1. Hero
 
@@ -161,7 +163,29 @@ Screenshot guidance:
 - Keep the copy-only command snippets visible if discussing daemon setup.
 - Do not imply continuous monitoring, telemetry, controls, cloud uploads, compliance certification, or production deployment approval.
 
-### 4. Local Command Center
+### 4. Local Operator Console
+
+Purpose: show the operator workflow summary without adding actions.
+
+Caption:
+
+```text
+Local Operator Console combines readiness, readiness package, evidence workflow, and demo next-step hints with copy-only local command recipes.
+```
+
+Talk track:
+
+```text
+This view is for local preview review. It keeps status values as hints, local helper checks separate from certification, and package validation structural/local only.
+```
+
+Screenshot guidance:
+
+- Keep fixture mode selected.
+- Show command recipes as text snippets only.
+- Do not show hostnames, user account names, absolute paths, secrets, local evidence contents, or raw audit events.
+
+### 5. Local Command Center
 
 Purpose: show copyable local recipes and evidence workflow notes.
 
@@ -183,7 +207,7 @@ Screenshot guidance:
 - Keep ignored `local-evidence/` paths visible only as repo-relative examples.
 - Do not show generated evidence, audit logs, transcripts, archives, secrets, or absolute filesystem paths.
 
-### 5. Routing Explorer
+### 6. Routing Explorer
 
 Purpose: show route reasoning and local-only policy signals.
 
@@ -205,7 +229,7 @@ Screenshot guidance:
 - Keep route code, tier, explanation, warnings, and `data_left_device=false` visible when possible.
 - Do not present route output as legal advice or model-quality validation.
 
-### 6. Audit Events
+### 7. Audit Events
 
 Purpose: show local route traceability.
 
@@ -227,7 +251,7 @@ Screenshot guidance:
 - Avoid raw prompt text and private matter details.
 - If request IDs are visible, keep them synthetic or fixture-backed.
 
-### 7. Model / Runner Status
+### 8. Model / Runner Status
 
 Purpose: show local status hints without implying controls.
 
@@ -249,7 +273,7 @@ Screenshot guidance:
 - Do not show local filesystem paths that reveal private machine details.
 - Do not imply the presence of model weights in git.
 
-### 8. Evidence Bundle Viewer
+### 9. Evidence Bundle Viewer
 
 Purpose: show local evidence bundle metadata, validation summary, and archive metadata preview without extracting archives or loading arbitrary local paths.
 
@@ -273,7 +297,7 @@ Screenshot guidance:
 - If report export controls are shown, keep the Markdown and JSON copy actions visible and note that they are browser-local only.
 - Do not show raw audit event content, prompts, secrets, local machine identifiers, or absolute filesystem paths.
 
-### 9. Sustainability Preview
+### 10. Sustainability Preview
 
 Purpose: show local-first sustainability observability without overclaiming.
 
