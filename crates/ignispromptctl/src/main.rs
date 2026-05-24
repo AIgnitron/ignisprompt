@@ -31,10 +31,18 @@ enum Commands {
         json: bool,
     },
     /// Summarize local preview readiness from existing daemon checks
+    #[command(group(
+        ArgGroup::new("readiness_output")
+            .args(["json", "markdown"])
+            .multiple(false)
+    ))]
     Readiness {
         /// Print structured JSON diagnostics
         #[arg(long)]
         json: bool,
+        /// Print a copy-safe Markdown report for local demo notes
+        #[arg(long)]
+        markdown: bool,
     },
     /// Check daemon health
     Health,
@@ -134,7 +142,7 @@ fn main() {
     let cli = Cli::parse();
     match &cli.command {
         Commands::Doctor { json } => cmd_doctor(&cli.daemon_url, *json),
-        Commands::Readiness { json } => cmd_readiness(&cli.daemon_url, *json),
+        Commands::Readiness { json, markdown } => cmd_readiness(&cli.daemon_url, *json, *markdown),
         Commands::Health => cmd_health(&cli.daemon_url),
         Commands::StatusVersion => cmd_status_version(&cli.daemon_url),
         Commands::Sustainability { period, json } => {
@@ -270,12 +278,14 @@ fn cmd_doctor(base_url: &str, json_output: bool) {
     }
 }
 
-fn cmd_readiness(base_url: &str, json_output: bool) {
+fn cmd_readiness(base_url: &str, json_output: bool, markdown_output: bool) {
     let report = build_doctor_report(base_url);
     let is_ready = report.required_checks_passed();
 
     if json_output {
         println!("{}", format_readiness_json(&report));
+    } else if markdown_output {
+        println!("{}", format_readiness_markdown(&report));
     } else {
         println!("{}", format_readiness_summary(&report));
     }
@@ -568,6 +578,163 @@ fn format_readiness_json(report: &DoctorReport) -> String {
         "next_steps": report.next_steps(),
     }))
     .unwrap_or_default()
+}
+
+fn format_readiness_markdown(report: &DoctorReport) -> String {
+    let mut lines = vec![
+        "# IgnisPrompt Local Readiness Report".to_string(),
+        "".to_string(),
+        "This report is local preview readiness only. It is safe to paste into an issue or demo note because it omits daemon URLs, network names, user account names, device-specific identifiers, absolute paths, sensitive input content, audit event bodies, private credentials, and generated evidence contents.".to_string(),
+        "".to_string(),
+        "## Summary".to_string(),
+        "".to_string(),
+        format!(
+            "- overall_status: {}",
+            if report.required_checks_passed() {
+                "local_preview_ready"
+            } else {
+                "needs_attention"
+            }
+        ),
+        "- daemon_endpoint_checks: summarized when available".to_string(),
+        "- Aethra loading: manual live-local loading".to_string(),
+        "- report_mode: copy-safe Markdown".to_string(),
+        "".to_string(),
+        "## Readiness Checks".to_string(),
+        "".to_string(),
+    ];
+
+    let required_checks = report
+        .checks
+        .iter()
+        .filter(|check| check.level == DoctorCheckLevel::Required)
+        .collect::<Vec<_>>();
+    if required_checks.is_empty() {
+        lines.push("- No required check summaries available.".to_string());
+    } else {
+        for check in required_checks {
+            lines.push(format_readiness_report_check_line(check));
+        }
+    }
+
+    let informational_checks = report
+        .checks
+        .iter()
+        .filter(|check| check.level == DoctorCheckLevel::Informational)
+        .collect::<Vec<_>>();
+    lines.push("".to_string());
+    lines.push("## Status Hints".to_string());
+    lines.push("".to_string());
+    if informational_checks.is_empty() {
+        lines.push("- No informational status hints available.".to_string());
+    } else {
+        for check in informational_checks {
+            lines.push(format_readiness_report_check_line(check));
+        }
+    }
+
+    lines.extend([
+        "".to_string(),
+        "## Local Preview Checklist".to_string(),
+        "".to_string(),
+        "- Fixture-backed Aethra data can render without a daemon.".to_string(),
+        "- Manual live-local loading is explicit in Aethra.".to_string(),
+        "- Daemon health, version/status, configured models, and model/runner status hints are review inputs.".to_string(),
+        "- Evidence workflow availability is checked through local helper checks.".to_string(),
+        "- Security and evidence checks are local helper checks, not certification.".to_string(),
+        "".to_string(),
+        "## Boundary Notes".to_string(),
+        "".to_string(),
+        "- status hints, not controls".to_string(),
+        "- local helper checks, not certification".to_string(),
+        "- no production deployment approval".to_string(),
+        "- no telemetry added".to_string(),
+        "- no cloud calls added".to_string(),
+        "- no uploads or persistence added".to_string(),
+        "".to_string(),
+        "## Local Helper Commands".to_string(),
+        "".to_string(),
+        "- cargo run -p ignispromptctl -- readiness".to_string(),
+        "- cargo run -p ignispromptctl -- readiness --json".to_string(),
+        "- cargo run -p ignispromptctl -- readiness --markdown".to_string(),
+        "- make readiness-check".to_string(),
+        "- make evidence-check".to_string(),
+        "- make dev-check".to_string(),
+        "".to_string(),
+    ]);
+
+    lines.join("\n")
+}
+
+fn format_readiness_report_check_line(check: &DoctorCheckResult) -> String {
+    let status = if check.ok { "ok" } else { "needs_attention" };
+    format!(
+        "- {}: {} ({})",
+        sanitize_readiness_report_text(check.label),
+        status,
+        sanitize_readiness_report_text(&check.summary)
+    )
+}
+
+fn sanitize_readiness_report_text(value: &str) -> String {
+    if contains_sensitive_readiness_report_text(value) {
+        return "[redacted local readiness field]".to_string();
+    }
+
+    value
+        .replace("production readiness", "production deployment approval")
+        .replace("Production readiness", "Production deployment approval")
+        .replace("compliance certification", "external assurance")
+        .replace("Compliance certification", "External assurance")
+        .replace("security certification", "external assurance")
+        .replace("Security certification", "External assurance")
+        .replace("signed attestation", "local evidence note")
+        .replace("Signed attestation", "Local evidence note")
+        .replace("tamper-evident storage", "storage claim")
+        .replace("Tamper-evident storage", "Storage claim")
+        .replace("cryptographic verification", "verification claim")
+        .replace("Cryptographic verification", "Verification claim")
+        .replace("model controls", "model status hints")
+        .replace("Model controls", "Model status hints")
+        .replace("runner controls", "runner status hints")
+        .replace("Runner controls", "Runner status hints")
+        .replace("model control", "model status hint")
+        .replace("Model control", "Model status hint")
+        .replace("runner control", "runner status hint")
+        .replace("Runner control", "Runner status hint")
+}
+
+fn contains_sensitive_readiness_report_text(value: &str) -> bool {
+    [
+        "prompt:",
+        "raw audit",
+        "raw user text",
+        "request text",
+        "api_key",
+        "api key",
+        "secret",
+        "token",
+        "localhost",
+        "127.0.0.1",
+        "[::1]",
+        "/Users/",
+        "/home/",
+        "/private/",
+        "/var/",
+        "C:\\",
+        "hostname",
+        "host ",
+        "username",
+        "machine identifier",
+        "machine id",
+    ]
+    .iter()
+    .any(|needle| {
+        value
+            .to_ascii_lowercase()
+            .contains(&needle.to_ascii_lowercase())
+    }) || value.contains("sk-")
+        || value.contains("ghp_")
 }
 
 fn validate_doctor_health(body: &Value) -> Result<String, String> {
@@ -3693,10 +3860,11 @@ mod tests {
         format_evidence_bundle_unreachable_error, format_evidence_bundle_validation_json,
         format_evidence_bundle_validation_summary, format_http_error,
         format_invalid_response_error, format_model_manifest_line, format_readiness_json,
-        format_readiness_summary, format_route_explain_summary, format_sustainability_summary,
-        format_unreachable_error, is_audit_event_list, is_route_explain_response,
-        is_sustainability_metrics_response, route_explain_url, string_field, sustainability_url,
-        validate_doctor_health, validate_doctor_model_status_hints, validate_doctor_models,
+        format_readiness_markdown, format_readiness_summary, format_route_explain_summary,
+        format_sustainability_summary, format_unreachable_error, is_audit_event_list,
+        is_route_explain_response, is_sustainability_metrics_response, route_explain_url,
+        string_field, sustainability_url, validate_doctor_health,
+        validate_doctor_model_status_hints, validate_doctor_models,
         validate_doctor_sustainability_metrics, validate_doctor_version_status,
         validate_evidence_bundle_archive_output_path, validate_evidence_bundle_output_dir,
         validate_no_placeholder_string_values, validate_sustainability_period,
@@ -4025,6 +4193,71 @@ mod tests {
             .unwrap()
             .iter()
             .any(|value| value == "make readiness-check"));
+    }
+
+    #[test]
+    fn readiness_markdown_report_is_copy_safe() {
+        let report = DoctorReport {
+            base_url: "http://127.0.0.1:8765".to_string(),
+            checks: vec![
+                DoctorCheckResult {
+                    id: "health",
+                    label: "health",
+                    level: DoctorCheckLevel::Required,
+                    endpoint: "http://localhost:8765/health".to_string(),
+                    ok: false,
+                    summary:
+                        "daemon unreachable at /Users/alice/work with api_key sk-test prompt: raw audit text"
+                            .to_string(),
+                    error: Some(
+                        "hostname devbox username alice token ghp_secret raw user text".to_string(),
+                    ),
+                },
+                DoctorCheckResult {
+                    id: "model_status_hints",
+                    label: "model controls and runner controls",
+                    level: DoctorCheckLevel::Required,
+                    endpoint: "http://127.0.0.1:8765/v1/status/models".to_string(),
+                    ok: true,
+                    summary:
+                        "production readiness compliance certification signed attestation tamper-evident storage cryptographic verification"
+                            .to_string(),
+                    error: None,
+                },
+            ],
+        };
+
+        let report_text = format_readiness_markdown(&report);
+        let lower_report = report_text.to_ascii_lowercase();
+
+        assert!(report_text.contains("# IgnisPrompt Local Readiness Report"));
+        assert!(report_text.contains("copy-safe Markdown"));
+        assert!(report_text.contains("status hints, not controls"));
+        assert!(report_text.contains("local helper checks, not certification"));
+        assert!(report_text.contains("cargo run -p ignispromptctl -- readiness --markdown"));
+        assert!(!lower_report.contains("prompt:"));
+        assert!(!lower_report.contains("raw user text"));
+        assert!(!lower_report.contains("raw audit"));
+        assert!(!lower_report.contains("secret"));
+        assert!(!lower_report.contains("api_key"));
+        assert!(!lower_report.contains("api key"));
+        assert!(!lower_report.contains("sk-test"));
+        assert!(!lower_report.contains("ghp_"));
+        assert!(!lower_report.contains("localhost"));
+        assert!(!lower_report.contains("127.0.0.1"));
+        assert!(!lower_report.contains("hostname"));
+        assert!(!lower_report.contains("username"));
+        assert!(!lower_report.contains("machine identifier"));
+        assert!(!lower_report.contains("/users/"));
+        assert!(!lower_report.contains("/home/"));
+        assert!(!lower_report.contains("production readiness"));
+        assert!(!lower_report.contains("compliance certification"));
+        assert!(!lower_report.contains("security certification"));
+        assert!(!lower_report.contains("signed attestation"));
+        assert!(!lower_report.contains("tamper-evident"));
+        assert!(!lower_report.contains("cryptographic verification"));
+        assert!(!lower_report.contains("model controls"));
+        assert!(!lower_report.contains("runner controls"));
     }
 
     #[test]

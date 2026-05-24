@@ -56,8 +56,10 @@ For post-v0.1.4 v0.1.5 release-readiness work, keep the local readiness quality 
 - `make readiness-check` passes
 - `cargo run -p ignispromptctl -- readiness` stays local preview readiness only
 - `cargo run -p ignispromptctl -- readiness --json` keeps status hints and local helper checks conservative
+- `cargo run -p ignispromptctl -- readiness --markdown` prints a copy-safe local helper report for issue or demo notes
 - Aethra Local Readiness remains fixture-backed by default
 - live-local loading remains manual
+- Aethra readiness report snippets remain browser-local and copy-only
 - status hints remain hints, not controls
 - local helper checks remain checks, not certification
 - no telemetry, cloud calls by default, model controls, runner controls, or persistence are added

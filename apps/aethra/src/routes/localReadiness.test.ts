@@ -79,7 +79,9 @@ describe("local readiness summaries", () => {
       "cargo run -p ignispromptctl -- health",
       "cargo run -p ignispromptctl -- doctor",
       "cargo run -p ignispromptctl -- readiness",
+      "cargo run -p ignispromptctl -- readiness --markdown",
       "make dev-check",
+      "make readiness-check",
       "make evidence-check",
     ]);
     expect(getAllReadinessCommandsText()).toContain("make evidence-check");

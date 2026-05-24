@@ -1017,6 +1017,20 @@ textarea:focus {
   word-break: break-word;
 }
 
+.report-preview {
+  max-height: 320px;
+  margin: 0;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid #d9e1e3;
+  border-radius: 8px;
+  background: #f5f7f8;
+  color: #25353b;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 @media (max-width: 900px) {
   .app-shell {
     grid-template-columns: 1fr;

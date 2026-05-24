@@ -52,6 +52,7 @@ cargo run -p ignispromptctl -- doctor
 cargo run -p ignispromptctl -- doctor --json
 cargo run -p ignispromptctl -- readiness
 cargo run -p ignispromptctl -- readiness --json
+cargo run -p ignispromptctl -- readiness --markdown
 cargo run -p ignispromptctl -- health
 cargo run -p ignispromptctl -- status-version
 cargo run -p ignispromptctl -- models
@@ -75,7 +76,7 @@ cargo run -p ignispromptctl -- audit tail
 
 The `doctor` command checks required local preview endpoints for health, version status, model manifests, and model and runner status hints. It also checks sustainability metrics as informational diagnostics. It exits non-zero only when required checks fail, supports `--json`, and should be used before Aethra live-local debugging when a terminal status summary is useful. It does not add telemetry, cloud calls, GitHub calls, update checks, external lookup, persistence, uploads, model controls, runner controls, or command execution beyond local HTTP reads.
 
-The `readiness` command reuses the same local endpoint checks and prints a local preview readiness summary. It aligns with Aethra Local Readiness wording: status hints, not controls; local helper checks, not certification; manual live-local loading; no telemetry; and no cloud calls by default.
+The `readiness` command reuses the same local endpoint checks and prints a local preview readiness summary. `--markdown` prints a copy-safe local helper report for issue or demo notes while `--json` keeps the existing structured diagnostics. It aligns with Aethra Local Readiness wording: status hints, not controls; local helper checks, not certification; manual live-local loading; no telemetry; and no cloud calls by default.
 
 The `sustainability` command reads `GET /v1/metrics/sustainability?period=<period>` with supported periods `7d`, `30d`, and `90d`; it defaults to `30d` and rejects unsupported values before sending a request. It prints aggregate local sustainability metrics only. It does not include prompts, raw request text, raw audit event bodies, PII, machine identifiers, hostnames, usernames, filesystem paths, secrets, or API keys.
 
@@ -120,7 +121,7 @@ Run the local readiness quality gate with:
 make readiness-check
 ```
 
-This runs `scripts/readiness-check.sh`. The check validates deterministic CLI help surfaces for `doctor`, `readiness`, `health`, `route-explain`, `audit-events`, and `evidence-bundle`; verifies the demo local evidence workflow dry-run and self-test paths; runs the evidence workflow regression check; and checks Aethra Local Readiness wording alignment. It does not require model weights, GGUF files, external runners, cloud credentials, external network, or a live daemon.
+This runs `scripts/readiness-check.sh`. The check validates deterministic CLI help surfaces for `doctor`, `readiness`, `health`, `route-explain`, `audit-events`, and `evidence-bundle`; exercises the readiness Markdown report safety test; verifies the demo local evidence workflow dry-run and self-test paths; runs the evidence workflow regression check; and checks Aethra Local Readiness wording alignment. It does not require model weights, GGUF files, external runners, cloud credentials, external network, or a live daemon.
 
 ## CI path
 

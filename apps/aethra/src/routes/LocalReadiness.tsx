@@ -24,6 +24,7 @@ import {
   type ReadinessCard,
   type ReadinessCommand,
 } from "./localReadinessSummary";
+import { buildReadinessMarkdownReport } from "./readinessReport";
 
 type CopyStatus =
   | {
@@ -72,6 +73,7 @@ export function LocalReadiness({
     statusHintsSource: useLiveModelStatus ? "live-local" : "fixture",
     evidenceBundle: evidenceBundleFixture,
   });
+  const readinessReport = buildReadinessMarkdownReport({ cards });
 
   async function copyCommand(id: string, command: string) {
     if (!globalThis.navigator?.clipboard?.writeText) {
@@ -174,6 +176,44 @@ export function LocalReadiness({
               />
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className="overview-section-group" aria-label="Copy-safe readiness report">
+        <div className="section-heading">
+          <p className="eyebrow">Report</p>
+          <h3>Copy-safe readiness report</h3>
+          <p className="muted">
+            Browser-local Markdown for local preview readiness notes. The
+            report is generated from the cards, checklist, and command
+            snippets shown on this page.
+          </p>
+        </div>
+        <div className="panel" aria-label="Readiness report export">
+          <div className="panel-heading">
+            <div>
+              <h3>Readiness report snippet</h3>
+              <p className="muted">
+                Copy-only export for issue or demo notes. Aethra does not
+                upload, persist, or execute report content.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => copyCommand("readiness-report", readinessReport)}
+            >
+              Copy readiness report
+            </button>
+          </div>
+
+          {copyStatus?.id === "readiness-report" ? (
+            <p className={`copy-feedback copy-feedback-${copyStatus.tone}`}>
+              {copyStatus.message}
+            </p>
+          ) : null}
+
+          <pre className="report-preview">{readinessReport}</pre>
         </div>
       </section>
 
