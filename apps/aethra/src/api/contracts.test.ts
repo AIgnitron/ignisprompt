@@ -9,6 +9,7 @@ import {
 } from "./contracts";
 import {
   auditEventFixtures,
+  evidenceBundleFixture,
   healthFixture,
   modelFixtures,
   modelStatusFixture,
@@ -120,6 +121,48 @@ describe("Aethra fixture contract shapes", () => {
       "tier",
       "timestamp",
       "warnings",
+    ]);
+  });
+
+  it("locks evidence bundle fixture fields for the local workflow viewer", () => {
+    expect(keysOf(evidenceBundleFixture.manifest)).toEqual([
+      "audit_events_included",
+      "bundle_name",
+      "bundle_schema_version",
+      "generated_at",
+      "generated_files",
+      "included_endpoints",
+      "local_preview_boundary",
+      "non_certified_boundary",
+      "not_production_attestation_boundary",
+      "not_signed_boundary",
+    ]);
+    expect(keysOf(evidenceBundleFixture.validation)).toEqual([
+      "bundle_schema_version",
+      "missing_files",
+      "note",
+      "optional_files",
+      "parsed_json_files",
+      "placeholder_string_detected",
+      "required_files",
+      "safe_fields_redacted",
+      "status",
+      "validation_mode",
+    ]);
+    expect(keysOf(evidenceBundleFixture.archivePreview ?? {})).toEqual([
+      "archive_format",
+      "archive_name",
+      "bundle_name",
+      "byte_size_estimate",
+      "certified",
+      "created_at",
+      "file_count",
+      "generated_files",
+      "includes_files_outside_bundle",
+      "note",
+      "signed",
+      "symlinks_followed",
+      "tamper_evident",
     ]);
   });
 });
