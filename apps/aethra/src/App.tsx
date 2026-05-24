@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AuditEvents } from "./routes/AuditEvents";
 import { EvidenceBundleViewer } from "./routes/EvidenceBundleViewer";
 import { LocalCommandCenter } from "./routes/LocalCommandCenter";
+import { LocalReadiness } from "./routes/LocalReadiness";
 import { StatusBadge } from "./components/StatusBadge";
 import { createIgnisPromptClient } from "./api/client";
 import type {
@@ -31,6 +32,7 @@ import { SustainabilityPreview } from "./routes/SustainabilityPreview";
 
 type AethraRoute =
   | "overview"
+  | "local-readiness"
   | "local-command-center"
   | "routing-explorer"
   | "audit-events"
@@ -267,6 +269,15 @@ export default function App() {
           <button
             type="button"
             aria-current={
+              activeRoute === "local-readiness" ? "page" : undefined
+            }
+            onClick={() => setActiveRoute("local-readiness")}
+          >
+            Local readiness
+          </button>
+          <button
+            type="button"
+            aria-current={
               activeRoute === "local-command-center" ? "page" : undefined
             }
             onClick={() => setActiveRoute("local-command-center")}
@@ -374,6 +385,15 @@ export default function App() {
             liveSustainabilityMetricsState={liveSustainabilityMetricsState}
             onLoadLiveHealth={loadLiveHealth}
             onLoadLiveVersionStatus={loadLiveVersionStatus}
+          />
+        ) : null}
+        {activeRoute === "local-readiness" ? (
+          <LocalReadiness
+            dataMode={dataMode}
+            liveHealthState={liveHealthState}
+            liveModelsState={liveModelsState}
+            liveModelStatusState={liveModelStatusState}
+            liveVersionStatusState={liveVersionStatusState}
           />
         ) : null}
         {activeRoute === "local-command-center" ? <LocalCommandCenter /> : null}
