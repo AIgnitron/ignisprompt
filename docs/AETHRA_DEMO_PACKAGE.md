@@ -24,6 +24,7 @@ Use this framing for public material:
 - fixture-backed by default
 - manual live-local loading
 - read-only dashboard and observatory
+- local readiness surface with status hints and copy-only daemon guidance
 - local command center with safe CLI recipes and evidence workflow notes
 - route explanations and local audit visibility
 - model and runner status hints, not controls
@@ -87,12 +88,13 @@ Use this order for public carousels, short demos, or README-linked walkthroughs:
 
 1. Hero
 2. Overview
-3. Local Command Center
-4. Routing Explorer
-5. Audit Events
-6. Model / Runner Status
-7. Evidence Bundle Viewer
-8. Sustainability Preview
+3. Local Readiness
+4. Local Command Center
+5. Routing Explorer
+6. Audit Events
+7. Model / Runner Status
+8. Evidence Bundle Viewer
+9. Sustainability Preview
 
 ### 1. Hero
 
@@ -137,7 +139,51 @@ Screenshot guidance:
 - Show the local preview banner and data mode badges.
 - Keep fixture mode visible for public screenshots unless the caption explicitly mentions manual live-local loading.
 
-### 3. Routing Explorer
+### 3. Local Readiness
+
+Purpose: summarize local preview readiness without adding controls.
+
+Caption:
+
+```text
+Local Readiness shows daemon health, version/status, configured models, model and runner status hints, evidence workflow availability, and local helper checks using fixture-backed data by default.
+```
+
+Talk track:
+
+```text
+This page is a read-only local preview checklist. Live-local loading stays manual, command snippets are copy-only guidance, and helper checks are not certification or production deployment approval.
+```
+
+Screenshot guidance:
+
+- Show local preview readiness cards and the checklist.
+- Keep the copy-only command snippets visible if discussing daemon setup.
+- Do not imply continuous monitoring, telemetry, controls, cloud uploads, compliance certification, or production deployment approval.
+
+### 4. Local Command Center
+
+Purpose: show copyable local recipes and evidence workflow notes.
+
+Caption:
+
+```text
+Local Command Center collects safe local-preview CLI recipes, evidence workflow notes, and demo readiness guidance without running commands from the dashboard.
+```
+
+Talk track:
+
+```text
+These recipes help operators run local checks in their own terminal. Aethra copies text only and does not execute commands, persist command state, or add telemetry.
+```
+
+Screenshot guidance:
+
+- Show copyable command recipes and checklist language.
+- Keep ignored `local-evidence/` paths visible only as repo-relative examples.
+- Do not show generated evidence, audit logs, transcripts, archives, secrets, or absolute filesystem paths.
+
+### 5. Routing Explorer
 
 Purpose: show route reasoning and local-only policy signals.
 
@@ -159,7 +205,7 @@ Screenshot guidance:
 - Keep route code, tier, explanation, warnings, and `data_left_device=false` visible when possible.
 - Do not present route output as legal advice or model-quality validation.
 
-### 4. Audit Events
+### 6. Audit Events
 
 Purpose: show local route traceability.
 
@@ -181,7 +227,7 @@ Screenshot guidance:
 - Avoid raw prompt text and private matter details.
 - If request IDs are visible, keep them synthetic or fixture-backed.
 
-### 5. Model / Runner Status
+### 7. Model / Runner Status
 
 Purpose: show local status hints without implying controls.
 
@@ -203,7 +249,7 @@ Screenshot guidance:
 - Do not show local filesystem paths that reveal private machine details.
 - Do not imply the presence of model weights in git.
 
-### 6. Evidence Bundle Viewer
+### 8. Evidence Bundle Viewer
 
 Purpose: show local evidence bundle metadata, validation summary, and archive metadata preview without extracting archives or loading arbitrary local paths.
 
@@ -227,7 +273,7 @@ Screenshot guidance:
 - If report export controls are shown, keep the Markdown and JSON copy actions visible and note that they are browser-local only.
 - Do not show raw audit event content, prompts, secrets, local machine identifiers, or absolute filesystem paths.
 
-### 7. Sustainability Preview
+### 9. Sustainability Preview
 
 Purpose: show local-first sustainability observability without overclaiming.
 

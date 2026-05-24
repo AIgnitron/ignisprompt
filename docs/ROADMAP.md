@@ -14,6 +14,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Aethra fixture-backed, local-first MVP scaffold for observing local preview metadata and proxy sustainability indicators. It is not a production dashboard.
 - Aethra fixture-backed evidence bundle viewer with validation summary and archive metadata preview for local preview review.
 - Aethra guided demo path and clearer navigation labels for the safe local preview walkthrough.
+- Aethra local readiness surface with fixture-backed status hints, copy-only daemon guidance, and a local-preview checklist.
 - Aethra local command center with safe CLI recipes, an evidence workflow checklist, and demo readiness notes.
 - Local evidence demo workflow automation script for route-explain, audit-events, evidence-bundle generation, listing, validation, archiving, archive verification, and manifest inspection.
 - Adversarial document-instruction detection for known instruction strings.
@@ -26,8 +27,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 
 ## Near-term work
 
-- v0.1.4 release prep: use the contributor MCP usage docs, the Aethra public/demo package, the local command center guidance, and the v0.1.4 release-readiness record as review material.
-- v0.1.4 release readiness: keep the local evidence workflow regression check, the demo script self-test, and the Aethra boundary-language alignment check passing.
+- v0.1.5 planning: keep Aethra local readiness, command guidance, evidence workflow, and boundary-language checks conservative and fixture-backed by default.
 - Keep default CI green without local model weights.
 - Keep route-policy regression coverage current for legal Tier 3 routing, general local routing, adversarial document-instruction handling, conservative explanations, and local audit emission.
 - Keep model availability semantics explicit: route eligibility, manifest configuration, local file presence, runner hints, and executable local inference are separate states.

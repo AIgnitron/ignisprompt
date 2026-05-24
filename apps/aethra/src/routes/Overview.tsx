@@ -48,6 +48,11 @@ const guidedDemoSteps = [
       "Confirm fixture-backed by default, then use live-local mode only for manual refreshes.",
   },
   {
+    title: "Local readiness",
+    detail:
+      "Review local preview readiness cards, safe daemon guidance, and helper check status hints.",
+  },
+  {
     title: "Local command center",
     detail:
       "Copy safe CLI recipes, review the evidence workflow checklist, and confirm demo readiness notes.",

@@ -7,6 +7,7 @@ describe("Aethra app navigation and demo guidance", () => {
     const markup = renderToStaticMarkup(<App />);
     const labels = [
       "Overview",
+      "Local readiness",
       "Local command center",
       "Route explorer",
       "Audit events",

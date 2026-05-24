@@ -60,6 +60,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - PR #160 added the Aethra local evidence workflow.
 - PR #165 added the local evidence workflow regression check.
 - PR #166 added the Aethra Local Command Center.
+- Post-v0.1.4 development adds an Aethra Local Readiness page for fixture-backed local preview readiness cards, copy-only daemon guidance, and a conservative checklist. It is read-only, uses manual live-local data only when already loaded, adds no endpoints, no polling, no telemetry, no cloud calls, and no model or runner controls.
 - A repeatable local evidence demo workflow script now drives route-explain, audit-events, evidence-bundle generation, listing, validation, archiving, archive verification, and manifest inspection under ignored local-evidence paths. It includes dry-run and self-test modes that stay local-only.
 - `make evidence-check` runs the local evidence workflow regression checks without requiring a live daemon. It verifies the demo workflow script, the `ignispromptctl evidence-bundle` help surface, and the Aethra boundary-language alignment.
 - Issue #42 is closed after Qwen2.5 7B local legal candidate evidence was documented.
@@ -146,7 +147,9 @@ Aethra Overview includes a Local Commands panel with copyable local preview help
 
 Aethra includes a local preview banner and grouped manual live-local refresh controls. Fixture mode remains the default, live local loading remains explicit/manual, and no polling, local/session storage persistence, telemetry, cloud calls, GitHub calls, update checks, command execution, backend changes, or API shape changes are added by this UI polish.
 
-`docs/AETHRA_DEMO_PACKAGE.md` documents a public-safe Aethra demo package with a recommended Hero -> Overview -> Routing Explorer -> Audit Events -> Model / Runner Status -> Sustainability Preview sequence, screenshot captions, audience guidance, and conservative local-preview boundaries. It is docs-only and does not add screenshots, generated images, Aethra behavior, telemetry, cloud calls, model controls, or API changes.
+Aethra includes a Local Readiness page that summarizes daemon health, version/status, configured models, model and runner status hints, evidence workflow availability, and local helper checks. The page is fixture-backed by default, uses already-loaded live-local data only after manual refreshes elsewhere, and provides copy-only snippets for `./scripts/start-dev.sh`, `cargo run -p ignispromptctl -- health`, `cargo run -p ignispromptctl -- doctor`, `make dev-check`, and `make evidence-check`.
+
+`docs/AETHRA_DEMO_PACKAGE.md` documents a public-safe Aethra demo package with a recommended Hero -> Overview -> Local Readiness -> Local Command Center -> Routing Explorer -> Audit Events -> Model / Runner Status -> Evidence Bundle Viewer -> Sustainability Preview sequence, screenshot captions, audience guidance, and conservative local-preview boundaries. It is docs-only and does not add screenshots, generated images, Aethra behavior, telemetry, cloud calls, model controls, or API changes.
 
 Aethra main pages include small guidance panels that explain local preview status, route inspection, local audit records, model and runner status hints, and sustainability proxy indicators. These panels are static help copy and do not add model controls, runner controls, polling, telemetry, storage persistence, cloud calls, GitHub calls, update checks, command execution, backend changes, or API shape changes.
 
