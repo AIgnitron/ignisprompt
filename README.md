@@ -152,6 +152,7 @@ make golden
 make bakeoff
 make demo
 make attestation
+make evidence-check
 make clean-local-evidence
 ```
 
@@ -218,6 +219,8 @@ For a repeatable local evidence demo workflow that drives `route-explain`, `audi
 ```
 
 Use `--dry-run` to print the planned local workflow without starting the daemon, or `--self-test` to verify ignored-path checks and command construction without a live daemon.
+
+`make evidence-check` runs the workflow regression checks, including the demo script dry-run and self-test plus a local CLI help and boundary-language alignment check.
 
 `route-explain` calls the existing local `POST /v1/route/explain` endpoint with either `--text` or `--input`. Use synthetic or non-sensitive text. This is route inspection, not legal advice or legal accuracy validation. For a legal route example, use a file that already carries legal context such as `./tests/golden-legal/smoke-legal-request.json`, which sets `model` to `ignisprompt/legal`.
 
