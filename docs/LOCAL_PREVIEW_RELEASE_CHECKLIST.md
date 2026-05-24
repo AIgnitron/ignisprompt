@@ -45,24 +45,36 @@ cargo build
 ```bash
 ./scripts/check-sustainability-language.sh
 cargo test
+./scripts/check-hidden-unicode.sh
+make security-check
 make readiness-check
 make evidence-check
+make dev-check
+git diff --check
 ```
 
 ## v0.1.5 Readiness Notes
 
-For post-v0.1.4 v0.1.5 release-readiness work, keep the local readiness quality gate aligned with Aethra Local Readiness and the CLI:
+For v0.1.5 release-readiness work, keep the local readiness quality gate aligned with Aethra Local Readiness and the CLI:
 
+- `docs/releases/v0.1.5-local-preview.md` exists and stays conservative
 - `make readiness-check` passes
 - `cargo run -p ignispromptctl -- readiness` stays local preview readiness only
 - `cargo run -p ignispromptctl -- readiness --json` keeps status hints and local helper checks conservative
 - `cargo run -p ignispromptctl -- readiness --markdown` prints a copy-safe local helper report for issue or demo notes
+- `cargo run -p ignispromptctl -- readiness --package-output local-evidence/readiness/demo-readiness` writes only under ignored `local-evidence/readiness/`
+- `cargo run -p ignispromptctl -- readiness --package-list local-evidence/readiness/demo-readiness` and `cargo run -p ignispromptctl -- readiness --package-validate local-evidence/readiness/demo-readiness` inspect package output locally
 - Aethra Local Readiness remains fixture-backed by default
 - live-local loading remains manual
 - Aethra readiness report snippets remain browser-local and copy-only
+- Aethra readiness package preview remains read-only and fixture-backed by default
 - status hints remain hints, not controls
 - local helper checks remain checks, not certification
-- no telemetry, cloud calls by default, model controls, runner controls, or persistence are added
+- readiness packages remain local-only helper outputs and are not signed
+- readiness package verification remains structural local validation only
+- no telemetry, cloud calls by default, global aggregation, model controls, runner controls, command execution, upload, polling, or persistence are added
+- no production deployment, legal advice, legal accuracy, or compliance, supply-chain, signed-attestation, tamper-evident, cryptographic, production-grade inference, or production-grade security claims are added; wording must say not ESG certification where sustainability boundaries are mentioned
+- LiteLLM remains planning only
 
 ## v0.1.4 Release Prep
 
@@ -104,7 +116,7 @@ This combines the repository sustainability language guardrail, Rust tests, defa
 
 The guardrail is intended to catch unsupported or overconfident sustainability wording such as carbon-saved claims, measured-emissions certainty, zero-emissions certainty, certification language, ESG claims, and production or compliance claims that conflict with the estimated/proxy/counterfactual/methodology-dependent boundaries. It is a repository language check, not a substitute for reviewer judgment.
 
-For v0.1.4 release prep, also confirm `make evidence-check` passes and that the local evidence workflow still keeps outputs under ignored `local-evidence/` paths.
+For v0.1.5 release prep, also confirm `make readiness-check` and `make evidence-check` pass and that the local evidence and readiness package workflows still keep outputs under ignored `local-evidence/` paths.
 
 ## Aethra Checks
 
@@ -176,7 +188,9 @@ npm run dev
 12. Confirm the Overview Local Commands panel shows copyable local commands for daemon startup, smoke/release checks, local API inspection, and Aethra startup.
 13. Confirm command copying only writes text to the browser clipboard and does not execute commands from the dashboard.
 14. Confirm empty states explain fixture mode, missing live-local data, unavailable daemon responses, and panels that need manual refresh.
-15. Confirm no polling, no telemetry, no cloud call, no upload, no update check, no GitHub API call, no remote execution, and no persistence is introduced.
+15. Open Aethra Local Readiness and confirm readiness cards, diagnostics, report snippets, and readiness package preview are fixture-backed by default and read-only.
+16. Confirm Local Readiness command snippets include `ignispromptctl readiness`, `readiness --json`, `readiness --markdown`, readiness package generation/list/validate commands, `make readiness-check`, and `make evidence-check`.
+17. Confirm no polling, no telemetry, no cloud call, no upload, no update check, no GitHub API call, no remote execution, and no persistence is introduced.
 
 ## Sustainability Endpoint Verification
 
@@ -187,6 +201,11 @@ cargo run -p ignispromptctl -- doctor
 cargo run -p ignispromptctl -- doctor --json
 cargo run -p ignispromptctl -- readiness
 cargo run -p ignispromptctl -- readiness --json
+cargo run -p ignispromptctl -- readiness --markdown
+rm -rf local-evidence/readiness/release-check-demo
+cargo run -p ignispromptctl -- readiness --package-output local-evidence/readiness/release-check-demo --json
+cargo run -p ignispromptctl -- readiness --package-list local-evidence/readiness/release-check-demo --json
+cargo run -p ignispromptctl -- readiness --package-validate local-evidence/readiness/release-check-demo --json
 curl -fsS "http://127.0.0.1:8765/v1/metrics/sustainability?period=30d" | jq .
 cargo run -p ignispromptctl -- sustainability --period 30d
 cargo run -p ignispromptctl -- sustainability --period 30d --json
@@ -230,6 +249,24 @@ cargo run -p ignispromptctl -- sustainability --period bad
 ```
 
 Expected result: non-zero exit before a request is sent, with supported values `7d`, `30d`, and `90d` listed. The CLI summary is local-only aggregate metadata and must not include prompts, raw audit text, PII, machine identifiers, telemetry, cloud calls, GitHub lookups, external coefficient lookup, persistence, uploads, or global aggregation.
+
+## Readiness Report And Package Verification
+
+Run:
+
+```bash
+make readiness-check
+```
+
+Confirm:
+
+- `scripts/readiness-check.sh` validates readiness help, human output, JSON output, Markdown output, and package output/list/validate behavior
+- generated readiness package output stays under ignored `local-evidence/readiness/`
+- readiness reports and packages do not include prompts, raw user text, raw audit text, secrets, API keys, hostnames, usernames, machine identifiers, absolute filesystem paths, generated evidence contents, or local machine-specific values
+- readiness reports and packages stay local preview only
+- readiness packages are local-only and not signed
+- readiness verification remains structural local validation only
+- readiness wording does not claim production deployment, legal advice, legal accuracy, compliance certification, supply-chain certification, signed attestation, tamper-evident audit storage, cryptographic verification, production-grade inference, or production-grade security; wording must say not ESG certification where sustainability boundaries are mentioned
 
 ## Report Export Verification
 
@@ -283,7 +320,6 @@ Confirm release notes, checklist updates, README links, and quickstart notes kee
 - model and runner status values are hints, not controls
 - MCP observability tools are read-only
 - LiteLLM-style local gateway remains a future plan, not implemented
-- DreamServer remains concept-only and is not current implementation work
 
 ## Known Limitations
 
@@ -306,20 +342,21 @@ Confirm release notes, checklist updates, README links, and quickstart notes kee
 - model and runner status values are status hints, not controls
 - MCP observability tools are read-only
 - LiteLLM-style local gateway remains a future plan, not implemented
-- DreamServer remains concept-only and is not current implementation work
 
 ## Release Tag Steps
 
-Use these only after a release branch is merged and the final commit is verified. The `v0.1.1-local-preview` tag already exists on #140 and must not be moved, deleted, recreated, or republished during post-v0.1.1 cleanup. Use a future patch tag such as `v0.1.4-local-preview` if a later patch release is needed.
+Use these only after a release branch is merged and the final commit is verified. Existing local-preview tags must not be moved, deleted, recreated, or republished. Use the future patch tag `v0.1.5-local-preview` only after final verification and explicit release approval.
 
 ```bash
 git checkout main
 git pull --ff-only origin main
 ./scripts/release-check.sh
+make readiness-check
+make evidence-check
 git status --short
 git status --short --ignored apps/aethra/dist models local-evidence data/audit
-git tag -a v0.1.2-local-preview -m "v0.1.2 local preview"
-git push origin v0.1.2-local-preview
+git tag -a v0.1.5-local-preview -m "v0.1.5 local preview"
+git push origin v0.1.5-local-preview
 ```
 
 Do not tag if verification fails or if untracked release artifacts are present.
@@ -331,7 +368,7 @@ Do not tag if verification fails or if untracked release artifacts are present.
 - #141 is post-v0.1.1 material and fixed MCP `audit_events` compatibility by changing MCP tool-call `structuredContent` to object-shaped `{ "events": [...] }`.
 - The HTTP `GET /v1/audit/events` response remains the existing JSON array shape.
 - #142 is post-v0.1.1 docs-only guardrail cleanup and reinforced sustainability guardrail wiring, demo warnings, tag immutability, `git pull --ff-only origin main`, and artifact hygiene.
-- `v0.1.2-local-preview` is published from #143 and is the current latest local-preview release. Use `docs/releases/v0.1.2-local-preview.md` as the release record.
+- `v0.1.4-local-preview` is published and remains the latest release until v0.1.5 is explicitly tagged and published.
 
 ## Rollback Notes
 

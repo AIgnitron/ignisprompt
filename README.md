@@ -15,6 +15,7 @@ Recent local-preview work includes:
 - GGUF timeout and runner preflight hardening
 - audit and evidence validation hardening
 - Golden Legal adversarial demo hardening
+- Aethra Local Readiness, local readiness quality gates, readiness reports, diagnostics, and local readiness package workflow
 
 ## Project foundation: v0.1.0-mvp
 
@@ -64,6 +65,7 @@ The docs set under `docs/` describes the current scaffold and clearly separates 
 - [Local Preview v0.1.2 patch release record](docs/releases/v0.1.2-local-preview.md)
 - [Local Preview v0.1.3 release readiness](docs/releases/v0.1.3-local-preview.md)
 - [Local Preview v0.1.4 release readiness](docs/releases/v0.1.4-local-preview.md)
+- [Local Preview v0.1.5 release readiness draft](docs/releases/v0.1.5-local-preview.md)
 - [Contributor MCP usage](docs/MCP_USAGE.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Aethra MVP plan](docs/AETHRA.md)
