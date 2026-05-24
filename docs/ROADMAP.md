@@ -14,6 +14,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Aethra fixture-backed, local-first MVP scaffold for observing local preview metadata and proxy sustainability indicators. It is not a production dashboard.
 - Aethra fixture-backed evidence bundle viewer with validation summary and archive metadata preview for local preview review.
 - Aethra guided demo path and clearer navigation labels for the safe local preview walkthrough.
+- Local evidence demo workflow automation script for route-explain, audit-events, evidence-bundle generation, listing, validation, archiving, archive verification, and manifest inspection.
 - Adversarial document-instruction detection for known instruction strings.
 - OpenAI-compatible chat completion request shape, including a `stream: true` compatibility scaffold that frames an already-produced local completion as SSE chunks.
 - `StubLegalRunner` as the default Tier 3 legal fallback.

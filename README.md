@@ -211,6 +211,14 @@ cargo run -p ignispromptctl -- audit tail
 
 `evidence-bundle` writes a small local-only bundle under an ignored `local-evidence/` path from the existing local health, version status, model, model and runner status hint, and sustainability endpoints. `--include-audit-events` adds the raw local audit event response only when explicitly requested. `--json` prints the bundle summary JSON. `--list` inspects an existing bundle without calling the daemon, `--validate` checks an existing bundle without calling the daemon, `--archive` validates and archives an existing bundle to `local-evidence/archives/<bundle-name>.tar.gz` by default, `--archive-output` can override the archive path when it stays under `local-evidence/`, `--verify-archive` inspects an existing archive without calling the daemon, and `--print-manifest` prints the manifest for an existing bundle without calling the daemon. The command is diagnostic/demo output only: it is not signed, not certified, not production evidence, and does not call cloud services or external endpoints.
 
+For a repeatable local evidence demo workflow that drives `route-explain`, `audit-events`, bundle generation, listing, validation, archiving, archive verification, and manifest inspection, run:
+
+```bash
+./scripts/demo-local-evidence-workflow.sh
+```
+
+Use `--dry-run` to print the planned local workflow without starting the daemon, or `--self-test` to verify ignored-path checks and command construction without a live daemon.
+
 `route-explain` calls the existing local `POST /v1/route/explain` endpoint with either `--text` or `--input`. Use synthetic or non-sensitive text. This is route inspection, not legal advice or legal accuracy validation. For a legal route example, use a file that already carries legal context such as `./tests/golden-legal/smoke-legal-request.json`, which sets `model` to `ignisprompt/legal`.
 
 For the real local GGUF path, start Ollama locally and then run:
