@@ -260,7 +260,7 @@ export default function App() {
             aria-current={activeRoute === "overview" ? "page" : undefined}
             onClick={() => setActiveRoute("overview")}
           >
-            Overview
+            Overview and mode
           </button>
           <button
             type="button"
@@ -269,14 +269,14 @@ export default function App() {
             }
             onClick={() => setActiveRoute("routing-explorer")}
           >
-            Routing Explorer
+            Route inspection
           </button>
           <button
             type="button"
             aria-current={activeRoute === "audit-events" ? "page" : undefined}
             onClick={() => setActiveRoute("audit-events")}
           >
-            Audit Events
+            Audit records
           </button>
           <button
             type="button"
@@ -285,7 +285,7 @@ export default function App() {
             }
             onClick={() => setActiveRoute("model-runner-status")}
           >
-            Model / Runner Status
+            Model / runner hints
           </button>
           <button
             type="button"
@@ -294,7 +294,7 @@ export default function App() {
             }
             onClick={() => setActiveRoute("evidence-bundle-viewer")}
           >
-            Evidence Bundle Viewer
+            Evidence workflow
           </button>
           <button
             type="button"
@@ -303,7 +303,7 @@ export default function App() {
             }
             onClick={() => setActiveRoute("sustainability-preview")}
           >
-            Sustainability Preview
+            Sustainability preview
           </button>
         </nav>
       </aside>

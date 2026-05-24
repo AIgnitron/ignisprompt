@@ -27,6 +27,7 @@ Use this framing for public material:
 - route explanations and local audit visibility
 - model and runner status hints, not controls
 - sustainability proxy indicators with methodology and confidence labels
+- guided demo path in Overview, from route inspection through evidence workflow and sustainability preview
 - evidence bundle viewer, validation summary, and archive metadata preview as local-preview diagnostics only
 
 Avoid positive claims about production deployment, legal advice, model-quality proof, compliance evidence, or broad MCP compatibility. Keep the explicit non-claims visible: not ESG certification and not certified sustainability reporting.
