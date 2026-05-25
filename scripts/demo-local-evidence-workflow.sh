@@ -9,9 +9,11 @@ EVIDENCE_ROOT="${IGNISPROMPT_DEMO_EVIDENCE_DIR:-$DEFAULT_WORKFLOW_ROOT}"
 WORKFLOW_BUNDLE_DIR="$EVIDENCE_ROOT/demo-bundle"
 WORKFLOW_ARCHIVE_PATH="${IGNISPROMPT_DEMO_ARCHIVE_PATH:-$ROOT_DIR/local-evidence/archives/demo-bundle-$TIMESTAMP.tar.gz}"
 READINESS_PACKAGE_DIR="${IGNISPROMPT_DEMO_READINESS_PACKAGE_DIR:-$ROOT_DIR/local-evidence/readiness/demo-readiness-$TIMESTAMP}"
+OPERATOR_PACKAGE_DIR="${IGNISPROMPT_DEMO_OPERATOR_PACKAGE_DIR:-$ROOT_DIR/local-evidence/operator/demo-operator-$TIMESTAMP}"
 WORKFLOW_BUNDLE_DIR_REL="${WORKFLOW_BUNDLE_DIR#$ROOT_DIR/}"
 WORKFLOW_ARCHIVE_PATH_REL="${WORKFLOW_ARCHIVE_PATH#$ROOT_DIR/}"
 READINESS_PACKAGE_DIR_REL="${READINESS_PACKAGE_DIR#$ROOT_DIR/}"
+OPERATOR_PACKAGE_DIR_REL="${OPERATOR_PACKAGE_DIR#$ROOT_DIR/}"
 REQUEST_FILE="${IGNISPROMPT_DEMO_REQUEST_FILE:-$ROOT_DIR/tests/golden-legal/smoke-legal-request.json}"
 DAEMON_PORT="${IGNISPROMPT_DEMO_PORT:-8765}"
 BASE_URL="${IGNISPROMPT_BASE_URL:-http://127.0.0.1:$DAEMON_PORT}"
@@ -28,6 +30,9 @@ EVIDENCE_BUNDLE_MANIFEST_JSON="$EVIDENCE_ROOT/evidence-bundle-manifest.json"
 READINESS_PACKAGE_SUMMARY_JSON="$EVIDENCE_ROOT/readiness-package-summary.json"
 READINESS_PACKAGE_LIST_JSON="$EVIDENCE_ROOT/readiness-package-list.json"
 READINESS_PACKAGE_VALIDATE_JSON="$EVIDENCE_ROOT/readiness-package-validate.json"
+OPERATOR_PACKAGE_SUMMARY_JSON="$EVIDENCE_ROOT/operator-package-summary.json"
+OPERATOR_PACKAGE_LIST_JSON="$EVIDENCE_ROOT/operator-package-list.json"
+OPERATOR_PACKAGE_VALIDATE_JSON="$EVIDENCE_ROOT/operator-package-validate.json"
 DAEMON_PID=""
 
 usage() {
@@ -124,6 +129,9 @@ print_plan() {
 [plan] readiness --package-output $READINESS_PACKAGE_DIR_REL --json > $(printf '%s\n' "${READINESS_PACKAGE_SUMMARY_JSON#$ROOT_DIR/}")
 [plan] readiness --package-list $READINESS_PACKAGE_DIR_REL --json > $(printf '%s\n' "${READINESS_PACKAGE_LIST_JSON#$ROOT_DIR/}")
 [plan] readiness --package-validate $READINESS_PACKAGE_DIR_REL --json > $(printf '%s\n' "${READINESS_PACKAGE_VALIDATE_JSON#$ROOT_DIR/}")
+[plan] operator-summary --package-output $OPERATOR_PACKAGE_DIR_REL --json > $(printf '%s\n' "${OPERATOR_PACKAGE_SUMMARY_JSON#$ROOT_DIR/}")
+[plan] operator-summary --package-list $OPERATOR_PACKAGE_DIR_REL --json > $(printf '%s\n' "${OPERATOR_PACKAGE_LIST_JSON#$ROOT_DIR/}")
+[plan] operator-summary --package-validate $OPERATOR_PACKAGE_DIR_REL --json > $(printf '%s\n' "${OPERATOR_PACKAGE_VALIDATE_JSON#$ROOT_DIR/}")
 EOF
 }
 
@@ -174,6 +182,7 @@ self_test() {
   validate_local_evidence_path "$WORKFLOW_BUNDLE_DIR" "bundle output"
   validate_local_evidence_path "$WORKFLOW_ARCHIVE_PATH" "archive output"
   validate_local_evidence_path "$READINESS_PACKAGE_DIR" "readiness package output"
+  validate_local_evidence_path "$OPERATOR_PACKAGE_DIR" "operator package output"
 
   local plan_output="$EVIDENCE_ROOT/self-test-plan.txt"
   mkdir -p "$EVIDENCE_ROOT"
@@ -190,6 +199,9 @@ self_test() {
   grep -q "readiness --package-output" "$plan_output"
   grep -q "readiness --package-list" "$plan_output"
   grep -q "readiness --package-validate" "$plan_output"
+  grep -q "operator-summary --package-output" "$plan_output"
+  grep -q "operator-summary --package-list" "$plan_output"
+  grep -q "operator-summary --package-validate" "$plan_output"
 
   echo "[OK] local evidence demo workflow self-test passed"
 }
@@ -203,6 +215,7 @@ case "$MODE" in
     validate_local_evidence_path "$WORKFLOW_BUNDLE_DIR" "bundle output"
     validate_local_evidence_path "$WORKFLOW_ARCHIVE_PATH" "archive output"
     validate_local_evidence_path "$READINESS_PACKAGE_DIR" "readiness package output"
+    validate_local_evidence_path "$OPERATOR_PACKAGE_DIR" "operator package output"
     if [ ! -f "$REQUEST_FILE" ]; then
       echo "demo request file is missing: $REQUEST_FILE" >&2
       exit 1
@@ -238,6 +251,7 @@ validate_local_evidence_path "$EVIDENCE_ROOT" "workflow evidence root"
 validate_local_evidence_path "$WORKFLOW_BUNDLE_DIR" "bundle output"
 validate_local_evidence_path "$WORKFLOW_ARCHIVE_PATH" "archive output"
 validate_local_evidence_path "$READINESS_PACKAGE_DIR" "readiness package output"
+validate_local_evidence_path "$OPERATOR_PACKAGE_DIR" "operator package output"
 
 if [ -f "$REQUEST_FILE" ]; then
   :
@@ -266,6 +280,9 @@ run_ignispromptctl evidence-bundle --print-manifest "$WORKFLOW_BUNDLE_DIR_REL" -
 run_ignispromptctl readiness --package-output "$READINESS_PACKAGE_DIR_REL" --json >"$READINESS_PACKAGE_SUMMARY_JSON"
 run_ignispromptctl readiness --package-list "$READINESS_PACKAGE_DIR_REL" --json >"$READINESS_PACKAGE_LIST_JSON"
 run_ignispromptctl readiness --package-validate "$READINESS_PACKAGE_DIR_REL" --json >"$READINESS_PACKAGE_VALIDATE_JSON"
+run_ignispromptctl operator-summary --package-output "$OPERATOR_PACKAGE_DIR_REL" --json >"$OPERATOR_PACKAGE_SUMMARY_JSON"
+run_ignispromptctl operator-summary --package-list "$OPERATOR_PACKAGE_DIR_REL" --json >"$OPERATOR_PACKAGE_LIST_JSON"
+run_ignispromptctl operator-summary --package-validate "$OPERATOR_PACKAGE_DIR_REL" --json >"$OPERATOR_PACKAGE_VALIDATE_JSON"
 
 jq -e '.decision.tier == "TIER_3" and .decision.route_code == "DOMAIN_MODEL_SELECTED"' "$ROUTE_JSON" >/dev/null
 jq -e 'type == "array" and length >= 1' "$AUDIT_EVENTS_JSON" >/dev/null
@@ -278,6 +295,9 @@ jq -e '.include_audit_events == true and (.files | type == "array") and (.genera
 jq -e '.local_only == true and .readiness_status == "local_preview_ready" and (.generated_file_names | type == "array")' "$READINESS_PACKAGE_SUMMARY_JSON" >/dev/null
 jq -e '.status == "ok" and (.files | type == "array")' "$READINESS_PACKAGE_LIST_JSON" >/dev/null
 jq -e '.status == "ok" and (.files | type == "array")' "$READINESS_PACKAGE_VALIDATE_JSON" >/dev/null
+jq -e '.local_only == true and .operator_status == "operator_guidance" and (.generated_file_names | type == "array")' "$OPERATOR_PACKAGE_SUMMARY_JSON" >/dev/null
+jq -e '.status == "ok" and (.files | type == "array")' "$OPERATOR_PACKAGE_LIST_JSON" >/dev/null
+jq -e '.status == "ok" and (.files | type == "array")' "$OPERATOR_PACKAGE_VALIDATE_JSON" >/dev/null
 
 echo "Route decision:"
 jq -r '.decision.route_code + " / " + .decision.tier' "$ROUTE_JSON"
@@ -290,5 +310,6 @@ echo "  bundle dir: $(relative_to_root "$WORKFLOW_BUNDLE_DIR")"
 echo "  archive:    $(relative_to_root "$WORKFLOW_ARCHIVE_PATH")"
 echo "  outputs:    $(relative_to_root "$EVIDENCE_ROOT")"
 echo "  readiness:  $(relative_to_root "$READINESS_PACKAGE_DIR")"
+echo "  operator:   $(relative_to_root "$OPERATOR_PACKAGE_DIR")"
 echo
 echo "Workflow complete."

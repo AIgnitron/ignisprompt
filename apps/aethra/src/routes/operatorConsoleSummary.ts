@@ -33,11 +33,23 @@ export type OperatorBoundary = {
   detail: string;
 };
 
+export type OperatorPackagePreview = {
+  schemaVersion: string;
+  packageMode: "local-preview";
+  packageRoot: string;
+  status: string;
+  generatedFiles: string[];
+  sections: string[];
+  commands: string[];
+  boundaryNotes: string[];
+};
+
 export type OperatorConsoleSummary = {
   cards: OperatorSummaryCard[];
   diagnostics: ReadinessDiagnostic[];
   commands: OperatorCommandRecipe[];
   boundaries: OperatorBoundary[];
+  packagePreview: OperatorPackagePreview;
 };
 
 export const operatorCommandRecipes: OperatorCommandRecipe[] = [
@@ -93,6 +105,27 @@ export const operatorCommandRecipes: OperatorCommandRecipe[] = [
     detail: "Runs local readiness and report safety checks.",
   },
   {
+    id: "operator-package-output",
+    label: "Generate operator package",
+    command:
+      "cargo run -p ignispromptctl -- operator-summary --package-output local-evidence/operator/demo",
+    detail: "Writes a local-only operator package under ignored paths.",
+  },
+  {
+    id: "operator-package-list",
+    label: "List operator package",
+    command:
+      "cargo run -p ignispromptctl -- operator-summary --package-list local-evidence/operator/demo",
+    detail: "Lists operator package files without daemon calls.",
+  },
+  {
+    id: "operator-package-validate",
+    label: "Validate operator package",
+    command:
+      "cargo run -p ignispromptctl -- operator-summary --package-validate local-evidence/operator/demo",
+    detail: "Runs structural/local operator package validation.",
+  },
+  {
     id: "evidence-check",
     label: "Run evidence quality gate",
     command: "make evidence-check",
@@ -125,7 +158,8 @@ export const operatorBoundaries: OperatorBoundary[] = [
   {
     id: "package-validation",
     label: "Structural/local package validation only",
-    detail: "Readiness packages and archives are local-only and not signed.",
+    detail:
+      "Readiness packages, operator packages, and archives are local-only and not signed.",
   },
   {
     id: "local-data",
@@ -153,6 +187,7 @@ export function buildOperatorConsoleSummary(): OperatorConsoleSummary {
   });
   const diagnostics = buildLocalReadinessDiagnostics(readinessCards);
   const packagePreview = buildLocalReadinessPackagePreview(diagnostics);
+  const operatorPackagePreview = buildOperatorPackagePreview(diagnostics);
   const warningCount = diagnostics.filter(
     (item) => item.status === "needs attention",
   ).length;
@@ -214,6 +249,46 @@ export function buildOperatorConsoleSummary(): OperatorConsoleSummary {
     diagnostics,
     commands: operatorCommandRecipes,
     boundaries: operatorBoundaries,
+    packagePreview: operatorPackagePreview,
+  };
+}
+
+export function buildOperatorPackagePreview(
+  diagnostics: ReadinessDiagnostic[],
+): OperatorPackagePreview {
+  return {
+    schemaVersion: "ignisprompt-operator-package-0.1",
+    packageMode: "local-preview",
+    packageRoot: "local-evidence/operator/demo",
+    status: diagnostics.some((item) => item.status === "needs attention")
+      ? "needs_attention"
+      : "operator_guidance",
+    generatedFiles: [
+      "README.md",
+      "manifest.json",
+      "operator-summary.json",
+      "operator-report.json",
+      "operator-report.md",
+    ],
+    sections: [
+      "local preview readiness",
+      "CLI readiness package",
+      "evidence bundle workflow",
+      "Aethra demo path",
+      "local safety boundaries",
+    ],
+    commands: operatorCommandRecipes.map((item) => item.command),
+    boundaryNotes: [
+      "local preview operator workflow only",
+      "status hints, not controls",
+      "local helper checks, not certification",
+      "package validation is structural/local only",
+      "not signed",
+      "not production attestation",
+      "no telemetry",
+      "no cloud calls by default",
+      "no global aggregation",
+    ],
   };
 }
 

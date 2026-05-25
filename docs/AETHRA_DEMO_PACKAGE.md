@@ -25,7 +25,7 @@ Use this framing for public material:
 - manual live-local loading
 - read-only dashboard and observatory
 - local readiness surface with status hints and copy-only daemon guidance
-- local operator console with readiness, evidence, package, and copy-only command guidance
+- local operator console with readiness, evidence, operator package, and copy-only command guidance
 - local command center with safe CLI recipes and evidence workflow notes
 - route explanations and local audit visibility
 - model and runner status hints, not controls
@@ -170,7 +170,7 @@ Purpose: show the operator workflow summary without adding actions.
 Caption:
 
 ```text
-Local Operator Console combines readiness, readiness package, evidence workflow, and demo next-step hints with copy-only local command recipes.
+Local Operator Console combines readiness, readiness package, operator package, evidence workflow, and demo next-step hints with copy-only local command recipes.
 ```
 
 Talk track:

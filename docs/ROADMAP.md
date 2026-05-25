@@ -22,6 +22,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Local readiness package workflow for ignored local-evidence/readiness output, CLI list/validate behavior, demo workflow integration, and Aethra read-only package preview.
 - v0.1.5 local preview release-readiness record for the post-v0.1.4 local readiness arc.
 - Local operator console workflow with Aethra read-only operator summary cards, copy-only command recipes, `ignispromptctl operator-summary`, and `make operator-check`.
+- Local operator package workflow for ignored local-evidence/operator output, CLI list/validate behavior, demo workflow integration, and Aethra read-only operator package preview.
 - Local evidence demo workflow automation script for route-explain, audit-events, evidence-bundle generation, listing, validation, archiving, archive verification, and manifest inspection.
 - Adversarial document-instruction detection for known instruction strings.
 - OpenAI-compatible chat completion request shape, including a `stream: true` compatibility scaffold that frames an already-produced local completion as SSE chunks.
@@ -33,7 +34,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 
 ## Near-term work
 
-- Keep Aethra local readiness, the local operator console, `ignispromptctl readiness`, `ignispromptctl operator-summary`, copy-safe readiness reports, readiness packages, diagnostic drilldowns, command guidance, evidence workflow, and boundary-language checks conservative and fixture-backed by default while planning v0.1.6 work.
+- Keep Aethra local readiness, the local operator console, `ignispromptctl readiness`, `ignispromptctl operator-summary`, copy-safe readiness reports, readiness packages, operator packages, diagnostic drilldowns, command guidance, evidence workflow, and boundary-language checks conservative and fixture-backed by default while planning v0.1.6 work.
 - Keep default CI green without local model weights.
 - Keep route-policy regression coverage current for legal Tier 3 routing, general local routing, adversarial document-instruction handling, conservative explanations, and local audit emission.
 - Keep model availability semantics explicit: route eligibility, manifest configuration, local file presence, runner hints, and executable local inference are separate states.

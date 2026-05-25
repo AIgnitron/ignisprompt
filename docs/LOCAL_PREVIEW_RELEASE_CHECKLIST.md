@@ -82,9 +82,12 @@ For v0.1.6 planning, keep the local operator workflow aligned across Aethra, CLI
 - `make operator-check` passes
 - `cargo run -p ignispromptctl -- operator-summary` stays local preview operator workflow only
 - `cargo run -p ignispromptctl -- operator-summary --json` keeps copy-only command recipes and boundary notes conservative
+- `cargo run -p ignispromptctl -- operator-summary --package-output local-evidence/operator/demo` writes only under ignored `local-evidence/operator/`
+- `cargo run -p ignispromptctl -- operator-summary --package-list local-evidence/operator/demo` and `cargo run -p ignispromptctl -- operator-summary --package-validate local-evidence/operator/demo` inspect package output locally
 - Aethra Local Operator Console remains fixture-backed by default and read-only
+- Aethra operator package preview remains read-only and fixture-backed by default
 - command recipes remain copy-only and are not executed from Aethra
-- readiness package validation remains structural/local only
+- readiness and operator package validation remain structural/local only
 - archives and packages remain local-only helper outputs and are not signed
 - local helper checks remain checks, not certification
 - status values remain hints, not controls
@@ -283,6 +286,24 @@ Confirm:
 - readiness packages are local-only and not signed
 - readiness verification remains structural local validation only
 - readiness wording does not claim production deployment, legal advice, legal accuracy, compliance certification, supply-chain certification, signed attestation, tamper-evident audit storage, cryptographic verification, production-grade inference, or production-grade security; wording must say not ESG certification where sustainability boundaries are mentioned
+
+## Operator Package Verification
+
+Run:
+
+```bash
+make operator-check
+```
+
+Confirm:
+
+- `scripts/operator-check.sh` validates operator-summary help, human output, JSON output, and operator package output/list/validate behavior
+- generated operator package output stays under ignored `local-evidence/operator/`
+- operator reports and packages do not include prompts, raw user text, raw audit text, secrets, API keys, hostnames, usernames, machine identifiers, absolute filesystem paths, generated evidence contents, model file contents, or local machine-specific values
+- operator reports and packages stay local preview only
+- operator packages are local-only and not signed
+- operator package validation remains structural local validation only
+- operator wording does not claim production deployment, legal advice, legal accuracy, compliance certification, supply-chain certification, signed attestation, tamper-evident audit storage, cryptographic verification, production-grade inference, or production-grade security; wording must say not ESG certification where sustainability boundaries are mentioned
 
 ## Report Export Verification
 

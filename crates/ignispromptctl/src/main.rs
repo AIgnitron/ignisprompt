@@ -54,10 +54,24 @@ enum Commands {
         package_list: Option<String>,
     },
     /// Summarize the local preview operator workflow without calling the daemon
+    #[command(group(
+        ArgGroup::new("operator_action")
+            .args(["package_output", "package_validate", "package_list"])
+            .multiple(false)
+    ))]
     OperatorSummary {
         /// Print structured JSON operator guidance
         #[arg(long)]
         json: bool,
+        /// Generate a local operator package under ignored local-evidence/operator/
+        #[arg(long)]
+        package_output: Option<String>,
+        /// Validate an existing local operator package without calling the daemon
+        #[arg(long)]
+        package_validate: Option<String>,
+        /// List files and metadata for an existing local operator package without calling the daemon
+        #[arg(long)]
+        package_list: Option<String>,
     },
     /// Check daemon health
     Health,
@@ -171,7 +185,12 @@ fn main() {
             package_validate,
             package_list,
         ),
-        Commands::OperatorSummary { json } => cmd_operator_summary(*json),
+        Commands::OperatorSummary {
+            json,
+            package_output,
+            package_validate,
+            package_list,
+        } => cmd_operator_summary(*json, package_output, package_validate, package_list),
         Commands::Health => cmd_health(&cli.daemon_url),
         Commands::StatusVersion => cmd_status_version(&cli.daemon_url),
         Commands::Sustainability { period, json } => {
@@ -281,6 +300,25 @@ struct ReadinessPackageValidationReport {
     issues: Vec<String>,
 }
 
+#[derive(Clone, Debug)]
+struct OperatorPackageReport {
+    output_dir: PathBuf,
+    generated_at_unix_seconds: u64,
+    generated_file_names: Vec<String>,
+    operator_summary_json: Value,
+    report_json: Value,
+    manifest_json: Value,
+    report_markdown: String,
+    readme: String,
+}
+
+#[derive(Clone, Debug)]
+struct OperatorPackageValidationReport {
+    package_dir: PathBuf,
+    files: Vec<ReadinessPackageFileState>,
+    issues: Vec<String>,
+}
+
 const READINESS_PACKAGE_SCHEMA_VERSION: &str = "ignisprompt-readiness-package-0.1";
 const READINESS_PACKAGE_TYPE: &str = "ignisprompt-local-readiness-package";
 const READINESS_PACKAGE_MODE: &str = "local-preview";
@@ -292,6 +330,16 @@ const READINESS_PACKAGE_REQUIRED_FILES: &[&str] = &[
     "readiness-report.md",
 ];
 const OPERATOR_SUMMARY_SCHEMA_VERSION: &str = "ignisprompt-operator-summary-0.1";
+const OPERATOR_PACKAGE_SCHEMA_VERSION: &str = "ignisprompt-operator-package-0.1";
+const OPERATOR_PACKAGE_TYPE: &str = "ignisprompt-local-operator-package";
+const OPERATOR_PACKAGE_MODE: &str = "local-preview";
+const OPERATOR_PACKAGE_REQUIRED_FILES: &[&str] = &[
+    "README.md",
+    "manifest.json",
+    "operator-summary.json",
+    "operator-report.json",
+    "operator-report.md",
+];
 
 #[derive(Clone, Copy, Debug)]
 struct OperatorSummarySection {
@@ -402,6 +450,24 @@ const OPERATOR_COMMAND_RECIPES: &[OperatorCommandRecipe] = &[
         label: "Run readiness quality gate",
         command: "make readiness-check",
         purpose: "Run deterministic readiness and report safety checks.",
+    },
+    OperatorCommandRecipe {
+        id: "operator-package-output",
+        label: "Generate operator package",
+        command: "cargo run -p ignispromptctl -- operator-summary --package-output local-evidence/operator/demo",
+        purpose: "Write a local-only operator package under ignored local-evidence/operator/.",
+    },
+    OperatorCommandRecipe {
+        id: "operator-package-list",
+        label: "List operator package",
+        command: "cargo run -p ignispromptctl -- operator-summary --package-list local-evidence/operator/demo",
+        purpose: "List operator package files without calling the daemon.",
+    },
+    OperatorCommandRecipe {
+        id: "operator-package-validate",
+        label: "Validate operator package",
+        command: "cargo run -p ignispromptctl -- operator-summary --package-validate local-evidence/operator/demo",
+        purpose: "Validate required operator package files with local structural checks.",
     },
     OperatorCommandRecipe {
         id: "evidence-check",
@@ -556,7 +622,75 @@ fn cmd_readiness(
     }
 }
 
-fn cmd_operator_summary(json_output: bool) {
+fn cmd_operator_summary(
+    json_output: bool,
+    package_output: &Option<String>,
+    package_validate: &Option<String>,
+    package_list: &Option<String>,
+) {
+    if let Some(package_dir) = package_validate {
+        let report = match build_operator_package_validation_report(Path::new(package_dir)) {
+            Ok(report) => report,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        if json_output {
+            println!("{}", format_operator_package_validation_json(&report));
+        } else {
+            println!("{}", format_operator_package_validation_summary(&report));
+        }
+        if !report.issues.is_empty() {
+            process::exit(1);
+        }
+        return;
+    }
+
+    if let Some(package_dir) = package_list {
+        let report = match build_operator_package_validation_report(Path::new(package_dir)) {
+            Ok(report) => report,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        if json_output {
+            println!("{}", format_operator_package_list_json(&report));
+        } else {
+            println!("{}", format_operator_package_list_summary(&report));
+        }
+        return;
+    }
+
+    if let Some(output) = package_output {
+        let output_dir = match validate_operator_package_output_dir(output) {
+            Ok(path) => path,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        let package = match build_operator_package_report(output_dir) {
+            Ok(package) => package,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        if let Err(message) = write_operator_package_report(&package) {
+            eprintln!("error: {}", message);
+            process::exit(1);
+        }
+
+        if json_output {
+            println!("{}", format_operator_package_summary_json(&package));
+        } else {
+            println!("{}", format_operator_package_summary(&package));
+        }
+        return;
+    }
+
     if json_output {
         println!("{}", format_operator_summary_json());
     } else {
@@ -1340,11 +1474,11 @@ fn write_readiness_package_report(report: &ReadinessPackageReport) -> Result<(),
     fs::create_dir_all(parent)
         .map_err(|error| format!("could not create readiness package parent: {}", error))?;
 
-    let staging_dir = parent.join(format!(
-        ".ignispromptctl-readiness-package-{}-{}",
-        report.generated_at_unix_seconds,
-        process::id()
-    ));
+    let staging_dir = package_staging_dir(
+        parent,
+        ".ignispromptctl-readiness-package",
+        &report.output_dir,
+    );
     if staging_dir.exists() {
         let _ = fs::remove_dir_all(&staging_dir);
     }
@@ -1689,6 +1823,559 @@ fn readiness_package_validation_value(report: &ReadinessPackageValidationReport)
         })).collect::<Vec<_>>(),
         "issues": report.issues,
         "package_boundaries": readiness_package_boundaries(),
+    })
+}
+
+fn build_operator_package_report(output_dir: PathBuf) -> Result<OperatorPackageReport, String> {
+    let generated_at_unix_seconds = current_unix_seconds()?;
+    let generated_file_names = OPERATOR_PACKAGE_REQUIRED_FILES
+        .iter()
+        .map(|file_name| (*file_name).to_string())
+        .collect::<Vec<_>>();
+    let operator_summary_json: Value = serde_json::from_str(&format_operator_summary_json())
+        .map_err(|error| format!("could not build operator summary JSON: {}", error))?;
+    let report_markdown = build_operator_package_markdown(&operator_summary_json);
+    let report_json = build_operator_package_report_json(
+        generated_at_unix_seconds,
+        &generated_file_names,
+        &operator_summary_json,
+    );
+    let manifest_json = build_operator_package_manifest_json(
+        generated_at_unix_seconds,
+        &generated_file_names,
+        &operator_summary_json,
+    );
+    let readme = build_operator_package_readme();
+
+    validate_no_placeholder_string_values("operator-summary", &operator_summary_json)?;
+    validate_no_placeholder_string_values("operator-report", &report_json)?;
+    validate_no_placeholder_string_values("operator-manifest", &manifest_json)?;
+    validate_operator_package_safe_text("operator-report.md", &report_markdown)?;
+    validate_operator_package_safe_text("README.md", &readme)?;
+
+    Ok(OperatorPackageReport {
+        output_dir,
+        generated_at_unix_seconds,
+        generated_file_names,
+        operator_summary_json,
+        report_json,
+        manifest_json,
+        report_markdown,
+        readme,
+    })
+}
+
+fn build_operator_package_report_json(
+    generated_at_unix_seconds: u64,
+    generated_file_names: &[String],
+    operator_summary_json: &Value,
+) -> Value {
+    json!({
+        "operator_package_schema_version": OPERATOR_PACKAGE_SCHEMA_VERSION,
+        "package_type": OPERATOR_PACKAGE_TYPE,
+        "package_mode": OPERATOR_PACKAGE_MODE,
+        "generated_at_unix_seconds": generated_at_unix_seconds,
+        "local_only": true,
+        "local_preview_operator_workflow_only": true,
+        "no_cloud_calls_by_default": true,
+        "no_telemetry": true,
+        "no_global_aggregation": true,
+        "external_assurance_claim": false,
+        "external_integrity_claim": false,
+        "generated_file_names": generated_file_names,
+        "operator_status": operator_summary_json.get("status").cloned().unwrap_or(Value::Null),
+        "sections": operator_summary_json.get("sections").cloned().unwrap_or_else(|| json!([])),
+        "commands": operator_summary_json.get("commands").cloned().unwrap_or_else(|| json!([])),
+        "package_boundaries": operator_package_boundaries(),
+    })
+}
+
+fn build_operator_package_manifest_json(
+    generated_at_unix_seconds: u64,
+    generated_file_names: &[String],
+    operator_summary_json: &Value,
+) -> Value {
+    json!({
+        "operator_package_schema_version": OPERATOR_PACKAGE_SCHEMA_VERSION,
+        "package_type": OPERATOR_PACKAGE_TYPE,
+        "package_mode": OPERATOR_PACKAGE_MODE,
+        "generated_at_unix_seconds": generated_at_unix_seconds,
+        "local_only": true,
+        "generated_file_names": generated_file_names,
+        "files": generated_file_names
+            .iter()
+            .map(|file_name| json!({
+                "name": file_name,
+                "purpose": operator_package_file_purpose(file_name),
+            }))
+            .collect::<Vec<_>>(),
+        "operator_status": operator_summary_json.get("status").cloned().unwrap_or(Value::Null),
+        "package_boundaries": operator_package_boundaries(),
+    })
+}
+
+fn operator_package_file_purpose(file_name: &str) -> &'static str {
+    match file_name {
+        "README.md" => "local preview operator package guide",
+        "manifest.json" => "operator package manifest",
+        "operator-summary.json" => "safe CLI operator workflow guidance",
+        "operator-report.json" => "copy-safe operator package summary",
+        "operator-report.md" => "copy-safe operator package report",
+        _ => "operator package file",
+    }
+}
+
+fn operator_package_boundaries() -> Vec<&'static str> {
+    vec![
+        "local preview operator workflow only",
+        "status hints, not controls",
+        "local helper checks, not certification",
+        "package validation is structural/local only",
+        "not signed",
+        "not production attestation",
+        "no telemetry",
+        "no cloud calls by default",
+        "no global aggregation",
+        "no sensitive input content, audit event bodies, evidence payloads, model file payloads, private credentials, or local machine-specific values",
+    ]
+}
+
+fn build_operator_package_readme() -> String {
+    [
+        "# IgnisPrompt Local Operator Package",
+        "",
+        "This package is a local preview operator workflow summary generated by `ignispromptctl operator-summary --package-output`.",
+        "",
+        "Boundaries:",
+        "- local preview operator workflow only",
+        "- status hints, not controls",
+        "- local helper checks, not certification",
+        "- package validation is structural/local only",
+        "- not signed",
+        "- not production attestation",
+        "- no telemetry",
+        "- no cloud calls by default",
+        "- no global aggregation",
+        "- no sensitive input content, audit event bodies, evidence payloads, model file payloads, private credentials, or local machine-specific values",
+        "",
+        "Contents:",
+        "- README.md",
+        "- manifest.json",
+        "- operator-summary.json",
+        "- operator-report.json",
+        "- operator-report.md",
+        "",
+        "Keep this output under ignored `local-evidence/operator/` and do not commit generated operator packages.",
+        "",
+    ]
+    .join("\n")
+}
+
+fn build_operator_package_markdown(operator_summary_json: &Value) -> String {
+    let sections = operator_summary_json
+        .get("sections")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let commands = operator_summary_json
+        .get("commands")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let mut lines = vec![
+        "# IgnisPrompt Local Operator Package Report".to_string(),
+        "".to_string(),
+        "This report is local preview operator workflow only. It is copy-safe by default and omits daemon URLs, network names, user account names, device-specific identifiers, absolute paths, sensitive input content, audit event bodies, private credentials, generated evidence contents, and model file contents.".to_string(),
+        "".to_string(),
+        "## Summary".to_string(),
+        "".to_string(),
+        "- report_mode: local helper output".to_string(),
+        "- package_mode: local-preview".to_string(),
+        "- package validation: structural/local only".to_string(),
+        "- Aethra loading: fixture-backed by default with manual live-local loading".to_string(),
+        "- telemetry: no telemetry".to_string(),
+        "- cloud behavior: no cloud calls by default".to_string(),
+        "".to_string(),
+        "## Operator Sections".to_string(),
+        "".to_string(),
+    ];
+
+    for section in sections {
+        let name = section
+            .get("name")
+            .and_then(|value| value.as_str())
+            .unwrap_or("operator section");
+        let status = section
+            .get("status")
+            .and_then(|value| value.as_str())
+            .unwrap_or("status_hint");
+        let next_step = section
+            .get("local_next_step")
+            .and_then(|value| value.as_str())
+            .unwrap_or("Review local preview guidance.");
+        let boundary = section
+            .get("boundary_note")
+            .and_then(|value| value.as_str())
+            .unwrap_or("local preview operator workflow only");
+        lines.push(format!(
+            "- {}: {} (next step: {}; boundary: {})",
+            sanitize_readiness_report_text(name),
+            sanitize_readiness_report_text(status),
+            sanitize_readiness_report_text(next_step),
+            sanitize_readiness_report_text(boundary)
+        ));
+    }
+
+    lines.extend([
+        "".to_string(),
+        "## Copy-Only Command Recipes".to_string(),
+        "".to_string(),
+    ]);
+
+    for command in commands {
+        let label = command
+            .get("label")
+            .and_then(|value| value.as_str())
+            .unwrap_or("command");
+        let snippet = command
+            .get("command")
+            .and_then(|value| value.as_str())
+            .unwrap_or("");
+        lines.push(format!(
+            "- {}: `{}`",
+            sanitize_readiness_report_text(label),
+            sanitize_readiness_report_text(snippet)
+        ));
+    }
+
+    lines.extend([
+        "".to_string(),
+        "## Boundary Notes".to_string(),
+        "".to_string(),
+        "- local preview operator workflow only".to_string(),
+        "- status hints, not controls".to_string(),
+        "- local helper checks, not certification".to_string(),
+        "- package validation is structural/local only".to_string(),
+        "- not signed".to_string(),
+        "- not production attestation".to_string(),
+        "- no telemetry".to_string(),
+        "- no cloud calls by default".to_string(),
+        "- no global aggregation".to_string(),
+        "".to_string(),
+    ]);
+
+    lines.join("\n")
+}
+
+fn write_operator_package_report(report: &OperatorPackageReport) -> Result<(), String> {
+    if report.output_dir.exists() {
+        return Err(format!(
+            "operator package output already exists: {}",
+            report.output_dir.display()
+        ));
+    }
+
+    let parent = report.output_dir.parent().unwrap_or_else(|| Path::new("."));
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("could not create operator package parent: {}", error))?;
+
+    let staging_dir = package_staging_dir(
+        parent,
+        ".ignispromptctl-operator-package",
+        &report.output_dir,
+    );
+    if staging_dir.exists() {
+        let _ = fs::remove_dir_all(&staging_dir);
+    }
+    fs::create_dir_all(&staging_dir)
+        .map_err(|error| format!("could not create operator package staging: {}", error))?;
+
+    let write_result = (|| -> Result<(), String> {
+        fs::write(staging_dir.join("README.md"), &report.readme)
+            .map_err(|error| format!("could not write README.md: {}", error))?;
+        write_pretty_json_file(&staging_dir.join("manifest.json"), &report.manifest_json)?;
+        write_pretty_json_file(
+            &staging_dir.join("operator-summary.json"),
+            &report.operator_summary_json,
+        )?;
+        write_pretty_json_file(
+            &staging_dir.join("operator-report.json"),
+            &report.report_json,
+        )?;
+        fs::write(
+            staging_dir.join("operator-report.md"),
+            &report.report_markdown,
+        )
+        .map_err(|error| format!("could not write operator-report.md: {}", error))?;
+        Ok(())
+    })();
+
+    if let Err(message) = write_result {
+        let _ = fs::remove_dir_all(&staging_dir);
+        return Err(message);
+    }
+
+    fs::rename(&staging_dir, &report.output_dir).map_err(|error| {
+        let _ = fs::remove_dir_all(&staging_dir);
+        format!(
+            "could not finalize operator package at {}: {}",
+            report.output_dir.display(),
+            error
+        )
+    })?;
+
+    Ok(())
+}
+
+fn validate_operator_package_output_dir(output: &str) -> Result<PathBuf, String> {
+    let path = validate_relative_path(output, "operator package output")?;
+    if !path.starts_with("local-evidence/operator") {
+        return Err(
+            "operator package output must stay under ignored local-evidence/operator/".to_string(),
+        );
+    }
+    if path == Path::new("local-evidence/operator") {
+        return Err(
+            "operator package output must include a package directory under local-evidence/operator/"
+                .to_string(),
+        );
+    }
+    if path.exists() {
+        return Err(format!(
+            "operator package output already exists: {}",
+            path.display()
+        ));
+    }
+    Ok(path)
+}
+
+fn safe_operator_package_path(path: &Path) -> String {
+    if path.is_absolute() {
+        "[redacted operator package path]".to_string()
+    } else {
+        path.display().to_string()
+    }
+}
+
+fn build_operator_package_validation_report(
+    package_dir: &Path,
+) -> Result<OperatorPackageValidationReport, String> {
+    if !package_dir.exists() {
+        return Err(format!(
+            "operator package directory does not exist: {}",
+            safe_operator_package_path(package_dir)
+        ));
+    }
+    if !package_dir.is_dir() {
+        return Err(format!(
+            "operator package path is not a directory: {}",
+            safe_operator_package_path(package_dir)
+        ));
+    }
+
+    let mut files = Vec::new();
+    let mut issues = Vec::new();
+    for file_name in OPERATOR_PACKAGE_REQUIRED_FILES {
+        let path = package_dir.join(file_name);
+        if !path.exists() {
+            issues.push(format!("missing required file: {}", file_name));
+            files.push(ReadinessPackageFileState {
+                file_name,
+                present: false,
+                json_valid: None,
+                text: None,
+            });
+            continue;
+        }
+
+        let text = fs::read_to_string(&path)
+            .map_err(|error| format!("could not read {}: {}", file_name, error))?;
+        if let Err(message) = validate_operator_package_safe_text(file_name, &text) {
+            issues.push(message);
+        }
+        let json_valid = if file_name.ends_with(".json") {
+            match serde_json::from_str::<Value>(&text) {
+                Ok(value) => {
+                    if let Err(message) = validate_no_placeholder_string_values(file_name, &value) {
+                        issues.push(message);
+                    }
+                    Some(true)
+                }
+                Err(error) => {
+                    issues.push(format!("invalid JSON in {}: {}", file_name, error));
+                    Some(false)
+                }
+            }
+        } else {
+            None
+        };
+        files.push(ReadinessPackageFileState {
+            file_name,
+            present: true,
+            json_valid,
+            text: Some(text),
+        });
+    }
+
+    if let Some(readme) = files
+        .iter()
+        .find(|file| file.file_name == "README.md")
+        .and_then(|file| file.text.as_deref())
+    {
+        for term in [
+            "local preview operator workflow only",
+            "status hints, not controls",
+            "local helper checks, not certification",
+            "package validation is structural/local only",
+            "not signed",
+            "not production attestation",
+            "no telemetry",
+            "no cloud calls by default",
+        ] {
+            if !readme.contains(term) {
+                issues.push(format!("README.md is missing boundary term: {}", term));
+            }
+        }
+    }
+
+    Ok(OperatorPackageValidationReport {
+        package_dir: package_dir.to_path_buf(),
+        files,
+        issues,
+    })
+}
+
+fn validate_operator_package_safe_text(label: &str, text: &str) -> Result<(), String> {
+    validate_readiness_package_safe_text(label, text)?;
+    let lower = text.to_ascii_lowercase();
+    if lower.contains("production readiness") {
+        return Err(format!(
+            "{} contains unsafe content: production readiness",
+            label
+        ));
+    }
+    Ok(())
+}
+
+fn format_operator_package_summary(report: &OperatorPackageReport) -> String {
+    let status = report
+        .operator_summary_json
+        .get("status")
+        .and_then(|value| value.as_str())
+        .unwrap_or("unknown");
+    let mut lines = vec![
+        "IgnisPrompt Local Operator Package".to_string(),
+        format!("Schema version: {}", OPERATOR_PACKAGE_SCHEMA_VERSION),
+        format!("Package mode: {}", OPERATOR_PACKAGE_MODE),
+        format!("Output dir: {}", report.output_dir.display()),
+        format!(
+            "Generated at (unix seconds): {}",
+            report.generated_at_unix_seconds
+        ),
+        format!("Operator status: {}", status),
+        "Boundaries: local preview operator workflow only; status hints, not controls; local helper checks, not certification; package validation is structural/local only; not signed.".to_string(),
+        "".to_string(),
+        "Generated files:".to_string(),
+    ];
+    for file_name in &report.generated_file_names {
+        lines.push(format!("- {}", file_name));
+    }
+    lines.push("".to_string());
+    lines.push("Next steps:".to_string());
+    lines.push(
+        "- run cargo run -p ignispromptctl -- operator-summary --package-validate <package-dir>"
+            .to_string(),
+    );
+    lines.push(
+        "- review Aethra Local Operator Console package preview as read-only guidance.".to_string(),
+    );
+    lines.join("\n")
+}
+
+fn format_operator_package_summary_json(report: &OperatorPackageReport) -> String {
+    serde_json::to_string_pretty(&report.report_json).unwrap_or_default()
+}
+
+fn format_operator_package_validation_summary(report: &OperatorPackageValidationReport) -> String {
+    let mut lines = vec![
+        "IgnisPrompt Local Operator Package Validation".to_string(),
+        format!(
+            "Package dir: {}",
+            safe_operator_package_path(&report.package_dir)
+        ),
+        format!(
+            "Status: {}",
+            if report.issues.is_empty() {
+                "ok"
+            } else {
+                "failed"
+            }
+        ),
+        "".to_string(),
+        "Files:".to_string(),
+    ];
+    for file in &report.files {
+        lines.push(format!(
+            "- {}: {}",
+            file.file_name,
+            if file.present { "present" } else { "missing" }
+        ));
+    }
+    if !report.issues.is_empty() {
+        lines.push("".to_string());
+        lines.push("Issues:".to_string());
+        for issue in &report.issues {
+            lines.push(format!("- {}", issue));
+        }
+    }
+    lines.join("\n")
+}
+
+fn format_operator_package_list_summary(report: &OperatorPackageValidationReport) -> String {
+    let mut lines = vec![
+        "IgnisPrompt Local Operator Package Files".to_string(),
+        format!(
+            "Package dir: {}",
+            safe_operator_package_path(&report.package_dir)
+        ),
+        "".to_string(),
+    ];
+    for file in &report.files {
+        let json_label = match file.json_valid {
+            Some(true) => " json=valid",
+            Some(false) => " json=invalid",
+            None => "",
+        };
+        lines.push(format!(
+            "- {}: {}{}",
+            file.file_name,
+            if file.present { "present" } else { "missing" },
+            json_label
+        ));
+    }
+    lines.join("\n")
+}
+
+fn format_operator_package_validation_json(report: &OperatorPackageValidationReport) -> String {
+    serde_json::to_string_pretty(&operator_package_validation_value(report)).unwrap_or_default()
+}
+
+fn format_operator_package_list_json(report: &OperatorPackageValidationReport) -> String {
+    serde_json::to_string_pretty(&operator_package_validation_value(report)).unwrap_or_default()
+}
+
+fn operator_package_validation_value(report: &OperatorPackageValidationReport) -> Value {
+    json!({
+        "operator_package_schema_version": OPERATOR_PACKAGE_SCHEMA_VERSION,
+        "status": if report.issues.is_empty() { "ok" } else { "failed" },
+        "package_dir": safe_operator_package_path(&report.package_dir),
+        "files": report.files.iter().map(|file| json!({
+            "name": file.file_name,
+            "present": file.present,
+            "json_valid": file.json_valid,
+        })).collect::<Vec<_>>(),
+        "issues": report.issues,
+        "package_boundaries": operator_package_boundaries(),
     })
 }
 
@@ -4331,6 +5018,34 @@ fn write_pretty_json_file(path: &Path, value: &Value) -> Result<(), String> {
     .map_err(|error| format!("could not write {}: {}", path.display(), error))
 }
 
+fn package_staging_dir(parent: &Path, prefix: &str, output_dir: &Path) -> PathBuf {
+    let now_nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    let output_name = output_dir
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("package")
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>();
+
+    parent.join(format!(
+        "{}-{}-{}-{}",
+        prefix,
+        now_nanos,
+        process::id(),
+        output_name
+    ))
+}
+
 fn current_unix_seconds() -> Result<u64, String> {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -4805,6 +5520,7 @@ mod tests {
         audit_events_url, build_evidence_bundle_archive_report,
         build_evidence_bundle_archive_verification_report, build_evidence_bundle_manifest_report,
         build_evidence_bundle_report, build_evidence_bundle_validation_report,
+        build_operator_package_report, build_operator_package_validation_report,
         build_readiness_package_report, build_readiness_package_validation_report,
         build_route_explain_body, current_unix_seconds, doctor_endpoint_url,
         format_audit_events_summary, format_doctor_json, format_doctor_summary,
@@ -4815,22 +5531,27 @@ mod tests {
         format_evidence_bundle_manifest_summary, format_evidence_bundle_summary,
         format_evidence_bundle_unreachable_error, format_evidence_bundle_validation_json,
         format_evidence_bundle_validation_summary, format_http_error,
-        format_invalid_response_error, format_model_manifest_line, format_operator_summary,
-        format_operator_summary_json, format_readiness_json, format_readiness_markdown,
-        format_readiness_package_list_json, format_readiness_package_list_summary,
-        format_readiness_package_summary, format_readiness_package_summary_json,
-        format_readiness_package_validation_json, format_readiness_package_validation_summary,
-        format_readiness_summary, format_route_explain_summary, format_sustainability_summary,
-        format_unreachable_error, is_audit_event_list, is_route_explain_response,
-        is_sustainability_metrics_response, readiness_report_next_steps, route_explain_url,
-        string_field, sustainability_url, validate_doctor_health,
-        validate_doctor_model_status_hints, validate_doctor_models,
+        format_invalid_response_error, format_model_manifest_line,
+        format_operator_package_list_json, format_operator_package_list_summary,
+        format_operator_package_summary, format_operator_package_summary_json,
+        format_operator_package_validation_json, format_operator_package_validation_summary,
+        format_operator_summary, format_operator_summary_json, format_readiness_json,
+        format_readiness_markdown, format_readiness_package_list_json,
+        format_readiness_package_list_summary, format_readiness_package_summary,
+        format_readiness_package_summary_json, format_readiness_package_validation_json,
+        format_readiness_package_validation_summary, format_readiness_summary,
+        format_route_explain_summary, format_sustainability_summary, format_unreachable_error,
+        is_audit_event_list, is_route_explain_response, is_sustainability_metrics_response,
+        readiness_report_next_steps, route_explain_url, string_field, sustainability_url,
+        validate_doctor_health, validate_doctor_model_status_hints, validate_doctor_models,
         validate_doctor_sustainability_metrics, validate_doctor_version_status,
         validate_evidence_bundle_archive_output_path, validate_evidence_bundle_output_dir,
-        validate_no_placeholder_string_values, validate_readiness_package_output_dir,
-        validate_sustainability_period, write_evidence_bundle_report,
+        validate_no_placeholder_string_values, validate_operator_package_output_dir,
+        validate_readiness_package_output_dir, validate_sustainability_period,
+        write_evidence_bundle_report, write_operator_package_report,
         write_readiness_package_report, DoctorCheckLevel, DoctorCheckResult, DoctorReport,
-        EvidenceBundleCapture, DOCTOR_CHECKS, READINESS_PACKAGE_REQUIRED_FILES,
+        EvidenceBundleCapture, DOCTOR_CHECKS, OPERATOR_PACKAGE_REQUIRED_FILES,
+        READINESS_PACKAGE_REQUIRED_FILES,
     };
     use serde_json::json;
 
@@ -5414,6 +6135,114 @@ mod tests {
         assert!(!lower_json.contains("hostname"));
         assert!(!lower_json.contains("username"));
         assert!(!lower_json.contains("/users/"));
+    }
+
+    #[test]
+    fn operator_package_output_path_requires_ignored_operator_root() {
+        assert!(
+            validate_operator_package_output_dir("local-evidence/operator/demo-operator").is_ok()
+        );
+        assert!(validate_operator_package_output_dir("local-evidence/operator").is_err());
+        assert!(validate_operator_package_output_dir("local-evidence/demo-operator").is_err());
+        assert!(validate_operator_package_output_dir("/tmp/operator").is_err());
+        assert!(validate_operator_package_output_dir("local-evidence/operator/../bad").is_err());
+    }
+
+    #[test]
+    fn operator_package_writes_and_validates_safe_files() {
+        let output_dir = std::path::PathBuf::from(format!(
+            "local-evidence/operator/unit-{}-{}",
+            std::process::id(),
+            current_unix_seconds().unwrap()
+        ));
+        let _ = std::fs::remove_dir_all(&output_dir);
+
+        let package = build_operator_package_report(output_dir.clone()).unwrap();
+        write_operator_package_report(&package).unwrap();
+
+        for file_name in OPERATOR_PACKAGE_REQUIRED_FILES {
+            assert!(output_dir.join(file_name).exists());
+        }
+        let validation = build_operator_package_validation_report(&output_dir).unwrap();
+        assert!(validation.issues.is_empty());
+        assert!(format_operator_package_validation_summary(&validation).contains("Status: ok"));
+        assert!(format_operator_package_list_summary(&validation).contains("operator-report.md"));
+        assert!(format_operator_package_validation_json(&validation).contains("\"status\": \"ok\""));
+        assert!(format_operator_package_list_json(&validation).contains("operator-summary.json"));
+
+        let summary = format_operator_package_summary(&package);
+        let summary_json = format_operator_package_summary_json(&package);
+        let lower_package_text = [
+            summary.as_str(),
+            summary_json.as_str(),
+            package.report_markdown.as_str(),
+            package.readme.as_str(),
+        ]
+        .join("\n")
+        .to_ascii_lowercase();
+        assert!(summary.contains("IgnisPrompt Local Operator Package"));
+        assert!(summary_json.contains("\"local_only\": true"));
+        assert!(summary_json.contains("\"operator_package_schema_version\""));
+        assert!(lower_package_text.contains("local preview operator workflow only"));
+        assert!(lower_package_text.contains("status hints, not controls"));
+        assert!(lower_package_text.contains("local helper checks, not certification"));
+        assert!(lower_package_text.contains("package validation is structural/local only"));
+        assert!(lower_package_text.contains("not signed"));
+        assert!(lower_package_text.contains("not production attestation"));
+        assert!(!lower_package_text.contains("prompt:"));
+        assert!(!lower_package_text.contains("raw user text"));
+        assert!(!lower_package_text.contains("raw audit text"));
+        assert!(!lower_package_text.contains("api_key"));
+        assert!(!lower_package_text.contains("sk-"));
+        assert!(!lower_package_text.contains("localhost"));
+        assert!(!lower_package_text.contains("127.0.0.1"));
+        assert!(!lower_package_text.contains("hostname"));
+        assert!(!lower_package_text.contains("username"));
+        assert!(!lower_package_text.contains("/users/"));
+        assert!(!lower_package_text.contains("production readiness"));
+        assert!(!lower_package_text.contains("production deployment"));
+        assert!(!lower_package_text.contains("legal accuracy"));
+        assert!(!lower_package_text.contains("esg certification"));
+        assert!(!lower_package_text.contains("compliance certification"));
+        assert!(!lower_package_text.contains("security certification"));
+        assert!(!lower_package_text.contains("tamper-evident"));
+        assert!(!lower_package_text.contains("cryptographic verification"));
+        assert!(!lower_package_text.contains("signed attestation"));
+        assert!(!lower_package_text.contains("model controls"));
+        assert!(!lower_package_text.contains("runner controls"));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn operator_package_validation_reports_unsafe_content() {
+        let output_dir = std::path::PathBuf::from(format!(
+            "local-evidence/operator/unsafe-unit-{}-{}",
+            std::process::id(),
+            current_unix_seconds().unwrap()
+        ));
+        let _ = std::fs::remove_dir_all(&output_dir);
+        std::fs::create_dir_all(&output_dir).unwrap();
+        for file_name in OPERATOR_PACKAGE_REQUIRED_FILES {
+            let path = output_dir.join(file_name);
+            if file_name.ends_with(".json") {
+                std::fs::write(path, "{\"value\":\"string\"}\n").unwrap();
+            } else {
+                std::fs::write(
+                    path,
+                    "local preview operator workflow only\nstatus hints, not controls\nlocal helper checks, not certification\npackage validation is structural/local only\nnot signed\nnot production attestation\nno telemetry\nno cloud calls by default\nprompt: raw audit text /Users/alice api_key sk-test\n",
+                )
+                .unwrap();
+            }
+        }
+
+        let validation = build_operator_package_validation_report(&output_dir).unwrap();
+        let issues = validation.issues.join("\n");
+        assert!(issues.contains("placeholder"));
+        assert!(issues.contains("unsafe content"));
+        assert!(format_operator_package_validation_summary(&validation).contains("Status: failed"));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
     }
 
     #[test]
