@@ -61,7 +61,8 @@ require_cmd grep
 require_cmd make
 
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ignisprompt-operator-check.XXXXXX")"
-trap 'rm -rf "$TMP_DIR"' EXIT
+PACKAGE_DIR="local-evidence/operator/operator-check-$$"
+trap 'rm -rf "$TMP_DIR" "$PACKAGE_DIR"' EXIT
 
 bash -n scripts/operator-check.sh
 bash -n scripts/readiness-check.sh
@@ -71,6 +72,9 @@ bash -n scripts/demo-local-evidence-workflow.sh
 cargo run --quiet -p ignispromptctl -- operator-summary --help >"$TMP_DIR/operator-help.txt"
 require_contains "$TMP_DIR/operator-help.txt" 'Summarize the local preview operator workflow' "operator-summary help"
 require_contains "$TMP_DIR/operator-help.txt" '--json' "operator-summary help"
+require_contains "$TMP_DIR/operator-help.txt" '--package-output' "operator-summary help"
+require_contains "$TMP_DIR/operator-help.txt" '--package-list' "operator-summary help"
+require_contains "$TMP_DIR/operator-help.txt" '--package-validate' "operator-summary help"
 
 cargo run --quiet -p ignispromptctl -- operator-summary >"$TMP_DIR/operator-summary.txt"
 require_contains "$TMP_DIR/operator-summary.txt" 'IgnisPrompt Local Operator Summary' "operator summary"
@@ -91,6 +95,32 @@ require_contains "$TMP_DIR/operator-summary.json" 'local-evidence/readiness/demo
 reject_contains "$TMP_DIR/operator-summary.json" '"string"' "operator summary json"
 scan_safe_output "$TMP_DIR/operator-summary.json" "operator summary json"
 
+cargo run --quiet -p ignispromptctl -- operator-summary --package-output "$PACKAGE_DIR" --json >"$TMP_DIR/operator-package-summary.json"
+require_contains "$TMP_DIR/operator-package-summary.json" '"operator_package_schema_version"' "operator package summary json"
+require_contains "$TMP_DIR/operator-package-summary.json" '"package_mode": "local-preview"' "operator package summary json"
+require_contains "$TMP_DIR/operator-package-summary.json" '"local_only": true' "operator package summary json"
+test -f "$PACKAGE_DIR/README.md"
+test -f "$PACKAGE_DIR/manifest.json"
+test -f "$PACKAGE_DIR/operator-summary.json"
+test -f "$PACKAGE_DIR/operator-report.json"
+test -f "$PACKAGE_DIR/operator-report.md"
+require_contains "$PACKAGE_DIR/README.md" 'local preview operator workflow only' "operator package README"
+require_contains "$PACKAGE_DIR/README.md" 'package validation is structural/local only' "operator package README"
+require_contains "$PACKAGE_DIR/README.md" 'not signed' "operator package README"
+scan_safe_output "$TMP_DIR/operator-package-summary.json" "operator package summary json"
+scan_safe_output "$PACKAGE_DIR/README.md" "operator package README"
+scan_safe_output "$PACKAGE_DIR/operator-report.md" "operator package report markdown"
+
+cargo run --quiet -p ignispromptctl -- operator-summary --package-list "$PACKAGE_DIR" --json >"$TMP_DIR/operator-package-list.json"
+require_contains "$TMP_DIR/operator-package-list.json" '"status": "ok"' "operator package list json"
+require_contains "$TMP_DIR/operator-package-list.json" 'operator-report.md' "operator package list json"
+scan_safe_output "$TMP_DIR/operator-package-list.json" "operator package list json"
+
+cargo run --quiet -p ignispromptctl -- operator-summary --package-validate "$PACKAGE_DIR" --json >"$TMP_DIR/operator-package-validate.json"
+require_contains "$TMP_DIR/operator-package-validate.json" '"status": "ok"' "operator package validate json"
+require_contains "$TMP_DIR/operator-package-validate.json" 'local helper checks, not certification' "operator package validate json"
+scan_safe_output "$TMP_DIR/operator-package-validate.json" "operator package validate json"
+
 cargo run --quiet -p ignispromptctl -- readiness --help >"$TMP_DIR/readiness-help.txt"
 require_contains "$TMP_DIR/readiness-help.txt" '--package-output' "readiness help"
 require_contains "$TMP_DIR/readiness-help.txt" '--package-list' "readiness help"
@@ -108,7 +138,10 @@ require_file_contains "apps/aethra/src/routes/LocalOperatorConsole.tsx" 'Copy-on
 require_file_contains "apps/aethra/src/routes/operatorConsoleSummary.ts" 'status hints, not controls'
 require_file_contains "apps/aethra/src/routes/operatorConsoleSummary.ts" 'local helper checks, not certification'
 require_file_contains "apps/aethra/src/routes/operatorConsoleSummary.ts" 'structural/local package validation only'
+require_file_contains "apps/aethra/src/routes/operatorConsoleSummary.ts" 'local-evidence/operator/demo'
+require_file_contains "apps/aethra/src/routes/LocalOperatorConsole.tsx" 'Operator package preview'
 require_file_contains "apps/aethra/src/routes/operatorConsoleSummary.test.ts" 'local-evidence/readiness/demo'
+require_file_contains "apps/aethra/src/routes/operatorConsoleSummary.test.ts" 'operator-report.md'
 require_file_contains "apps/aethra/src/routes/LocalOperatorConsole.test.tsx" 'Aethra local operator console'
 require_file_contains "README.md" 'operator-check'
 require_file_contains "docs/DEMO.md" 'Local Operator Console'

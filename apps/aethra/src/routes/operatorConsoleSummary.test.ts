@@ -36,6 +36,9 @@ describe("local operator console summaries", () => {
       "cargo run -p ignispromptctl -- readiness --package-list local-evidence/readiness/demo",
       "cargo run -p ignispromptctl -- readiness --package-validate local-evidence/readiness/demo",
       "make readiness-check",
+      "cargo run -p ignispromptctl -- operator-summary --package-output local-evidence/operator/demo",
+      "cargo run -p ignispromptctl -- operator-summary --package-list local-evidence/operator/demo",
+      "cargo run -p ignispromptctl -- operator-summary --package-validate local-evidence/operator/demo",
       "make evidence-check",
       "./scripts/demo-local-evidence-workflow.sh --self-test",
     ]);
@@ -68,5 +71,42 @@ describe("local operator console summaries", () => {
     expect(text).not.toContain("cryptographic verification");
     expect(text).not.toContain("model controls");
     expect(text).not.toContain("runner controls");
+  });
+
+  it("builds a conservative operator package preview", () => {
+    const summary = buildOperatorConsoleSummary();
+    const previewText = [
+      summary.packagePreview.schemaVersion,
+      summary.packagePreview.packageRoot,
+      summary.packagePreview.status,
+      summary.packagePreview.generatedFiles.join(" "),
+      summary.packagePreview.boundaryNotes.join(" "),
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    expect(summary.packagePreview.schemaVersion).toBe(
+      "ignisprompt-operator-package-0.1",
+    );
+    expect(summary.packagePreview.packageRoot).toBe(
+      "local-evidence/operator/demo",
+    );
+    expect(summary.packagePreview.generatedFiles).toEqual([
+      "README.md",
+      "manifest.json",
+      "operator-summary.json",
+      "operator-report.json",
+      "operator-report.md",
+    ]);
+    expect(previewText).toContain("local preview operator workflow only");
+    expect(previewText).toContain("status hints, not controls");
+    expect(previewText).toContain("local helper checks, not certification");
+    expect(previewText).toContain("package validation is structural/local only");
+    expect(previewText).toContain("not signed");
+    expect(previewText).not.toContain("production readiness");
+    expect(previewText).not.toContain("legal accuracy");
+    expect(previewText).not.toContain("compliance certification");
+    expect(previewText).not.toContain("tamper-evident");
+    expect(previewText).not.toContain("cryptographic verification");
   });
 });

@@ -59,6 +59,9 @@ cargo run -p ignispromptctl -- readiness --package-list local-evidence/readiness
 cargo run -p ignispromptctl -- readiness --package-validate local-evidence/readiness/demo-readiness
 cargo run -p ignispromptctl -- operator-summary
 cargo run -p ignispromptctl -- operator-summary --json
+cargo run -p ignispromptctl -- operator-summary --package-output local-evidence/operator/demo
+cargo run -p ignispromptctl -- operator-summary --package-list local-evidence/operator/demo
+cargo run -p ignispromptctl -- operator-summary --package-validate local-evidence/operator/demo
 cargo run -p ignispromptctl -- health
 cargo run -p ignispromptctl -- status-version
 cargo run -p ignispromptctl -- models
@@ -84,7 +87,7 @@ The `doctor` command checks required local preview endpoints for health, version
 
 The `readiness` command reuses the same local endpoint checks and prints a local preview readiness summary. `--json` prints safe local diagnostics for category, severity, result, local next step, and boundary note. `--markdown` prints a copy-safe local helper report for issue or demo notes. `--package-output local-evidence/readiness/<name>` writes a local readiness package with README, manifest, JSON summaries, and Markdown report output under an ignored readiness path. `--package-list` and `--package-validate` inspect that package locally without daemon access. Report and package outputs omit daemon URLs, local machine details, raw audit text, generated evidence contents, and private credentials. They align with Aethra Local Readiness wording: status hints, not controls; local helper checks, not certification; manual live-local loading; no telemetry; and no cloud calls by default.
 
-The `operator-summary` command prints local preview operator workflow guidance without calling the daemon. Human and JSON output summarize readiness, readiness packages, evidence checks, Aethra fixture-backed review, and copy-only command recipes. It keeps status values as hints, local helper checks separate from certification, package validation structural/local only, and Aethra live-local loading manual.
+The `operator-summary` command prints local preview operator workflow guidance without calling the daemon. Human and JSON output summarize readiness, readiness packages, evidence checks, Aethra fixture-backed review, and copy-only command recipes. `--package-output local-evidence/operator/<name>` writes a local operator package with README, manifest, JSON summaries, and Markdown report output under an ignored operator path. `--package-list` and `--package-validate` inspect that package locally without daemon access. It keeps status values as hints, local helper checks separate from certification, package validation structural/local only, and Aethra live-local loading manual.
 
 The `sustainability` command reads `GET /v1/metrics/sustainability?period=<period>` with supported periods `7d`, `30d`, and `90d`; it defaults to `30d` and rejects unsupported values before sending a request. It prints aggregate local sustainability metrics only. It does not include prompts, raw request text, raw audit event bodies, PII, machine identifiers, hostnames, usernames, filesystem paths, secrets, or API keys.
 
@@ -139,7 +142,7 @@ Run the local operator quality gate with:
 make operator-check
 ```
 
-This runs `scripts/operator-check.sh`. The check validates `ignispromptctl operator-summary` human and JSON output, readiness package help shape, Make target wiring, demo workflow self-test behavior, and Aethra Local Operator Console wording alignment. It does not require model weights, GGUF files, external runners, cloud credentials, external network, or a live daemon.
+This runs `scripts/operator-check.sh`. The check validates `ignispromptctl operator-summary` human and JSON output, operator package output/list/validate behavior, readiness package help shape, Make target wiring, demo workflow self-test behavior, and Aethra Local Operator Console wording alignment. It does not require model weights, GGUF files, external runners, cloud credentials, external network, or a live daemon.
 
 ## CI path
 
@@ -166,7 +169,7 @@ npm test
 
 Do not make `make dev-check` depend on Node tooling unless a future task explicitly changes the repository-wide verification policy.
 
-The Aethra app checks cover the fixture-backed Local Readiness page, Local Operator Console, evidence bundle viewer, validation summary, archive metadata preview, local-preview CLI snippets, clipboard-only Markdown or JSON report export helpers, readiness package preview, and the guided demo path plus safer sidebar labels. The default render must stay read-only and must not surface prompts, raw audit event bodies, secrets, hostnames, usernames, machine identifiers, or absolute filesystem paths. The readiness and operator pages must keep daemon health, version/status, configured models, model and runner status hints, evidence workflow availability, local helper checks, command recipes, and readiness package previews framed as local preview status hints, not controls, certification, production deployment approval, or continuous monitoring. The viewer must also show conservative empty states when evidence bundle metadata is missing or invalid, without inferring signing, certification, attestation, production readiness, or cryptographic verification.
+The Aethra app checks cover the fixture-backed Local Readiness page, Local Operator Console, evidence bundle viewer, validation summary, archive metadata preview, local-preview CLI snippets, clipboard-only Markdown or JSON report export helpers, readiness package preview, operator package preview, and the guided demo path plus safer sidebar labels. The default render must stay read-only and must not surface prompts, raw audit event bodies, secrets, hostnames, usernames, machine identifiers, or absolute filesystem paths. The readiness and operator pages must keep daemon health, version/status, configured models, model and runner status hints, evidence workflow availability, local helper checks, command recipes, readiness package previews, and operator package previews framed as local preview status hints, not controls, certification, production deployment approval, or continuous monitoring. The viewer must also show conservative empty states when evidence bundle metadata is missing or invalid, without inferring signing, certification, attestation, production readiness, or cryptographic verification.
 
 For the opt-in local API smoke path, first run the Aethra app checks above, then run:
 

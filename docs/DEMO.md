@@ -112,7 +112,7 @@ Run:
 ./scripts/demo-local-evidence-workflow.sh
 ```
 
-The script demonstrates `route-explain`, `audit-events`, evidence bundle generation, listing, validation, archiving, archive verification, manifest inspection, and readiness package generation under `./local-evidence/readiness/`. Generated outputs stay under ignored `./local-evidence/` paths.
+The script demonstrates `route-explain`, `audit-events`, evidence bundle generation, listing, validation, archiving, archive verification, manifest inspection, readiness package generation under `./local-evidence/readiness/`, and operator package generation under `./local-evidence/operator/`. Generated outputs stay under ignored `./local-evidence/` paths.
 
 Use `--dry-run` to print the planned workflow without starting the daemon. Use `--self-test` to verify ignored-path checks and command construction without a live daemon.
 
@@ -122,7 +122,7 @@ The Aethra Local Readiness page summarizes fixture-backed local preview readines
 
 The Aethra Local Command Center mirrors the same local-preview command recipes, the evidence workflow checklist, and the demo readiness notes for safe dashboard review.
 
-The Aethra Local Operator Console adds a read-only operator workflow view that combines local preview readiness, readiness package status, evidence workflow status, demo next steps, and copy-only command recipes. It is fixture-backed by default, keeps live-local loading manual, and does not execute commands, upload files, persist data, add polling, add telemetry, or add cloud calls.
+The Aethra Local Operator Console adds a read-only operator workflow view that combines local preview readiness, readiness package status, operator package preview, evidence workflow status, demo next steps, and copy-only command recipes. It is fixture-backed by default, keeps live-local loading manual, and does not execute commands, upload files, persist data, add polling, add telemetry, or add cloud calls.
 
 ## Golden and bakeoff demos
 

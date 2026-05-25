@@ -154,6 +154,77 @@ export function LocalOperatorConsole() {
         </div>
       </section>
 
+      <section className="overview-section-group" aria-label="Operator package preview">
+        <div className="section-heading">
+          <p className="eyebrow">Package</p>
+          <h3>Operator package preview</h3>
+          <p className="muted">
+            Fixture-backed package metadata for local preview operator workflow
+            review. Aethra does not generate, upload, extract, validate, or
+            persist package files.
+          </p>
+        </div>
+        <div className="panel" aria-label="Operator package details">
+          <div className="panel-heading">
+            <div>
+              <h3>Package manifest summary</h3>
+              <p className="muted">
+                Package validation is structural/local only. Status values
+                remain hints, not controls.
+              </p>
+            </div>
+            <StatusBadge tone="neutral">
+              {summary.packagePreview.packageMode}
+            </StatusBadge>
+          </div>
+          <dl className="state-list">
+            <div className="state-list-item">
+              <dt>Package root</dt>
+              <dd>
+                <StatusBadge tone="neutral">ignored path</StatusBadge>
+                <code>{summary.packagePreview.packageRoot}</code>
+              </dd>
+            </div>
+            <div className="state-list-item">
+              <dt>Operator report status</dt>
+              <dd>
+                <StatusBadge
+                  tone={
+                    summary.packagePreview.status === "operator_guidance"
+                      ? "ok"
+                      : "warning"
+                  }
+                >
+                  {summary.packagePreview.status}
+                </StatusBadge>
+                <span>Schema {summary.packagePreview.schemaVersion}</span>
+              </dd>
+            </div>
+            <div className="state-list-item">
+              <dt>Generated files</dt>
+              <dd>
+                <StatusBadge tone="neutral">copy-safe</StatusBadge>
+                <span>{summary.packagePreview.generatedFiles.join(", ")}</span>
+              </dd>
+            </div>
+            <div className="state-list-item">
+              <dt>Operator sections</dt>
+              <dd>
+                <StatusBadge tone="neutral">local preview</StatusBadge>
+                <span>{summary.packagePreview.sections.join("; ")}</span>
+              </dd>
+            </div>
+            <div className="state-list-item">
+              <dt>Boundary notes</dt>
+              <dd>
+                <StatusBadge tone="neutral">local helper</StatusBadge>
+                <span>{summary.packagePreview.boundaryNotes.join("; ")}</span>
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
       <section className="overview-section-group" aria-label="Operator boundary reminders">
         <div className="section-heading">
           <p className="eyebrow">Boundaries</p>

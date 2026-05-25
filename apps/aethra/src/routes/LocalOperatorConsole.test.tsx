@@ -28,12 +28,28 @@ describe("local operator console route", () => {
     expect(markup).toContain(
       "cargo run -p ignispromptctl -- readiness --package-validate local-evidence/readiness/demo",
     );
+    expect(markup).toContain(
+      "cargo run -p ignispromptctl -- operator-summary --package-output local-evidence/operator/demo",
+    );
+    expect(markup).toContain(
+      "cargo run -p ignispromptctl -- operator-summary --package-list local-evidence/operator/demo",
+    );
+    expect(markup).toContain(
+      "cargo run -p ignispromptctl -- operator-summary --package-validate local-evidence/operator/demo",
+    );
     expect(markup).toContain("make readiness-check");
     expect(markup).toContain("make evidence-check");
     expect(markup).toContain(
       "./scripts/demo-local-evidence-workflow.sh --self-test",
     );
     expect(markup).toContain("Read-only status hints");
+    expect(markup).toContain("Operator package preview");
+    expect(markup).toContain("Package manifest summary");
+    expect(markup).toContain("local-evidence/operator/demo");
+    expect(markup).toContain("operator-summary.json");
+    expect(markup).toContain("operator-report.md");
+    expect(markup).toContain("package validation is structural/local only");
+    expect(markup).toContain("not signed");
     expect(markup).toContain("Local operator boundary reminders");
     expect(markup).toContain("status hints, not controls");
     expect(markup).toContain("local helper checks, not certification");
