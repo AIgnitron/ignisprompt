@@ -144,12 +144,13 @@ For v0.1.6 release prep, also confirm `make operator-check`, `make readiness-che
 
 ```bash
 cd apps/aethra
+npm ci
 npm test
 npm run build
 cd ../..
 ```
 
-The build writes ignored output under `apps/aethra/dist/`. Do not commit it.
+Public CI also runs these Aethra checks in a separate job. This is test/build coverage for the fixture-backed local-preview dashboard, not production certification. The build writes ignored output under `apps/aethra/dist/`. Do not commit it.
 
 ## Smoke Script
 

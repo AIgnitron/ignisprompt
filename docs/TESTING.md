@@ -153,8 +153,9 @@ Package workflow unit tests use unique ignored paths under `local-evidence/` and
 - `cargo build`
 - `cargo test`
 - `./scripts/smoke.sh` against `./scripts/start-dev.sh`
+- `npm ci`, `npm test`, and `npm run build` under `apps/aethra/` in a separate Aethra job
 
-This default path intentionally avoids Ollama, GGUF model weights, and cloud access.
+This public CI path intentionally avoids Ollama, GGUF model weights, external runners, and cloud access. The Aethra job is fixture-backed test/build coverage only; it is not production certification.
 
 ## Aethra scaffold checks
 
@@ -165,11 +166,11 @@ When changing Aethra files, run its local checks from the app directory:
 ```bash
 cd apps/aethra
 npm ci
-npm run build
 npm test
+npm run build
 ```
 
-Do not make `make dev-check` depend on Node tooling unless a future task explicitly changes the repository-wide verification policy.
+Public CI runs the Aethra app checks in a separate job. `make dev-check` remains the Rust daemon default-path check and does not depend on Node tooling.
 
 The Aethra app checks cover the fixture-backed Local Readiness page, Local Operator Console, evidence bundle viewer, validation summary, archive metadata preview, local-preview CLI snippets, clipboard-only Markdown or JSON report export helpers, readiness package preview, operator package preview, and the guided demo path plus safer sidebar labels. The default render must stay read-only and must not surface prompts, raw audit event bodies, secrets, hostnames, usernames, machine identifiers, or absolute filesystem paths. The readiness and operator pages must keep daemon health, version/status, configured models, model and runner status hints, evidence workflow availability, local helper checks, command recipes, readiness package previews, and operator package previews framed as local preview status hints, not controls, certification, production deployment approval, or continuous monitoring. The viewer must also show conservative empty states when evidence bundle metadata is missing or invalid, without inferring signing, certification, attestation, production readiness, or cryptographic verification.
 
@@ -218,6 +219,8 @@ Route-policy regression tests cover legal Tier 3 routing, general non-legal loca
 Model availability regression tests keep route eligibility separate from local file and runner hints. They cover configured-but-not-route-eligible manifests, route-eligible manifests whose local file is missing, conservative `/v1/status/models` availability values, feature-gated GGUF status hints for missing runner and staged local prerequisites, and wording that says local file/runner presence does not mean executable inference was attempted.
 
 Feature-gated GGUF subprocess tests use temporary fake local scripts and placeholder local files only. They cover the fast successful path, subprocess timeout/hang fallback, non-zero subprocess exit fallback, missing prompt/model/runner prerequisites, and invalid legal JSON metadata. These tests do not require real Ollama, GGUF tooling, model weights, network access, cloud credentials, or production-grade runner management.
+
+The HTTP request path routes feature-gated GGUF runner execution through Tokio blocking-task isolation so local subprocess work does not occupy async worker threads. This preserves the opt-in local runner boundary and does not add model controls, runner controls, cloud calls, or production runner management.
 
 The endpoint is local-only and derived from in-memory audit events. Tests should not add telemetry, network calls, cloud calls, external coefficient lookup, or global opt-in pools. The output must remain framed as estimated, proxy, counterfactual, and methodology-dependent.
 
