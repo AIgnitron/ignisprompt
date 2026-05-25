@@ -73,6 +73,29 @@ enum Commands {
         #[arg(long)]
         package_list: Option<String>,
     },
+    /// Inspect synthetic local preview policy scenarios without calling the daemon
+    #[command(group(
+        ArgGroup::new("policy_action")
+            .args(["package_output", "package_validate", "package_list"])
+            .multiple(false)
+    ))]
+    PolicyScenarios {
+        /// Print structured JSON policy scenario guidance
+        #[arg(long)]
+        json: bool,
+        /// Print a copy-safe Markdown report for local demo notes
+        #[arg(long)]
+        report: bool,
+        /// Generate a local policy package under ignored local-evidence/policy/
+        #[arg(long)]
+        package_output: Option<String>,
+        /// Validate an existing local policy package without calling the daemon
+        #[arg(long)]
+        package_validate: Option<String>,
+        /// List files and metadata for an existing local policy package without calling the daemon
+        #[arg(long)]
+        package_list: Option<String>,
+    },
     /// Check daemon health
     Health,
     /// Print daemon version and local preview status
@@ -191,6 +214,19 @@ fn main() {
             package_validate,
             package_list,
         } => cmd_operator_summary(*json, package_output, package_validate, package_list),
+        Commands::PolicyScenarios {
+            json,
+            report,
+            package_output,
+            package_validate,
+            package_list,
+        } => cmd_policy_scenarios(
+            *json,
+            *report,
+            package_output,
+            package_validate,
+            package_list,
+        ),
         Commands::Health => cmd_health(&cli.daemon_url),
         Commands::StatusVersion => cmd_status_version(&cli.daemon_url),
         Commands::Sustainability { period, json } => {
@@ -319,6 +355,25 @@ struct OperatorPackageValidationReport {
     issues: Vec<String>,
 }
 
+#[derive(Clone, Debug)]
+struct PolicyPackageReport {
+    output_dir: PathBuf,
+    generated_at_unix_seconds: u64,
+    generated_file_names: Vec<String>,
+    policy_scenarios_json: Value,
+    report_json: Value,
+    manifest_json: Value,
+    report_markdown: String,
+    readme: String,
+}
+
+#[derive(Clone, Debug)]
+struct PolicyPackageValidationReport {
+    package_dir: PathBuf,
+    files: Vec<ReadinessPackageFileState>,
+    issues: Vec<String>,
+}
+
 const READINESS_PACKAGE_SCHEMA_VERSION: &str = "ignisprompt-readiness-package-0.1";
 const READINESS_PACKAGE_TYPE: &str = "ignisprompt-local-readiness-package";
 const READINESS_PACKAGE_MODE: &str = "local-preview";
@@ -340,6 +395,17 @@ const OPERATOR_PACKAGE_REQUIRED_FILES: &[&str] = &[
     "operator-report.json",
     "operator-report.md",
 ];
+const POLICY_SCENARIO_SCHEMA_VERSION: &str = "ignisprompt-policy-scenarios-0.1";
+const POLICY_PACKAGE_SCHEMA_VERSION: &str = "ignisprompt-policy-package-0.1";
+const POLICY_PACKAGE_TYPE: &str = "ignisprompt-local-policy-package";
+const POLICY_PACKAGE_MODE: &str = "local-preview";
+const POLICY_PACKAGE_REQUIRED_FILES: &[&str] = &[
+    "README.md",
+    "manifest.json",
+    "policy-scenarios.json",
+    "policy-report.json",
+    "policy-report.md",
+];
 
 #[derive(Clone, Copy, Debug)]
 struct OperatorSummarySection {
@@ -357,6 +423,20 @@ struct OperatorCommandRecipe {
     label: &'static str,
     command: &'static str,
     purpose: &'static str,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct PolicyScenario {
+    id: &'static str,
+    name: &'static str,
+    category: &'static str,
+    synthetic_summary: &'static str,
+    expected_tier: &'static str,
+    expected_route: &'static str,
+    expected_local_behavior: &'static str,
+    expected_warning: &'static str,
+    local_next_step: &'static str,
+    boundary_note: &'static str,
 }
 
 const OPERATOR_SUMMARY_SECTIONS: &[OperatorSummarySection] = &[
@@ -399,6 +479,89 @@ const OPERATOR_SUMMARY_SECTIONS: &[OperatorSummarySection] = &[
         summary: "Keep results local preview only with no telemetry, cloud calls by default, or global aggregation.",
         next_step: "Treat command recipes as copy-only local guidance.",
         boundary_note: "archives and packages are not signed",
+    },
+    OperatorSummarySection {
+        id: "local-policy-workbench",
+        name: "Local policy workbench",
+        status: "policy_preview",
+        summary: "Review synthetic local policy scenarios, route hints, reports, and policy package previews.",
+        next_step: "Run cargo run -p ignispromptctl -- policy-scenarios, then make policy-check.",
+        boundary_note: "route hints, not guarantees",
+    },
+];
+
+const POLICY_SCENARIOS: &[PolicyScenario] = &[
+    PolicyScenario {
+        id: "simple-local-task",
+        name: "Simple local task",
+        category: "simple local task",
+        synthetic_summary: "Synthetic request for a short local summary using fixture-safe text.",
+        expected_tier: "tier_1",
+        expected_route: "local_stub",
+        expected_local_behavior: "route locally with no cloud call by default",
+        expected_warning: "route hints, not guarantees",
+        local_next_step: "Use route-explain for live local route shape when needed.",
+        boundary_note: "policy preview only",
+    },
+    PolicyScenario {
+        id: "legal-sensitive-task",
+        name: "Legal-sensitive task",
+        category: "legal-sensitive task",
+        synthetic_summary: "Synthetic legal-sensitive classification request without real facts.",
+        expected_tier: "tier_3",
+        expected_route: "local_legal_runner_or_stub",
+        expected_local_behavior: "keep local and avoid formal legal guidance claims",
+        expected_warning: "not a legal service and no formal legal correctness claim",
+        local_next_step: "Review route explanation and local preview disclaimer.",
+        boundary_note: "route hints, not formal legal guidance",
+    },
+    PolicyScenario {
+        id: "adversarial-document-instruction",
+        name: "Adversarial document instruction",
+        category: "adversarial document instruction",
+        synthetic_summary: "Synthetic document instruction attempts to override local policy.",
+        expected_tier: "tier_3",
+        expected_route: "fail_closed_or_local_review",
+        expected_local_behavior: "treat embedded instruction as untrusted input",
+        expected_warning: "route hints, not guarantees",
+        local_next_step: "Keep adversarial document instructions separated from operator guidance.",
+        boundary_note: "local helper checks, not certification",
+    },
+    PolicyScenario {
+        id: "sustainability-preview-request",
+        name: "Sustainability preview request",
+        category: "sustainability preview request",
+        synthetic_summary: "Synthetic request for local proxy sustainability indicators.",
+        expected_tier: "tier_2",
+        expected_route: "local_metrics_preview",
+        expected_local_behavior: "show proxy-only sustainability indicators",
+        expected_warning: "not actual carbon accounting",
+        local_next_step: "Check sustainability methodology notes before sharing demo copy.",
+        boundary_note: "proxy-only indicators",
+    },
+    PolicyScenario {
+        id: "helper-workflow-request",
+        name: "Evidence readiness operator helper request",
+        category: "evidence/readiness/operator helper request",
+        synthetic_summary: "Synthetic request for local helper workflow guidance.",
+        expected_tier: "helper",
+        expected_route: "local_helper_guidance",
+        expected_local_behavior: "provide copy-only local commands and structural checks",
+        expected_warning: "local helper checks, not certification",
+        local_next_step: "Run make policy-check with readiness, operator, and evidence checks.",
+        boundary_note: "status hints, not controls",
+    },
+    PolicyScenario {
+        id: "unsupported-cloud-required-request",
+        name: "Unsupported cloud-required request",
+        category: "unsupported/cloud-required request",
+        synthetic_summary: "Synthetic request that would need cloud-only capabilities.",
+        expected_tier: "unsupported",
+        expected_route: "fail_closed",
+        expected_local_behavior: "fail closed unless an explicit future policy allows otherwise",
+        expected_warning: "no cloud calls by default",
+        local_next_step: "Document unsupported scope instead of adding a cloud fallback.",
+        boundary_note: "local preview only",
     },
 ];
 
@@ -468,6 +631,36 @@ const OPERATOR_COMMAND_RECIPES: &[OperatorCommandRecipe] = &[
         label: "Validate operator package",
         command: "cargo run -p ignispromptctl -- operator-summary --package-validate local-evidence/operator/demo",
         purpose: "Validate required operator package files with local structural checks.",
+    },
+    OperatorCommandRecipe {
+        id: "policy-scenarios",
+        label: "Inspect policy scenarios",
+        command: "cargo run -p ignispromptctl -- policy-scenarios",
+        purpose: "Review synthetic local-preview policy route hints.",
+    },
+    OperatorCommandRecipe {
+        id: "policy-scenarios-json",
+        label: "Inspect policy scenario JSON",
+        command: "cargo run -p ignispromptctl -- policy-scenarios --json",
+        purpose: "Print safe structured policy scenario guidance.",
+    },
+    OperatorCommandRecipe {
+        id: "policy-package-output",
+        label: "Generate policy package",
+        command: "cargo run -p ignispromptctl -- policy-scenarios --package-output local-evidence/policy/demo",
+        purpose: "Write a local-only policy package under ignored local-evidence/policy/.",
+    },
+    OperatorCommandRecipe {
+        id: "policy-package-validate",
+        label: "Validate policy package",
+        command: "cargo run -p ignispromptctl -- policy-scenarios --package-validate local-evidence/policy/demo",
+        purpose: "Validate required policy package files with local structural checks.",
+    },
+    OperatorCommandRecipe {
+        id: "policy-check",
+        label: "Run policy quality gate",
+        command: "make policy-check",
+        purpose: "Run deterministic local policy workbench checks.",
     },
     OperatorCommandRecipe {
         id: "evidence-check",
@@ -695,6 +888,85 @@ fn cmd_operator_summary(
         println!("{}", format_operator_summary_json());
     } else {
         println!("{}", format_operator_summary());
+    }
+}
+
+fn cmd_policy_scenarios(
+    json_output: bool,
+    report_output: bool,
+    package_output: &Option<String>,
+    package_validate: &Option<String>,
+    package_list: &Option<String>,
+) {
+    if let Some(package_dir) = package_validate {
+        let report = match build_policy_package_validation_report(Path::new(package_dir)) {
+            Ok(report) => report,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        if json_output {
+            println!("{}", format_policy_package_validation_json(&report));
+        } else {
+            println!("{}", format_policy_package_validation_summary(&report));
+        }
+        if !report.issues.is_empty() {
+            process::exit(1);
+        }
+        return;
+    }
+
+    if let Some(package_dir) = package_list {
+        let report = match build_policy_package_validation_report(Path::new(package_dir)) {
+            Ok(report) => report,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        if json_output {
+            println!("{}", format_policy_package_list_json(&report));
+        } else {
+            println!("{}", format_policy_package_list_summary(&report));
+        }
+        return;
+    }
+
+    if let Some(output) = package_output {
+        let output_dir = match validate_policy_package_output_dir(output) {
+            Ok(path) => path,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        let package = match build_policy_package_report(output_dir) {
+            Ok(package) => package,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        if let Err(message) = write_policy_package_report(&package) {
+            eprintln!("error: {}", message);
+            process::exit(1);
+        }
+
+        if json_output {
+            println!("{}", format_policy_package_summary_json(&package));
+        } else {
+            println!("{}", format_policy_package_summary(&package));
+        }
+        return;
+    }
+
+    if json_output {
+        println!("{}", format_policy_scenarios_json());
+    } else if report_output {
+        println!("{}", format_policy_scenarios_report());
+    } else {
+        println!("{}", format_policy_scenarios_summary());
     }
 }
 
@@ -1185,6 +1457,130 @@ fn format_operator_summary_json() -> String {
         ],
     }))
     .unwrap_or_default()
+}
+
+fn format_policy_scenarios_summary() -> String {
+    let mut lines = vec![
+        "IgnisPrompt Local Policy Scenarios".to_string(),
+        "".to_string(),
+        "Scope:".to_string(),
+        "- policy preview only".to_string(),
+        "- synthetic scenarios only".to_string(),
+        "- route hints, not guarantees".to_string(),
+        "- local helper checks, not certification".to_string(),
+        "- no formal legal guidance or correctness claim".to_string(),
+        "- no telemetry, no global aggregation, and no cloud calls by default".to_string(),
+        "".to_string(),
+        "Scenarios:".to_string(),
+    ];
+
+    for scenario in POLICY_SCENARIOS {
+        lines.push(format!(
+            "- {}: {} -> {} ({})",
+            sanitize_readiness_report_text(scenario.name),
+            sanitize_readiness_report_text(scenario.category),
+            sanitize_readiness_report_text(scenario.expected_route),
+            sanitize_readiness_report_text(scenario.boundary_note)
+        ));
+        lines.push(format!(
+            "  next step: {}",
+            sanitize_readiness_report_text(scenario.local_next_step)
+        ));
+    }
+
+    lines.push("".to_string());
+    lines.push("Local helper commands:".to_string());
+    lines.push("- cargo run -p ignispromptctl -- policy-scenarios --json".to_string());
+    lines.push("- cargo run -p ignispromptctl -- policy-scenarios --report".to_string());
+    lines.push(
+        "- cargo run -p ignispromptctl -- policy-scenarios --package-output local-evidence/policy/demo"
+            .to_string(),
+    );
+    lines.push("- make policy-check".to_string());
+    lines.join("\n")
+}
+
+fn format_policy_scenarios_json() -> String {
+    let scenarios = POLICY_SCENARIOS
+        .iter()
+        .map(|scenario| {
+            json!({
+                "id": scenario.id,
+                "name": sanitize_readiness_report_text(scenario.name),
+                "category": sanitize_readiness_report_text(scenario.category),
+                "synthetic_summary": sanitize_readiness_report_text(scenario.synthetic_summary),
+                "expected_tier": scenario.expected_tier,
+                "expected_route": scenario.expected_route,
+                "expected_local_behavior": sanitize_readiness_report_text(scenario.expected_local_behavior),
+                "expected_warning": sanitize_readiness_report_text(scenario.expected_warning),
+                "local_next_step": sanitize_readiness_report_text(scenario.local_next_step),
+                "boundary_note": sanitize_readiness_report_text(scenario.boundary_note),
+            })
+        })
+        .collect::<Vec<_>>();
+
+    serde_json::to_string_pretty(&json!({
+        "policy_scenario_schema_version": POLICY_SCENARIO_SCHEMA_VERSION,
+        "mode": "local-preview",
+        "status": "policy_preview",
+        "scope": {
+            "policy_preview_only": true,
+            "synthetic_scenarios_only": true,
+            "route_hints_not_guarantees": true,
+            "local_helper_checks_not_certification": true,
+            "no_formal_legal_guidance": true,
+            "no_formal_legal_correctness_claim": true,
+            "no_telemetry": true,
+            "no_cloud_calls_by_default": true,
+            "no_global_aggregation": true,
+        },
+        "scenarios": scenarios,
+        "boundary_notes": policy_package_boundaries(),
+    }))
+    .unwrap_or_default()
+}
+
+fn format_policy_scenarios_report() -> String {
+    let mut lines = vec![
+        "# IgnisPrompt Local Policy Scenario Report".to_string(),
+        "".to_string(),
+        "This report is policy preview only. It uses synthetic scenarios and route hints, not guarantees. It omits sensitive input content, daemon URLs, network names, user account names, device-specific identifiers, absolute paths, audit event bodies, private credentials, generated evidence contents, and model file contents.".to_string(),
+        "".to_string(),
+        "## Boundaries".to_string(),
+        "".to_string(),
+    ];
+    for boundary in policy_package_boundaries() {
+        lines.push(format!("- {}", boundary));
+    }
+
+    lines.extend([
+        "".to_string(),
+        "## Synthetic Scenarios".to_string(),
+        "".to_string(),
+    ]);
+    for scenario in POLICY_SCENARIOS {
+        lines.push(format!(
+            "- {}: category={}, expected_route={}, expected_tier={}, next_step={}, boundary={}",
+            sanitize_readiness_report_text(scenario.name),
+            sanitize_readiness_report_text(scenario.category),
+            sanitize_readiness_report_text(scenario.expected_route),
+            sanitize_readiness_report_text(scenario.expected_tier),
+            sanitize_readiness_report_text(scenario.local_next_step),
+            sanitize_readiness_report_text(scenario.boundary_note)
+        ));
+    }
+
+    lines.extend([
+        "".to_string(),
+        "## Local Helper Commands".to_string(),
+        "".to_string(),
+        "- cargo run -p ignispromptctl -- policy-scenarios".to_string(),
+        "- cargo run -p ignispromptctl -- policy-scenarios --json".to_string(),
+        "- cargo run -p ignispromptctl -- policy-scenarios --report".to_string(),
+        "- make policy-check".to_string(),
+        "".to_string(),
+    ]);
+    lines.join("\n")
 }
 
 fn readiness_report_next_steps(report: &DoctorReport) -> Vec<String> {
@@ -2372,6 +2768,474 @@ fn operator_package_validation_value(report: &OperatorPackageValidationReport) -
         })).collect::<Vec<_>>(),
         "issues": report.issues,
         "package_boundaries": operator_package_boundaries(),
+    })
+}
+
+fn build_policy_package_report(output_dir: PathBuf) -> Result<PolicyPackageReport, String> {
+    let generated_at_unix_seconds = current_unix_seconds()?;
+    let generated_file_names = POLICY_PACKAGE_REQUIRED_FILES
+        .iter()
+        .map(|file_name| (*file_name).to_string())
+        .collect::<Vec<_>>();
+    let policy_scenarios_json: Value = serde_json::from_str(&format_policy_scenarios_json())
+        .map_err(|error| format!("could not build policy scenario JSON: {}", error))?;
+    let report_markdown = format_policy_scenarios_report();
+    let report_json = build_policy_package_report_json(
+        generated_at_unix_seconds,
+        &generated_file_names,
+        &policy_scenarios_json,
+    );
+    let manifest_json = build_policy_package_manifest_json(
+        generated_at_unix_seconds,
+        &generated_file_names,
+        &policy_scenarios_json,
+    );
+    let readme = build_policy_package_readme();
+
+    validate_no_placeholder_string_values("policy-scenarios", &policy_scenarios_json)?;
+    validate_no_placeholder_string_values("policy-report", &report_json)?;
+    validate_no_placeholder_string_values("policy-manifest", &manifest_json)?;
+    validate_policy_package_safe_text("policy-report.md", &report_markdown)?;
+    validate_policy_package_safe_text("README.md", &readme)?;
+
+    Ok(PolicyPackageReport {
+        output_dir,
+        generated_at_unix_seconds,
+        generated_file_names,
+        policy_scenarios_json,
+        report_json,
+        manifest_json,
+        report_markdown,
+        readme,
+    })
+}
+
+fn build_policy_package_report_json(
+    generated_at_unix_seconds: u64,
+    generated_file_names: &[String],
+    policy_scenarios_json: &Value,
+) -> Value {
+    json!({
+        "policy_package_schema_version": POLICY_PACKAGE_SCHEMA_VERSION,
+        "package_type": POLICY_PACKAGE_TYPE,
+        "package_mode": POLICY_PACKAGE_MODE,
+        "generated_at_unix_seconds": generated_at_unix_seconds,
+        "local_only": true,
+        "policy_preview_only": true,
+        "synthetic_scenarios_only": true,
+        "no_cloud_calls_by_default": true,
+        "no_telemetry": true,
+        "no_global_aggregation": true,
+        "external_assurance_claim": false,
+        "external_integrity_claim": false,
+        "generated_file_names": generated_file_names,
+        "policy_status": policy_scenarios_json.get("status").cloned().unwrap_or(Value::Null),
+        "scenarios": policy_scenarios_json.get("scenarios").cloned().unwrap_or_else(|| json!([])),
+        "package_boundaries": policy_package_boundaries(),
+    })
+}
+
+fn build_policy_package_manifest_json(
+    generated_at_unix_seconds: u64,
+    generated_file_names: &[String],
+    policy_scenarios_json: &Value,
+) -> Value {
+    json!({
+        "policy_package_schema_version": POLICY_PACKAGE_SCHEMA_VERSION,
+        "package_type": POLICY_PACKAGE_TYPE,
+        "package_mode": POLICY_PACKAGE_MODE,
+        "generated_at_unix_seconds": generated_at_unix_seconds,
+        "local_only": true,
+        "generated_file_names": generated_file_names,
+        "files": generated_file_names
+            .iter()
+            .map(|file_name| json!({
+                "name": file_name,
+                "purpose": policy_package_file_purpose(file_name),
+            }))
+            .collect::<Vec<_>>(),
+        "policy_status": policy_scenarios_json.get("status").cloned().unwrap_or(Value::Null),
+        "package_boundaries": policy_package_boundaries(),
+    })
+}
+
+fn policy_package_file_purpose(file_name: &str) -> &'static str {
+    match file_name {
+        "README.md" => "local preview policy package guide",
+        "manifest.json" => "policy package manifest",
+        "policy-scenarios.json" => "safe synthetic policy scenario guidance",
+        "policy-report.json" => "copy-safe policy package summary",
+        "policy-report.md" => "copy-safe policy package report",
+        _ => "policy package file",
+    }
+}
+
+fn policy_package_boundaries() -> Vec<&'static str> {
+    vec![
+        "policy preview only",
+        "synthetic scenarios only",
+        "route hints, not guarantees",
+        "local helper checks, not certification",
+        "package validation is structural/local only",
+        "not signed",
+        "not production attestation",
+        "no formal legal guidance",
+        "no formal legal correctness claim",
+        "no telemetry",
+        "no cloud calls by default",
+        "no global aggregation",
+        "no sensitive input content, audit event bodies, evidence payloads, model file payloads, private credentials, or local machine-specific values",
+    ]
+}
+
+fn build_policy_package_readme() -> String {
+    [
+        "# IgnisPrompt Local Policy Package",
+        "",
+        "This package is a local preview policy scenario summary generated by `ignispromptctl policy-scenarios --package-output`.",
+        "",
+        "Boundaries:",
+        "- policy preview only",
+        "- synthetic scenarios only",
+        "- route hints, not guarantees",
+        "- local helper checks, not certification",
+        "- package validation is structural/local only",
+        "- not signed",
+        "- not production attestation",
+        "- no formal legal guidance",
+        "- no formal legal correctness claim",
+        "- no telemetry",
+        "- no cloud calls by default",
+        "- no global aggregation",
+        "- no sensitive input content, audit event bodies, evidence payloads, model file payloads, private credentials, or local machine-specific values",
+        "",
+        "Contents:",
+        "- README.md",
+        "- manifest.json",
+        "- policy-scenarios.json",
+        "- policy-report.json",
+        "- policy-report.md",
+        "",
+        "Keep this output under ignored `local-evidence/policy/` and do not commit generated policy packages.",
+        "",
+    ]
+    .join("\n")
+}
+
+fn write_policy_package_report(report: &PolicyPackageReport) -> Result<(), String> {
+    if report.output_dir.exists() {
+        return Err(format!(
+            "policy package output already exists: {}",
+            report.output_dir.display()
+        ));
+    }
+
+    let parent = report.output_dir.parent().unwrap_or_else(|| Path::new("."));
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("could not create policy package parent: {}", error))?;
+
+    let staging_dir =
+        package_staging_dir(parent, ".ignispromptctl-policy-package", &report.output_dir);
+    if staging_dir.exists() {
+        let _ = fs::remove_dir_all(&staging_dir);
+    }
+    fs::create_dir_all(&staging_dir)
+        .map_err(|error| format!("could not create policy package staging: {}", error))?;
+
+    let write_result = (|| -> Result<(), String> {
+        write_text_file(&staging_dir.join("README.md"), &report.readme)?;
+        write_pretty_json_file(&staging_dir.join("manifest.json"), &report.manifest_json)?;
+        write_pretty_json_file(
+            &staging_dir.join("policy-scenarios.json"),
+            &report.policy_scenarios_json,
+        )?;
+        write_pretty_json_file(&staging_dir.join("policy-report.json"), &report.report_json)?;
+        write_text_file(
+            &staging_dir.join("policy-report.md"),
+            &report.report_markdown,
+        )?;
+        Ok(())
+    })();
+
+    if let Err(message) = write_result {
+        let _ = fs::remove_dir_all(&staging_dir);
+        return Err(message);
+    }
+
+    fs::rename(&staging_dir, &report.output_dir).map_err(|error| {
+        let _ = fs::remove_dir_all(&staging_dir);
+        format!(
+            "could not finalize policy package at {}: {}",
+            report.output_dir.display(),
+            error
+        )
+    })?;
+
+    Ok(())
+}
+
+fn validate_policy_package_output_dir(output: &str) -> Result<PathBuf, String> {
+    let path = validate_relative_path(output, "policy package output")?;
+    if !path.starts_with("local-evidence/policy") {
+        return Err(
+            "policy package output must stay under ignored local-evidence/policy/".to_string(),
+        );
+    }
+    if path == Path::new("local-evidence/policy") {
+        return Err(
+            "policy package output must include a package directory under local-evidence/policy/"
+                .to_string(),
+        );
+    }
+    if path.exists() {
+        return Err(format!(
+            "policy package output already exists: {}",
+            path.display()
+        ));
+    }
+    Ok(path)
+}
+
+fn safe_policy_package_path(path: &Path) -> String {
+    if path.is_absolute() {
+        "[redacted policy package path]".to_string()
+    } else {
+        path.display().to_string()
+    }
+}
+
+fn build_policy_package_validation_report(
+    package_dir: &Path,
+) -> Result<PolicyPackageValidationReport, String> {
+    if !package_dir.exists() {
+        return Err(format!(
+            "policy package directory does not exist: {}",
+            safe_policy_package_path(package_dir)
+        ));
+    }
+    if !package_dir.is_dir() {
+        return Err(format!(
+            "policy package path is not a directory: {}",
+            safe_policy_package_path(package_dir)
+        ));
+    }
+
+    let mut files = Vec::new();
+    let mut issues = Vec::new();
+    for file_name in POLICY_PACKAGE_REQUIRED_FILES {
+        let path = package_dir.join(file_name);
+        if !path.exists() {
+            issues.push(format!("missing required file: {}", file_name));
+            files.push(ReadinessPackageFileState {
+                file_name,
+                present: false,
+                json_valid: None,
+                text: None,
+            });
+            continue;
+        }
+
+        let text = fs::read_to_string(&path)
+            .map_err(|error| format!("could not read {}: {}", file_name, error))?;
+        if let Err(message) = validate_policy_package_safe_text(file_name, &text) {
+            issues.push(message);
+        }
+        let json_valid = if file_name.ends_with(".json") {
+            match serde_json::from_str::<Value>(&text) {
+                Ok(value) => {
+                    if let Err(message) = validate_no_placeholder_string_values(file_name, &value) {
+                        issues.push(message);
+                    }
+                    Some(true)
+                }
+                Err(error) => {
+                    issues.push(format!("invalid JSON in {}: {}", file_name, error));
+                    Some(false)
+                }
+            }
+        } else {
+            None
+        };
+        files.push(ReadinessPackageFileState {
+            file_name,
+            present: true,
+            json_valid,
+            text: Some(text),
+        });
+    }
+
+    if let Some(readme) = files
+        .iter()
+        .find(|file| file.file_name == "README.md")
+        .and_then(|file| file.text.as_deref())
+    {
+        for term in [
+            "policy preview only",
+            "synthetic scenarios only",
+            "route hints, not guarantees",
+            "local helper checks, not certification",
+            "package validation is structural/local only",
+            "not signed",
+            "not production attestation",
+            "no formal legal guidance",
+            "no formal legal correctness claim",
+            "no telemetry",
+            "no cloud calls by default",
+        ] {
+            if !readme.contains(term) {
+                issues.push(format!("README.md is missing boundary term: {}", term));
+            }
+        }
+    }
+
+    Ok(PolicyPackageValidationReport {
+        package_dir: package_dir.to_path_buf(),
+        files,
+        issues,
+    })
+}
+
+fn validate_policy_package_safe_text(label: &str, text: &str) -> Result<(), String> {
+    validate_operator_package_safe_text(label, text)?;
+    let lower = text.to_ascii_lowercase();
+    for unsafe_term in [
+        "real prompt",
+        "real prompts",
+        "route guarantee",
+        "certified",
+        "security certification",
+        "model controls",
+        "runner controls",
+    ] {
+        if lower.contains(unsafe_term) {
+            return Err(format!(
+                "{} contains unsafe content: {}",
+                label, unsafe_term
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn format_policy_package_summary(report: &PolicyPackageReport) -> String {
+    let status = report
+        .policy_scenarios_json
+        .get("status")
+        .and_then(|value| value.as_str())
+        .unwrap_or("unknown");
+    let mut lines = vec![
+        "IgnisPrompt Local Policy Package".to_string(),
+        format!("Schema version: {}", POLICY_PACKAGE_SCHEMA_VERSION),
+        format!("Package mode: {}", POLICY_PACKAGE_MODE),
+        format!("Output dir: {}", report.output_dir.display()),
+        format!(
+            "Generated at (unix seconds): {}",
+            report.generated_at_unix_seconds
+        ),
+        format!("Policy status: {}", status),
+        "Boundaries: policy preview only; synthetic scenarios only; route hints, not guarantees; local helper checks, not certification; package validation is structural/local only; not signed.".to_string(),
+        "".to_string(),
+        "Generated files:".to_string(),
+    ];
+    for file_name in &report.generated_file_names {
+        lines.push(format!("- {}", file_name));
+    }
+    lines.push("".to_string());
+    lines.push("Next steps:".to_string());
+    lines.push(
+        "- run cargo run -p ignispromptctl -- policy-scenarios --package-validate <package-dir>"
+            .to_string(),
+    );
+    lines.push(
+        "- review Aethra Local Policy Workbench package preview as read-only guidance.".to_string(),
+    );
+    lines.join("\n")
+}
+
+fn format_policy_package_summary_json(report: &PolicyPackageReport) -> String {
+    serde_json::to_string_pretty(&report.report_json).unwrap_or_default()
+}
+
+fn format_policy_package_validation_summary(report: &PolicyPackageValidationReport) -> String {
+    let mut lines = vec![
+        "IgnisPrompt Local Policy Package Validation".to_string(),
+        format!(
+            "Package dir: {}",
+            safe_policy_package_path(&report.package_dir)
+        ),
+        format!(
+            "Status: {}",
+            if report.issues.is_empty() {
+                "ok"
+            } else {
+                "failed"
+            }
+        ),
+        "".to_string(),
+        "Files:".to_string(),
+    ];
+    for file in &report.files {
+        lines.push(format!(
+            "- {}: {}",
+            file.file_name,
+            if file.present { "present" } else { "missing" }
+        ));
+    }
+    if !report.issues.is_empty() {
+        lines.push("".to_string());
+        lines.push("Issues:".to_string());
+        for issue in &report.issues {
+            lines.push(format!("- {}", issue));
+        }
+    }
+    lines.join("\n")
+}
+
+fn format_policy_package_list_summary(report: &PolicyPackageValidationReport) -> String {
+    let mut lines = vec![
+        "IgnisPrompt Local Policy Package Files".to_string(),
+        format!(
+            "Package dir: {}",
+            safe_policy_package_path(&report.package_dir)
+        ),
+        "".to_string(),
+    ];
+    for file in &report.files {
+        let json_label = match file.json_valid {
+            Some(true) => " json=valid",
+            Some(false) => " json=invalid",
+            None => "",
+        };
+        lines.push(format!(
+            "- {}: {}{}",
+            file.file_name,
+            if file.present { "present" } else { "missing" },
+            json_label
+        ));
+    }
+    lines.join("\n")
+}
+
+fn format_policy_package_validation_json(report: &PolicyPackageValidationReport) -> String {
+    serde_json::to_string_pretty(&policy_package_validation_value(report)).unwrap_or_default()
+}
+
+fn format_policy_package_list_json(report: &PolicyPackageValidationReport) -> String {
+    serde_json::to_string_pretty(&policy_package_validation_value(report)).unwrap_or_default()
+}
+
+fn policy_package_validation_value(report: &PolicyPackageValidationReport) -> Value {
+    json!({
+        "policy_package_schema_version": POLICY_PACKAGE_SCHEMA_VERSION,
+        "status": if report.issues.is_empty() { "ok" } else { "failed" },
+        "package_dir": safe_policy_package_path(&report.package_dir),
+        "files": report.files.iter().map(|file| json!({
+            "name": file.file_name,
+            "present": file.present,
+            "json_valid": file.json_valid,
+        })).collect::<Vec<_>>(),
+        "issues": report.issues,
+        "package_boundaries": policy_package_boundaries(),
     })
 }
 
@@ -5525,6 +6389,7 @@ mod tests {
         build_evidence_bundle_archive_verification_report, build_evidence_bundle_manifest_report,
         build_evidence_bundle_report, build_evidence_bundle_validation_report,
         build_operator_package_report, build_operator_package_validation_report,
+        build_policy_package_report, build_policy_package_validation_report,
         build_readiness_package_report, build_readiness_package_validation_report,
         build_route_explain_body, current_unix_seconds, doctor_endpoint_url,
         format_audit_events_summary, format_doctor_json, format_doctor_summary,
@@ -5539,7 +6404,11 @@ mod tests {
         format_operator_package_list_json, format_operator_package_list_summary,
         format_operator_package_summary, format_operator_package_summary_json,
         format_operator_package_validation_json, format_operator_package_validation_summary,
-        format_operator_summary, format_operator_summary_json, format_readiness_json,
+        format_operator_summary, format_operator_summary_json, format_policy_package_list_json,
+        format_policy_package_list_summary, format_policy_package_summary,
+        format_policy_package_summary_json, format_policy_package_validation_json,
+        format_policy_package_validation_summary, format_policy_scenarios_json,
+        format_policy_scenarios_report, format_policy_scenarios_summary, format_readiness_json,
         format_readiness_markdown, format_readiness_package_list_json,
         format_readiness_package_list_summary, format_readiness_package_summary,
         format_readiness_package_summary_json, format_readiness_package_validation_json,
@@ -5551,10 +6420,11 @@ mod tests {
         validate_doctor_sustainability_metrics, validate_doctor_version_status,
         validate_evidence_bundle_archive_output_path, validate_evidence_bundle_output_dir,
         validate_no_placeholder_string_values, validate_operator_package_output_dir,
-        validate_readiness_package_output_dir, validate_sustainability_period,
-        write_evidence_bundle_report, write_operator_package_report,
-        write_readiness_package_report, DoctorCheckLevel, DoctorCheckResult, DoctorReport,
-        EvidenceBundleCapture, DOCTOR_CHECKS, OPERATOR_PACKAGE_REQUIRED_FILES,
+        validate_policy_package_output_dir, validate_readiness_package_output_dir,
+        validate_sustainability_period, write_evidence_bundle_report,
+        write_operator_package_report, write_policy_package_report, write_readiness_package_report,
+        DoctorCheckLevel, DoctorCheckResult, DoctorReport, EvidenceBundleCapture, DOCTOR_CHECKS,
+        OPERATOR_PACKAGE_REQUIRED_FILES, POLICY_PACKAGE_REQUIRED_FILES,
         READINESS_PACKAGE_REQUIRED_FILES,
     };
     use serde_json::json;
@@ -5587,6 +6457,10 @@ mod tests {
 
     fn unique_operator_package_test_dir(label: &str) -> std::path::PathBuf {
         unique_local_evidence_test_dir("local-evidence/operator/test-packages", label)
+    }
+
+    fn unique_policy_package_test_dir(label: &str) -> std::path::PathBuf {
+        unique_local_evidence_test_dir("local-evidence/policy/test-packages", label)
     }
 
     fn unique_bundle_test_dir(label: &str) -> std::path::PathBuf {
@@ -6271,6 +7145,154 @@ mod tests {
         assert!(issues.contains("placeholder"));
         assert!(issues.contains("unsafe content"));
         assert!(format_operator_package_validation_summary(&validation).contains("Status: failed"));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn policy_scenarios_human_json_and_report_are_conservative() {
+        let summary = format_policy_scenarios_summary();
+        let json_text = format_policy_scenarios_json();
+        let report_text = format_policy_scenarios_report();
+        let joined = [summary.as_str(), json_text.as_str(), report_text.as_str()]
+            .join("\n")
+            .to_ascii_lowercase();
+        let report: serde_json::Value = serde_json::from_str(&json_text).unwrap();
+
+        assert!(summary.contains("IgnisPrompt Local Policy Scenarios"));
+        assert!(summary.contains("synthetic scenarios only"));
+        assert!(summary.contains("route hints, not guarantees"));
+        assert!(summary.contains("make policy-check"));
+        assert_eq!(
+            report["policy_scenario_schema_version"],
+            "ignisprompt-policy-scenarios-0.1"
+        );
+        assert_eq!(report["status"], "policy_preview");
+        assert_eq!(report["scope"]["policy_preview_only"], true);
+        assert_eq!(report["scope"]["synthetic_scenarios_only"], true);
+        assert!(report["scenarios"].as_array().unwrap().len() >= 6);
+        assert!(report_text.contains("# IgnisPrompt Local Policy Scenario Report"));
+        assert!(report_text.contains("unsupported/cloud-required request"));
+        assert!(!json_text.contains("\"string\""));
+        assert!(!joined.contains("production readiness"));
+        assert!(!joined.contains("production deployment"));
+        assert!(!joined.contains("legal accuracy"));
+        assert!(!joined.contains("legal advice"));
+        assert!(!joined.contains("compliance certification"));
+        assert!(!joined.contains("security certification"));
+        assert!(!joined.contains("signed attestation"));
+        assert!(!joined.contains("tamper-evident"));
+        assert!(!joined.contains("cryptographic verification"));
+        assert!(!joined.contains("model controls"));
+        assert!(!joined.contains("runner controls"));
+        assert!(!joined.contains("prompt:"));
+        assert!(!joined.contains("real prompt"));
+        assert!(!joined.contains("raw user text"));
+        assert!(!joined.contains("api key"));
+        assert!(!joined.contains("api_key"));
+        assert!(!joined.contains("127.0.0.1"));
+        assert!(!joined.contains("localhost"));
+        assert!(!joined.contains("hostname"));
+        assert!(!joined.contains("username"));
+        assert!(!joined.contains("/users/"));
+    }
+
+    #[test]
+    fn policy_package_output_path_requires_ignored_policy_root() {
+        assert!(validate_policy_package_output_dir("local-evidence/policy/demo-policy").is_ok());
+        assert!(validate_policy_package_output_dir("local-evidence/policy").is_err());
+        assert!(validate_policy_package_output_dir("local-evidence/demo-policy").is_err());
+        assert!(validate_policy_package_output_dir("/tmp/policy").is_err());
+        assert!(validate_policy_package_output_dir("local-evidence/policy/../bad").is_err());
+    }
+
+    #[test]
+    fn policy_package_writes_and_validates_safe_files() {
+        let output_dir = unique_policy_package_test_dir("write-safe");
+        let _ = std::fs::remove_dir_all(&output_dir);
+
+        let package = build_policy_package_report(output_dir.clone()).unwrap();
+        write_policy_package_report(&package).unwrap();
+
+        for file_name in POLICY_PACKAGE_REQUIRED_FILES {
+            assert!(output_dir.join(file_name).exists());
+        }
+        let validation = build_policy_package_validation_report(&output_dir).unwrap();
+        assert!(validation.issues.is_empty());
+        assert!(format_policy_package_validation_summary(&validation).contains("Status: ok"));
+        assert!(format_policy_package_list_summary(&validation).contains("policy-report.md"));
+        assert!(format_policy_package_validation_json(&validation).contains("\"status\": \"ok\""));
+        assert!(format_policy_package_list_json(&validation).contains("policy-scenarios.json"));
+
+        let summary = format_policy_package_summary(&package);
+        let summary_json = format_policy_package_summary_json(&package);
+        let lower_package_text = [
+            summary.as_str(),
+            summary_json.as_str(),
+            package.report_markdown.as_str(),
+            package.readme.as_str(),
+        ]
+        .join("\n")
+        .to_ascii_lowercase();
+        assert!(summary.contains("IgnisPrompt Local Policy Package"));
+        assert!(summary_json.contains("\"local_only\": true"));
+        assert!(summary_json.contains("\"policy_package_schema_version\""));
+        assert!(lower_package_text.contains("policy preview only"));
+        assert!(lower_package_text.contains("synthetic scenarios only"));
+        assert!(lower_package_text.contains("route hints, not guarantees"));
+        assert!(lower_package_text.contains("local helper checks, not certification"));
+        assert!(lower_package_text.contains("package validation is structural/local only"));
+        assert!(lower_package_text.contains("not signed"));
+        assert!(lower_package_text.contains("not production attestation"));
+        assert!(!lower_package_text.contains("prompt:"));
+        assert!(!lower_package_text.contains("real prompt"));
+        assert!(!lower_package_text.contains("raw user text"));
+        assert!(!lower_package_text.contains("raw audit text"));
+        assert!(!lower_package_text.contains("api_key"));
+        assert!(!lower_package_text.contains("sk-"));
+        assert!(!lower_package_text.contains("localhost"));
+        assert!(!lower_package_text.contains("127.0.0.1"));
+        assert!(!lower_package_text.contains("hostname"));
+        assert!(!lower_package_text.contains("username"));
+        assert!(!lower_package_text.contains("/users/"));
+        assert!(!lower_package_text.contains("production readiness"));
+        assert!(!lower_package_text.contains("production deployment"));
+        assert!(!lower_package_text.contains("legal accuracy"));
+        assert!(!lower_package_text.contains("esg certification"));
+        assert!(!lower_package_text.contains("compliance certification"));
+        assert!(!lower_package_text.contains("security certification"));
+        assert!(!lower_package_text.contains("tamper-evident"));
+        assert!(!lower_package_text.contains("cryptographic verification"));
+        assert!(!lower_package_text.contains("signed attestation"));
+        assert!(!lower_package_text.contains("model controls"));
+        assert!(!lower_package_text.contains("runner controls"));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn policy_package_validation_reports_unsafe_content() {
+        let output_dir = unique_policy_package_test_dir("unsafe");
+        let _ = std::fs::remove_dir_all(&output_dir);
+        std::fs::create_dir_all(&output_dir).unwrap();
+        for file_name in POLICY_PACKAGE_REQUIRED_FILES {
+            let path = output_dir.join(file_name);
+            if file_name.ends_with(".json") {
+                std::fs::write(path, "{\"value\":\"string\"}\n").unwrap();
+            } else {
+                std::fs::write(
+                    path,
+                    "policy preview only\nsynthetic scenarios only\nroute hints, not guarantees\nlocal helper checks, not certification\npackage validation is structural/local only\nnot signed\nnot production attestation\nno formal legal guidance\nno formal legal correctness claim\nno telemetry\nno cloud calls by default\nprompt: raw audit text /Users/alice api_key sk-test\n",
+                )
+                .unwrap();
+            }
+        }
+
+        let validation = build_policy_package_validation_report(&output_dir).unwrap();
+        let issues = validation.issues.join("\n");
+        assert!(issues.contains("placeholder"));
+        assert!(issues.contains("unsafe content"));
+        assert!(format_policy_package_validation_summary(&validation).contains("Status: failed"));
 
         let _ = std::fs::remove_dir_all(&output_dir);
     }

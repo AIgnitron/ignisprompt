@@ -3,6 +3,7 @@ import { AuditEvents } from "./routes/AuditEvents";
 import { EvidenceBundleViewer } from "./routes/EvidenceBundleViewer";
 import { LocalCommandCenter } from "./routes/LocalCommandCenter";
 import { LocalOperatorConsole } from "./routes/LocalOperatorConsole";
+import { LocalPolicyWorkbench } from "./routes/LocalPolicyWorkbench";
 import { LocalReadiness } from "./routes/LocalReadiness";
 import { StatusBadge } from "./components/StatusBadge";
 import { createIgnisPromptClient } from "./api/client";
@@ -35,6 +36,7 @@ type AethraRoute =
   | "overview"
   | "local-readiness"
   | "local-operator-console"
+  | "local-policy-workbench"
   | "local-command-center"
   | "routing-explorer"
   | "audit-events"
@@ -298,6 +300,15 @@ export default function App() {
           <button
             type="button"
             aria-current={
+              activeRoute === "local-policy-workbench" ? "page" : undefined
+            }
+            onClick={() => setActiveRoute("local-policy-workbench")}
+          >
+            Local policy workbench
+          </button>
+          <button
+            type="button"
+            aria-current={
               activeRoute === "routing-explorer" ? "page" : undefined
             }
             onClick={() => setActiveRoute("routing-explorer")}
@@ -410,6 +421,9 @@ export default function App() {
         {activeRoute === "local-command-center" ? <LocalCommandCenter /> : null}
         {activeRoute === "local-operator-console" ? (
           <LocalOperatorConsole />
+        ) : null}
+        {activeRoute === "local-policy-workbench" ? (
+          <LocalPolicyWorkbench />
         ) : null}
         {activeRoute === "routing-explorer" ? (
           <RoutingExplorer

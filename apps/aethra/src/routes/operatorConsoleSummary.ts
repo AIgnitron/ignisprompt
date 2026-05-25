@@ -126,6 +126,38 @@ export const operatorCommandRecipes: OperatorCommandRecipe[] = [
     detail: "Runs structural/local operator package validation.",
   },
   {
+    id: "policy-scenarios",
+    label: "Inspect policy scenarios",
+    command: "cargo run -p ignispromptctl -- policy-scenarios",
+    detail: "Reviews synthetic local-preview policy route hints.",
+  },
+  {
+    id: "policy-scenarios-json",
+    label: "Inspect policy scenario JSON",
+    command: "cargo run -p ignispromptctl -- policy-scenarios --json",
+    detail: "Prints safe structured policy scenario guidance.",
+  },
+  {
+    id: "policy-package-output",
+    label: "Generate policy package",
+    command:
+      "cargo run -p ignispromptctl -- policy-scenarios --package-output local-evidence/policy/demo",
+    detail: "Writes a local-only policy package under ignored paths.",
+  },
+  {
+    id: "policy-package-validate",
+    label: "Validate policy package",
+    command:
+      "cargo run -p ignispromptctl -- policy-scenarios --package-validate local-evidence/policy/demo",
+    detail: "Runs structural/local policy package validation.",
+  },
+  {
+    id: "policy-check",
+    label: "Run policy quality gate",
+    command: "make policy-check",
+    detail: "Runs deterministic local policy workbench checks.",
+  },
+  {
     id: "evidence-check",
     label: "Run evidence quality gate",
     command: "make evidence-check",
@@ -235,6 +267,14 @@ export function buildOperatorConsoleSummary(): OperatorConsoleSummary {
         value: "copy-only guidance",
         detail:
           "No telemetry, no global aggregation, no uploads, and no cloud calls by default.",
+        tone: "neutral",
+      },
+      {
+        id: "policy-workbench",
+        label: "Local policy workbench",
+        value: "synthetic scenarios",
+        detail:
+          "Policy route summaries are local-preview hints, not guarantees; package validation is structural/local only.",
         tone: "neutral",
       },
       {

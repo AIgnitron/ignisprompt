@@ -10,6 +10,7 @@ describe("Aethra app navigation and demo guidance", () => {
       "Local readiness",
       "Local command center",
       "Local operator console",
+      "Local policy workbench",
       "Route explorer",
       "Audit events",
       "Model and runner status",

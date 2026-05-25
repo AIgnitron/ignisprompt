@@ -37,7 +37,19 @@ describe("local operator console route", () => {
     expect(markup).toContain(
       "cargo run -p ignispromptctl -- operator-summary --package-validate local-evidence/operator/demo",
     );
+    expect(markup).toContain("Local policy workbench");
+    expect(markup).toContain("cargo run -p ignispromptctl -- policy-scenarios");
+    expect(markup).toContain(
+      "cargo run -p ignispromptctl -- policy-scenarios --json",
+    );
+    expect(markup).toContain(
+      "cargo run -p ignispromptctl -- policy-scenarios --package-output local-evidence/policy/demo",
+    );
+    expect(markup).toContain(
+      "cargo run -p ignispromptctl -- policy-scenarios --package-validate local-evidence/policy/demo",
+    );
     expect(markup).toContain("make readiness-check");
+    expect(markup).toContain("make policy-check");
     expect(markup).toContain("make evidence-check");
     expect(markup).toContain(
       "./scripts/demo-local-evidence-workflow.sh --self-test",
