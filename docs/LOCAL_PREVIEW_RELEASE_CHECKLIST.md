@@ -75,10 +75,11 @@ For v0.1.5 release-readiness work, keep the local readiness quality gate aligned
 - readiness package verification remains structural local validation only
 - no telemetry, cloud calls by default, global aggregation, model controls, runner controls, command execution, upload, polling, or persistence are added
 
-## v0.1.6 Operator Console Planning Notes
+## v0.1.6 Release Readiness Notes
 
-For v0.1.6 planning, keep the local operator workflow aligned across Aethra, CLI, scripts, and docs:
+For v0.1.6 release-readiness work, keep the local operator workflow aligned across Aethra, CLI, scripts, and docs:
 
+- `docs/releases/v0.1.6-local-preview.md` exists and stays conservative
 - `make operator-check` passes
 - `cargo run -p ignispromptctl -- operator-summary` stays local preview operator workflow only
 - `cargo run -p ignispromptctl -- operator-summary --json` keeps copy-only command recipes and boundary notes conservative
@@ -89,6 +90,8 @@ For v0.1.6 planning, keep the local operator workflow aligned across Aethra, CLI
 - command recipes remain copy-only and are not executed from Aethra
 - readiness and operator package validation remain structural/local only
 - archives and packages remain local-only helper outputs and are not signed
+- operator packages remain local-only helper outputs and are not signed
+- operator package validation remains structural/local validation only
 - local helper checks remain checks, not certification
 - status values remain hints, not controls
 - no telemetry, cloud calls by default, global aggregation, model controls, runner controls, command execution, upload, polling, file picker, or persistence are added
@@ -135,7 +138,7 @@ This combines the repository sustainability language guardrail, Rust tests, defa
 
 The guardrail is intended to catch unsupported or overconfident sustainability wording such as carbon-saved claims, measured-emissions certainty, zero-emissions certainty, certification language, ESG claims, and production or compliance claims that conflict with the estimated/proxy/counterfactual/methodology-dependent boundaries. It is a repository language check, not a substitute for reviewer judgment.
 
-For v0.1.5 release prep, also confirm `make readiness-check` and `make evidence-check` pass and that the local evidence and readiness package workflows still keep outputs under ignored `local-evidence/` paths.
+For v0.1.6 release prep, also confirm `make operator-check`, `make readiness-check`, and `make evidence-check` pass and that the local evidence, readiness package, and operator package workflows still keep outputs under ignored `local-evidence/` paths.
 
 ## Aethra Checks
 
@@ -209,7 +212,9 @@ npm run dev
 14. Confirm empty states explain fixture mode, missing live-local data, unavailable daemon responses, and panels that need manual refresh.
 15. Open Aethra Local Readiness and confirm readiness cards, diagnostics, report snippets, and readiness package preview are fixture-backed by default and read-only.
 16. Confirm Local Readiness command snippets include `ignispromptctl readiness`, `readiness --json`, `readiness --markdown`, readiness package generation/list/validate commands, `make readiness-check`, and `make evidence-check`.
-17. Confirm no polling, no telemetry, no cloud call, no upload, no update check, no GitHub API call, no remote execution, and no persistence is introduced.
+17. Open Aethra Local Operator Console and confirm operator summary cards, local command recipes, demo workflow next steps, and operator package preview are fixture-backed by default and read-only.
+18. Confirm Local Operator Console command snippets include `ignispromptctl operator-summary`, `operator-summary --json`, operator package generation/list/validate commands, `make operator-check`, `make readiness-check`, and `make evidence-check`.
+19. Confirm no polling, no telemetry, no cloud call, no upload, no archive extraction, no file picker, no update check, no GitHub API call, no remote execution, and no persistence is introduced.
 
 ## Sustainability Endpoint Verification
 
@@ -225,12 +230,18 @@ rm -rf local-evidence/readiness/release-check-demo
 cargo run -p ignispromptctl -- readiness --package-output local-evidence/readiness/release-check-demo --json
 cargo run -p ignispromptctl -- readiness --package-list local-evidence/readiness/release-check-demo --json
 cargo run -p ignispromptctl -- readiness --package-validate local-evidence/readiness/release-check-demo --json
+rm -rf local-evidence/operator/release-check-demo
+cargo run -p ignispromptctl -- operator-summary
+cargo run -p ignispromptctl -- operator-summary --json
+cargo run -p ignispromptctl -- operator-summary --package-output local-evidence/operator/release-check-demo --json
+cargo run -p ignispromptctl -- operator-summary --package-list local-evidence/operator/release-check-demo --json
+cargo run -p ignispromptctl -- operator-summary --package-validate local-evidence/operator/release-check-demo --json
 curl -fsS "http://127.0.0.1:8765/v1/metrics/sustainability?period=30d" | jq .
 cargo run -p ignispromptctl -- sustainability --period 30d
 cargo run -p ignispromptctl -- sustainability --period 30d --json
 ```
 
-`ignispromptctl doctor` and `ignispromptctl readiness` should pass required checks for `/health`, `/v1/status/version`, `/v1/models`, and `/v1/status/models`. Their `/v1/metrics/sustainability?period=30d` check is informational. The commands must remain local-only diagnostics with no telemetry, cloud calls, GitHub calls, update checks, external lookup, persistence, uploads, model controls, or runner controls.
+`ignispromptctl doctor` and `ignispromptctl readiness` should pass required checks for `/health`, `/v1/status/version`, `/v1/models`, and `/v1/status/models`. Their `/v1/metrics/sustainability?period=30d` check is informational. `ignispromptctl operator-summary` should remain local preview operator workflow guidance and local operator package validation should remain structural/local only. The commands must remain local-only diagnostics with no telemetry, cloud calls, GitHub calls, update checks, external lookup, persistence, uploads, model controls, or runner controls.
 
 Confirm the response includes:
 
