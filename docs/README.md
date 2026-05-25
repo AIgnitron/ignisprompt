@@ -1,6 +1,6 @@
 # IgnisPrompt Documentation
 
-Latest local preview release: `v0.1.5-local-preview`.
+Latest local preview release: `v0.1.6-local-preview`.
 
 IgnisPrompt is currently local-preview infrastructure for local AI routing and inspection. The implemented milestone is the control-plane spine: accept a request, route it locally, explain the route, write a local audit event, and preserve fail-closed behavior for legal requests without cloud fallback.
 
@@ -41,7 +41,7 @@ The default path does not require Ollama, GGUF tooling, model weights, or networ
 - [Local Preview v0.1.3 Release Readiness](releases/v0.1.3-local-preview.md): draft release-readiness record for the next local preview package after v0.1.2.
 - [Local Preview v0.1.4 Release Readiness](releases/v0.1.4-local-preview.md): draft release-readiness record for the next local preview package after v0.1.3, including the local evidence workflow and Aethra command center arc.
 - [Local Preview v0.1.5 Release Readiness](releases/v0.1.5-local-preview.md): release-readiness record for the v0.1.5 local readiness arc, including the local readiness dashboard, CLI readiness diagnostics, readiness quality gate, report export, and readiness package workflow.
-- [Local Preview v0.1.6 Release Readiness](releases/v0.1.6-local-preview.md): draft release-readiness record for the v0.1.6 local operator workflow arc, including the Local Operator Console, `operator-summary`, operator packages, operator-check, and demo workflow alignment.
+- [Local Preview v0.1.6 Release Record](releases/v0.1.6-local-preview.md): published local-preview release record for the v0.1.6 local operator workflow arc, including the Local Operator Console, `operator-summary`, operator packages, operator-check, and demo workflow alignment.
 - [Runner Providers](RUNNER_PROVIDERS.md): `ModelRunner` trait, `ModelRunnerContext`, provider ordering, and rules for adding new local runners.
 - [Demo](DEMO.md): default smoke flow and optional GGUF/Ollama demo flow.
 - [Demo Readiness Checklist](DEMO_READINESS_CHECKLIST.md): short pre-demo checks for local-only behavior, synthetic data, evidence handling, and optional GGUF runs.

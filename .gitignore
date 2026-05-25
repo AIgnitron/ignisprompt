@@ -8,3 +8,6 @@
 /target/
 
 /data/audit/*.jsonl
+
+.DS_Store
+/dist/
