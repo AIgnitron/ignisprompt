@@ -30,7 +30,8 @@ This roadmap describes intended direction, not completed functionality. Any item
 - `StubLegalRunner` as the default Tier 3 legal fallback.
 - Optional `gguf-runner-spike` feature that can call a local subprocess runner when configured and when the local `.gguf` file exists, with a deterministic subprocess timeout.
 - Local JSON extraction and validation shim for the GGUF legal spike.
-- Default CI path that does not need Ollama, GGUF files, or model weights.
+- Default CI path that does not need Ollama, GGUF files, or model weights, plus separate Aethra fixture-backed test/build coverage.
+- Local daemon HTTP bind/CORS guardrails, GGUF blocking-task isolation, and audit append durability ordering for local-preview runtime hardening.
 - Local security review helper checks for hidden Unicode markers and conservative accidental secret patterns.
 
 ## Near-term work

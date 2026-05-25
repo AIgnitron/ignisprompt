@@ -12,7 +12,7 @@ mod sustainability;
 use anyhow::{Context, Result};
 use axum::{
     extract::{Query, State},
-    http::{header, StatusCode},
+    http::{header, HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -36,7 +36,10 @@ use tokio::{
     net::TcpListener,
     sync::RwLock,
 };
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tower_http::{
+    cors::{AllowOrigin, Any, CorsLayer},
+    trace::TraceLayer,
+};
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -98,6 +101,14 @@ struct Args {
         default_value_t = false
     )]
     experimental_mcp_stdio: bool,
+
+    /// Allow unsafe permissive CORS when binding the HTTP daemon to a non-loopback address.
+    #[arg(
+        long,
+        env = "IGNISPROMPT_ALLOW_NON_LOOPBACK_CORS",
+        default_value_t = false
+    )]
+    allow_non_loopback_cors: bool,
 
     #[cfg(feature = "gguf-runner-spike")]
     /// Optional local GGUF runner binary for Tier 3 legal inference spikes.
@@ -466,10 +477,6 @@ impl AuditStore {
     }
 
     async fn append(&self, event: AuditEvent) -> Result<()> {
-        let mut events = self.events.write().await;
-        events.push(event.clone());
-        drop(events);
-
         let line = serde_json::to_string(&event)?;
         use tokio::io::AsyncWriteExt;
         let mut file = fs::OpenOptions::new()
@@ -479,6 +486,9 @@ impl AuditStore {
             .await?;
         file.write_all(line.as_bytes()).await?;
         file.write_all(b"\n").await?;
+
+        let mut events = self.events.write().await;
+        events.push(event);
         Ok(())
     }
 
@@ -567,6 +577,9 @@ async fn main() -> Result<()> {
 
     #[cfg(feature = "gguf-runner-spike")]
     log_gguf_runner_configuration(&args);
+    if !args.experimental_mcp_stdio {
+        validate_http_bind_boundary(&args)?;
+    }
     let registry = load_model_registry(&args.model_dir)
         .await
         .with_context(|| {
@@ -596,6 +609,7 @@ async fn main() -> Result<()> {
 }
 
 async fn run_http_daemon(state: AppState, bind: SocketAddr) -> Result<()> {
+    let cors = cors_layer_for_http_bind(&state.config);
     let app = Router::new()
         .route("/health", get(health))
         .route("/v1/models", get(list_models))
@@ -605,7 +619,7 @@ async fn run_http_daemon(state: AppState, bind: SocketAddr) -> Result<()> {
         .route("/v1/chat/completions", post(chat_completions))
         .route("/v1/audit/events", get(list_audit_events))
         .route("/v1/metrics/sustainability", get(sustainability_metrics))
-        .layer(CorsLayer::permissive())
+        .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
@@ -613,6 +627,53 @@ async fn run_http_daemon(state: AppState, bind: SocketAddr) -> Result<()> {
     info!(%bind, "ignispromptd listening");
     axum::serve(listener, app).await?;
     Ok(())
+}
+
+fn validate_http_bind_boundary(config: &Args) -> Result<()> {
+    if config.bind.ip().is_loopback() || config.allow_non_loopback_cors {
+        return Ok(());
+    }
+
+    anyhow::bail!(
+        "refusing non-loopback HTTP bind {} without --allow-non-loopback-cors. This local-preview daemon has no auth or TLS; keep the default loopback bind or explicitly acknowledge unsafe permissive CORS for trusted local networks.",
+        config.bind
+    );
+}
+
+fn cors_layer_for_http_bind(config: &Args) -> CorsLayer {
+    if config.bind.ip().is_loopback() {
+        CorsLayer::new()
+            .allow_origin(AllowOrigin::predicate(|origin, _request_parts| {
+                is_loopback_cors_origin(origin)
+            }))
+            .allow_methods([Method::GET, Method::POST])
+            .allow_headers([header::CONTENT_TYPE])
+    } else {
+        CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any)
+    }
+}
+
+fn is_loopback_cors_origin(origin: &HeaderValue) -> bool {
+    let Ok(origin) = origin.to_str() else {
+        return false;
+    };
+    let Some(rest) = origin
+        .strip_prefix("http://")
+        .or_else(|| origin.strip_prefix("https://"))
+    else {
+        return false;
+    };
+    let authority = rest.split('/').next().unwrap_or_default();
+
+    if let Some(after_bracket) = authority.strip_prefix("[::1]") {
+        return after_bracket.is_empty() || after_bracket.starts_with(':');
+    }
+
+    let host = authority.split(':').next().unwrap_or_default();
+    matches!(host, "localhost" | "127.0.0.1")
 }
 
 async fn run_mcp_stdio(state: AppState) -> Result<()> {
@@ -1000,7 +1061,8 @@ async fn chat_completions(
                 &req,
                 &decision,
                 selected_model.as_ref(),
-            );
+            )
+            .await;
             if let Some(key) =
                 cache_key.filter(|_| completion_output_is_cacheable(&completion_output))
             {
@@ -1100,7 +1162,55 @@ fn chat_completion_http_response(
     }
 }
 
-fn completion_output_for_decision(
+async fn completion_output_for_decision(
+    model_runners: &ModelRunnerAdapter,
+    config: &Args,
+    req: &ChatCompletionRequest,
+    decision: &RouteDecision,
+    selected_model: Option<&ModelManifest>,
+) -> ModelRunnerOutput {
+    #[cfg(feature = "gguf-runner-spike")]
+    let runner_result = {
+        let model_runners = model_runners.clone();
+        let config = config.clone();
+        let req = req.clone();
+        let decision = decision.clone();
+        let selected_model = selected_model.cloned();
+
+        tokio::task::spawn_blocking(move || {
+            completion_output_for_decision_blocking(
+                &model_runners,
+                &config,
+                &req,
+                &decision,
+                selected_model.as_ref(),
+            )
+        })
+        .await
+    };
+
+    #[cfg(feature = "gguf-runner-spike")]
+    match runner_result {
+        Ok(output) => output,
+        Err(err) => {
+            warn!(
+                error = %err,
+                tier = %decision.tier,
+                route_code = %decision.route_code,
+                "model runner blocking task failed; falling back to inline stub"
+            );
+            ModelRunnerOutput {
+                content: default_completion_text(decision).to_string(),
+                metadata: None,
+            }
+        }
+    }
+
+    #[cfg(not(feature = "gguf-runner-spike"))]
+    completion_output_for_decision_blocking(model_runners, config, req, decision, selected_model)
+}
+
+fn completion_output_for_decision_blocking(
     model_runners: &ModelRunnerAdapter,
     config: &Args,
     req: &ChatCompletionRequest,
@@ -2317,6 +2427,7 @@ mod tests {
             exact_match_cache_max_entries: 128,
             force_ram_pressure: false,
             experimental_mcp_stdio: false,
+            allow_non_loopback_cors: false,
             #[cfg(feature = "gguf-runner-spike")]
             gguf_runner_bin: None,
             #[cfg(feature = "gguf-runner-spike")]
@@ -2326,6 +2437,112 @@ mod tests {
             #[cfg(feature = "gguf-runner-spike")]
             gguf_runner_timeout_ms: 30_000,
         }
+    }
+
+    fn sample_audit_event(request_id: &str) -> AuditEvent {
+        AuditEvent {
+            request_id: request_id.to_string(),
+            timestamp: Utc::now(),
+            event_type: "route_explain".to_string(),
+            route_code: "DOMAIN_MODEL_SELECTED".to_string(),
+            tier: "TIER_3".to_string(),
+            domain: "legal".to_string(),
+            model_id: Some("legal-saul-placeholder".to_string()),
+            data_left_device: false,
+            explanation: "local preview audit test event".to_string(),
+            warnings: vec![],
+            cache: None,
+            completion_output: None,
+            input_tokens_est: None,
+            output_tokens_est: None,
+            baseline_provider: None,
+            baseline_model: None,
+            estimated_cloud_cost_usd: None,
+            estimated_cloud_cost_avoided_usd: None,
+            estimated_local_energy_wh: None,
+            estimated_cloud_baseline_wh: None,
+            estimated_carbon_avoided_gco2e: None,
+            methodology_version: None,
+            confidence: None,
+        }
+    }
+
+    #[test]
+    fn cors_bind_boundary_rejects_non_loopback_without_explicit_override() {
+        let mut config = test_args(PathBuf::from("./data/audit/events.jsonl"));
+        config.bind = "0.0.0.0:8765".parse().unwrap();
+
+        let error = validate_http_bind_boundary(&config)
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains("refusing non-loopback HTTP bind"));
+        assert!(error.contains("--allow-non-loopback-cors"));
+    }
+
+    #[test]
+    fn cors_bind_boundary_allows_loopback_and_explicit_non_loopback_override() {
+        let mut config = test_args(PathBuf::from("./data/audit/events.jsonl"));
+        assert!(validate_http_bind_boundary(&config).is_ok());
+
+        config.bind = "0.0.0.0:8765".parse().unwrap();
+        config.allow_non_loopback_cors = true;
+        assert!(validate_http_bind_boundary(&config).is_ok());
+    }
+
+    #[test]
+    fn loopback_cors_origin_check_accepts_local_origins_only() {
+        assert!(is_loopback_cors_origin(&HeaderValue::from_static(
+            "http://127.0.0.1:5173"
+        )));
+        assert!(is_loopback_cors_origin(&HeaderValue::from_static(
+            "http://localhost:5173"
+        )));
+        assert!(is_loopback_cors_origin(&HeaderValue::from_static(
+            "http://[::1]:5173"
+        )));
+        assert!(!is_loopback_cors_origin(&HeaderValue::from_static(
+            "https://example.com"
+        )));
+        assert!(!is_loopback_cors_origin(&HeaderValue::from_static(
+            "http://192.168.1.10:5173"
+        )));
+    }
+
+    #[tokio::test]
+    async fn audit_append_writes_jsonl_before_memory_visibility() {
+        let audit_path =
+            std::env::temp_dir().join(format!("ignispromptd-audit-ok-{}.jsonl", Uuid::new_v4()));
+        let audit = AuditStore::new(audit_path.clone()).await.unwrap();
+
+        audit
+            .append(sample_audit_event("durable-first"))
+            .await
+            .unwrap();
+
+        let events = audit.list().await;
+        let jsonl = fs::read_to_string(&audit_path).await.unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].request_id, "durable-first");
+        assert!(jsonl.contains("\"request_id\":\"durable-first\""));
+
+        let _ = fs::remove_file(audit_path).await;
+    }
+
+    #[tokio::test]
+    async fn failed_audit_append_does_not_create_memory_only_event() {
+        let audit_path =
+            std::env::temp_dir().join(format!("ignispromptd-audit-fail-dir-{}", Uuid::new_v4()));
+        fs::create_dir_all(&audit_path).await.unwrap();
+        let audit = AuditStore::new(audit_path.clone()).await.unwrap();
+
+        assert!(audit
+            .append(sample_audit_event("memory-only"))
+            .await
+            .is_err());
+        assert!(audit.list().await.is_empty());
+
+        let _ = fs::remove_dir_all(audit_path).await;
     }
 
     fn golden_legal_fixture(name: &str) -> ChatCompletionRequest {
@@ -2572,9 +2789,9 @@ mod tests {
 
     #[test]
     fn streaming_content_fragments_handle_utf8_without_panicking() {
-        let content = "abc🚀def";
-        let fragments = streaming_content_fragments(content);
-        assert_eq!(fragments.concat(), content);
+        let content = format!("abc{}def", char::from_u32(0x1f680).unwrap());
+        let fragments = streaming_content_fragments(&content);
+        assert_eq!(fragments.concat(), content.as_str());
     }
 
     fn exact_match_cache_key_for_test(
@@ -3980,8 +4197,8 @@ mod tests {
         assert!(!completion_output_is_cacheable(&output));
     }
 
-    #[test]
-    fn tier_3_completion_text_comes_from_stub_legal_runner() {
+    #[tokio::test]
+    async fn tier_3_completion_text_comes_from_stub_legal_runner() {
         let request = req(
             "Review this indemnification clause in a vendor services agreement and return the key risks.",
             Some("ignisprompt/legal"),
@@ -4004,7 +4221,8 @@ mod tests {
             &request,
             &decision,
             Some(&model),
-        );
+        )
+        .await;
 
         assert!(output
             .content
@@ -4018,8 +4236,8 @@ mod tests {
     }
 
     #[cfg(all(feature = "gguf-runner-spike", unix))]
-    #[test]
-    fn tier_3_completion_uses_gguf_runner_when_configured() {
+    #[tokio::test]
+    async fn tier_3_completion_uses_gguf_runner_when_configured() {
         let temp_dir =
             std::env::temp_dir().join(format!("ignispromptd-gguf-test-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&temp_dir).unwrap();
@@ -4070,7 +4288,8 @@ mod tests {
             &request,
             &decision,
             Some(&model),
-        );
+        )
+        .await;
 
         let captured_prompt = std::fs::read_to_string(&captured_prompt_path).unwrap();
         let captured_format = std::fs::read_to_string(&captured_format_path).unwrap();
@@ -4102,8 +4321,8 @@ mod tests {
     }
 
     #[cfg(all(feature = "gguf-runner-spike", unix))]
-    #[test]
-    fn tier_3_completion_falls_back_to_stub_when_prompt_pack_is_missing() {
+    #[tokio::test]
+    async fn tier_3_completion_falls_back_to_stub_when_prompt_pack_is_missing() {
         let temp_dir = std::env::temp_dir().join(format!(
             "ignispromptd-gguf-missing-prompt-test-{}",
             Uuid::new_v4()
@@ -4144,7 +4363,8 @@ mod tests {
             &request,
             &decision,
             Some(&model),
-        );
+        )
+        .await;
 
         assert!(output
             .content
@@ -4156,8 +4376,8 @@ mod tests {
     }
 
     #[cfg(all(feature = "gguf-runner-spike", unix))]
-    #[test]
-    fn tier_3_completion_falls_back_to_stub_when_gguf_model_file_is_missing() {
+    #[tokio::test]
+    async fn tier_3_completion_falls_back_to_stub_when_gguf_model_file_is_missing() {
         let temp_dir = std::env::temp_dir().join(format!(
             "ignispromptd-gguf-missing-model-test-{}",
             Uuid::new_v4()
@@ -4190,7 +4410,8 @@ mod tests {
             &request,
             &decision,
             Some(&model),
-        );
+        )
+        .await;
 
         assert!(output
             .content
@@ -4202,8 +4423,8 @@ mod tests {
     }
 
     #[cfg(all(feature = "gguf-runner-spike", unix))]
-    #[test]
-    fn tier_3_completion_falls_back_to_stub_when_gguf_runner_file_is_missing() {
+    #[tokio::test]
+    async fn tier_3_completion_falls_back_to_stub_when_gguf_runner_file_is_missing() {
         let temp_dir = std::env::temp_dir().join(format!(
             "ignispromptd-gguf-missing-runner-test-{}",
             Uuid::new_v4()
@@ -4228,7 +4449,8 @@ mod tests {
             &request,
             &decision,
             Some(&model),
-        );
+        )
+        .await;
 
         assert!(output
             .content
@@ -4239,8 +4461,8 @@ mod tests {
     }
 
     #[cfg(all(feature = "gguf-runner-spike", unix))]
-    #[test]
-    fn tier_3_completion_falls_back_to_stub_when_gguf_runner_exits_nonzero() {
+    #[tokio::test]
+    async fn tier_3_completion_falls_back_to_stub_when_gguf_runner_exits_nonzero() {
         let temp_dir =
             std::env::temp_dir().join(format!("ignispromptd-gguf-nonzero-test-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&temp_dir).unwrap();
@@ -4276,7 +4498,8 @@ mod tests {
             &request,
             &decision,
             Some(&model),
-        );
+        )
+        .await;
 
         assert!(output
             .content
@@ -4287,8 +4510,8 @@ mod tests {
     }
 
     #[cfg(all(feature = "gguf-runner-spike", unix))]
-    #[test]
-    fn tier_3_completion_falls_back_to_stub_when_gguf_runner_times_out() {
+    #[tokio::test]
+    async fn tier_3_completion_falls_back_to_stub_when_gguf_runner_times_out() {
         let temp_dir =
             std::env::temp_dir().join(format!("ignispromptd-gguf-timeout-test-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&temp_dir).unwrap();
@@ -4326,7 +4549,8 @@ mod tests {
             &request,
             &decision,
             Some(&model),
-        );
+        )
+        .await;
 
         assert!(
             started_at.elapsed() < std::time::Duration::from_secs(1),
@@ -4341,8 +4565,8 @@ mod tests {
     }
 
     #[cfg(all(feature = "gguf-runner-spike", unix))]
-    #[test]
-    fn tier_3_completion_records_legal_json_error_for_invalid_gguf_stdout() {
+    #[tokio::test]
+    async fn tier_3_completion_records_legal_json_error_for_invalid_gguf_stdout() {
         let temp_dir = std::env::temp_dir().join(format!(
             "ignispromptd-gguf-invalid-json-test-{}",
             Uuid::new_v4()
@@ -4380,7 +4604,8 @@ mod tests {
             &request,
             &decision,
             Some(&model),
-        );
+        )
+        .await;
         let metadata = output.metadata.expect("gguf runner metadata");
         let legal_json = metadata.legal_json.expect("legal json metadata");
 
@@ -4402,8 +4627,8 @@ mod tests {
     }
 
     #[cfg(all(feature = "gguf-runner-spike", unix))]
-    #[test]
-    fn tier_3_completion_records_schema_error_for_malformed_gguf_json() {
+    #[tokio::test]
+    async fn tier_3_completion_records_schema_error_for_malformed_gguf_json() {
         let temp_dir = std::env::temp_dir().join(format!(
             "ignispromptd-gguf-malformed-schema-test-{}",
             Uuid::new_v4()
@@ -4441,7 +4666,8 @@ mod tests {
             &request,
             &decision,
             Some(&model),
-        );
+        )
+        .await;
         let metadata = output.metadata.expect("gguf runner metadata");
         let legal_json = metadata.legal_json.expect("legal json metadata");
 
@@ -4462,8 +4688,8 @@ mod tests {
     }
 
     #[cfg(all(feature = "gguf-runner-spike", unix))]
-    #[test]
-    fn tier_3_completion_falls_back_to_stub_when_runner_bin_path_is_not_explicit() {
+    #[tokio::test]
+    async fn tier_3_completion_falls_back_to_stub_when_runner_bin_path_is_not_explicit() {
         let temp_dir = std::env::temp_dir().join(format!(
             "ignispromptd-gguf-bare-runner-test-{}",
             Uuid::new_v4()
@@ -4511,7 +4737,8 @@ mod tests {
             &request,
             &decision,
             Some(&model),
-        );
+        )
+        .await;
 
         assert!(output
             .content

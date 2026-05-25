@@ -48,7 +48,7 @@ For details, see the [demo flows](docs/DEMO.md), [testing notes](docs/TESTING.md
 
 ## CI status
 
-The repository now includes a default GitHub Actions workflow at `.github/workflows/ci.yml` for the no-model daemon path on `main`. It runs `cargo build`, `cargo test`, and `./scripts/smoke.sh` against the default local scaffold without requiring Ollama, GGUF model weights, or any cloud access.
+The repository now includes a default GitHub Actions workflow at `.github/workflows/ci.yml` for the no-model daemon path and Aethra fixture-backed dashboard checks on `main`. It runs `cargo build`, `cargo test`, and `./scripts/smoke.sh` against the default local scaffold without requiring Ollama, GGUF model weights, or any cloud access. A separate Aethra job runs `npm ci`, `npm test`, and `npm run build` under `apps/aethra/`.
 
 An experimental manual-only release workflow now also lives at `.github/workflows/release-draft.yml`. It runs only through GitHub Actions `workflow_dispatch`, builds the default `ignispromptd` Linux x86_64 release binary, and uploads it as a downloadable workflow artifact. It does not publish a GitHub Release automatically, and it does not bundle model weights or local evidence.
 

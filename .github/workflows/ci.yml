@@ -47,3 +47,29 @@ jobs:
 
           curl -fsS http://127.0.0.1:8765/health >/dev/null
           ./scripts/smoke.sh
+
+  aethra:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: apps/aethra
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/aethra/package-lock.json
+
+      - name: npm ci
+        run: npm ci
+
+      - name: npm test
+        run: npm test
+
+      - name: npm run build
+        run: npm run build

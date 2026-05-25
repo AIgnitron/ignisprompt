@@ -19,6 +19,12 @@ Optional GGUF flows are local operator-controlled integrations. The included Oll
 
 Cloud BYOK routing is not implemented. Tier 5 cloud routing is not implemented.
 
+## HTTP bind and CORS boundary
+
+The default HTTP daemon bind remains `127.0.0.1:8765`. Loopback binds use a CORS policy limited to loopback browser origins such as `http://127.0.0.1:<port>`, `http://localhost:<port>`, and `http://[::1]:<port>`.
+
+Binding the HTTP daemon to a non-loopback address is rejected unless the local operator explicitly sets `--allow-non-loopback-cors` or `IGNISPROMPT_ALLOW_NON_LOOPBACK_CORS=true`. That override enables permissive CORS for a trusted local-preview network only. It does not add authentication, TLS, production readiness, or security certification.
+
 ## Prompt and document handling
 
 The daemon scans combined message text for known adversarial document instructions, including attempts to ignore routing rules, disable audit logging, or route to cloud. When detected, it returns a warning and keeps routing and audit behavior unchanged.
@@ -29,6 +35,8 @@ This is a lightweight scaffold control, not a complete prompt-injection defense.
 
 Route explanations and chat completions append local audit events. Events include route code, tier, domain, model id, explanation, warnings, and `data_left_device`.
 
+Audit appends write the local JSONL record before the event is made visible through the process-memory audit list. If the JSONL write fails, the event is not reported through `GET /v1/audit/events` as a memory-only durable event.
+
 Current limitations:
 
 - audit events are not signed
@@ -36,6 +44,7 @@ Current limitations:
 - audit events are not encrypted by the daemon
 - `GET /v1/audit/events` returns events accumulated in the current process memory
 - the JSONL audit file location is controlled by local config
+- audit storage is still local-preview JSONL, not signed, tamper-evident, certified, or production-grade storage
 
 ## Local exact-match cache
 
