@@ -1486,8 +1486,7 @@ fn write_readiness_package_report(report: &ReadinessPackageReport) -> Result<(),
         .map_err(|error| format!("could not create readiness package staging: {}", error))?;
 
     let write_result = (|| -> Result<(), String> {
-        fs::write(staging_dir.join("README.md"), &report.readme)
-            .map_err(|error| format!("could not write README.md: {}", error))?;
+        write_text_file(&staging_dir.join("README.md"), &report.readme)?;
         write_pretty_json_file(&staging_dir.join("manifest.json"), &report.manifest_json)?;
         write_pretty_json_file(
             &staging_dir.join("readiness-summary.json"),
@@ -1497,11 +1496,10 @@ fn write_readiness_package_report(report: &ReadinessPackageReport) -> Result<(),
             &staging_dir.join("readiness-report.json"),
             &report.report_json,
         )?;
-        fs::write(
-            staging_dir.join("readiness-report.md"),
+        write_text_file(
+            &staging_dir.join("readiness-report.md"),
             &report.report_markdown,
-        )
-        .map_err(|error| format!("could not write readiness-report.md: {}", error))?;
+        )?;
         Ok(())
     })();
 
@@ -2091,8 +2089,7 @@ fn write_operator_package_report(report: &OperatorPackageReport) -> Result<(), S
         .map_err(|error| format!("could not create operator package staging: {}", error))?;
 
     let write_result = (|| -> Result<(), String> {
-        fs::write(staging_dir.join("README.md"), &report.readme)
-            .map_err(|error| format!("could not write README.md: {}", error))?;
+        write_text_file(&staging_dir.join("README.md"), &report.readme)?;
         write_pretty_json_file(&staging_dir.join("manifest.json"), &report.manifest_json)?;
         write_pretty_json_file(
             &staging_dir.join("operator-summary.json"),
@@ -2102,11 +2099,10 @@ fn write_operator_package_report(report: &OperatorPackageReport) -> Result<(), S
             &staging_dir.join("operator-report.json"),
             &report.report_json,
         )?;
-        fs::write(
-            staging_dir.join("operator-report.md"),
+        write_text_file(
+            &staging_dir.join("operator-report.md"),
             &report.report_markdown,
-        )
-        .map_err(|error| format!("could not write operator-report.md: {}", error))?;
+        )?;
         Ok(())
     })();
 
@@ -5011,11 +5007,19 @@ fn contains_placeholder_string(value: &Value) -> bool {
 }
 
 fn write_pretty_json_file(path: &Path, value: &Value) -> Result<(), String> {
-    fs::write(
+    write_text_file(
         path,
-        serde_json::to_string_pretty(value).unwrap_or_default(),
+        &serde_json::to_string_pretty(value).unwrap_or_default(),
     )
-    .map_err(|error| format!("could not write {}: {}", path.display(), error))
+}
+
+fn write_text_file(path: &Path, contents: &str) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("could not create {}: {}", parent.display(), error))?;
+    }
+    fs::write(path, contents)
+        .map_err(|error| format!("could not write {}: {}", path.display(), error))
 }
 
 fn package_staging_dir(parent: &Path, prefix: &str, output_dir: &Path) -> PathBuf {
@@ -7200,7 +7204,7 @@ mod tests {
         assert_eq!(archive_json["metadata"]["bundle_mode"], "local-preview");
 
         let _ = std::fs::remove_file(&report.archive_path);
-        let _ = std::fs::remove_dir_all("local-evidence");
+        let _ = std::fs::remove_dir_all("local-evidence/archives");
         let _ = std::fs::remove_dir_all(&output_dir);
     }
 
@@ -7281,7 +7285,7 @@ mod tests {
             .contains("\"status\": \"ok\""));
 
         let _ = std::fs::remove_file(&archive_report.archive_path);
-        let _ = std::fs::remove_dir_all("local-evidence");
+        let _ = std::fs::remove_dir_all("local-evidence/archives");
         let _ = std::fs::remove_dir_all(&output_dir);
     }
 
@@ -7298,7 +7302,7 @@ mod tests {
         assert!(error.contains("archive") || error.contains("gzip") || error.contains("tar"));
 
         let _ = std::fs::remove_file(&archive_path);
-        let _ = std::fs::remove_dir_all("local-evidence");
+        let _ = std::fs::remove_dir_all("local-evidence/archives");
     }
 
     #[test]
