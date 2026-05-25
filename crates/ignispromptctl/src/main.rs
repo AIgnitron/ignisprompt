@@ -5558,6 +5558,40 @@ mod tests {
         READINESS_PACKAGE_REQUIRED_FILES,
     };
     use serde_json::json;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static TEST_PATH_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    fn unique_local_evidence_test_dir(root: &str, label: &str) -> std::path::PathBuf {
+        let sequence = TEST_PATH_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let now_nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+
+        // Keep parallel package tests isolated. Tests may remove only their own
+        // unique leaf directory, never shared local-evidence roots.
+        std::path::PathBuf::from(format!(
+            "{}/{}-{}-{}-{}",
+            root,
+            label,
+            std::process::id(),
+            now_nanos,
+            sequence
+        ))
+    }
+
+    fn unique_readiness_package_test_dir(label: &str) -> std::path::PathBuf {
+        unique_local_evidence_test_dir("local-evidence/readiness/test-packages", label)
+    }
+
+    fn unique_operator_package_test_dir(label: &str) -> std::path::PathBuf {
+        unique_local_evidence_test_dir("local-evidence/operator/test-packages", label)
+    }
+
+    fn unique_bundle_test_dir(label: &str) -> std::path::PathBuf {
+        unique_local_evidence_test_dir("local-evidence/test-bundles", label)
+    }
 
     #[test]
     fn health_url_format() {
@@ -6154,11 +6188,7 @@ mod tests {
 
     #[test]
     fn operator_package_writes_and_validates_safe_files() {
-        let output_dir = std::path::PathBuf::from(format!(
-            "local-evidence/operator/unit-{}-{}",
-            std::process::id(),
-            current_unix_seconds().unwrap()
-        ));
+        let output_dir = unique_operator_package_test_dir("write-safe");
         let _ = std::fs::remove_dir_all(&output_dir);
 
         let package = build_operator_package_report(output_dir.clone()).unwrap();
@@ -6220,11 +6250,7 @@ mod tests {
 
     #[test]
     fn operator_package_validation_reports_unsafe_content() {
-        let output_dir = std::path::PathBuf::from(format!(
-            "local-evidence/operator/unsafe-unit-{}-{}",
-            std::process::id(),
-            current_unix_seconds().unwrap()
-        ));
+        let output_dir = unique_operator_package_test_dir("unsafe");
         let _ = std::fs::remove_dir_all(&output_dir);
         std::fs::create_dir_all(&output_dir).unwrap();
         for file_name in OPERATOR_PACKAGE_REQUIRED_FILES {
@@ -6263,11 +6289,7 @@ mod tests {
 
     #[test]
     fn readiness_package_writes_and_validates_safe_files() {
-        let output_dir = std::path::PathBuf::from(format!(
-            "local-evidence/readiness/unit-{}-{}",
-            std::process::id(),
-            current_unix_seconds().unwrap()
-        ));
+        let output_dir = unique_readiness_package_test_dir("write-safe");
         let _ = std::fs::remove_dir_all(&output_dir);
         let report = DoctorReport {
             base_url: "http://127.0.0.1:8765".to_string(),
@@ -6346,11 +6368,7 @@ mod tests {
 
     #[test]
     fn readiness_package_validation_reports_unsafe_content() {
-        let output_dir = std::path::PathBuf::from(format!(
-            "local-evidence/readiness/unsafe-unit-{}-{}",
-            std::process::id(),
-            current_unix_seconds().unwrap()
-        ));
+        let output_dir = unique_readiness_package_test_dir("unsafe");
         let _ = std::fs::remove_dir_all(&output_dir);
         std::fs::create_dir_all(&output_dir).unwrap();
         for file_name in READINESS_PACKAGE_REQUIRED_FILES {
@@ -6377,11 +6395,7 @@ mod tests {
 
     #[test]
     fn readiness_package_validation_redacts_absolute_paths() {
-        let output_dir = std::path::PathBuf::from(format!(
-            "local-evidence/readiness/redact-unit-{}-{}",
-            std::process::id(),
-            current_unix_seconds().unwrap()
-        ));
+        let output_dir = unique_readiness_package_test_dir("redact");
         let absolute_dir = std::env::current_dir().unwrap().join(&output_dir);
         let _ = std::fs::remove_dir_all(&output_dir);
         std::fs::create_dir_all(&output_dir).unwrap();
@@ -6818,15 +6832,6 @@ mod tests {
         write_evidence_bundle_report(&report).unwrap();
     }
 
-    fn unique_bundle_test_dir(label: &str) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!(
-            "ignispromptctl-{}-{}-{}",
-            label,
-            std::process::id(),
-            current_unix_seconds().unwrap()
-        ))
-    }
-
     #[test]
     fn evidence_bundle_output_path_validation_requires_ignored_local_evidence_paths() {
         assert!(validate_evidence_bundle_output_dir("local-evidence/demo-bundle").is_ok());
@@ -7204,7 +7209,6 @@ mod tests {
         assert_eq!(archive_json["metadata"]["bundle_mode"], "local-preview");
 
         let _ = std::fs::remove_file(&report.archive_path);
-        let _ = std::fs::remove_dir_all("local-evidence/archives");
         let _ = std::fs::remove_dir_all(&output_dir);
     }
 
@@ -7285,13 +7289,13 @@ mod tests {
             .contains("\"status\": \"ok\""));
 
         let _ = std::fs::remove_file(&archive_report.archive_path);
-        let _ = std::fs::remove_dir_all("local-evidence/archives");
         let _ = std::fs::remove_dir_all(&output_dir);
     }
 
     #[test]
     fn evidence_bundle_verify_archive_rejects_corrupt_archive() {
-        let archive_path = std::path::PathBuf::from("local-evidence/archives/corrupt.tar.gz");
+        let archive_path = unique_local_evidence_test_dir("local-evidence/archives", "corrupt")
+            .with_extension("tar.gz");
         let _ = std::fs::remove_file(&archive_path);
         if let Some(parent) = archive_path.parent() {
             std::fs::create_dir_all(parent).unwrap();
@@ -7302,7 +7306,6 @@ mod tests {
         assert!(error.contains("archive") || error.contains("gzip") || error.contains("tar"));
 
         let _ = std::fs::remove_file(&archive_path);
-        let _ = std::fs::remove_dir_all("local-evidence/archives");
     }
 
     #[test]
