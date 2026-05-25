@@ -10,10 +10,12 @@ WORKFLOW_BUNDLE_DIR="$EVIDENCE_ROOT/demo-bundle"
 WORKFLOW_ARCHIVE_PATH="${IGNISPROMPT_DEMO_ARCHIVE_PATH:-$ROOT_DIR/local-evidence/archives/demo-bundle-$TIMESTAMP.tar.gz}"
 READINESS_PACKAGE_DIR="${IGNISPROMPT_DEMO_READINESS_PACKAGE_DIR:-$ROOT_DIR/local-evidence/readiness/demo-readiness-$TIMESTAMP}"
 OPERATOR_PACKAGE_DIR="${IGNISPROMPT_DEMO_OPERATOR_PACKAGE_DIR:-$ROOT_DIR/local-evidence/operator/demo-operator-$TIMESTAMP}"
+POLICY_PACKAGE_DIR="${IGNISPROMPT_DEMO_POLICY_PACKAGE_DIR:-$ROOT_DIR/local-evidence/policy/demo-policy-$TIMESTAMP}"
 WORKFLOW_BUNDLE_DIR_REL="${WORKFLOW_BUNDLE_DIR#$ROOT_DIR/}"
 WORKFLOW_ARCHIVE_PATH_REL="${WORKFLOW_ARCHIVE_PATH#$ROOT_DIR/}"
 READINESS_PACKAGE_DIR_REL="${READINESS_PACKAGE_DIR#$ROOT_DIR/}"
 OPERATOR_PACKAGE_DIR_REL="${OPERATOR_PACKAGE_DIR#$ROOT_DIR/}"
+POLICY_PACKAGE_DIR_REL="${POLICY_PACKAGE_DIR#$ROOT_DIR/}"
 REQUEST_FILE="${IGNISPROMPT_DEMO_REQUEST_FILE:-$ROOT_DIR/tests/golden-legal/smoke-legal-request.json}"
 DAEMON_PORT="${IGNISPROMPT_DEMO_PORT:-8765}"
 BASE_URL="${IGNISPROMPT_BASE_URL:-http://127.0.0.1:$DAEMON_PORT}"
@@ -33,6 +35,9 @@ READINESS_PACKAGE_VALIDATE_JSON="$EVIDENCE_ROOT/readiness-package-validate.json"
 OPERATOR_PACKAGE_SUMMARY_JSON="$EVIDENCE_ROOT/operator-package-summary.json"
 OPERATOR_PACKAGE_LIST_JSON="$EVIDENCE_ROOT/operator-package-list.json"
 OPERATOR_PACKAGE_VALIDATE_JSON="$EVIDENCE_ROOT/operator-package-validate.json"
+POLICY_PACKAGE_SUMMARY_JSON="$EVIDENCE_ROOT/policy-package-summary.json"
+POLICY_PACKAGE_LIST_JSON="$EVIDENCE_ROOT/policy-package-list.json"
+POLICY_PACKAGE_VALIDATE_JSON="$EVIDENCE_ROOT/policy-package-validate.json"
 DAEMON_PID=""
 
 usage() {
@@ -132,6 +137,9 @@ print_plan() {
 [plan] operator-summary --package-output $OPERATOR_PACKAGE_DIR_REL --json > $(printf '%s\n' "${OPERATOR_PACKAGE_SUMMARY_JSON#$ROOT_DIR/}")
 [plan] operator-summary --package-list $OPERATOR_PACKAGE_DIR_REL --json > $(printf '%s\n' "${OPERATOR_PACKAGE_LIST_JSON#$ROOT_DIR/}")
 [plan] operator-summary --package-validate $OPERATOR_PACKAGE_DIR_REL --json > $(printf '%s\n' "${OPERATOR_PACKAGE_VALIDATE_JSON#$ROOT_DIR/}")
+[plan] policy-scenarios --package-output $POLICY_PACKAGE_DIR_REL --json > $(printf '%s\n' "${POLICY_PACKAGE_SUMMARY_JSON#$ROOT_DIR/}")
+[plan] policy-scenarios --package-list $POLICY_PACKAGE_DIR_REL --json > $(printf '%s\n' "${POLICY_PACKAGE_LIST_JSON#$ROOT_DIR/}")
+[plan] policy-scenarios --package-validate $POLICY_PACKAGE_DIR_REL --json > $(printf '%s\n' "${POLICY_PACKAGE_VALIDATE_JSON#$ROOT_DIR/}")
 EOF
 }
 
@@ -183,6 +191,7 @@ self_test() {
   validate_local_evidence_path "$WORKFLOW_ARCHIVE_PATH" "archive output"
   validate_local_evidence_path "$READINESS_PACKAGE_DIR" "readiness package output"
   validate_local_evidence_path "$OPERATOR_PACKAGE_DIR" "operator package output"
+  validate_local_evidence_path "$POLICY_PACKAGE_DIR" "policy package output"
 
   local plan_output="$EVIDENCE_ROOT/self-test-plan.txt"
   mkdir -p "$EVIDENCE_ROOT"
@@ -202,6 +211,9 @@ self_test() {
   grep -q "operator-summary --package-output" "$plan_output"
   grep -q "operator-summary --package-list" "$plan_output"
   grep -q "operator-summary --package-validate" "$plan_output"
+  grep -q "policy-scenarios --package-output" "$plan_output"
+  grep -q "policy-scenarios --package-list" "$plan_output"
+  grep -q "policy-scenarios --package-validate" "$plan_output"
 
   echo "[OK] local evidence demo workflow self-test passed"
 }
@@ -216,6 +228,7 @@ case "$MODE" in
     validate_local_evidence_path "$WORKFLOW_ARCHIVE_PATH" "archive output"
     validate_local_evidence_path "$READINESS_PACKAGE_DIR" "readiness package output"
     validate_local_evidence_path "$OPERATOR_PACKAGE_DIR" "operator package output"
+    validate_local_evidence_path "$POLICY_PACKAGE_DIR" "policy package output"
     if [ ! -f "$REQUEST_FILE" ]; then
       echo "demo request file is missing: $REQUEST_FILE" >&2
       exit 1
@@ -252,6 +265,7 @@ validate_local_evidence_path "$WORKFLOW_BUNDLE_DIR" "bundle output"
 validate_local_evidence_path "$WORKFLOW_ARCHIVE_PATH" "archive output"
 validate_local_evidence_path "$READINESS_PACKAGE_DIR" "readiness package output"
 validate_local_evidence_path "$OPERATOR_PACKAGE_DIR" "operator package output"
+validate_local_evidence_path "$POLICY_PACKAGE_DIR" "policy package output"
 
 if [ -f "$REQUEST_FILE" ]; then
   :
@@ -283,6 +297,9 @@ run_ignispromptctl readiness --package-validate "$READINESS_PACKAGE_DIR_REL" --j
 run_ignispromptctl operator-summary --package-output "$OPERATOR_PACKAGE_DIR_REL" --json >"$OPERATOR_PACKAGE_SUMMARY_JSON"
 run_ignispromptctl operator-summary --package-list "$OPERATOR_PACKAGE_DIR_REL" --json >"$OPERATOR_PACKAGE_LIST_JSON"
 run_ignispromptctl operator-summary --package-validate "$OPERATOR_PACKAGE_DIR_REL" --json >"$OPERATOR_PACKAGE_VALIDATE_JSON"
+run_ignispromptctl policy-scenarios --package-output "$POLICY_PACKAGE_DIR_REL" --json >"$POLICY_PACKAGE_SUMMARY_JSON"
+run_ignispromptctl policy-scenarios --package-list "$POLICY_PACKAGE_DIR_REL" --json >"$POLICY_PACKAGE_LIST_JSON"
+run_ignispromptctl policy-scenarios --package-validate "$POLICY_PACKAGE_DIR_REL" --json >"$POLICY_PACKAGE_VALIDATE_JSON"
 
 jq -e '.decision.tier == "TIER_3" and .decision.route_code == "DOMAIN_MODEL_SELECTED"' "$ROUTE_JSON" >/dev/null
 jq -e 'type == "array" and length >= 1' "$AUDIT_EVENTS_JSON" >/dev/null
@@ -298,6 +315,9 @@ jq -e '.status == "ok" and (.files | type == "array")' "$READINESS_PACKAGE_VALID
 jq -e '.local_only == true and .operator_status == "operator_guidance" and (.generated_file_names | type == "array")' "$OPERATOR_PACKAGE_SUMMARY_JSON" >/dev/null
 jq -e '.status == "ok" and (.files | type == "array")' "$OPERATOR_PACKAGE_LIST_JSON" >/dev/null
 jq -e '.status == "ok" and (.files | type == "array")' "$OPERATOR_PACKAGE_VALIDATE_JSON" >/dev/null
+jq -e '.local_only == true and .policy_status == "policy_preview" and (.generated_file_names | type == "array")' "$POLICY_PACKAGE_SUMMARY_JSON" >/dev/null
+jq -e '.status == "ok" and (.files | type == "array")' "$POLICY_PACKAGE_LIST_JSON" >/dev/null
+jq -e '.status == "ok" and (.files | type == "array")' "$POLICY_PACKAGE_VALIDATE_JSON" >/dev/null
 
 echo "Route decision:"
 jq -r '.decision.route_code + " / " + .decision.tier' "$ROUTE_JSON"
@@ -311,5 +331,6 @@ echo "  archive:    $(relative_to_root "$WORKFLOW_ARCHIVE_PATH")"
 echo "  outputs:    $(relative_to_root "$EVIDENCE_ROOT")"
 echo "  readiness:  $(relative_to_root "$READINESS_PACKAGE_DIR")"
 echo "  operator:   $(relative_to_root "$OPERATOR_PACKAGE_DIR")"
+echo "  policy:     $(relative_to_root "$POLICY_PACKAGE_DIR")"
 echo
 echo "Workflow complete."

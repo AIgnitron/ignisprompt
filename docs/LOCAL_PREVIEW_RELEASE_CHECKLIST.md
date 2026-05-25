@@ -49,6 +49,7 @@ cargo test
 make security-check
 make readiness-check
 make operator-check
+make policy-check
 make evidence-check
 make dev-check
 git diff --check
@@ -97,6 +98,25 @@ For v0.1.6 release-readiness work, keep the local operator workflow aligned acro
 - no telemetry, cloud calls by default, global aggregation, model controls, runner controls, command execution, upload, polling, file picker, or persistence are added
 - no production deployment, legal advice, legal accuracy, or compliance, supply-chain, signed-attestation, tamper-evident, cryptographic, production-grade inference, or production-grade security claims are added; wording must say not ESG certification where sustainability boundaries are mentioned
 - LiteLLM remains planning only
+
+## v0.1.7 Planning Notes
+
+For v0.1.7 planning, keep the local policy workbench aligned across Aethra, CLI, scripts, and docs:
+
+- `make policy-check` passes
+- `cargo run -p ignispromptctl -- policy-scenarios` stays synthetic and local-preview only
+- `cargo run -p ignispromptctl -- policy-scenarios --json` keeps route hints conservative
+- `cargo run -p ignispromptctl -- policy-scenarios --report` prints a copy-safe local helper report
+- `cargo run -p ignispromptctl -- policy-scenarios --package-output local-evidence/policy/demo` writes only under ignored `local-evidence/policy/`
+- `cargo run -p ignispromptctl -- policy-scenarios --package-list local-evidence/policy/demo` and `cargo run -p ignispromptctl -- policy-scenarios --package-validate local-evidence/policy/demo` inspect package output locally
+- Aethra Local Policy Workbench remains fixture-backed by default and read-only
+- Aethra policy package preview remains read-only and fixture-backed by default
+- policy scenarios remain synthetic and do not include sensitive input content
+- route summaries remain hints, not guarantees
+- policy packages remain local-only helper outputs and are not signed
+- policy package validation remains structural/local validation only
+- no telemetry, cloud calls by default, global aggregation, model controls, runner controls, command execution, upload, polling, file picker, or persistence are added
+- no production deployment, legal advice, legal accuracy, compliance, ESG, supply-chain, signed-attestation, tamper-evident, cryptographic, production-grade inference, or production-grade security claims are added
 
 ## v0.1.4 Release Prep
 
@@ -402,6 +422,7 @@ git pull --ff-only origin main
 ./scripts/release-check.sh
 make readiness-check
 make operator-check
+make policy-check
 make evidence-check
 git status --short
 git status --short --ignored apps/aethra/dist models local-evidence data/audit

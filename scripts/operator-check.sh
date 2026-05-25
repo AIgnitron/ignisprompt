@@ -84,6 +84,8 @@ require_contains "$TMP_DIR/operator-summary.txt" 'local helper checks, not certi
 require_contains "$TMP_DIR/operator-summary.txt" 'package validation is structural/local only' "operator summary"
 require_contains "$TMP_DIR/operator-summary.txt" 'archives and packages are not signed' "operator summary"
 require_contains "$TMP_DIR/operator-summary.txt" 'cargo run -p ignispromptctl -- readiness --json' "operator summary"
+require_contains "$TMP_DIR/operator-summary.txt" 'cargo run -p ignispromptctl -- policy-scenarios' "operator summary"
+require_contains "$TMP_DIR/operator-summary.txt" 'make policy-check' "operator summary"
 require_contains "$TMP_DIR/operator-summary.txt" 'make evidence-check' "operator summary"
 scan_safe_output "$TMP_DIR/operator-summary.txt" "operator summary"
 
@@ -92,6 +94,7 @@ require_contains "$TMP_DIR/operator-summary.json" '"operator_summary_schema_vers
 require_contains "$TMP_DIR/operator-summary.json" '"mode": "local-preview"' "operator summary json"
 require_contains "$TMP_DIR/operator-summary.json" '"execution_mode": "copy_only"' "operator summary json"
 require_contains "$TMP_DIR/operator-summary.json" 'local-evidence/readiness/demo' "operator summary json"
+require_contains "$TMP_DIR/operator-summary.json" 'local-evidence/policy/demo' "operator summary json"
 reject_contains "$TMP_DIR/operator-summary.json" '"string"' "operator summary json"
 scan_safe_output "$TMP_DIR/operator-summary.json" "operator summary json"
 
@@ -126,7 +129,13 @@ require_contains "$TMP_DIR/readiness-help.txt" '--package-output' "readiness hel
 require_contains "$TMP_DIR/readiness-help.txt" '--package-list' "readiness help"
 require_contains "$TMP_DIR/readiness-help.txt" '--package-validate' "readiness help"
 
+cargo run --quiet -p ignispromptctl -- policy-scenarios --help >"$TMP_DIR/policy-help.txt"
+require_contains "$TMP_DIR/policy-help.txt" '--package-output' "policy help"
+require_contains "$TMP_DIR/policy-help.txt" '--package-list' "policy help"
+require_contains "$TMP_DIR/policy-help.txt" '--package-validate' "policy help"
+
 make -n readiness-check >/dev/null
+make -n policy-check >/dev/null
 make -n evidence-check >/dev/null
 make -n operator-check >/dev/null
 
@@ -139,8 +148,10 @@ require_file_contains "apps/aethra/src/routes/operatorConsoleSummary.ts" 'status
 require_file_contains "apps/aethra/src/routes/operatorConsoleSummary.ts" 'local helper checks, not certification'
 require_file_contains "apps/aethra/src/routes/operatorConsoleSummary.ts" 'structural/local package validation only'
 require_file_contains "apps/aethra/src/routes/operatorConsoleSummary.ts" 'local-evidence/operator/demo'
+require_file_contains "apps/aethra/src/routes/operatorConsoleSummary.ts" 'local-evidence/policy/demo'
 require_file_contains "apps/aethra/src/routes/LocalOperatorConsole.tsx" 'Operator package preview'
 require_file_contains "apps/aethra/src/routes/operatorConsoleSummary.test.ts" 'local-evidence/readiness/demo'
+require_file_contains "apps/aethra/src/routes/operatorConsoleSummary.test.ts" 'local-evidence/policy/demo'
 require_file_contains "apps/aethra/src/routes/operatorConsoleSummary.test.ts" 'operator-report.md'
 require_file_contains "apps/aethra/src/routes/LocalOperatorConsole.test.tsx" 'Aethra local operator console'
 require_file_contains "README.md" 'operator-check'

@@ -17,6 +17,7 @@ Recent local-preview work includes:
 - Golden Legal adversarial demo hardening
 - Aethra Local Readiness, local readiness quality gates, readiness reports, diagnostics, and local readiness package workflow
 - Aethra Local Operator Console, `ignispromptctl operator-summary`, local operator packages, and `make operator-check` for local preview operator workflow alignment
+- Aethra Local Policy Workbench, `ignispromptctl policy-scenarios`, local policy packages, and `make policy-check` for synthetic local policy workflow alignment
 
 ## Project foundation: v0.1.0-mvp
 
@@ -148,6 +149,7 @@ make smoke
 make dev-check
 make readiness-check
 make operator-check
+make policy-check
 ```
 
 The default safe targets stay on the no-model local path. Optional local-prerequisite targets are also available for the existing GGUF and evidence scripts:
@@ -201,6 +203,12 @@ cargo run -p ignispromptctl -- operator-summary --json
 cargo run -p ignispromptctl -- operator-summary --package-output local-evidence/operator/demo
 cargo run -p ignispromptctl -- operator-summary --package-list local-evidence/operator/demo
 cargo run -p ignispromptctl -- operator-summary --package-validate local-evidence/operator/demo
+cargo run -p ignispromptctl -- policy-scenarios
+cargo run -p ignispromptctl -- policy-scenarios --json
+cargo run -p ignispromptctl -- policy-scenarios --report
+cargo run -p ignispromptctl -- policy-scenarios --package-output local-evidence/policy/demo
+cargo run -p ignispromptctl -- policy-scenarios --package-list local-evidence/policy/demo
+cargo run -p ignispromptctl -- policy-scenarios --package-validate local-evidence/policy/demo
 cargo run -p ignispromptctl -- health
 cargo run -p ignispromptctl -- status-version
 cargo run -p ignispromptctl -- models
@@ -230,13 +238,15 @@ cargo run -p ignispromptctl -- audit tail
 
 `operator-summary` prints local preview operator workflow guidance without calling the daemon. The human and JSON outputs align readiness, readiness packages, evidence workflow checks, Aethra fixture-backed review, and copy-only command recipes. `--package-output local-evidence/operator/<name>` writes a local operator package with README, manifest, JSON summaries, and Markdown report output under an ignored operator path. `--package-list` and `--package-validate` inspect that package locally without daemon access. It treats status values as hints, package validation as structural/local only, and local helper checks as checks rather than certification.
 
+`policy-scenarios` prints synthetic local policy scenario guidance without calling the daemon. Human, JSON, and `--report` output summarize local-preview route hints for representative synthetic scenarios, not guarantees. `--package-output local-evidence/policy/<name>` writes a local policy package with README, manifest, JSON summaries, and Markdown report output under an ignored policy path. `--package-list` and `--package-validate` inspect that package locally without daemon access. Policy packages are local-only, not signed, and validated structurally/local only.
+
 `sustainability` reads aggregate local metrics from `GET /v1/metrics/sustainability?period=<period>`, defaults to `30d`, supports `7d`, `30d`, and `90d`, and can print the daemon JSON with `--json`. It does not include prompts, raw audit text, PII, or machine identifiers.
 
 `audit-events` reads the existing local `GET /v1/audit/events` endpoint and can print either a terminal summary or formatted JSON. It is read-only and does not mutate, upload, persist, or redact audit events through external services.
 
 `evidence-bundle` writes a small local-only bundle under an ignored `local-evidence/` path from the existing local health, version status, model, model and runner status hint, and sustainability endpoints. `--include-audit-events` adds the raw local audit event response only when explicitly requested. `--json` prints the bundle summary JSON. `--list` inspects an existing bundle without calling the daemon, `--validate` checks an existing bundle without calling the daemon, `--archive` validates and archives an existing bundle to `local-evidence/archives/<bundle-name>.tar.gz` by default, `--archive-output` can override the archive path when it stays under `local-evidence/`, `--verify-archive` inspects an existing archive without calling the daemon, and `--print-manifest` prints the manifest for an existing bundle without calling the daemon. The command is diagnostic/demo output only: it is not signed, not certified, not production evidence, and does not call cloud services or external endpoints.
 
-For a repeatable local evidence demo workflow that drives `route-explain`, `audit-events`, bundle generation, listing, validation, archiving, archive verification, manifest inspection, readiness package generation, and operator package generation, run:
+For a repeatable local evidence demo workflow that drives `route-explain`, `audit-events`, bundle generation, listing, validation, archiving, archive verification, manifest inspection, readiness package generation, operator package generation, and policy package generation, run:
 
 ```bash
 ./scripts/demo-local-evidence-workflow.sh
@@ -250,7 +260,9 @@ Use `--dry-run` to print the planned local workflow without starting the daemon,
 
 `make operator-check` validates the local operator summary, operator package generation/list/validate behavior, Aethra Local Operator Console copy, safe command recipes, readiness package help shape, and demo workflow self-test. It is deterministic and does not require model weights, external runners, cloud credentials, external services, or a live daemon.
 
-The Aethra Local Readiness page, Local Operator Console, and Local Command Center mirror these safe CLI recipes, the evidence workflow checklist, copy-safe readiness report snippets, local diagnostic drilldown hints, readiness package preview, operator package preview, and the demo readiness notes in the dashboard. They stay read-only and local-preview only.
+`make policy-check` validates the local policy scenario CLI surface, JSON and Markdown report output, policy package generation/list/validate behavior, Aethra Local Policy Workbench copy, and demo workflow command construction. It is deterministic and does not require model weights, external runners, cloud credentials, external services, or a live daemon.
+
+The Aethra Local Readiness page, Local Operator Console, Local Policy Workbench, and Local Command Center mirror these safe CLI recipes, the evidence workflow checklist, copy-safe readiness and policy report snippets, local diagnostic drilldown hints, readiness package preview, operator package preview, policy package preview, and the demo readiness notes in the dashboard. They stay read-only and local-preview only.
 
 `route-explain` calls the existing local `POST /v1/route/explain` endpoint with either `--text` or `--input`. Use synthetic or non-sensitive text. This is route inspection, not legal advice or legal accuracy validation. For a legal route example, use a file that already carries legal context such as `./tests/golden-legal/smoke-legal-request.json`, which sets `model` to `ignisprompt/legal`.
 

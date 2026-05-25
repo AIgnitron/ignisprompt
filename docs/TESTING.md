@@ -62,6 +62,12 @@ cargo run -p ignispromptctl -- operator-summary --json
 cargo run -p ignispromptctl -- operator-summary --package-output local-evidence/operator/demo
 cargo run -p ignispromptctl -- operator-summary --package-list local-evidence/operator/demo
 cargo run -p ignispromptctl -- operator-summary --package-validate local-evidence/operator/demo
+cargo run -p ignispromptctl -- policy-scenarios
+cargo run -p ignispromptctl -- policy-scenarios --json
+cargo run -p ignispromptctl -- policy-scenarios --report
+cargo run -p ignispromptctl -- policy-scenarios --package-output local-evidence/policy/demo
+cargo run -p ignispromptctl -- policy-scenarios --package-list local-evidence/policy/demo
+cargo run -p ignispromptctl -- policy-scenarios --package-validate local-evidence/policy/demo
 cargo run -p ignispromptctl -- health
 cargo run -p ignispromptctl -- status-version
 cargo run -p ignispromptctl -- models
@@ -88,6 +94,8 @@ The `doctor` command checks required local preview endpoints for health, version
 The `readiness` command reuses the same local endpoint checks and prints a local preview readiness summary. `--json` prints safe local diagnostics for category, severity, result, local next step, and boundary note. `--markdown` prints a copy-safe local helper report for issue or demo notes. `--package-output local-evidence/readiness/<name>` writes a local readiness package with README, manifest, JSON summaries, and Markdown report output under an ignored readiness path. `--package-list` and `--package-validate` inspect that package locally without daemon access. Report and package outputs omit daemon URLs, local machine details, raw audit text, generated evidence contents, and private credentials. They align with Aethra Local Readiness wording: status hints, not controls; local helper checks, not certification; manual live-local loading; no telemetry; and no cloud calls by default.
 
 The `operator-summary` command prints local preview operator workflow guidance without calling the daemon. Human and JSON output summarize readiness, readiness packages, evidence checks, Aethra fixture-backed review, and copy-only command recipes. `--package-output local-evidence/operator/<name>` writes a local operator package with README, manifest, JSON summaries, and Markdown report output under an ignored operator path. `--package-list` and `--package-validate` inspect that package locally without daemon access. It keeps status values as hints, local helper checks separate from certification, package validation structural/local only, and Aethra live-local loading manual.
+
+The `policy-scenarios` command prints synthetic local policy scenario guidance without calling the daemon. Human, JSON, and `--report` output summarize route hints for representative local-preview scenarios. `--package-output local-evidence/policy/<name>` writes a local policy package with README, manifest, JSON summaries, and Markdown report output under an ignored policy path. `--package-list` and `--package-validate` inspect that package locally without daemon access. Policy packages are local-only, not signed, and validation is structural/local only.
 
 The `sustainability` command reads `GET /v1/metrics/sustainability?period=<period>` with supported periods `7d`, `30d`, and `90d`; it defaults to `30d` and rejects unsupported values before sending a request. It prints aggregate local sustainability metrics only. It does not include prompts, raw request text, raw audit event bodies, PII, machine identifiers, hostnames, usernames, filesystem paths, secrets, or API keys.
 
@@ -144,7 +152,17 @@ make operator-check
 
 This runs `scripts/operator-check.sh`. The check validates `ignispromptctl operator-summary` human and JSON output, operator package output/list/validate behavior, readiness package help shape, Make target wiring, demo workflow self-test behavior, and Aethra Local Operator Console wording alignment. It does not require model weights, GGUF files, external runners, cloud credentials, external network, or a live daemon.
 
-Package workflow unit tests use unique ignored paths under `local-evidence/` and clean up only their own leaf directories. Tests must not remove shared roots such as `local-evidence/`, `local-evidence/operator/`, `local-evidence/readiness/`, or `local-evidence/archives/`, because `cargo test` runs Rust tests in parallel by default.
+## Local Policy Quality Gate
+
+Run the local policy workbench quality gate with:
+
+```bash
+make policy-check
+```
+
+This runs `scripts/policy-check.sh`. The check validates `ignispromptctl policy-scenarios` help, human output, JSON output, Markdown report output, policy package output/list/validate behavior, Make target wiring, demo workflow command construction, and Aethra Local Policy Workbench wording alignment. It uses synthetic scenarios only and does not require model weights, GGUF files, external runners, cloud credentials, external network, or a live daemon.
+
+Package workflow unit tests use unique ignored paths under `local-evidence/` and clean up only their own leaf directories. Tests must not remove shared roots such as `local-evidence/`, `local-evidence/policy/`, `local-evidence/operator/`, `local-evidence/readiness/`, or `local-evidence/archives/`, because `cargo test` runs Rust tests in parallel by default.
 
 ## CI path
 
@@ -172,7 +190,7 @@ npm run build
 
 Public CI runs the Aethra app checks in a separate job. `make dev-check` remains the Rust daemon default-path check and does not depend on Node tooling.
 
-The Aethra app checks cover the fixture-backed Local Readiness page, Local Operator Console, evidence bundle viewer, validation summary, archive metadata preview, local-preview CLI snippets, clipboard-only Markdown or JSON report export helpers, readiness package preview, operator package preview, and the guided demo path plus safer sidebar labels. The default render must stay read-only and must not surface prompts, raw audit event bodies, secrets, hostnames, usernames, machine identifiers, or absolute filesystem paths. The readiness and operator pages must keep daemon health, version/status, configured models, model and runner status hints, evidence workflow availability, local helper checks, command recipes, readiness package previews, and operator package previews framed as local preview status hints, not controls, certification, production deployment approval, or continuous monitoring. The viewer must also show conservative empty states when evidence bundle metadata is missing or invalid, without inferring signing, certification, attestation, production readiness, or cryptographic verification.
+The Aethra app checks cover the fixture-backed Local Readiness page, Local Operator Console, Local Policy Workbench, evidence bundle viewer, validation summary, archive metadata preview, local-preview CLI snippets, clipboard-only Markdown or JSON report export helpers, readiness package preview, operator package preview, policy package preview, and the guided demo path plus safer sidebar labels. The default render must stay read-only and must not surface prompts, raw audit event bodies, secrets, hostnames, usernames, machine identifiers, or absolute filesystem paths. The readiness, operator, and policy pages must keep daemon health, version/status, configured models, model and runner status hints, evidence workflow availability, local helper checks, command recipes, package previews, and synthetic policy scenarios framed as local preview status hints, not controls, certification, production deployment approval, or continuous monitoring. The viewer must also show conservative empty states when evidence bundle metadata is missing or invalid, without inferring signing, certification, attestation, production readiness, or cryptographic verification.
 
 For the opt-in local API smoke path, first run the Aethra app checks above, then run:
 

@@ -16,6 +16,7 @@ describe("local operator console summaries", () => {
       "Evidence bundle workflow",
       "Aethra demo path",
       "Local safety boundaries",
+      "Local policy workbench",
       "Suggested next local commands",
     ]);
     expect(summary.cards.find((card) => card.id === "cli-readiness-package")?.detail).toContain(
@@ -39,12 +40,18 @@ describe("local operator console summaries", () => {
       "cargo run -p ignispromptctl -- operator-summary --package-output local-evidence/operator/demo",
       "cargo run -p ignispromptctl -- operator-summary --package-list local-evidence/operator/demo",
       "cargo run -p ignispromptctl -- operator-summary --package-validate local-evidence/operator/demo",
+      "cargo run -p ignispromptctl -- policy-scenarios",
+      "cargo run -p ignispromptctl -- policy-scenarios --json",
+      "cargo run -p ignispromptctl -- policy-scenarios --package-output local-evidence/policy/demo",
+      "cargo run -p ignispromptctl -- policy-scenarios --package-validate local-evidence/policy/demo",
+      "make policy-check",
       "make evidence-check",
       "./scripts/demo-local-evidence-workflow.sh --self-test",
     ]);
 
     const commandsText = getAllOperatorCommandsText();
     expect(commandsText).toContain("make readiness-check");
+    expect(commandsText).toContain("make policy-check");
     expect(commandsText).not.toContain("127.0.0.1");
     expect(commandsText).not.toContain("localhost");
     expect(commandsText).not.toContain("/Users/");
