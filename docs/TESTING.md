@@ -144,6 +144,8 @@ make operator-check
 
 This runs `scripts/operator-check.sh`. The check validates `ignispromptctl operator-summary` human and JSON output, operator package output/list/validate behavior, readiness package help shape, Make target wiring, demo workflow self-test behavior, and Aethra Local Operator Console wording alignment. It does not require model weights, GGUF files, external runners, cloud credentials, external network, or a live daemon.
 
+Package workflow unit tests use unique ignored paths under `local-evidence/` and clean up only their own leaf directories. Tests must not remove shared roots such as `local-evidence/`, `local-evidence/operator/`, `local-evidence/readiness/`, or `local-evidence/archives/`, because `cargo test` runs Rust tests in parallel by default.
+
 ## CI path
 
 `.github/workflows/ci.yml` runs:
