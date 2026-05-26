@@ -116,7 +116,7 @@ The script demonstrates `route-explain`, `audit-events`, evidence bundle generat
 
 Use `--dry-run` to print the planned workflow without starting the daemon. Use `--self-test` to verify ignored-path checks and command construction without a live daemon.
 
-For regression checks that verify the CLI command shape and the Aethra boundary wording stay aligned, run `make readiness-check`, `make operator-check`, `make policy-check`, and `make evidence-check`.
+For regression checks that verify the CLI command shape and the Aethra boundary wording stay aligned, run `make readiness-check`, `make operator-check`, `make policy-check`, `make demo-check`, and `make evidence-check`.
 
 The Aethra Local Readiness page summarizes fixture-backed local preview readiness cards for daemon health, version/status, configured models, model and runner status hints, evidence workflow availability, and local helper checks. Its daemon guidance is copy-only and includes the matching `ignispromptctl readiness` summary, safe JSON diagnostics, a copy-safe Markdown readiness report for local demo notes, local readiness package preview, and read-only diagnostic drilldown hints. Aethra does not execute commands, add polling, add telemetry, or add controls.
 
@@ -125,6 +125,8 @@ The Aethra Local Command Center mirrors the same local-preview command recipes, 
 The Aethra Local Operator Console adds a read-only operator workflow view that combines local preview readiness, readiness package status, operator package preview, evidence workflow status, demo next steps, and copy-only command recipes. It is fixture-backed by default, keeps live-local loading manual, and does not execute commands, upload files, persist data, add polling, add telemetry, or add cloud calls.
 
 The Aethra Local Policy Workbench adds a read-only policy workflow view that shows expanded synthetic policy scenarios, grouping helper counts, route hints, policy package preview metadata, and copy-safe policy report snippets. Policy package validation remains structural/local only and checks required files, JSON shape, schema fields, boundary terms, placeholder values, and unsafe content. It is fixture-backed by default and does not execute commands, upload files, read local package paths, persist data, add polling, add telemetry, or add cloud calls.
+
+The Aethra Local Demo Studio adds a read-only demo story view that stitches together Local Readiness, Local Operator Console, Evidence Bundle Viewer, Local Policy Workbench, Aethra review, and demo package summary steps. Demo packages stay under ignored `local-evidence/demo-studio/`, validation is structural/local only, and the page does not execute commands, upload packages, read local package paths, persist data, add polling, add telemetry, or add cloud calls.
 
 ## Golden and bakeoff demos
 

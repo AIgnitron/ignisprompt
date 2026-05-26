@@ -96,6 +96,29 @@ enum Commands {
         #[arg(long)]
         package_list: Option<String>,
     },
+    /// Summarize the local preview demo story without calling the daemon
+    #[command(group(
+        ArgGroup::new("demo_action")
+            .args(["package_output", "package_validate", "package_list"])
+            .multiple(false)
+    ))]
+    DemoSummary {
+        /// Print structured JSON demo guidance
+        #[arg(long)]
+        json: bool,
+        /// Print a copy-safe Markdown report for local demo notes
+        #[arg(long)]
+        report: bool,
+        /// Generate a local demo package under ignored local-evidence/demo-studio/
+        #[arg(long)]
+        package_output: Option<String>,
+        /// Validate an existing local demo package without calling the daemon
+        #[arg(long)]
+        package_validate: Option<String>,
+        /// List files and metadata for an existing local demo package without calling the daemon
+        #[arg(long)]
+        package_list: Option<String>,
+    },
     /// Check daemon health
     Health,
     /// Print daemon version and local preview status
@@ -221,6 +244,19 @@ fn main() {
             package_validate,
             package_list,
         } => cmd_policy_scenarios(
+            *json,
+            *report,
+            package_output,
+            package_validate,
+            package_list,
+        ),
+        Commands::DemoSummary {
+            json,
+            report,
+            package_output,
+            package_validate,
+            package_list,
+        } => cmd_demo_summary(
             *json,
             *report,
             package_output,
@@ -374,6 +410,25 @@ struct PolicyPackageValidationReport {
     issues: Vec<String>,
 }
 
+#[derive(Clone, Debug)]
+struct DemoPackageReport {
+    output_dir: PathBuf,
+    generated_at_unix_seconds: u64,
+    generated_file_names: Vec<String>,
+    demo_summary_json: Value,
+    report_json: Value,
+    manifest_json: Value,
+    report_markdown: String,
+    readme: String,
+}
+
+#[derive(Clone, Debug)]
+struct DemoPackageValidationReport {
+    package_dir: PathBuf,
+    files: Vec<ReadinessPackageFileState>,
+    issues: Vec<String>,
+}
+
 const READINESS_PACKAGE_SCHEMA_VERSION: &str = "ignisprompt-readiness-package-0.1";
 const READINESS_PACKAGE_TYPE: &str = "ignisprompt-local-readiness-package";
 const READINESS_PACKAGE_MODE: &str = "local-preview";
@@ -405,6 +460,17 @@ const POLICY_PACKAGE_REQUIRED_FILES: &[&str] = &[
     "policy-scenarios.json",
     "policy-report.json",
     "policy-report.md",
+];
+const DEMO_SUMMARY_SCHEMA_VERSION: &str = "ignisprompt-demo-summary-0.1";
+const DEMO_PACKAGE_SCHEMA_VERSION: &str = "ignisprompt-demo-package-0.1";
+const DEMO_PACKAGE_TYPE: &str = "ignisprompt-local-demo-package";
+const DEMO_PACKAGE_MODE: &str = "local-preview";
+const DEMO_PACKAGE_REQUIRED_FILES: &[&str] = &[
+    "README.md",
+    "manifest.json",
+    "demo-summary.json",
+    "demo-report.json",
+    "demo-report.md",
 ];
 
 #[derive(Clone, Copy, Debug)]
@@ -446,6 +512,17 @@ struct PolicyScenario {
 struct PolicyScenarioGroup {
     key: &'static str,
     count: usize,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct DemoStoryStep {
+    id: &'static str,
+    name: &'static str,
+    source_surface: &'static str,
+    summary: &'static str,
+    talking_point: &'static str,
+    local_next_step: &'static str,
+    boundary_note: &'static str,
 }
 
 const OPERATOR_SUMMARY_SECTIONS: &[OperatorSummarySection] = &[
@@ -764,6 +841,63 @@ const OPERATOR_COMMAND_RECIPES: &[OperatorCommandRecipe] = &[
     },
 ];
 
+const DEMO_STORY_STEPS: &[DemoStoryStep] = &[
+    DemoStoryStep {
+        id: "local-readiness",
+        name: "Local readiness",
+        source_surface: "Aethra Local Readiness",
+        summary: "Show local preview readiness status hints before the demo story.",
+        talking_point: "Readiness values are local preview status hints, not controls.",
+        local_next_step: "Run make readiness-check before a public local preview walkthrough.",
+        boundary_note: "status hints, not controls",
+    },
+    DemoStoryStep {
+        id: "operator-workflow",
+        name: "Operator workflow",
+        source_surface: "Aethra Local Operator Console",
+        summary: "Review copy-only command recipes and local operator package status.",
+        talking_point: "Commands are safe snippets for a terminal and are not executed by Aethra.",
+        local_next_step: "Run make operator-check and keep packages under local-evidence/operator/.",
+        boundary_note: "local helper checks, not certification",
+    },
+    DemoStoryStep {
+        id: "evidence-workflow",
+        name: "Evidence workflow",
+        source_surface: "Aethra Evidence Bundle Viewer",
+        summary: "Show local evidence bundle workflow shape without generated evidence contents.",
+        talking_point: "Evidence bundles are local helper output and are not signed.",
+        local_next_step: "Run make evidence-check and keep output under local-evidence/.",
+        boundary_note: "package validation is structural/local only",
+    },
+    DemoStoryStep {
+        id: "policy-scenarios",
+        name: "Policy scenarios",
+        source_surface: "Aethra Local Policy Workbench",
+        summary: "Show synthetic policy scenarios and route hints.",
+        talking_point: "Policy scenarios are synthetic route hints, not guarantees.",
+        local_next_step: "Run make policy-check and review policy package validation locally.",
+        boundary_note: "route hints, not guarantees",
+    },
+    DemoStoryStep {
+        id: "aethra-review",
+        name: "Aethra review",
+        source_surface: "Aethra fixture-backed dashboard",
+        summary: "Walk through read-only fixture-backed views with manual live-local loading only when selected.",
+        talking_point: "Aethra observes local preview state and does not change routing or runner behavior.",
+        local_next_step: "Use fixture mode by default and switch to live-local only for manual local checks.",
+        boundary_note: "fixture-backed by default with manual live-local loading",
+    },
+    DemoStoryStep {
+        id: "export-package-summary",
+        name: "Export package summary",
+        source_surface: "ignispromptctl demo-summary",
+        summary: "Generate a copy-safe demo summary or local demo package.",
+        talking_point: "Demo packages are local-only helper outputs and are not signed.",
+        local_next_step: "Run cargo run -p ignispromptctl -- demo-summary --package-output local-evidence/demo-studio/demo.",
+        boundary_note: "local preview demo only",
+    },
+];
+
 const DOCTOR_CHECKS: &[DoctorCheckSpec] = &[
     DoctorCheckSpec {
         id: "health",
@@ -1055,6 +1189,85 @@ fn cmd_policy_scenarios(
         println!("{}", format_policy_scenarios_report());
     } else {
         println!("{}", format_policy_scenarios_summary());
+    }
+}
+
+fn cmd_demo_summary(
+    json_output: bool,
+    report_output: bool,
+    package_output: &Option<String>,
+    package_validate: &Option<String>,
+    package_list: &Option<String>,
+) {
+    if let Some(package_dir) = package_validate {
+        let report = match build_demo_package_validation_report(Path::new(package_dir)) {
+            Ok(report) => report,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        if json_output {
+            println!("{}", format_demo_package_validation_json(&report));
+        } else {
+            println!("{}", format_demo_package_validation_summary(&report));
+        }
+        if !report.issues.is_empty() {
+            process::exit(1);
+        }
+        return;
+    }
+
+    if let Some(package_dir) = package_list {
+        let report = match build_demo_package_validation_report(Path::new(package_dir)) {
+            Ok(report) => report,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        if json_output {
+            println!("{}", format_demo_package_list_json(&report));
+        } else {
+            println!("{}", format_demo_package_list_summary(&report));
+        }
+        return;
+    }
+
+    if let Some(output) = package_output {
+        let output_dir = match validate_demo_package_output_dir(output) {
+            Ok(path) => path,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        let package = match build_demo_package_report(output_dir) {
+            Ok(package) => package,
+            Err(message) => {
+                eprintln!("error: {}", message);
+                process::exit(1);
+            }
+        };
+        if let Err(message) = write_demo_package_report(&package) {
+            eprintln!("error: {}", message);
+            process::exit(1);
+        }
+
+        if json_output {
+            println!("{}", format_demo_package_summary_json(&package));
+        } else {
+            println!("{}", format_demo_package_summary(&package));
+        }
+        return;
+    }
+
+    if json_output {
+        println!("{}", format_demo_summary_json());
+    } else if report_output {
+        println!("{}", format_demo_summary_report());
+    } else {
+        println!("{}", format_demo_summary());
     }
 }
 
@@ -1773,6 +1986,129 @@ fn policy_scenario_groups_json() -> Value {
         "local_only_expected_count": policy_scenarios_expected_local_only().len(),
         "fail_closed_expected_count": policy_scenarios_expected_fail_closed().len(),
     })
+}
+
+fn format_demo_summary() -> String {
+    let mut lines = vec![
+        "IgnisPrompt Local Demo Summary".to_string(),
+        "".to_string(),
+        "Scope:".to_string(),
+        "- local preview demo only".to_string(),
+        "- route/status/package values are hints, not guarantees".to_string(),
+        "- local helper checks, not certification".to_string(),
+        "- no formal legal guidance or correctness claim".to_string(),
+        "- no telemetry, no global aggregation, and no cloud calls by default".to_string(),
+        "- Aethra remains fixture-backed by default with manual live-local loading".to_string(),
+        "".to_string(),
+        "Demo story steps:".to_string(),
+    ];
+
+    for step in DEMO_STORY_STEPS {
+        lines.push(format!(
+            "- {}: {} ({})",
+            sanitize_readiness_report_text(step.name),
+            sanitize_readiness_report_text(step.summary),
+            sanitize_readiness_report_text(step.boundary_note)
+        ));
+        lines.push(format!(
+            "  next step: {}",
+            sanitize_readiness_report_text(step.local_next_step)
+        ));
+    }
+
+    lines.push("".to_string());
+    lines.push("Local helper commands:".to_string());
+    lines.push("- cargo run -p ignispromptctl -- demo-summary --json".to_string());
+    lines.push("- cargo run -p ignispromptctl -- demo-summary --report".to_string());
+    lines.push(
+        "- cargo run -p ignispromptctl -- demo-summary --package-output local-evidence/demo-studio/demo"
+            .to_string(),
+    );
+    lines.push("- make demo-check".to_string());
+    lines.join("\n")
+}
+
+fn format_demo_summary_json() -> String {
+    let steps = DEMO_STORY_STEPS
+        .iter()
+        .map(|step| {
+            json!({
+                "id": step.id,
+                "name": sanitize_readiness_report_text(step.name),
+                "source_surface": sanitize_readiness_report_text(step.source_surface),
+                "summary": sanitize_readiness_report_text(step.summary),
+                "talking_point": sanitize_readiness_report_text(step.talking_point),
+                "local_next_step": sanitize_readiness_report_text(step.local_next_step),
+                "boundary_note": sanitize_readiness_report_text(step.boundary_note),
+            })
+        })
+        .collect::<Vec<_>>();
+
+    serde_json::to_string_pretty(&json!({
+        "demo_summary_schema_version": DEMO_SUMMARY_SCHEMA_VERSION,
+        "mode": "local-preview",
+        "status": "demo_guidance",
+        "scope": {
+            "local_preview_demo_only": true,
+            "route_status_package_values_are_hints_not_guarantees": true,
+            "local_helper_checks_not_certification": true,
+            "no_formal_legal_guidance": true,
+            "no_formal_legal_correctness_claim": true,
+            "aethra_fixture_backed_by_default": true,
+            "manual_live_local_loading": true,
+            "no_telemetry": true,
+            "no_cloud_calls_by_default": true,
+            "no_global_aggregation": true,
+        },
+        "story_steps": steps,
+        "related_checks": [
+            "make readiness-check",
+            "make operator-check",
+            "make evidence-check",
+            "make policy-check",
+            "make demo-check"
+        ],
+        "boundary_notes": demo_package_boundaries(),
+    }))
+    .unwrap_or_default()
+}
+
+fn format_demo_summary_report() -> String {
+    let mut lines = vec![
+        "# IgnisPrompt Local Demo Summary Report".to_string(),
+        "".to_string(),
+        "This report is local preview demo guidance only. It uses synthetic story steps and local helper status hints, not guarantees. It omits sensitive input content, daemon URLs, network names, user account names, device-specific identifiers, absolute paths, audit event bodies, private credentials, generated evidence contents, package contents, and model file contents.".to_string(),
+        "".to_string(),
+        "## Boundaries".to_string(),
+        "".to_string(),
+    ];
+    for boundary in demo_package_boundaries() {
+        lines.push(format!("- {}", boundary));
+    }
+
+    lines.extend(["".to_string(), "## Demo Story".to_string(), "".to_string()]);
+    for step in DEMO_STORY_STEPS {
+        lines.push(format!(
+            "- {}: surface={}, talking_point={}, next_step={}, boundary={}",
+            sanitize_readiness_report_text(step.name),
+            sanitize_readiness_report_text(step.source_surface),
+            sanitize_readiness_report_text(step.talking_point),
+            sanitize_readiness_report_text(step.local_next_step),
+            sanitize_readiness_report_text(step.boundary_note)
+        ));
+    }
+
+    lines.extend([
+        "".to_string(),
+        "## Local Helper Commands".to_string(),
+        "".to_string(),
+        "- cargo run -p ignispromptctl -- demo-summary".to_string(),
+        "- cargo run -p ignispromptctl -- demo-summary --json".to_string(),
+        "- cargo run -p ignispromptctl -- demo-summary --report".to_string(),
+        "- make demo-check".to_string(),
+        "".to_string(),
+    ]);
+    lines.join("\n")
 }
 
 fn readiness_report_next_steps(report: &DoctorReport) -> Vec<String> {
@@ -3567,6 +3903,538 @@ fn policy_package_validation_value(report: &PolicyPackageValidationReport) -> Va
         })).collect::<Vec<_>>(),
         "issues": report.issues,
         "package_boundaries": policy_package_boundaries(),
+    })
+}
+
+fn build_demo_package_report(output_dir: PathBuf) -> Result<DemoPackageReport, String> {
+    let generated_at_unix_seconds = current_unix_seconds()?;
+    let generated_file_names = DEMO_PACKAGE_REQUIRED_FILES
+        .iter()
+        .map(|file_name| (*file_name).to_string())
+        .collect::<Vec<_>>();
+    let demo_summary_json: Value = serde_json::from_str(&format_demo_summary_json())
+        .map_err(|error| format!("could not build demo summary JSON: {}", error))?;
+    let report_markdown = format_demo_summary_report();
+    let report_json = build_demo_package_report_json(
+        generated_at_unix_seconds,
+        &generated_file_names,
+        &demo_summary_json,
+    );
+    let manifest_json = build_demo_package_manifest_json(
+        generated_at_unix_seconds,
+        &generated_file_names,
+        &demo_summary_json,
+    );
+    let readme = build_demo_package_readme();
+
+    validate_no_placeholder_string_values("demo-summary", &demo_summary_json)?;
+    validate_no_placeholder_string_values("demo-report", &report_json)?;
+    validate_no_placeholder_string_values("demo-manifest", &manifest_json)?;
+    validate_demo_package_safe_text("demo-report.md", &report_markdown)?;
+    validate_demo_package_safe_text("README.md", &readme)?;
+
+    Ok(DemoPackageReport {
+        output_dir,
+        generated_at_unix_seconds,
+        generated_file_names,
+        demo_summary_json,
+        report_json,
+        manifest_json,
+        report_markdown,
+        readme,
+    })
+}
+
+fn build_demo_package_report_json(
+    generated_at_unix_seconds: u64,
+    generated_file_names: &[String],
+    demo_summary_json: &Value,
+) -> Value {
+    json!({
+        "demo_package_schema_version": DEMO_PACKAGE_SCHEMA_VERSION,
+        "package_type": DEMO_PACKAGE_TYPE,
+        "package_mode": DEMO_PACKAGE_MODE,
+        "generated_at_unix_seconds": generated_at_unix_seconds,
+        "local_only": true,
+        "local_preview_demo_only": true,
+        "no_cloud_calls_by_default": true,
+        "no_telemetry": true,
+        "no_global_aggregation": true,
+        "external_assurance_claim": false,
+        "external_integrity_claim": false,
+        "generated_file_names": generated_file_names,
+        "demo_status": demo_summary_json.get("status").cloned().unwrap_or(Value::Null),
+        "story_steps": demo_summary_json.get("story_steps").cloned().unwrap_or_else(|| json!([])),
+        "related_checks": demo_summary_json.get("related_checks").cloned().unwrap_or_else(|| json!([])),
+        "package_boundaries": demo_package_boundaries(),
+    })
+}
+
+fn build_demo_package_manifest_json(
+    generated_at_unix_seconds: u64,
+    generated_file_names: &[String],
+    demo_summary_json: &Value,
+) -> Value {
+    json!({
+        "demo_package_schema_version": DEMO_PACKAGE_SCHEMA_VERSION,
+        "package_type": DEMO_PACKAGE_TYPE,
+        "package_mode": DEMO_PACKAGE_MODE,
+        "generated_at_unix_seconds": generated_at_unix_seconds,
+        "local_only": true,
+        "generated_file_names": generated_file_names,
+        "files": generated_file_names
+            .iter()
+            .map(|file_name| json!({
+                "name": file_name,
+                "purpose": demo_package_file_purpose(file_name),
+            }))
+            .collect::<Vec<_>>(),
+        "demo_status": demo_summary_json.get("status").cloned().unwrap_or(Value::Null),
+        "package_boundaries": demo_package_boundaries(),
+    })
+}
+
+fn demo_package_file_purpose(file_name: &str) -> &'static str {
+    match file_name {
+        "README.md" => "local preview demo package guide",
+        "manifest.json" => "demo package manifest",
+        "demo-summary.json" => "safe CLI demo story guidance",
+        "demo-report.json" => "copy-safe demo package summary",
+        "demo-report.md" => "copy-safe demo package report",
+        _ => "demo package file",
+    }
+}
+
+fn demo_package_boundaries() -> Vec<&'static str> {
+    vec![
+        "local preview demo only",
+        "synthetic story steps only",
+        "route/status/package values are hints, not guarantees",
+        "local helper checks, not certification",
+        "package validation is structural/local only",
+        "not signed",
+        "not production attestation",
+        "no formal legal guidance",
+        "no formal legal correctness claim",
+        "no telemetry",
+        "no cloud calls by default",
+        "no global aggregation",
+        "Aethra is fixture-backed by default with manual live-local loading",
+        "no sensitive input content, audit event bodies, evidence payloads, package contents, model file payloads, private credentials, or local machine-specific values",
+    ]
+}
+
+fn build_demo_package_readme() -> String {
+    [
+        "# IgnisPrompt Local Demo Package",
+        "",
+        "This package is a local preview demo story summary generated by `ignispromptctl demo-summary --package-output`.",
+        "",
+        "Boundaries:",
+        "- local preview demo only",
+        "- synthetic story steps only",
+        "- route/status/package values are hints, not guarantees",
+        "- local helper checks, not certification",
+        "- package validation is structural/local only",
+        "- not signed",
+        "- not production attestation",
+        "- no formal legal guidance",
+        "- no formal legal correctness claim",
+        "- no telemetry",
+        "- no cloud calls by default",
+        "- no global aggregation",
+        "- Aethra is fixture-backed by default with manual live-local loading",
+        "- no sensitive input content, audit event bodies, evidence payloads, package contents, model file payloads, private credentials, or local machine-specific values",
+        "",
+        "Contents:",
+        "- README.md",
+        "- manifest.json",
+        "- demo-summary.json",
+        "- demo-report.json",
+        "- demo-report.md",
+        "",
+        "Keep this output under ignored `local-evidence/demo-studio/` and do not commit generated demo packages.",
+        "",
+    ]
+    .join("\n")
+}
+
+fn write_demo_package_report(report: &DemoPackageReport) -> Result<(), String> {
+    if report.output_dir.exists() {
+        return Err(format!(
+            "demo package output already exists: {}",
+            report.output_dir.display()
+        ));
+    }
+
+    let parent = report.output_dir.parent().unwrap_or_else(|| Path::new("."));
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("could not create demo package parent: {}", error))?;
+
+    let staging_dir =
+        package_staging_dir(parent, ".ignispromptctl-demo-package", &report.output_dir);
+    if staging_dir.exists() {
+        let _ = fs::remove_dir_all(&staging_dir);
+    }
+    fs::create_dir_all(&staging_dir)
+        .map_err(|error| format!("could not create demo package staging: {}", error))?;
+
+    let write_result = (|| -> Result<(), String> {
+        write_text_file(&staging_dir.join("README.md"), &report.readme)?;
+        write_pretty_json_file(&staging_dir.join("manifest.json"), &report.manifest_json)?;
+        write_pretty_json_file(
+            &staging_dir.join("demo-summary.json"),
+            &report.demo_summary_json,
+        )?;
+        write_pretty_json_file(&staging_dir.join("demo-report.json"), &report.report_json)?;
+        write_text_file(&staging_dir.join("demo-report.md"), &report.report_markdown)?;
+        Ok(())
+    })();
+
+    if let Err(message) = write_result {
+        let _ = fs::remove_dir_all(&staging_dir);
+        return Err(message);
+    }
+
+    fs::rename(&staging_dir, &report.output_dir).map_err(|error| {
+        let _ = fs::remove_dir_all(&staging_dir);
+        format!(
+            "could not finalize demo package at {}: {}",
+            report.output_dir.display(),
+            error
+        )
+    })?;
+
+    Ok(())
+}
+
+fn validate_demo_package_output_dir(output: &str) -> Result<PathBuf, String> {
+    let path = validate_relative_path(output, "demo package output")?;
+    if !path.starts_with("local-evidence/demo-studio") {
+        return Err(
+            "demo package output must stay under ignored local-evidence/demo-studio/".to_string(),
+        );
+    }
+    if path == Path::new("local-evidence/demo-studio") {
+        return Err(
+            "demo package output must include a package directory under local-evidence/demo-studio/"
+                .to_string(),
+        );
+    }
+    if path.exists() {
+        return Err(format!(
+            "demo package output already exists: {}",
+            path.display()
+        ));
+    }
+    Ok(path)
+}
+
+fn safe_demo_package_path(path: &Path) -> String {
+    if path.is_absolute() {
+        "[redacted demo package path]".to_string()
+    } else {
+        path.display().to_string()
+    }
+}
+
+fn build_demo_package_validation_report(
+    package_dir: &Path,
+) -> Result<DemoPackageValidationReport, String> {
+    if !package_dir.exists() {
+        return Err(format!(
+            "demo package directory does not exist: {}",
+            safe_demo_package_path(package_dir)
+        ));
+    }
+    if !package_dir.is_dir() {
+        return Err(format!(
+            "demo package path is not a directory: {}",
+            safe_demo_package_path(package_dir)
+        ));
+    }
+
+    let mut files = Vec::new();
+    let mut issues = Vec::new();
+    for file_name in DEMO_PACKAGE_REQUIRED_FILES {
+        let path = package_dir.join(file_name);
+        if !path.exists() {
+            issues.push(format!("missing required file: {}", file_name));
+            files.push(ReadinessPackageFileState {
+                file_name,
+                present: false,
+                json_valid: None,
+                text: None,
+            });
+            continue;
+        }
+
+        let text = fs::read_to_string(&path)
+            .map_err(|error| format!("could not read {}: {}", file_name, error))?;
+        if let Err(message) = validate_demo_package_safe_text(file_name, &text) {
+            issues.push(message);
+        }
+        let json_valid = if file_name.ends_with(".json") {
+            match serde_json::from_str::<Value>(&text) {
+                Ok(value) => {
+                    if let Err(message) = validate_no_placeholder_string_values(file_name, &value) {
+                        issues.push(message);
+                    }
+                    if let Err(message) = validate_demo_package_json_shape(file_name, &value) {
+                        issues.push(message);
+                    }
+                    Some(true)
+                }
+                Err(error) => {
+                    issues.push(format!("invalid JSON in {}: {}", file_name, error));
+                    Some(false)
+                }
+            }
+        } else {
+            None
+        };
+        files.push(ReadinessPackageFileState {
+            file_name,
+            present: true,
+            json_valid,
+            text: Some(text),
+        });
+    }
+
+    if let Some(readme) = files
+        .iter()
+        .find(|file| file.file_name == "README.md")
+        .and_then(|file| file.text.as_deref())
+    {
+        for term in [
+            "local preview demo only",
+            "synthetic story steps only",
+            "route/status/package values are hints, not guarantees",
+            "local helper checks, not certification",
+            "package validation is structural/local only",
+            "not signed",
+            "not production attestation",
+            "no formal legal guidance",
+            "no formal legal correctness claim",
+            "no telemetry",
+            "no cloud calls by default",
+        ] {
+            if !readme.contains(term) {
+                issues.push(format!("README.md is missing boundary term: {}", term));
+            }
+        }
+    }
+
+    Ok(DemoPackageValidationReport {
+        package_dir: package_dir.to_path_buf(),
+        files,
+        issues,
+    })
+}
+
+fn validate_demo_package_json_shape(file_name: &str, value: &Value) -> Result<(), String> {
+    match file_name {
+        "manifest.json" => validate_demo_manifest_json(value),
+        "demo-summary.json" => validate_demo_summary_json_value(value),
+        "demo-report.json" => validate_demo_report_json(value),
+        _ => Ok(()),
+    }
+    .map_err(|message| format!("{} {}", file_name, message))
+}
+
+fn validate_demo_manifest_json(value: &Value) -> Result<(), String> {
+    expect_json_string(
+        value,
+        "demo_package_schema_version",
+        DEMO_PACKAGE_SCHEMA_VERSION,
+    )?;
+    expect_json_string(value, "package_type", DEMO_PACKAGE_TYPE)?;
+    expect_json_string(value, "package_mode", DEMO_PACKAGE_MODE)?;
+    expect_json_bool(value, "local_only", true)?;
+    expect_json_array_len(
+        value,
+        "generated_file_names",
+        DEMO_PACKAGE_REQUIRED_FILES.len(),
+    )?;
+    expect_json_array_len(value, "files", DEMO_PACKAGE_REQUIRED_FILES.len())?;
+    expect_json_string(value, "demo_status", "demo_guidance")?;
+    Ok(())
+}
+
+fn validate_demo_summary_json_value(value: &Value) -> Result<(), String> {
+    expect_json_string(
+        value,
+        "demo_summary_schema_version",
+        DEMO_SUMMARY_SCHEMA_VERSION,
+    )?;
+    expect_json_string(value, "mode", "local-preview")?;
+    expect_json_string(value, "status", "demo_guidance")?;
+    expect_json_array_len(value, "story_steps", DEMO_STORY_STEPS.len())?;
+    Ok(())
+}
+
+fn validate_demo_report_json(value: &Value) -> Result<(), String> {
+    expect_json_string(
+        value,
+        "demo_package_schema_version",
+        DEMO_PACKAGE_SCHEMA_VERSION,
+    )?;
+    expect_json_string(value, "package_type", DEMO_PACKAGE_TYPE)?;
+    expect_json_string(value, "package_mode", DEMO_PACKAGE_MODE)?;
+    expect_json_bool(value, "local_only", true)?;
+    expect_json_bool(value, "local_preview_demo_only", true)?;
+    expect_json_bool(value, "no_cloud_calls_by_default", true)?;
+    expect_json_bool(value, "no_telemetry", true)?;
+    expect_json_bool(value, "no_global_aggregation", true)?;
+    expect_json_string(value, "demo_status", "demo_guidance")?;
+    expect_json_array_len(
+        value,
+        "generated_file_names",
+        DEMO_PACKAGE_REQUIRED_FILES.len(),
+    )?;
+    expect_json_array_len(value, "story_steps", DEMO_STORY_STEPS.len())?;
+    Ok(())
+}
+
+fn validate_demo_package_safe_text(label: &str, text: &str) -> Result<(), String> {
+    validate_policy_package_safe_text(label, text)?;
+    let lower = text.to_ascii_lowercase();
+    for unsafe_term in [
+        "demo package contents:",
+        "generated package contents:",
+        "route guarantee",
+        "model controls",
+        "runner controls",
+    ] {
+        if lower.contains(unsafe_term) {
+            return Err(format!(
+                "{} contains unsafe content: {}",
+                label, unsafe_term
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn format_demo_package_summary(report: &DemoPackageReport) -> String {
+    let status = report
+        .demo_summary_json
+        .get("status")
+        .and_then(|value| value.as_str())
+        .unwrap_or("unknown");
+    let mut lines = vec![
+        "IgnisPrompt Local Demo Package".to_string(),
+        format!("Schema version: {}", DEMO_PACKAGE_SCHEMA_VERSION),
+        format!("Package mode: {}", DEMO_PACKAGE_MODE),
+        format!("Output dir: {}", report.output_dir.display()),
+        format!(
+            "Generated at (unix seconds): {}",
+            report.generated_at_unix_seconds
+        ),
+        format!("Demo status: {}", status),
+        "Boundaries: local preview demo only; route/status/package values are hints, not guarantees; local helper checks, not certification; package validation is structural/local only; not signed.".to_string(),
+        "".to_string(),
+        "Generated files:".to_string(),
+    ];
+    for file_name in &report.generated_file_names {
+        lines.push(format!("- {}", file_name));
+    }
+    lines.push("".to_string());
+    lines.push("Next steps:".to_string());
+    lines.push(
+        "- run cargo run -p ignispromptctl -- demo-summary --package-validate <package-dir>"
+            .to_string(),
+    );
+    lines.push(
+        "- review Aethra Local Demo Studio package preview as read-only guidance.".to_string(),
+    );
+    lines.join("\n")
+}
+
+fn format_demo_package_summary_json(report: &DemoPackageReport) -> String {
+    serde_json::to_string_pretty(&report.report_json).unwrap_or_default()
+}
+
+fn format_demo_package_validation_summary(report: &DemoPackageValidationReport) -> String {
+    let mut lines = vec![
+        "IgnisPrompt Local Demo Package Validation".to_string(),
+        format!(
+            "Package dir: {}",
+            safe_demo_package_path(&report.package_dir)
+        ),
+        format!(
+            "Status: {}",
+            if report.issues.is_empty() {
+                "ok"
+            } else {
+                "failed"
+            }
+        ),
+        "".to_string(),
+        "Files:".to_string(),
+    ];
+    for file in &report.files {
+        lines.push(format!(
+            "- {}: {}",
+            file.file_name,
+            if file.present { "present" } else { "missing" }
+        ));
+    }
+    if !report.issues.is_empty() {
+        lines.push("".to_string());
+        lines.push("Issues:".to_string());
+        for issue in &report.issues {
+            lines.push(format!("- {}", issue));
+        }
+    }
+    lines.join("\n")
+}
+
+fn format_demo_package_list_summary(report: &DemoPackageValidationReport) -> String {
+    let mut lines = vec![
+        "IgnisPrompt Local Demo Package Files".to_string(),
+        format!(
+            "Package dir: {}",
+            safe_demo_package_path(&report.package_dir)
+        ),
+        "".to_string(),
+    ];
+    for file in &report.files {
+        let json_label = match file.json_valid {
+            Some(true) => " json=valid",
+            Some(false) => " json=invalid",
+            None => "",
+        };
+        lines.push(format!(
+            "- {}: {}{}",
+            file.file_name,
+            if file.present { "present" } else { "missing" },
+            json_label
+        ));
+    }
+    lines.join("\n")
+}
+
+fn format_demo_package_validation_json(report: &DemoPackageValidationReport) -> String {
+    serde_json::to_string_pretty(&demo_package_validation_value(report)).unwrap_or_default()
+}
+
+fn format_demo_package_list_json(report: &DemoPackageValidationReport) -> String {
+    serde_json::to_string_pretty(&demo_package_validation_value(report)).unwrap_or_default()
+}
+
+fn demo_package_validation_value(report: &DemoPackageValidationReport) -> Value {
+    json!({
+        "demo_package_schema_version": DEMO_PACKAGE_SCHEMA_VERSION,
+        "status": if report.issues.is_empty() { "ok" } else { "failed" },
+        "package_dir": safe_demo_package_path(&report.package_dir),
+        "files": report.files.iter().map(|file| json!({
+            "name": file.file_name,
+            "present": file.present,
+            "json_valid": file.json_valid,
+        })).collect::<Vec<_>>(),
+        "issues": report.issues,
+        "package_boundaries": demo_package_boundaries(),
     })
 }
 
@@ -6716,14 +7584,18 @@ fn format_invalid_response_error(kind: &str, endpoint: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        audit_events_url, build_evidence_bundle_archive_report,
-        build_evidence_bundle_archive_verification_report, build_evidence_bundle_manifest_report,
-        build_evidence_bundle_report, build_evidence_bundle_validation_report,
-        build_operator_package_report, build_operator_package_validation_report,
-        build_policy_package_report, build_policy_package_validation_report,
-        build_readiness_package_report, build_readiness_package_validation_report,
-        build_route_explain_body, current_unix_seconds, doctor_endpoint_url,
-        format_audit_events_summary, format_doctor_json, format_doctor_summary,
+        audit_events_url, build_demo_package_report, build_demo_package_validation_report,
+        build_evidence_bundle_archive_report, build_evidence_bundle_archive_verification_report,
+        build_evidence_bundle_manifest_report, build_evidence_bundle_report,
+        build_evidence_bundle_validation_report, build_operator_package_report,
+        build_operator_package_validation_report, build_policy_package_report,
+        build_policy_package_validation_report, build_readiness_package_report,
+        build_readiness_package_validation_report, build_route_explain_body, current_unix_seconds,
+        doctor_endpoint_url, format_audit_events_summary, format_demo_package_list_json,
+        format_demo_package_list_summary, format_demo_package_summary,
+        format_demo_package_summary_json, format_demo_package_validation_json,
+        format_demo_package_validation_summary, format_demo_summary, format_demo_summary_json,
+        format_demo_summary_report, format_doctor_json, format_doctor_summary,
         format_evidence_bundle_archive_json, format_evidence_bundle_archive_summary,
         format_evidence_bundle_archive_verification_json,
         format_evidence_bundle_archive_verification_summary, format_evidence_bundle_list_json,
@@ -6749,17 +7621,17 @@ mod tests {
         policy_scenario_groups_by_category, policy_scenario_groups_by_expected_tier,
         policy_scenarios_expected_fail_closed, policy_scenarios_expected_local_only,
         policy_scenarios_with_boundary_note, readiness_report_next_steps, route_explain_url,
-        string_field, sustainability_url, validate_doctor_health,
+        string_field, sustainability_url, validate_demo_package_output_dir, validate_doctor_health,
         validate_doctor_model_status_hints, validate_doctor_models,
         validate_doctor_sustainability_metrics, validate_doctor_version_status,
         validate_evidence_bundle_archive_output_path, validate_evidence_bundle_output_dir,
         validate_no_placeholder_string_values, validate_operator_package_output_dir,
         validate_policy_package_output_dir, validate_readiness_package_output_dir,
-        validate_sustainability_period, write_evidence_bundle_report,
+        validate_sustainability_period, write_demo_package_report, write_evidence_bundle_report,
         write_operator_package_report, write_policy_package_report, write_readiness_package_report,
-        DoctorCheckLevel, DoctorCheckResult, DoctorReport, EvidenceBundleCapture, DOCTOR_CHECKS,
-        OPERATOR_PACKAGE_REQUIRED_FILES, POLICY_PACKAGE_REQUIRED_FILES, POLICY_SCENARIOS,
-        READINESS_PACKAGE_REQUIRED_FILES,
+        DoctorCheckLevel, DoctorCheckResult, DoctorReport, EvidenceBundleCapture,
+        DEMO_PACKAGE_REQUIRED_FILES, DOCTOR_CHECKS, OPERATOR_PACKAGE_REQUIRED_FILES,
+        POLICY_PACKAGE_REQUIRED_FILES, POLICY_SCENARIOS, READINESS_PACKAGE_REQUIRED_FILES,
     };
     use serde_json::json;
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -6795,6 +7667,10 @@ mod tests {
 
     fn unique_policy_package_test_dir(label: &str) -> std::path::PathBuf {
         unique_local_evidence_test_dir("local-evidence/policy/test-packages", label)
+    }
+
+    fn unique_demo_package_test_dir(label: &str) -> std::path::PathBuf {
+        unique_local_evidence_test_dir("local-evidence/demo-studio/test-packages", label)
     }
 
     fn unique_bundle_test_dir(label: &str) -> std::path::PathBuf {
@@ -7678,6 +8554,159 @@ mod tests {
         assert!(issues.contains("placeholder"));
         assert!(issues.contains("unexpected policy_scenario_schema_version"));
         assert!(format_policy_package_validation_summary(&validation).contains("Status: failed"));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn demo_summary_human_json_and_report_are_conservative() {
+        let summary = format_demo_summary();
+        let json_text = format_demo_summary_json();
+        let report_text = format_demo_summary_report();
+        let joined = [summary.as_str(), json_text.as_str(), report_text.as_str()]
+            .join("\n")
+            .to_ascii_lowercase();
+        let report: serde_json::Value = serde_json::from_str(&json_text).unwrap();
+
+        assert!(summary.contains("IgnisPrompt Local Demo Summary"));
+        assert!(summary.contains("local preview demo only"));
+        assert!(summary.contains("route/status/package values are hints, not guarantees"));
+        assert!(summary.contains("make demo-check"));
+        assert_eq!(
+            report["demo_summary_schema_version"],
+            "ignisprompt-demo-summary-0.1"
+        );
+        assert_eq!(report["status"], "demo_guidance");
+        assert_eq!(report["scope"]["local_preview_demo_only"], true);
+        assert_eq!(report["story_steps"].as_array().unwrap().len(), 6);
+        assert!(report_text.contains("# IgnisPrompt Local Demo Summary Report"));
+        assert!(report_text.contains("Local readiness"));
+        assert!(report_text.contains("Policy scenarios"));
+        assert!(!json_text.contains("\"string\""));
+        assert!(!joined.contains("production readiness"));
+        assert!(!joined.contains("production deployment"));
+        assert!(!joined.contains("legal accuracy"));
+        assert!(!joined.contains("legal advice"));
+        assert!(!joined.contains("compliance certification"));
+        assert!(!joined.contains("security certification"));
+        assert!(!joined.contains("signed attestation"));
+        assert!(!joined.contains("tamper-evident"));
+        assert!(!joined.contains("cryptographic verification"));
+        assert!(!joined.contains("model controls"));
+        assert!(!joined.contains("runner controls"));
+        assert!(!joined.contains("prompt:"));
+        assert!(!joined.contains("real prompt"));
+        assert!(!joined.contains("raw user text"));
+        assert!(!joined.contains("api key"));
+        assert!(!joined.contains("api_key"));
+        assert!(!joined.contains("127.0.0.1"));
+        assert!(!joined.contains("localhost"));
+        assert!(!joined.contains("hostname"));
+        assert!(!joined.contains("username"));
+        assert!(!joined.contains("/users/"));
+    }
+
+    #[test]
+    fn demo_package_output_path_requires_ignored_demo_studio_root() {
+        assert!(validate_demo_package_output_dir("local-evidence/demo-studio/demo").is_ok());
+        assert!(validate_demo_package_output_dir("local-evidence/demo-studio").is_err());
+        assert!(validate_demo_package_output_dir("local-evidence/demo").is_err());
+        assert!(validate_demo_package_output_dir("/tmp/demo").is_err());
+        assert!(validate_demo_package_output_dir("local-evidence/demo-studio/../bad").is_err());
+    }
+
+    #[test]
+    fn demo_package_writes_and_validates_safe_files() {
+        let output_dir = unique_demo_package_test_dir("write-safe");
+        let _ = std::fs::remove_dir_all(&output_dir);
+
+        let package = build_demo_package_report(output_dir.clone()).unwrap();
+        write_demo_package_report(&package).unwrap();
+
+        for file_name in DEMO_PACKAGE_REQUIRED_FILES {
+            assert!(output_dir.join(file_name).exists());
+        }
+        let validation = build_demo_package_validation_report(&output_dir).unwrap();
+        assert!(validation.issues.is_empty());
+        assert!(format_demo_package_validation_summary(&validation).contains("Status: ok"));
+        assert!(format_demo_package_list_summary(&validation).contains("demo-report.md"));
+        assert!(format_demo_package_validation_json(&validation).contains("\"status\": \"ok\""));
+        assert!(format_demo_package_list_json(&validation).contains("demo-summary.json"));
+
+        let summary = format_demo_package_summary(&package);
+        let summary_json = format_demo_package_summary_json(&package);
+        let lower_package_text = [
+            summary.as_str(),
+            summary_json.as_str(),
+            package.report_markdown.as_str(),
+            package.readme.as_str(),
+        ]
+        .join("\n")
+        .to_ascii_lowercase();
+        assert!(summary.contains("IgnisPrompt Local Demo Package"));
+        assert!(summary_json.contains("\"local_only\": true"));
+        assert!(summary_json.contains("\"demo_package_schema_version\""));
+        assert!(lower_package_text.contains("local preview demo only"));
+        assert!(lower_package_text.contains("synthetic story steps only"));
+        assert!(
+            lower_package_text.contains("route/status/package values are hints, not guarantees")
+        );
+        assert!(lower_package_text.contains("local helper checks, not certification"));
+        assert!(lower_package_text.contains("package validation is structural/local only"));
+        assert!(lower_package_text.contains("not signed"));
+        assert!(lower_package_text.contains("not production attestation"));
+        assert!(!lower_package_text.contains("prompt:"));
+        assert!(!lower_package_text.contains("real prompt"));
+        assert!(!lower_package_text.contains("raw user text"));
+        assert!(!lower_package_text.contains("raw audit text"));
+        assert!(!lower_package_text.contains("api_key"));
+        assert!(!lower_package_text.contains("sk-"));
+        assert!(!lower_package_text.contains("localhost"));
+        assert!(!lower_package_text.contains("127.0.0.1"));
+        assert!(!lower_package_text.contains("hostname"));
+        assert!(!lower_package_text.contains("username"));
+        assert!(!lower_package_text.contains("/users/"));
+        assert!(!lower_package_text.contains("production readiness"));
+        assert!(!lower_package_text.contains("production deployment"));
+        assert!(!lower_package_text.contains("legal accuracy"));
+        assert!(!lower_package_text.contains("esg certification"));
+        assert!(!lower_package_text.contains("compliance certification"));
+        assert!(!lower_package_text.contains("security certification"));
+        assert!(!lower_package_text.contains("tamper-evident"));
+        assert!(!lower_package_text.contains("cryptographic verification"));
+        assert!(!lower_package_text.contains("signed attestation"));
+        assert!(!lower_package_text.contains("model controls"));
+        assert!(!lower_package_text.contains("runner controls"));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn demo_package_validation_reports_schema_drift_and_unsafe_content() {
+        let output_dir = unique_demo_package_test_dir("schema-drift");
+        let _ = std::fs::remove_dir_all(&output_dir);
+
+        let package = build_demo_package_report(output_dir.clone()).unwrap();
+        write_demo_package_report(&package).unwrap();
+        let mut summary_json = package.demo_summary_json.clone();
+        summary_json["demo_summary_schema_version"] = json!("string");
+        std::fs::write(
+            output_dir.join("demo-summary.json"),
+            serde_json::to_string_pretty(&summary_json).unwrap(),
+        )
+        .unwrap();
+        std::fs::write(
+            output_dir.join("demo-report.md"),
+            "local preview demo only\nsynthetic story steps only\nprompt: raw audit text /Users/alice api_key sk-test\n",
+        )
+        .unwrap();
+
+        let validation = build_demo_package_validation_report(&output_dir).unwrap();
+        let issues = validation.issues.join("\n");
+        assert!(issues.contains("placeholder"));
+        assert!(issues.contains("unexpected demo_summary_schema_version"));
+        assert!(issues.contains("unsafe content"));
+        assert!(format_demo_package_validation_summary(&validation).contains("Status: failed"));
 
         let _ = std::fs::remove_dir_all(&output_dir);
     }

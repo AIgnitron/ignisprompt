@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AuditEvents } from "./routes/AuditEvents";
 import { EvidenceBundleViewer } from "./routes/EvidenceBundleViewer";
 import { LocalCommandCenter } from "./routes/LocalCommandCenter";
+import { LocalDemoStudio } from "./routes/LocalDemoStudio";
 import { LocalOperatorConsole } from "./routes/LocalOperatorConsole";
 import { LocalPolicyWorkbench } from "./routes/LocalPolicyWorkbench";
 import { LocalReadiness } from "./routes/LocalReadiness";
@@ -35,6 +36,7 @@ import { SustainabilityPreview } from "./routes/SustainabilityPreview";
 type AethraRoute =
   | "overview"
   | "local-readiness"
+  | "local-demo-studio"
   | "local-operator-console"
   | "local-policy-workbench"
   | "local-command-center"
@@ -291,6 +293,15 @@ export default function App() {
           <button
             type="button"
             aria-current={
+              activeRoute === "local-demo-studio" ? "page" : undefined
+            }
+            onClick={() => setActiveRoute("local-demo-studio")}
+          >
+            Local demo studio
+          </button>
+          <button
+            type="button"
+            aria-current={
               activeRoute === "local-operator-console" ? "page" : undefined
             }
             onClick={() => setActiveRoute("local-operator-console")}
@@ -419,6 +430,7 @@ export default function App() {
           />
         ) : null}
         {activeRoute === "local-command-center" ? <LocalCommandCenter /> : null}
+        {activeRoute === "local-demo-studio" ? <LocalDemoStudio /> : null}
         {activeRoute === "local-operator-console" ? (
           <LocalOperatorConsole />
         ) : null}

@@ -403,3 +403,7 @@ The Golden Legal v0.3 script now includes nine local control-plane cases: the or
 - Broad MCP client compatibility beyond the experimental stdio stub.
 - Dashboard behavior.
 - Tier 4 or Tier 5 routing.
+
+### Local demo studio check
+
+Run make demo-check to validate scripts/demo-check.sh, ignispromptctl demo-summary output, demo package output/list/validate behavior, Make target wiring, demo workflow self-test behavior, and Aethra Local Demo Studio wording alignment. It uses synthetic demo story steps only and does not require model weights, GGUF files, external runners, cloud credentials, external network, or a live daemon.
