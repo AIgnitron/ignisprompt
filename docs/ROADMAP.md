@@ -25,6 +25,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Local operator package workflow for ignored local-evidence/operator output, CLI list/validate behavior, demo workflow integration, and Aethra read-only operator package preview.
 - v0.1.6 local preview release-readiness record for the post-v0.1.5 local operator workflow arc.
 - Local policy workbench workflow with expanded synthetic policy scenarios, grouping helpers, `ignispromptctl policy-scenarios`, copy-safe policy reports, ignored local-evidence/policy package output, stricter CLI list/validate behavior, `make policy-check`, demo workflow integration, and Aethra read-only policy package preview.
+- v0.1.7 local preview release-prep record for the post-v0.1.6 local policy workbench arc.
 - Local evidence demo workflow automation script for route-explain, audit-events, evidence-bundle generation, listing, validation, archiving, archive verification, and manifest inspection.
 - Adversarial document-instruction detection for known instruction strings.
 - OpenAI-compatible chat completion request shape, including a `stream: true` compatibility scaffold that frames an already-produced local completion as SSE chunks.

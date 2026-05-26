@@ -5,6 +5,8 @@
 ### Changed
 - Aligned documentation after `v0.1.6-local-preview` was published as the latest local-preview release.
 - Clarified current local-preview surfaces while keeping them scoped as scaffold, stub, fixture-backed, or local helper behavior where applicable.
+- Prepared the `v0.1.7-local-preview` release-readiness docs for the local policy workbench arc without tagging or publishing a release.
+- Documented policy scenario inspection, policy package output/list/validate behavior, Aethra Local Policy Workbench preview, policy-check coverage, and recent local runtime hardening as local-preview scope only.
 
 ## v0.1.6-local-preview
 
