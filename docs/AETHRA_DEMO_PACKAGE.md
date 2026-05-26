@@ -376,3 +376,7 @@ Before publishing or presenting:
 - [Aethra Sustainability Monitor Demo](AETHRA_SUSTAINABILITY_DEMO.md)
 - [Aethra Sustainability Monitor Methodology](AETHRA_SUSTAINABILITY_METHODOLOGY.md)
 - [Local Preview Quickstart](LOCAL_PREVIEW_QUICKSTART.md)
+
+## Local Demo Studio
+
+The Local Demo Studio provides a read-only, fixture-backed demo story across Local Readiness, Local Operator Console, Evidence Bundle Viewer, Local Policy Workbench, Aethra review, and demo package summary steps. It does not execute commands, upload packages, read local package paths, persist demo data, add polling, add telemetry, or add cloud calls.

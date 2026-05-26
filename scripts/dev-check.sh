@@ -125,6 +125,9 @@ make security-check
 echo "[dev-check] local policy workbench checks"
 make policy-check
 
+echo "[dev-check] local demo studio checks"
+make demo-check
+
 echo "[dev-check] starting daemon with ./scripts/start-dev.sh"
 ./scripts/start-dev.sh >"$DAEMON_LOG" 2>&1 &
 daemon_pid=$!

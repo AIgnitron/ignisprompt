@@ -452,3 +452,5 @@ This local preview does not publish model weights or a hosted service. Rollback 
 - If a tag is incorrect, create a corrected tag only after communicating the change.
 - If docs are misleading, patch the docs and rerun `./scripts/release-check.sh`.
 - If a local generated artifact appears in status, remove it only when it is under an ignored generated path and rerun the ignored artifact check.
+
+- Run make demo-check to verify Local Demo Studio CLI, Aethra wording, demo package output/list/validate, and demo workflow self-test alignment before v0.1.8 release prep.

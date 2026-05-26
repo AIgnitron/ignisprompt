@@ -78,3 +78,5 @@ Future model selection should compare larger general models and legal-domain can
 - Preserve adversarial document-instruction handling.
 - Keep `StubLegalRunner` as the default fallback unless explicitly changed.
 - Keep `./models/**` and `./local-evidence/**` ignored by git.
+
+Post-v0.1.7: local demo studio is in progress for v0.1.8, combining CLI demo-summary, Aethra Local Demo Studio, demo packages, demo-check, and guided local-preview demo workflow validation without production, certification, signed attestation, or tamper-evident claims.
