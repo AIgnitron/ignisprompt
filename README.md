@@ -69,6 +69,7 @@ The docs set under `docs/` describes the current scaffold and clearly separates 
 - [Local Preview v0.1.4 release readiness](docs/releases/v0.1.4-local-preview.md)
 - [Local Preview v0.1.5 release readiness](docs/releases/v0.1.5-local-preview.md)
 - [Local Preview v0.1.6 release record](docs/releases/v0.1.6-local-preview.md)
+- [Local Preview v0.1.7 release prep](docs/releases/v0.1.7-local-preview.md)
 - [Contributor MCP usage](docs/MCP_USAGE.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Aethra MVP plan](docs/AETHRA.md)

@@ -99,10 +99,11 @@ For v0.1.6 release-readiness work, keep the local operator workflow aligned acro
 - no production deployment, legal advice, legal accuracy, or compliance, supply-chain, signed-attestation, tamper-evident, cryptographic, production-grade inference, or production-grade security claims are added; wording must say not ESG certification where sustainability boundaries are mentioned
 - LiteLLM remains planning only
 
-## v0.1.7 Planning Notes
+## v0.1.7 Release Readiness Notes
 
-For v0.1.7 planning, keep the local policy workbench aligned across Aethra, CLI, scripts, and docs:
+For v0.1.7 release-readiness work, keep the local policy workbench aligned across Aethra, CLI, scripts, and docs:
 
+- `docs/releases/v0.1.7-local-preview.md` exists and stays conservative
 - `make policy-check` passes
 - `cargo run -p ignispromptctl -- policy-scenarios` stays synthetic and local-preview only
 - `cargo run -p ignispromptctl -- policy-scenarios --json` keeps route hints conservative
