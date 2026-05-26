@@ -193,7 +193,7 @@ Purpose: show synthetic policy scenario hints without adding routing controls.
 Caption:
 
 ```text
-Local Policy Workbench shows synthetic policy scenarios, route hints, policy package preview metadata, and copy-safe policy report snippets.
+Local Policy Workbench shows expanded synthetic policy scenarios, grouping helpers, route hints, policy package preview metadata, and copy-safe policy report snippets.
 ```
 
 Talk track:
@@ -205,7 +205,7 @@ This view is fixture-backed and read-only. Scenarios are synthetic, route summar
 Screenshot guidance:
 
 - Keep fixture mode selected.
-- Show synthetic scenario cards and the policy package preview.
+- Show synthetic scenario cards, grouping helper counts, and the policy package preview.
 - Do not imply policy execution, model controls, cloud routing, certification, signing, or production deployment approval.
 
 ### 6. Local Command Center

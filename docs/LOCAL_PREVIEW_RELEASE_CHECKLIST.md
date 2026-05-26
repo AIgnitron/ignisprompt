@@ -109,6 +109,8 @@ For v0.1.7 planning, keep the local policy workbench aligned across Aethra, CLI,
 - `cargo run -p ignispromptctl -- policy-scenarios --report` prints a copy-safe local helper report
 - `cargo run -p ignispromptctl -- policy-scenarios --package-output local-evidence/policy/demo` writes only under ignored `local-evidence/policy/`
 - `cargo run -p ignispromptctl -- policy-scenarios --package-list local-evidence/policy/demo` and `cargo run -p ignispromptctl -- policy-scenarios --package-validate local-evidence/policy/demo` inspect package output locally
+- policy scenario grouping metadata stays aligned between CLI JSON, CLI Markdown, and Aethra
+- policy package validation checks required files, JSON shape, schema fields, boundary terms, placeholder values, and unsafe content
 - Aethra Local Policy Workbench remains fixture-backed by default and read-only
 - Aethra policy package preview remains read-only and fixture-backed by default
 - policy scenarios remain synthetic and do not include sensitive input content

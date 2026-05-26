@@ -82,6 +82,9 @@ require_contains "$TMP_DIR/policy-summary.txt" 'policy preview only' "policy sum
 require_contains "$TMP_DIR/policy-summary.txt" 'synthetic scenarios only' "policy summary"
 require_contains "$TMP_DIR/policy-summary.txt" 'route hints, not guarantees' "policy summary"
 require_contains "$TMP_DIR/policy-summary.txt" 'local helper checks, not certification' "policy summary"
+require_contains "$TMP_DIR/policy-summary.txt" 'local helper request: 4' "policy summary"
+require_contains "$TMP_DIR/policy-summary.txt" 'policy package request' "policy summary"
+require_contains "$TMP_DIR/policy-summary.txt" 'ambiguous request' "policy summary"
 require_contains "$TMP_DIR/policy-summary.txt" 'make policy-check' "policy summary"
 scan_safe_output "$TMP_DIR/policy-summary.txt" "policy summary"
 
@@ -89,6 +92,11 @@ cargo run --quiet -p ignispromptctl -- policy-scenarios --json >"$TMP_DIR/policy
 require_contains "$TMP_DIR/policy.json" '"policy_scenario_schema_version"' "policy json"
 require_contains "$TMP_DIR/policy.json" '"mode": "local-preview"' "policy json"
 require_contains "$TMP_DIR/policy.json" '"synthetic_scenarios_only": true' "policy json"
+require_contains "$TMP_DIR/policy.json" '"expected_local_only": true' "policy json"
+require_contains "$TMP_DIR/policy.json" '"fail_closed_expected": true' "policy json"
+require_contains "$TMP_DIR/policy.json" '"local_only_expected_count": 10' "policy json"
+require_contains "$TMP_DIR/policy.json" '"fail_closed_expected_count": 2' "policy json"
+require_contains "$TMP_DIR/policy.json" '"policy-package-request"' "policy json"
 require_contains "$TMP_DIR/policy.json" '"unsupported-cloud-required-request"' "policy json"
 reject_contains "$TMP_DIR/policy.json" '"string"' "policy json"
 scan_safe_output "$TMP_DIR/policy.json" "policy json"
@@ -97,12 +105,16 @@ cargo run --quiet -p ignispromptctl -- policy-scenarios --report >"$TMP_DIR/poli
 require_contains "$TMP_DIR/policy-report.md" 'IgnisPrompt Local Policy Scenario Report' "policy report"
 require_contains "$TMP_DIR/policy-report.md" 'route hints, not guarantees' "policy report"
 require_contains "$TMP_DIR/policy-report.md" 'synthetic scenarios only' "policy report"
+require_contains "$TMP_DIR/policy-report.md" 'Scenario Groups' "policy report"
+require_contains "$TMP_DIR/policy-report.md" 'expected_tier helper: 4' "policy report"
 scan_safe_output "$TMP_DIR/policy-report.md" "policy report"
 
 cargo run --quiet -p ignispromptctl -- policy-scenarios --package-output "$PACKAGE_DIR" --json >"$TMP_DIR/policy-package-summary.json"
 require_contains "$TMP_DIR/policy-package-summary.json" '"policy_package_schema_version"' "policy package summary json"
 require_contains "$TMP_DIR/policy-package-summary.json" '"package_mode": "local-preview"' "policy package summary json"
 require_contains "$TMP_DIR/policy-package-summary.json" '"local_only": true' "policy package summary json"
+require_contains "$TMP_DIR/policy-package-summary.json" '"policy_status": "policy_preview"' "policy package summary json"
+require_contains "$TMP_DIR/policy-package-summary.json" '"policy-package-request"' "policy package summary json"
 test -f "$PACKAGE_DIR/README.md"
 test -f "$PACKAGE_DIR/manifest.json"
 test -f "$PACKAGE_DIR/policy-scenarios.json"
@@ -123,6 +135,7 @@ scan_safe_output "$TMP_DIR/policy-package-list.json" "policy package list json"
 cargo run --quiet -p ignispromptctl -- policy-scenarios --package-validate "$PACKAGE_DIR" --json >"$TMP_DIR/policy-package-validate.json"
 require_contains "$TMP_DIR/policy-package-validate.json" '"status": "ok"' "policy package validate json"
 require_contains "$TMP_DIR/policy-package-validate.json" 'route hints, not guarantees' "policy package validate json"
+require_contains "$TMP_DIR/policy-package-validate.json" 'policy_package_schema_version' "policy package validate json"
 scan_safe_output "$TMP_DIR/policy-package-validate.json" "policy package validate json"
 
 make -n policy-check >/dev/null
@@ -134,9 +147,13 @@ require_file_contains "Makefile" 'policy-check'
 require_file_contains "apps/aethra/src/App.tsx" 'Local policy workbench'
 require_file_contains "apps/aethra/src/routes/LocalPolicyWorkbench.tsx" 'Aethra local policy workbench'
 require_file_contains "apps/aethra/src/routes/policyWorkbenchSummary.ts" 'route hints, not guarantees'
+require_file_contains "apps/aethra/src/routes/policyWorkbenchSummary.ts" 'policy-package-request'
+require_file_contains "apps/aethra/src/routes/policyWorkbenchSummary.ts" 'groupPolicyScenariosByCategory'
 require_file_contains "apps/aethra/src/routes/policyWorkbenchSummary.ts" 'local-evidence/policy/demo'
 require_file_contains "apps/aethra/src/routes/LocalPolicyWorkbench.test.tsx" 'policy-scenarios.json'
+require_file_contains "apps/aethra/src/routes/LocalPolicyWorkbench.test.tsx" 'Scenario grouping helpers'
 require_file_contains "apps/aethra/src/routes/policyWorkbenchSummary.test.ts" 'synthetic scenarios only'
+require_file_contains "apps/aethra/src/routes/policyWorkbenchSummary.test.ts" 'filterPolicyScenariosByExpectedTier'
 require_file_contains "docs/TESTING.md" 'policy-check'
 require_file_contains "docs/CODEX_HANDOFF.md" 'local policy workbench'
 require_file_contains "docs/ROADMAP.md" 'local policy workbench'

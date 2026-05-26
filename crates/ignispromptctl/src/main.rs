@@ -429,14 +429,23 @@ struct OperatorCommandRecipe {
 struct PolicyScenario {
     id: &'static str,
     name: &'static str,
+    group: &'static str,
     category: &'static str,
     synthetic_summary: &'static str,
     expected_tier: &'static str,
     expected_route: &'static str,
+    expected_local_only: bool,
+    fail_closed_expected: bool,
     expected_local_behavior: &'static str,
     expected_warning: &'static str,
     local_next_step: &'static str,
     boundary_note: &'static str,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PolicyScenarioGroup {
+    key: &'static str,
+    count: usize,
 }
 
 const OPERATOR_SUMMARY_SECTIONS: &[OperatorSummarySection] = &[
@@ -492,12 +501,15 @@ const OPERATOR_SUMMARY_SECTIONS: &[OperatorSummarySection] = &[
 
 const POLICY_SCENARIOS: &[PolicyScenario] = &[
     PolicyScenario {
-        id: "simple-local-task",
-        name: "Simple local task",
-        category: "simple local task",
+        id: "basic-summarization",
+        name: "Basic summarization",
+        group: "local task",
+        category: "basic summarization",
         synthetic_summary: "Synthetic request for a short local summary using fixture-safe text.",
         expected_tier: "tier_1",
         expected_route: "local_stub",
+        expected_local_only: true,
+        fail_closed_expected: false,
         expected_local_behavior: "route locally with no cloud call by default",
         expected_warning: "route hints, not guarantees",
         local_next_step: "Use route-explain for live local route shape when needed.",
@@ -506,10 +518,13 @@ const POLICY_SCENARIOS: &[PolicyScenario] = &[
     PolicyScenario {
         id: "legal-sensitive-task",
         name: "Legal-sensitive task",
+        group: "sensitive local task",
         category: "legal-sensitive task",
         synthetic_summary: "Synthetic legal-sensitive classification request without real facts.",
         expected_tier: "tier_3",
         expected_route: "local_legal_runner_or_stub",
+        expected_local_only: true,
+        fail_closed_expected: false,
         expected_local_behavior: "keep local and avoid formal legal guidance claims",
         expected_warning: "not a legal service and no formal legal correctness claim",
         local_next_step: "Review route explanation and local preview disclaimer.",
@@ -518,50 +533,123 @@ const POLICY_SCENARIOS: &[PolicyScenario] = &[
     PolicyScenario {
         id: "adversarial-document-instruction",
         name: "Adversarial document instruction",
+        group: "sensitive local task",
         category: "adversarial document instruction",
         synthetic_summary: "Synthetic document instruction attempts to override local policy.",
         expected_tier: "tier_3",
         expected_route: "fail_closed_or_local_review",
+        expected_local_only: true,
+        fail_closed_expected: true,
         expected_local_behavior: "treat embedded instruction as untrusted input",
         expected_warning: "route hints, not guarantees",
         local_next_step: "Keep adversarial document instructions separated from operator guidance.",
         boundary_note: "local helper checks, not certification",
     },
     PolicyScenario {
+        id: "local-evidence-request",
+        name: "Local evidence request",
+        group: "local helper request",
+        category: "local evidence request",
+        synthetic_summary: "Synthetic request for local evidence bundle workflow guidance.",
+        expected_tier: "helper",
+        expected_route: "local_evidence_guidance",
+        expected_local_only: true,
+        fail_closed_expected: false,
+        expected_local_behavior:
+            "provide local evidence workflow guidance without package contents",
+        expected_warning: "local helper checks, not certification",
+        local_next_step: "Run make evidence-check and keep outputs under local-evidence/.",
+        boundary_note: "local helper checks, not certification",
+    },
+    PolicyScenario {
+        id: "local-readiness-request",
+        name: "Local readiness request",
+        group: "local helper request",
+        category: "local readiness request",
+        synthetic_summary: "Synthetic request for local readiness summary guidance.",
+        expected_tier: "helper",
+        expected_route: "local_readiness_guidance",
+        expected_local_only: true,
+        fail_closed_expected: false,
+        expected_local_behavior: "provide readiness status hints and local next steps",
+        expected_warning: "status hints, not controls",
+        local_next_step: "Run make readiness-check before sharing local preview notes.",
+        boundary_note: "status hints, not controls",
+    },
+    PolicyScenario {
+        id: "local-operator-request",
+        name: "Local operator request",
+        group: "local helper request",
+        category: "local operator request",
+        synthetic_summary: "Synthetic request for local operator workflow guidance.",
+        expected_tier: "helper",
+        expected_route: "local_operator_guidance",
+        expected_local_only: true,
+        fail_closed_expected: false,
+        expected_local_behavior: "provide copy-only operator workflow commands",
+        expected_warning: "local helper checks, not certification",
+        local_next_step: "Run make operator-check and treat commands as copy-only.",
+        boundary_note: "status hints, not controls",
+    },
+    PolicyScenario {
+        id: "policy-package-request",
+        name: "Policy package request",
+        group: "local helper request",
+        category: "policy package request",
+        synthetic_summary: "Synthetic request for policy package generation guidance.",
+        expected_tier: "helper",
+        expected_route: "local_policy_package_guidance",
+        expected_local_only: true,
+        fail_closed_expected: false,
+        expected_local_behavior: "write only under ignored local-evidence/policy/ paths",
+        expected_warning: "package validation is structural/local only",
+        local_next_step: "Run policy-scenarios package output, list, and validate commands.",
+        boundary_note: "package validation is structural/local only",
+    },
+    PolicyScenario {
         id: "sustainability-preview-request",
         name: "Sustainability preview request",
+        group: "local preview request",
         category: "sustainability preview request",
         synthetic_summary: "Synthetic request for local proxy sustainability indicators.",
         expected_tier: "tier_2",
         expected_route: "local_metrics_preview",
+        expected_local_only: true,
+        fail_closed_expected: false,
         expected_local_behavior: "show proxy-only sustainability indicators",
         expected_warning: "not actual carbon accounting",
         local_next_step: "Check sustainability methodology notes before sharing demo copy.",
         boundary_note: "proxy-only indicators",
     },
     PolicyScenario {
-        id: "helper-workflow-request",
-        name: "Evidence readiness operator helper request",
-        category: "evidence/readiness/operator helper request",
-        synthetic_summary: "Synthetic request for local helper workflow guidance.",
-        expected_tier: "helper",
-        expected_route: "local_helper_guidance",
-        expected_local_behavior: "provide copy-only local commands and structural checks",
-        expected_warning: "local helper checks, not certification",
-        local_next_step: "Run make policy-check with readiness, operator, and evidence checks.",
-        boundary_note: "status hints, not controls",
-    },
-    PolicyScenario {
         id: "unsupported-cloud-required-request",
         name: "Unsupported cloud-required request",
+        group: "unsupported request",
         category: "unsupported/cloud-required request",
         synthetic_summary: "Synthetic request that would need cloud-only capabilities.",
         expected_tier: "unsupported",
         expected_route: "fail_closed",
+        expected_local_only: true,
+        fail_closed_expected: true,
         expected_local_behavior: "fail closed unless an explicit future policy allows otherwise",
         expected_warning: "no cloud calls by default",
         local_next_step: "Document unsupported scope instead of adding a cloud fallback.",
         boundary_note: "local preview only",
+    },
+    PolicyScenario {
+        id: "ambiguous-sensitive-request",
+        name: "Ambiguous sensitive request",
+        group: "sensitive local task",
+        category: "ambiguous request",
+        synthetic_summary: "Synthetic ambiguous request with sensitive-sounding context.",
+        expected_tier: "tier_3",
+        expected_route: "conservative_local_review",
+        expected_local_only: true,
+        fail_closed_expected: false,
+        expected_local_behavior: "prefer conservative local review over broad automation",
+        expected_warning: "route hints, not guarantees",
+        local_next_step: "Ask for clearer local-preview scope before expanding automation.",
+        boundary_note: "policy preview only",
     },
 ];
 
@@ -1471,8 +1559,14 @@ fn format_policy_scenarios_summary() -> String {
         "- no formal legal guidance or correctness claim".to_string(),
         "- no telemetry, no global aggregation, and no cloud calls by default".to_string(),
         "".to_string(),
-        "Scenarios:".to_string(),
+        "Scenario groups:".to_string(),
     ];
+
+    for group in policy_scenario_groups_by_category() {
+        lines.push(format!("- {}: {}", group.key, group.count));
+    }
+
+    lines.extend(["".to_string(), "Scenarios:".to_string()]);
 
     for scenario in POLICY_SCENARIOS {
         lines.push(format!(
@@ -1507,10 +1601,13 @@ fn format_policy_scenarios_json() -> String {
             json!({
                 "id": scenario.id,
                 "name": sanitize_readiness_report_text(scenario.name),
+                "group": sanitize_readiness_report_text(scenario.group),
                 "category": sanitize_readiness_report_text(scenario.category),
                 "synthetic_summary": sanitize_readiness_report_text(scenario.synthetic_summary),
                 "expected_tier": scenario.expected_tier,
                 "expected_route": scenario.expected_route,
+                "expected_local_only": scenario.expected_local_only,
+                "fail_closed_expected": scenario.fail_closed_expected,
                 "expected_local_behavior": sanitize_readiness_report_text(scenario.expected_local_behavior),
                 "expected_warning": sanitize_readiness_report_text(scenario.expected_warning),
                 "local_next_step": sanitize_readiness_report_text(scenario.local_next_step),
@@ -1534,6 +1631,7 @@ fn format_policy_scenarios_json() -> String {
             "no_cloud_calls_by_default": true,
             "no_global_aggregation": true,
         },
+        "groups": policy_scenario_groups_json(),
         "scenarios": scenarios,
         "boundary_notes": policy_package_boundaries(),
     }))
@@ -1552,6 +1650,29 @@ fn format_policy_scenarios_report() -> String {
     for boundary in policy_package_boundaries() {
         lines.push(format!("- {}", boundary));
     }
+
+    lines.extend([
+        "".to_string(),
+        "## Scenario Groups".to_string(),
+        "".to_string(),
+    ]);
+    for group in policy_scenario_groups_by_category() {
+        lines.push(format!("- category {}: {}", group.key, group.count));
+    }
+    for group in policy_scenario_groups_by_expected_tier() {
+        lines.push(format!("- expected_tier {}: {}", group.key, group.count));
+    }
+    for group in policy_scenario_groups_by_boundary_note() {
+        lines.push(format!("- boundary {}: {}", group.key, group.count));
+    }
+    lines.push(format!(
+        "- local_only_expected: {}",
+        policy_scenarios_expected_local_only().len()
+    ));
+    lines.push(format!(
+        "- fail_closed_expected: {}",
+        policy_scenarios_expected_fail_closed().len()
+    ));
 
     lines.extend([
         "".to_string(),
@@ -1581,6 +1702,77 @@ fn format_policy_scenarios_report() -> String {
         "".to_string(),
     ]);
     lines.join("\n")
+}
+
+fn policy_scenario_groups_by_category() -> Vec<PolicyScenarioGroup> {
+    policy_scenario_groups_by(|scenario| scenario.group)
+}
+
+fn policy_scenario_groups_by_expected_tier() -> Vec<PolicyScenarioGroup> {
+    policy_scenario_groups_by(|scenario| scenario.expected_tier)
+}
+
+fn policy_scenario_groups_by_boundary_note() -> Vec<PolicyScenarioGroup> {
+    policy_scenario_groups_by(|scenario| scenario.boundary_note)
+}
+
+fn policy_scenarios_expected_local_only() -> Vec<&'static PolicyScenario> {
+    POLICY_SCENARIOS
+        .iter()
+        .filter(|scenario| scenario.expected_local_only)
+        .collect()
+}
+
+fn policy_scenarios_expected_fail_closed() -> Vec<&'static PolicyScenario> {
+    POLICY_SCENARIOS
+        .iter()
+        .filter(|scenario| scenario.fail_closed_expected)
+        .collect()
+}
+
+fn policy_scenarios_with_boundary_note(note: &str) -> Vec<&'static PolicyScenario> {
+    POLICY_SCENARIOS
+        .iter()
+        .filter(|scenario| scenario.boundary_note == note)
+        .collect()
+}
+
+fn policy_scenario_groups_by(
+    key_fn: fn(&PolicyScenario) -> &'static str,
+) -> Vec<PolicyScenarioGroup> {
+    let mut groups: Vec<PolicyScenarioGroup> = Vec::new();
+    for scenario in POLICY_SCENARIOS {
+        let key = key_fn(scenario);
+        if let Some(group) = groups.iter_mut().find(|group| group.key == key) {
+            group.count += 1;
+        } else {
+            groups.push(PolicyScenarioGroup { key, count: 1 });
+        }
+    }
+    groups.sort_by(|left, right| left.key.cmp(right.key));
+    groups
+}
+
+fn policy_scenario_groups_json() -> Value {
+    json!({
+        "by_category": policy_scenario_groups_by_category()
+            .iter()
+            .map(|group| json!({ "key": group.key, "count": group.count }))
+            .collect::<Vec<_>>(),
+        "by_expected_tier": policy_scenario_groups_by_expected_tier()
+            .iter()
+            .map(|group| json!({ "key": group.key, "count": group.count }))
+            .collect::<Vec<_>>(),
+        "by_boundary_note": policy_scenario_groups_by_boundary_note()
+            .iter()
+            .map(|group| json!({ "key": group.key, "count": group.count }))
+            .collect::<Vec<_>>(),
+        "structural_local_package_validation_count": policy_scenarios_with_boundary_note(
+            "package validation is structural/local only",
+        ).len(),
+        "local_only_expected_count": policy_scenarios_expected_local_only().len(),
+        "fail_closed_expected_count": policy_scenarios_expected_fail_closed().len(),
+    })
 }
 
 fn readiness_report_next_steps(report: &DoctorReport) -> Vec<String> {
@@ -3046,6 +3238,9 @@ fn build_policy_package_validation_report(
                     if let Err(message) = validate_no_placeholder_string_values(file_name, &value) {
                         issues.push(message);
                     }
+                    if let Err(message) = validate_policy_package_json_shape(file_name, &value) {
+                        issues.push(message);
+                    }
                     Some(true)
                 }
                 Err(error) => {
@@ -3093,6 +3288,142 @@ fn build_policy_package_validation_report(
         files,
         issues,
     })
+}
+
+fn validate_policy_package_json_shape(file_name: &str, value: &Value) -> Result<(), String> {
+    match file_name {
+        "manifest.json" => validate_policy_manifest_json(value),
+        "policy-scenarios.json" => validate_policy_scenarios_json_value(value),
+        "policy-report.json" => validate_policy_report_json(value),
+        _ => Ok(()),
+    }
+    .map_err(|message| format!("{} {}", file_name, message))
+}
+
+fn validate_policy_manifest_json(value: &Value) -> Result<(), String> {
+    expect_json_string(
+        value,
+        "policy_package_schema_version",
+        POLICY_PACKAGE_SCHEMA_VERSION,
+    )?;
+    expect_json_string(value, "package_type", POLICY_PACKAGE_TYPE)?;
+    expect_json_string(value, "package_mode", POLICY_PACKAGE_MODE)?;
+    expect_json_bool(value, "local_only", true)?;
+    expect_json_array_len(
+        value,
+        "generated_file_names",
+        POLICY_PACKAGE_REQUIRED_FILES.len(),
+    )?;
+    expect_json_array_len(value, "files", POLICY_PACKAGE_REQUIRED_FILES.len())?;
+    expect_json_string(value, "policy_status", "policy_preview")?;
+    Ok(())
+}
+
+fn validate_policy_scenarios_json_value(value: &Value) -> Result<(), String> {
+    expect_json_string(
+        value,
+        "policy_scenario_schema_version",
+        POLICY_SCENARIO_SCHEMA_VERSION,
+    )?;
+    expect_json_string(value, "mode", "local-preview")?;
+    expect_json_string(value, "status", "policy_preview")?;
+    expect_json_array_len(value, "scenarios", POLICY_SCENARIOS.len())?;
+    let scenarios = value
+        .get("scenarios")
+        .and_then(|field| field.as_array())
+        .ok_or_else(|| "is missing scenarios array".to_string())?;
+    for scenario in scenarios {
+        for field in [
+            "id",
+            "name",
+            "group",
+            "category",
+            "synthetic_summary",
+            "expected_tier",
+            "expected_route",
+            "expected_local_behavior",
+            "expected_warning",
+            "local_next_step",
+            "boundary_note",
+        ] {
+            if scenario
+                .get(field)
+                .and_then(|value| value.as_str())
+                .is_none()
+            {
+                return Err(format!("scenario is missing string field: {}", field));
+            }
+        }
+        for field in ["expected_local_only", "fail_closed_expected"] {
+            if scenario
+                .get(field)
+                .and_then(|value| value.as_bool())
+                .is_none()
+            {
+                return Err(format!("scenario is missing bool field: {}", field));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_policy_report_json(value: &Value) -> Result<(), String> {
+    expect_json_string(
+        value,
+        "policy_package_schema_version",
+        POLICY_PACKAGE_SCHEMA_VERSION,
+    )?;
+    expect_json_string(value, "package_type", POLICY_PACKAGE_TYPE)?;
+    expect_json_string(value, "package_mode", POLICY_PACKAGE_MODE)?;
+    expect_json_bool(value, "local_only", true)?;
+    expect_json_bool(value, "policy_preview_only", true)?;
+    expect_json_bool(value, "synthetic_scenarios_only", true)?;
+    expect_json_bool(value, "no_cloud_calls_by_default", true)?;
+    expect_json_bool(value, "no_telemetry", true)?;
+    expect_json_bool(value, "no_global_aggregation", true)?;
+    expect_json_string(value, "policy_status", "policy_preview")?;
+    expect_json_array_len(
+        value,
+        "generated_file_names",
+        POLICY_PACKAGE_REQUIRED_FILES.len(),
+    )?;
+    expect_json_array_len(value, "scenarios", POLICY_SCENARIOS.len())?;
+    Ok(())
+}
+
+fn expect_json_string(value: &Value, field: &str, expected: &str) -> Result<(), String> {
+    match value.get(field).and_then(|field| field.as_str()) {
+        Some(actual) if actual == expected => Ok(()),
+        Some(actual) => Err(format!(
+            "has unexpected {}: {}, expected {}",
+            field, actual, expected
+        )),
+        None => Err(format!("is missing string field: {}", field)),
+    }
+}
+
+fn expect_json_bool(value: &Value, field: &str, expected: bool) -> Result<(), String> {
+    match value.get(field).and_then(|field| field.as_bool()) {
+        Some(actual) if actual == expected => Ok(()),
+        Some(actual) => Err(format!(
+            "has unexpected {}: {}, expected {}",
+            field, actual, expected
+        )),
+        None => Err(format!("is missing bool field: {}", field)),
+    }
+}
+
+fn expect_json_array_len(value: &Value, field: &str, expected: usize) -> Result<(), String> {
+    match value.get(field).and_then(|field| field.as_array()) {
+        Some(actual) if actual.len() == expected => Ok(()),
+        Some(actual) => Err(format!(
+            "has unexpected {} length: {}, expected {}",
+            field,
+            actual.len(),
+            expected
+        )),
+        None => Err(format!("is missing array field: {}", field)),
+    }
 }
 
 fn validate_policy_package_safe_text(label: &str, text: &str) -> Result<(), String> {
@@ -6415,8 +6746,11 @@ mod tests {
         format_readiness_package_validation_summary, format_readiness_summary,
         format_route_explain_summary, format_sustainability_summary, format_unreachable_error,
         is_audit_event_list, is_route_explain_response, is_sustainability_metrics_response,
-        readiness_report_next_steps, route_explain_url, string_field, sustainability_url,
-        validate_doctor_health, validate_doctor_model_status_hints, validate_doctor_models,
+        policy_scenario_groups_by_category, policy_scenario_groups_by_expected_tier,
+        policy_scenarios_expected_fail_closed, policy_scenarios_expected_local_only,
+        policy_scenarios_with_boundary_note, readiness_report_next_steps, route_explain_url,
+        string_field, sustainability_url, validate_doctor_health,
+        validate_doctor_model_status_hints, validate_doctor_models,
         validate_doctor_sustainability_metrics, validate_doctor_version_status,
         validate_evidence_bundle_archive_output_path, validate_evidence_bundle_output_dir,
         validate_no_placeholder_string_values, validate_operator_package_output_dir,
@@ -6424,7 +6758,7 @@ mod tests {
         validate_sustainability_period, write_evidence_bundle_report,
         write_operator_package_report, write_policy_package_report, write_readiness_package_report,
         DoctorCheckLevel, DoctorCheckResult, DoctorReport, EvidenceBundleCapture, DOCTOR_CHECKS,
-        OPERATOR_PACKAGE_REQUIRED_FILES, POLICY_PACKAGE_REQUIRED_FILES,
+        OPERATOR_PACKAGE_REQUIRED_FILES, POLICY_PACKAGE_REQUIRED_FILES, POLICY_SCENARIOS,
         READINESS_PACKAGE_REQUIRED_FILES,
     };
     use serde_json::json;
@@ -7170,8 +7504,12 @@ mod tests {
         assert_eq!(report["status"], "policy_preview");
         assert_eq!(report["scope"]["policy_preview_only"], true);
         assert_eq!(report["scope"]["synthetic_scenarios_only"], true);
-        assert!(report["scenarios"].as_array().unwrap().len() >= 6);
+        assert_eq!(report["scenarios"].as_array().unwrap().len(), 10);
+        assert_eq!(report["groups"]["local_only_expected_count"], 10);
+        assert_eq!(report["groups"]["fail_closed_expected_count"], 2);
         assert!(report_text.contains("# IgnisPrompt Local Policy Scenario Report"));
+        assert!(report_text.contains("policy package request"));
+        assert!(report_text.contains("ambiguous request"));
         assert!(report_text.contains("unsupported/cloud-required request"));
         assert!(!json_text.contains("\"string\""));
         assert!(!joined.contains("production readiness"));
@@ -7195,6 +7533,29 @@ mod tests {
         assert!(!joined.contains("hostname"));
         assert!(!joined.contains("username"));
         assert!(!joined.contains("/users/"));
+    }
+
+    #[test]
+    fn policy_scenario_grouping_helpers_cover_route_expectations() {
+        assert_eq!(POLICY_SCENARIOS.len(), 10);
+        assert!(policy_scenario_groups_by_category()
+            .iter()
+            .any(|group| group.key == "local helper request" && group.count == 4));
+        assert!(policy_scenario_groups_by_expected_tier()
+            .iter()
+            .any(|group| group.key == "helper" && group.count == 4));
+        assert_eq!(
+            policy_scenarios_expected_local_only().len(),
+            POLICY_SCENARIOS.len()
+        );
+        assert_eq!(policy_scenarios_expected_fail_closed().len(), 2);
+        assert_eq!(
+            policy_scenarios_with_boundary_note("package validation is structural/local only")
+                .iter()
+                .map(|scenario| scenario.id)
+                .collect::<Vec<_>>(),
+            vec!["policy-package-request"]
+        );
     }
 
     #[test]
@@ -7292,6 +7653,30 @@ mod tests {
         let issues = validation.issues.join("\n");
         assert!(issues.contains("placeholder"));
         assert!(issues.contains("unsafe content"));
+        assert!(format_policy_package_validation_summary(&validation).contains("Status: failed"));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn policy_package_validation_reports_schema_drift() {
+        let output_dir = unique_policy_package_test_dir("schema-drift");
+        let _ = std::fs::remove_dir_all(&output_dir);
+
+        let package = build_policy_package_report(output_dir.clone()).unwrap();
+        write_policy_package_report(&package).unwrap();
+        let mut scenario_json = package.policy_scenarios_json.clone();
+        scenario_json["policy_scenario_schema_version"] = json!("string");
+        std::fs::write(
+            output_dir.join("policy-scenarios.json"),
+            serde_json::to_string_pretty(&scenario_json).unwrap(),
+        )
+        .unwrap();
+
+        let validation = build_policy_package_validation_report(&output_dir).unwrap();
+        let issues = validation.issues.join("\n");
+        assert!(issues.contains("placeholder"));
+        assert!(issues.contains("unexpected policy_scenario_schema_version"));
         assert!(format_policy_package_validation_summary(&validation).contains("Status: failed"));
 
         let _ = std::fs::remove_dir_all(&output_dir);

@@ -8,12 +8,18 @@ describe("local policy workbench route", () => {
 
     expect(markup).toContain("Aethra local policy workbench");
     expect(markup).toContain("Synthetic policy scenario hints");
-    expect(markup).toContain("Simple local task");
+    expect(markup).toContain("Basic summarization");
     expect(markup).toContain("Legal-sensitive task");
     expect(markup).toContain("Adversarial document instruction");
+    expect(markup).toContain("Local evidence request");
+    expect(markup).toContain("Local readiness request");
+    expect(markup).toContain("Local operator request");
+    expect(markup).toContain("Policy package request");
     expect(markup).toContain("Sustainability preview request");
-    expect(markup).toContain("Evidence readiness operator helper request");
     expect(markup).toContain("Unsupported cloud-required request");
+    expect(markup).toContain("Ambiguous sensitive request");
+    expect(markup).toContain("Scenario grouping helpers");
+    expect(markup).toContain("local helper request");
     expect(markup).toContain("Policy package preview");
     expect(markup).toContain("local-evidence/policy/demo");
     expect(markup).toContain("policy-scenarios.json");

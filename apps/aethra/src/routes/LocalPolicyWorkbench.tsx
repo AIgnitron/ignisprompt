@@ -81,6 +81,30 @@ export function LocalPolicyWorkbench() {
         </div>
       </section>
 
+      <section className="overview-section-group" aria-label="Policy scenario groups">
+        <div className="section-heading">
+          <p className="eyebrow">Groups</p>
+          <h3>Scenario grouping helpers</h3>
+          <p className="muted">
+            Group counts mirror the CLI policy report grouping fields and stay
+            fixture-backed.
+          </p>
+        </div>
+        <div className="panel" aria-label="Policy scenario group details">
+          <dl className="state-list">
+            {summary.scenarioGroups.map((group) => (
+              <div key={group.key} className="state-list-item">
+                <dt>{group.key}</dt>
+                <dd>
+                  <StatusBadge tone="neutral">synthetic</StatusBadge>
+                  <span>{group.count} scenarios</span>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </section>
+
       <section className="overview-section-group" aria-label="Policy package preview">
         <div className="section-heading">
           <p className="eyebrow">Package</p>
@@ -205,8 +229,15 @@ function PolicyScenarioCard({
       <p className="metric-label">{scenario.category}</p>
       <strong>{scenario.name}</strong>
       <span>{scenario.syntheticSummary}</span>
+      <span>Group: {scenario.group}</span>
       <span>Expected route: {scenario.expectedRoute}</span>
       <span>Expected tier: {scenario.expectedTier}</span>
+      <span>
+        Local-only expected: {scenario.expectedLocalOnly ? "yes" : "no"}
+      </span>
+      <span>
+        Fail-closed expected: {scenario.failClosedExpected ? "yes" : "no"}
+      </span>
       <span>Local behavior: {scenario.expectedLocalBehavior}</span>
       <span>Warning: {scenario.warning}</span>
       <span>Next step: {scenario.localNextStep}</span>
