@@ -214,6 +214,7 @@ self_test() {
   grep -q "policy-scenarios --package-output" "$plan_output"
   grep -q "policy-scenarios --package-list" "$plan_output"
   grep -q "policy-scenarios --package-validate" "$plan_output"
+  grep -q "policy-package-summary.json" "$plan_output"
 
   echo "[OK] local evidence demo workflow self-test passed"
 }

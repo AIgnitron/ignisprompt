@@ -17,7 +17,7 @@ Recent local-preview work includes:
 - Golden Legal adversarial demo hardening
 - Aethra Local Readiness, local readiness quality gates, readiness reports, diagnostics, and local readiness package workflow
 - Aethra Local Operator Console, `ignispromptctl operator-summary`, local operator packages, and `make operator-check` for local preview operator workflow alignment
-- Aethra Local Policy Workbench, `ignispromptctl policy-scenarios`, local policy packages, and `make policy-check` for synthetic local policy workflow alignment
+- Aethra Local Policy Workbench, `ignispromptctl policy-scenarios`, local policy packages, grouping helpers, stricter structural validation, and `make policy-check` for synthetic local policy workflow alignment
 
 ## Project foundation: v0.1.0-mvp
 
@@ -238,7 +238,7 @@ cargo run -p ignispromptctl -- audit tail
 
 `operator-summary` prints local preview operator workflow guidance without calling the daemon. The human and JSON outputs align readiness, readiness packages, evidence workflow checks, Aethra fixture-backed review, and copy-only command recipes. `--package-output local-evidence/operator/<name>` writes a local operator package with README, manifest, JSON summaries, and Markdown report output under an ignored operator path. `--package-list` and `--package-validate` inspect that package locally without daemon access. It treats status values as hints, package validation as structural/local only, and local helper checks as checks rather than certification.
 
-`policy-scenarios` prints synthetic local policy scenario guidance without calling the daemon. Human, JSON, and `--report` output summarize local-preview route hints for representative synthetic scenarios, not guarantees. `--package-output local-evidence/policy/<name>` writes a local policy package with README, manifest, JSON summaries, and Markdown report output under an ignored policy path. `--package-list` and `--package-validate` inspect that package locally without daemon access. Policy packages are local-only, not signed, and validated structurally/local only.
+`policy-scenarios` prints synthetic local policy scenario guidance without calling the daemon. Human, JSON, and `--report` output summarize local-preview route hints for representative synthetic scenarios, grouping counts, local-only expectations, and fail-closed expectations. `--package-output local-evidence/policy/<name>` writes a local policy package with README, manifest, JSON summaries, and Markdown report output under an ignored policy path. `--package-list` and `--package-validate` inspect that package locally without daemon access and check required files, JSON shape, schema fields, boundary terms, placeholder values, and unsafe content. Policy packages are local-only, not signed, and validated structurally/local only.
 
 `sustainability` reads aggregate local metrics from `GET /v1/metrics/sustainability?period=<period>`, defaults to `30d`, supports `7d`, `30d`, and `90d`, and can print the daemon JSON with `--json`. It does not include prompts, raw audit text, PII, or machine identifiers.
 
@@ -260,7 +260,7 @@ Use `--dry-run` to print the planned local workflow without starting the daemon,
 
 `make operator-check` validates the local operator summary, operator package generation/list/validate behavior, Aethra Local Operator Console copy, safe command recipes, readiness package help shape, and demo workflow self-test. It is deterministic and does not require model weights, external runners, cloud credentials, external services, or a live daemon.
 
-`make policy-check` validates the local policy scenario CLI surface, JSON and Markdown report output, policy package generation/list/validate behavior, Aethra Local Policy Workbench copy, and demo workflow command construction. It is deterministic and does not require model weights, external runners, cloud credentials, external services, or a live daemon.
+`make policy-check` validates the local policy scenario CLI surface, JSON and Markdown report output, grouping metadata, policy package generation/list/validate behavior, Aethra Local Policy Workbench copy, and demo workflow command construction. It is deterministic and does not require model weights, external runners, cloud credentials, external services, or a live daemon.
 
 The Aethra Local Readiness page, Local Operator Console, Local Policy Workbench, and Local Command Center mirror these safe CLI recipes, the evidence workflow checklist, copy-safe readiness and policy report snippets, local diagnostic drilldown hints, readiness package preview, operator package preview, policy package preview, and the demo readiness notes in the dashboard. They stay read-only and local-preview only.
 

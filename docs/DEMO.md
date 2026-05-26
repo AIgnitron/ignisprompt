@@ -124,7 +124,7 @@ The Aethra Local Command Center mirrors the same local-preview command recipes, 
 
 The Aethra Local Operator Console adds a read-only operator workflow view that combines local preview readiness, readiness package status, operator package preview, evidence workflow status, demo next steps, and copy-only command recipes. It is fixture-backed by default, keeps live-local loading manual, and does not execute commands, upload files, persist data, add polling, add telemetry, or add cloud calls.
 
-The Aethra Local Policy Workbench adds a read-only policy workflow view that shows synthetic policy scenarios, route hints, policy package preview metadata, and copy-safe policy report snippets. It is fixture-backed by default and does not execute commands, upload files, read local package paths, persist data, add polling, add telemetry, or add cloud calls.
+The Aethra Local Policy Workbench adds a read-only policy workflow view that shows expanded synthetic policy scenarios, grouping helper counts, route hints, policy package preview metadata, and copy-safe policy report snippets. Policy package validation remains structural/local only and checks required files, JSON shape, schema fields, boundary terms, placeholder values, and unsafe content. It is fixture-backed by default and does not execute commands, upload files, read local package paths, persist data, add polling, add telemetry, or add cloud calls.
 
 ## Golden and bakeoff demos
 

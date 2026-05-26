@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   buildPolicyReportSnippet,
   buildPolicyWorkbenchSummary,
+  filterPolicyScenariosByBoundaryNote,
+  filterPolicyScenariosByExpectedTier,
+  filterPolicyScenariosByLocalOnlyBehavior,
+  groupPolicyScenariosByCategory,
+  groupPolicyScenariosByExpectedTier,
   policyBoundaries,
   policyScenarios,
 } from "./policyWorkbenchSummary";
@@ -11,13 +16,21 @@ describe("local policy workbench summaries", () => {
     const summary = buildPolicyWorkbenchSummary();
 
     expect(summary.scenarios.map((scenario) => scenario.id)).toEqual([
-      "simple-local-task",
+      "basic-summarization",
       "legal-sensitive-task",
       "adversarial-document-instruction",
+      "local-evidence-request",
+      "local-readiness-request",
+      "local-operator-request",
+      "policy-package-request",
       "sustainability-preview-request",
-      "helper-workflow-request",
       "unsupported-cloud-required-request",
+      "ambiguous-sensitive-request",
     ]);
+    expect(summary.scenarioGroups).toContainEqual({
+      key: "local helper request",
+      count: 4,
+    });
     expect(summary.packagePreview.schemaVersion).toBe(
       "ignisprompt-policy-package-0.1",
     );
@@ -34,6 +47,31 @@ describe("local policy workbench summaries", () => {
     expect(summary.packagePreview.boundaryNotes).toContain(
       "route hints, not guarantees",
     );
+  });
+
+  it("groups and filters scenarios by safe local-preview metadata", () => {
+    expect(groupPolicyScenariosByCategory()).toContainEqual({
+      key: "sensitive local task",
+      count: 3,
+    });
+    expect(groupPolicyScenariosByExpectedTier()).toContainEqual({
+      key: "helper",
+      count: 4,
+    });
+    expect(filterPolicyScenariosByExpectedTier("tier_3").map((item) => item.id))
+      .toEqual([
+        "legal-sensitive-task",
+        "adversarial-document-instruction",
+        "ambiguous-sensitive-request",
+      ]);
+    expect(filterPolicyScenariosByLocalOnlyBehavior(true)).toHaveLength(
+      policyScenarios.length,
+    );
+    expect(
+      filterPolicyScenariosByBoundaryNote(
+        "package validation is structural/local only.",
+      ).map((item) => item.id),
+    ).toEqual(["policy-package-request"]);
   });
 
   it("keeps policy summaries copy-safe and conservative", () => {
