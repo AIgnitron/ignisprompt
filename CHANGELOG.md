@@ -3,8 +3,8 @@
 ## Unreleased
 
 ### Changed
-- Aligned documentation after `v0.1.7-local-preview` was published as the latest local-preview release.
-- Prepared the `v0.1.8-local-preview` release-prep docs for the Local Demo Studio arc without tagging or publishing a release.
+- Aligned documentation after `v0.1.8-local-preview` was published as the latest local-preview release.
+- Updated the `v0.1.8-local-preview` release docs for the Local Demo Studio arc after publication.
 - Documented `ignispromptctl demo-summary`, human, JSON, Markdown report, package output/list/validate, Aethra Local Demo Studio preview, demo-check coverage, demo workflow integration, and `make preview-release-check` as local-preview scope only.
 - Documented Local Demo Studio and shared package/path validation hardening for absolute paths, traversal, symlink traversal, unexpected files, symlinked required files, unsafe content, malformed JSON, schema drift, and placeholder-like values while preserving structural/local validation language.
 
