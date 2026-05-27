@@ -5,16 +5,24 @@ import {
   demoBoundaries,
   demoPackageGeneratedFiles,
   demoStorySteps,
-  demoStoryStepIds,
   requiredDemoBoundaryTerms,
 } from "./demoStudioSummary";
+
+const expectedDemoStoryStepIds = [
+  "local-readiness",
+  "operator-workflow",
+  "evidence-workflow",
+  "policy-scenarios",
+  "aethra-review",
+  "export-package-summary",
+] as const;
 
 describe("local demo studio summaries", () => {
   it("builds safe demo story steps and package preview metadata", () => {
     const summary = buildDemoStudioSummary();
 
     expect(summary.storySteps.map((step) => step.id)).toEqual([
-      ...demoStoryStepIds,
+      ...expectedDemoStoryStepIds,
     ]);
     expect(summary.packagePreview.schemaVersion).toBe(
       "ignisprompt-demo-package-0.1",
@@ -31,7 +39,7 @@ describe("local demo studio summaries", () => {
   it("keeps the structured Aethra fixture contract aligned with CLI demo expectations", () => {
     const summary = buildDemoStudioSummary();
 
-    expect(summary.storySteps).toHaveLength(demoStoryStepIds.length);
+    expect(summary.storySteps).toHaveLength(expectedDemoStoryStepIds.length);
     expect(summary.boundaries).toEqual([...requiredDemoBoundaryTerms]);
     expect(summary.packagePreview.packageMode).toBe("local-preview");
     expect(summary.packagePreview.status).toBe("demo_guidance");
