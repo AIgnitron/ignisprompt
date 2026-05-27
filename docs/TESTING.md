@@ -27,6 +27,14 @@ cargo test
 make security-check
 ```
 
+For a broader local preview validation sequence before release prep, run:
+
+```bash
+make preview-release-check
+```
+
+This target runs the local helper checks for hidden Unicode, conservative secret patterns, readiness, operator, policy, demo studio, evidence workflow, the default developer check, and `git diff --check`. It is local preview validation only: it does not publish a release, move tags, add telemetry, call cloud services, or claim production readiness, legal accuracy, certification, signing, tamper evidence, or cryptographic verification.
+
 For the lower-level manual daemon smoke path:
 
 ```bash
@@ -68,6 +76,12 @@ cargo run -p ignispromptctl -- policy-scenarios --report
 cargo run -p ignispromptctl -- policy-scenarios --package-output local-evidence/policy/demo
 cargo run -p ignispromptctl -- policy-scenarios --package-list local-evidence/policy/demo
 cargo run -p ignispromptctl -- policy-scenarios --package-validate local-evidence/policy/demo
+cargo run -p ignispromptctl -- demo-summary
+cargo run -p ignispromptctl -- demo-summary --json
+cargo run -p ignispromptctl -- demo-summary --report
+cargo run -p ignispromptctl -- demo-summary --package-output local-evidence/demo-studio/demo
+cargo run -p ignispromptctl -- demo-summary --package-list local-evidence/demo-studio/demo
+cargo run -p ignispromptctl -- demo-summary --package-validate local-evidence/demo-studio/demo
 cargo run -p ignispromptctl -- health
 cargo run -p ignispromptctl -- status-version
 cargo run -p ignispromptctl -- models
@@ -407,3 +421,5 @@ The Golden Legal v0.3 script now includes nine local control-plane cases: the or
 ### Local demo studio check
 
 Run make demo-check to validate scripts/demo-check.sh, ignispromptctl demo-summary output, demo package output/list/validate behavior, Make target wiring, demo workflow self-test behavior, and Aethra Local Demo Studio wording alignment. It uses synthetic demo story steps only and does not require model weights, GGUF files, external runners, cloud credentials, external network, or a live daemon.
+
+Demo package validation is structural and local only. It checks required files, JSON shape, schema and mode fields, expected generated file names, boundary terms, placeholder-like values, unexpected files, symlinked required files, malformed JSON, unsafe report content, script-like text, terminal control characters, and path isolation under ignored `local-evidence/demo-studio/`. It does not sign packages, provide tamper evidence, provide cryptographic verification, upload package contents, or prove production readiness.

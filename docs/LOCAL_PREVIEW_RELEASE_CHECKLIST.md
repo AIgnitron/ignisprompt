@@ -50,10 +50,14 @@ make security-check
 make readiness-check
 make operator-check
 make policy-check
+make demo-check
 make evidence-check
+make preview-release-check
 make dev-check
 git diff --check
 ```
+
+`make preview-release-check` is a local preview validation helper only. It must not be treated as release publication, production readiness, legal accuracy validation, compliance certification, signed attestation, tamper-evident storage, or cryptographic verification.
 
 ## v0.1.5 Readiness Notes
 
@@ -119,6 +123,23 @@ For v0.1.7 release-readiness work, keep the local policy workbench aligned acros
 - policy packages remain local-only helper outputs and are not signed
 - policy package validation remains structural/local validation only
 - no telemetry, cloud calls by default, global aggregation, model controls, runner controls, command execution, upload, polling, file picker, or persistence are added
+- no production deployment, legal advice, legal accuracy, compliance, ESG, supply-chain, signed-attestation, tamper-evident, cryptographic, production-grade inference, or production-grade security claims are added
+
+## v0.1.8 Release Readiness Notes
+
+For v0.1.8 release-readiness work, keep the local demo studio aligned across Aethra, CLI, scripts, and docs:
+
+- `make demo-check` passes
+- `make preview-release-check` passes before final release notes are drafted
+- `cargo run -p ignispromptctl -- demo-summary` stays local preview demo only
+- `cargo run -p ignispromptctl -- demo-summary --json` keeps synthetic story steps, route/status/package hints, local helper checks, structural/local package validation, no telemetry, no cloud calls by default, and Aethra fixture-backed-by-default boundaries visible
+- `cargo run -p ignispromptctl -- demo-summary --report` remains copy-safe local preview guidance
+- `cargo run -p ignispromptctl -- demo-summary --package-output local-evidence/demo-studio/demo` writes only under ignored `local-evidence/demo-studio/`
+- `cargo run -p ignispromptctl -- demo-summary --package-list local-evidence/demo-studio/demo` and `cargo run -p ignispromptctl -- demo-summary --package-validate local-evidence/demo-studio/demo` inspect package output locally
+- demo package validation checks required files, JSON shape, schema/version fields, package type/mode, expected generated file names, story step count, boundary terms, placeholder-like values, unsafe content, unexpected files, symlinked required files, and path isolation
+- Aethra Local Demo Studio remains fixture-backed by default, read-only, no polling, no command execution, no file upload, no local file picker, no local/session storage persistence, no telemetry, no cloud calls, and no model or runner controls
+- demo packages remain local-only helper outputs and are not signed
+- demo package validation remains structural/local only, with no cryptographic verification and no tamper-evident claim
 - no production deployment, legal advice, legal accuracy, compliance, ESG, supply-chain, signed-attestation, tamper-evident, cryptographic, production-grade inference, or production-grade security claims are added
 
 ## v0.1.4 Release Prep

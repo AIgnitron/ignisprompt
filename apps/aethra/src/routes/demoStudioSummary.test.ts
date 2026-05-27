@@ -58,6 +58,8 @@ describe("local demo studio summaries", () => {
     expect(text).toContain("local helper checks, not certification");
     expect(text).toContain("package validation is structural/local only");
     expect(text).toContain("not signed");
+    expect(text).toContain("no cryptographic validation");
+    expect(text).toContain("not tamper evident");
     expect(text).not.toContain("production readiness");
     expect(text).not.toContain("production deployment");
     expect(text).not.toContain("legal accuracy");

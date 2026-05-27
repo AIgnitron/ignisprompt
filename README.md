@@ -152,6 +152,7 @@ make readiness-check
 make operator-check
 make policy-check
 make demo-check
+make preview-release-check
 ```
 
 The default safe targets stay on the no-model local path. Optional local-prerequisite targets are also available for the existing GGUF and evidence scripts:
@@ -248,7 +249,7 @@ cargo run -p ignispromptctl -- audit tail
 
 `policy-scenarios` prints synthetic local policy scenario guidance without calling the daemon. Human, JSON, and `--report` output summarize local-preview route hints for representative synthetic scenarios, grouping counts, local-only expectations, and fail-closed expectations. `--package-output local-evidence/policy/<name>` writes a local policy package with README, manifest, JSON summaries, and Markdown report output under an ignored policy path. `--package-list` and `--package-validate` inspect that package locally without daemon access and check required files, JSON shape, schema fields, boundary terms, placeholder values, and unsafe content. Policy packages are local-only, not signed, and validated structurally/local only.
 
-`demo-summary` prints local preview demo story guidance without calling the daemon. Human, JSON, and `--report` output summarize a safe walkthrough across readiness, operator, evidence, policy, Aethra review, and demo package summary steps. `--package-output local-evidence/demo-studio/<name>` writes a local demo package with README, manifest, JSON summaries, and Markdown report output under an ignored demo-studio path. `--package-list` and `--package-validate` inspect that package locally without daemon access and check required files, JSON shape, schema fields, boundary terms, placeholder values, and unsafe content. Demo packages are local-only, not signed, and validated structurally/local only.
+`demo-summary` prints local preview demo story guidance without calling the daemon. Human, JSON, and `--report` output summarize a safe walkthrough across readiness, operator, evidence, policy, Aethra review, and demo package summary steps. `--package-output local-evidence/demo-studio/<name>` writes a local demo package with README, manifest, JSON summaries, and Markdown report output under an ignored demo-studio path. `--package-list` and `--package-validate` inspect that package locally without daemon access and check required files, JSON shape, schema fields, generated file names, boundary terms, placeholder values, unsafe content, unexpected files, and symlinked required files. Demo packages are local-only, not signed, and validated structurally/local only.
 
 `sustainability` reads aggregate local metrics from `GET /v1/metrics/sustainability?period=<period>`, defaults to `30d`, supports `7d`, `30d`, and `90d`, and can print the daemon JSON with `--json`. It does not include prompts, raw audit text, PII, or machine identifiers.
 
@@ -273,6 +274,8 @@ Use `--dry-run` to print the planned local workflow without starting the daemon,
 `make policy-check` validates the local policy scenario CLI surface, JSON and Markdown report output, grouping metadata, policy package generation/list/validate behavior, Aethra Local Policy Workbench copy, and demo workflow command construction. It is deterministic and does not require model weights, external runners, cloud credentials, external services, or a live daemon.
 
 `make demo-check` validates the local demo summary CLI surface, JSON and Markdown report output, demo package generation/list/validate behavior, Aethra Local Demo Studio copy, demo workflow self-test wiring, and the related readiness/operator/policy/evidence check relationship. It is deterministic and does not require model weights, external runners, cloud credentials, external services, or a live daemon.
+
+`make preview-release-check` runs the local preview security, readiness, operator, policy, demo, evidence, default developer, and whitespace checks without publishing a release, moving tags, signing output, or claiming production readiness.
 
 The Aethra Local Readiness page, Local Operator Console, Local Policy Workbench, Local Demo Studio, and Local Command Center mirror these safe CLI recipes, the evidence workflow checklist, copy-safe readiness, policy, and demo report snippets, local diagnostic drilldown hints, readiness package preview, operator package preview, policy package preview, demo package preview, and the demo readiness notes in the dashboard. They stay read-only and local-preview only.
 
