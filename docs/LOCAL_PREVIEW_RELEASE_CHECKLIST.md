@@ -130,8 +130,8 @@ For v0.1.7 release-readiness work, keep the local policy workbench aligned acros
 For v0.1.8 release-readiness work, keep the local demo studio aligned across Aethra, CLI, scripts, and docs:
 
 - `docs/releases/v0.1.8-local-preview.md` exists and stays conservative
-- `docs/README.md`, `README.md`, `CHANGELOG.md`, `docs/CODEX_HANDOFF.md`, `docs/ROADMAP.md`, and this checklist mention the v0.1.8 release-prep scope
-- the release-prep PR addresses #189 and #190 without tagging, publishing, or closing optional post-release follow-ups #191 and #192
+- `docs/README.md`, `README.md`, `CHANGELOG.md`, `docs/CODEX_HANDOFF.md`, `docs/ROADMAP.md`, and this checklist mention the v0.1.8 published release scope
+- #189 and #190 are closed after the v0.1.8 docs work; optional post-release follow-ups #191 and #192 remain open
 - `make demo-check` passes
 - `make preview-release-check` passes before final release notes are drafted
 - `cargo run -p ignispromptctl -- demo-summary` stays local preview demo only
@@ -144,7 +144,7 @@ For v0.1.8 release-readiness work, keep the local demo studio aligned across Aet
 - demo packages remain local-only helper outputs and are not signed
 - demo package validation remains structural/local only, with no cryptographic verification and no tamper-evident claim
 - no production deployment, legal advice, legal accuracy, compliance, ESG, supply-chain, signed-attestation, tamper-evident, cryptographic, production-grade inference, or production-grade security claims are added
-- public CI passes for the default-path and Aethra jobs before any future v0.1.8 tag or GitHub Release
+- public CI passed for the default-path and Aethra jobs before the v0.1.8 tag and GitHub Release
 
 ## v0.1.4 Release Prep
 
@@ -186,7 +186,7 @@ This combines the repository sustainability language guardrail, Rust tests, defa
 
 The guardrail is intended to catch unsupported or overconfident sustainability wording such as carbon-saved claims, measured-emissions certainty, zero-emissions certainty, certification language, ESG claims, and production or compliance claims that conflict with the estimated/proxy/counterfactual/methodology-dependent boundaries. It is a repository language check, not a substitute for reviewer judgment.
 
-For v0.1.8 release prep, also confirm `make demo-check`, `make policy-check`, `make operator-check`, `make readiness-check`, `make evidence-check`, and `make preview-release-check` pass and that the local evidence, readiness package, operator package, policy package, and demo package workflows still keep outputs under ignored `local-evidence/` paths.
+For v0.1.8 release validation, also confirm `make demo-check`, `make policy-check`, `make operator-check`, `make readiness-check`, `make evidence-check`, and `make preview-release-check` pass and that the local evidence, readiness package, operator package, policy package, and demo package workflows still keep outputs under ignored `local-evidence/` paths.
 
 ## Aethra Checks
 
@@ -467,7 +467,7 @@ Do not tag if verification fails or if untracked release artifacts are present.
 - #141 is post-v0.1.1 material and fixed MCP `audit_events` compatibility by changing MCP tool-call `structuredContent` to object-shaped `{ "events": [...] }`.
 - The HTTP `GET /v1/audit/events` response remains the existing JSON array shape.
 - #142 is post-v0.1.1 docs-only guardrail cleanup and reinforced sustainability guardrail wiring, demo warnings, tag immutability, `git pull --ff-only origin main`, and artifact hygiene.
-- `v0.1.6-local-preview` is published and remains the latest release until a future local-preview release is explicitly tagged and published.
+- `v0.1.8-local-preview` is published as the latest local preview release. `v0.1.7-local-preview` was the previous published local preview release.
 
 ## Rollback Notes
 
@@ -478,4 +478,4 @@ This local preview does not publish model weights or a hosted service. Rollback 
 - If docs are misleading, patch the docs and rerun `./scripts/release-check.sh`.
 - If a local generated artifact appears in status, remove it only when it is under an ignored generated path and rerun the ignored artifact check.
 
-- Run make demo-check to verify Local Demo Studio CLI, Aethra wording, demo package output/list/validate, and demo workflow self-test alignment before v0.1.8 release prep.
+- Run make demo-check to verify Local Demo Studio CLI, Aethra wording, demo package output/list/validate, and demo workflow self-test alignment for v0.1.8 and later local preview validation.
