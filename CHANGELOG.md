@@ -3,10 +3,10 @@
 ## Unreleased
 
 ### Changed
-- Aligned documentation after `v0.1.6-local-preview` was published as the latest local-preview release.
-- Clarified current local-preview surfaces while keeping them scoped as scaffold, stub, fixture-backed, or local helper behavior where applicable.
-- Prepared the `v0.1.7-local-preview` release-readiness docs for the local policy workbench arc without tagging or publishing a release.
-- Documented policy scenario inspection, policy package output/list/validate behavior, Aethra Local Policy Workbench preview, policy-check coverage, and recent local runtime hardening as local-preview scope only.
+- Aligned documentation after `v0.1.7-local-preview` was published as the latest local-preview release.
+- Prepared the `v0.1.8-local-preview` release-prep docs for the Local Demo Studio arc without tagging or publishing a release.
+- Documented `ignispromptctl demo-summary`, human, JSON, Markdown report, package output/list/validate, Aethra Local Demo Studio preview, demo-check coverage, demo workflow integration, and `make preview-release-check` as local-preview scope only.
+- Documented Local Demo Studio and shared package/path validation hardening for absolute paths, traversal, symlink traversal, unexpected files, symlinked required files, unsafe content, malformed JSON, schema drift, and placeholder-like values while preserving structural/local validation language.
 
 ## v0.1.6-local-preview
 

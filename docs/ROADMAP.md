@@ -26,7 +26,8 @@ This roadmap describes intended direction, not completed functionality. Any item
 - v0.1.6 local preview release-readiness record for the post-v0.1.5 local operator workflow arc.
 - Local policy workbench workflow with expanded synthetic policy scenarios, grouping helpers, `ignispromptctl policy-scenarios`, copy-safe policy reports, ignored local-evidence/policy package output, stricter CLI list/validate behavior, `make policy-check`, demo workflow integration, and Aethra read-only policy package preview.
 - v0.1.7 local preview release-prep record for the post-v0.1.6 local policy workbench arc.
-- Local demo studio hardening for `ignispromptctl demo-summary`, demo packages under ignored `local-evidence/demo-studio/`, stricter shared package path/list/validate behavior, `make demo-check`, and `make preview-release-check`.
+- Local Demo Studio workflow with Aethra Local Demo Studio, `ignispromptctl demo-summary`, copy-safe demo reports, demo packages under ignored `local-evidence/demo-studio/`, stricter shared package path/list/validate behavior, `make demo-check`, demo workflow integration, and `make preview-release-check`.
+- v0.1.8 local preview release-prep record for the Local Demo Studio arc and PR #188 hardening work.
 - Local evidence demo workflow automation script for route-explain, audit-events, evidence-bundle generation, listing, validation, archiving, archive verification, and manifest inspection.
 - Adversarial document-instruction detection for known instruction strings.
 - OpenAI-compatible chat completion request shape, including a `stream: true` compatibility scaffold that frames an already-produced local completion as SSE chunks.
@@ -80,4 +81,4 @@ Future model selection should compare larger general models and legal-domain can
 - Keep `StubLegalRunner` as the default fallback unless explicitly changed.
 - Keep `./models/**` and `./local-evidence/**` ignored by git.
 
-Post-v0.1.7: local demo studio is in progress for v0.1.8, combining CLI demo-summary, Aethra Local Demo Studio, demo packages, demo-check, package validation hardening, and guided local-preview demo workflow validation without production, certification, signed attestation, cryptographic verification, or tamper-evident claims.
+Post-v0.1.7: the v0.1.8 Local Demo Studio arc is implemented and hardened for release prep, combining CLI demo-summary, Aethra Local Demo Studio, demo packages, demo-check, package validation hardening, preview-release-check, and guided local-preview demo workflow validation without production, certification, signed attestation, cryptographic verification, or tamper-evident claims. Optional post-release follow-ups remain separate unless explicitly scoped.

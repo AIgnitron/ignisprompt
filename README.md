@@ -2,7 +2,7 @@
 
 **IgnisPrompt is local-preview infrastructure for local AI routing.**
 
-Latest release: `v0.1.6-local-preview`.
+Latest release: `v0.1.7-local-preview`.
 
 IgnisPrompt is local-first infrastructure for routing, audit, inspection, and local evidence review. By default it makes no cloud calls, sends no telemetry, performs no global aggregation, and is not production deployment software. It is not legal advice, does not claim legal accuracy, and does not claim compliance, ESG, supply-chain, or signed attestation certification.
 
@@ -70,6 +70,7 @@ The docs set under `docs/` describes the current scaffold and clearly separates 
 - [Local Preview v0.1.5 release readiness](docs/releases/v0.1.5-local-preview.md)
 - [Local Preview v0.1.6 release record](docs/releases/v0.1.6-local-preview.md)
 - [Local Preview v0.1.7 release prep](docs/releases/v0.1.7-local-preview.md)
+- [Local Preview v0.1.8 release prep](docs/releases/v0.1.8-local-preview.md)
 - [Contributor MCP usage](docs/MCP_USAGE.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Aethra MVP plan](docs/AETHRA.md)
