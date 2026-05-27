@@ -129,6 +129,9 @@ For v0.1.7 release-readiness work, keep the local policy workbench aligned acros
 
 For v0.1.8 release-readiness work, keep the local demo studio aligned across Aethra, CLI, scripts, and docs:
 
+- `docs/releases/v0.1.8-local-preview.md` exists and stays conservative
+- `docs/README.md`, `README.md`, `CHANGELOG.md`, `docs/CODEX_HANDOFF.md`, `docs/ROADMAP.md`, and this checklist mention the v0.1.8 release-prep scope
+- the release-prep PR addresses #189 and #190 without tagging, publishing, or closing optional post-release follow-ups #191 and #192
 - `make demo-check` passes
 - `make preview-release-check` passes before final release notes are drafted
 - `cargo run -p ignispromptctl -- demo-summary` stays local preview demo only
@@ -141,6 +144,7 @@ For v0.1.8 release-readiness work, keep the local demo studio aligned across Aet
 - demo packages remain local-only helper outputs and are not signed
 - demo package validation remains structural/local only, with no cryptographic verification and no tamper-evident claim
 - no production deployment, legal advice, legal accuracy, compliance, ESG, supply-chain, signed-attestation, tamper-evident, cryptographic, production-grade inference, or production-grade security claims are added
+- public CI passes for the default-path and Aethra jobs before any future v0.1.8 tag or GitHub Release
 
 ## v0.1.4 Release Prep
 
@@ -182,7 +186,7 @@ This combines the repository sustainability language guardrail, Rust tests, defa
 
 The guardrail is intended to catch unsupported or overconfident sustainability wording such as carbon-saved claims, measured-emissions certainty, zero-emissions certainty, certification language, ESG claims, and production or compliance claims that conflict with the estimated/proxy/counterfactual/methodology-dependent boundaries. It is a repository language check, not a substitute for reviewer judgment.
 
-For v0.1.6 release prep, also confirm `make operator-check`, `make readiness-check`, and `make evidence-check` pass and that the local evidence, readiness package, and operator package workflows still keep outputs under ignored `local-evidence/` paths.
+For v0.1.8 release prep, also confirm `make demo-check`, `make policy-check`, `make operator-check`, `make readiness-check`, `make evidence-check`, and `make preview-release-check` pass and that the local evidence, readiness package, operator package, policy package, and demo package workflows still keep outputs under ignored `local-evidence/` paths.
 
 ## Aethra Checks
 
