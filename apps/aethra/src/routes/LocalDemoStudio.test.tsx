@@ -1,30 +1,40 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { LocalDemoStudio } from "./LocalDemoStudio";
+import { buildDemoStudioSummary } from "./demoStudioSummary";
 
 describe("local demo studio route", () => {
   it("renders expected demo story sections and package preview", () => {
     const markup = renderToStaticMarkup(<LocalDemoStudio />);
+    const summary = buildDemoStudioSummary();
 
     expect(markup).toContain("Aethra local demo studio");
     expect(markup).toContain("Local preview demo story mode");
-    expect(markup).toContain("Local readiness");
-    expect(markup).toContain("Operator workflow");
-    expect(markup).toContain("Evidence workflow");
-    expect(markup).toContain("Policy scenarios");
-    expect(markup).toContain("Aethra review");
-    expect(markup).toContain("Export package summary");
+
+    for (const [index, step] of summary.storySteps.entries()) {
+      expect(markup).toContain(`Step ${index + 1}`);
+      expect(markup).toContain(step.name);
+      expect(markup).toContain(step.summary);
+      expect(markup).toContain(`Surface: ${step.sourceSurface}`);
+      expect(markup).toContain(`Talking point: ${step.talkingPoint}`);
+      expect(markup).toContain(`Next step: ${step.localNextStep}`);
+      expect(markup).toContain(`Boundary: ${step.boundaryNote}`);
+    }
+
     expect(markup).toContain("Demo package preview");
-    expect(markup).toContain("local-evidence/demo-studio/demo");
-    expect(markup).toContain("demo-summary.json");
-    expect(markup).toContain("demo-report.md");
+    expect(markup).toContain(summary.packagePreview.packageRoot);
+    expect(markup).toContain(summary.packagePreview.schemaVersion);
+    expect(markup).toContain(summary.packagePreview.packageMode);
+    expect(markup).toContain(summary.packagePreview.status);
+    for (const fileName of summary.packagePreview.generatedFiles) {
+      expect(markup).toContain(fileName);
+    }
+
     expect(markup).toContain("Copy-safe demo report snippet");
     expect(markup).toContain("Local demo boundary reminders");
-    expect(markup).toContain("local preview demo only");
-    expect(markup).toContain("route/status/package values are hints, not guarantees");
-    expect(markup).toContain("local helper checks, not certification");
-    expect(markup).toContain("package validation is structural/local only");
-    expect(markup).toContain("not signed");
+    for (const boundary of summary.boundaries) {
+      expect(markup).toContain(boundary);
+    }
   });
 
   it("avoids unsafe claims and sensitive default rendering", () => {

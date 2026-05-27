@@ -3,7 +3,10 @@ import {
   buildDemoReportSnippet,
   buildDemoStudioSummary,
   demoBoundaries,
+  demoPackageGeneratedFiles,
   demoStorySteps,
+  demoStoryStepIds,
+  requiredDemoBoundaryTerms,
 } from "./demoStudioSummary";
 
 describe("local demo studio summaries", () => {
@@ -11,12 +14,7 @@ describe("local demo studio summaries", () => {
     const summary = buildDemoStudioSummary();
 
     expect(summary.storySteps.map((step) => step.id)).toEqual([
-      "local-readiness",
-      "operator-workflow",
-      "evidence-workflow",
-      "policy-scenarios",
-      "aethra-review",
-      "export-package-summary",
+      ...demoStoryStepIds,
     ]);
     expect(summary.packagePreview.schemaVersion).toBe(
       "ignisprompt-demo-package-0.1",
@@ -25,13 +23,27 @@ describe("local demo studio summaries", () => {
       "local-evidence/demo-studio/demo",
     );
     expect(summary.packagePreview.generatedFiles).toEqual([
-      "README.md",
-      "manifest.json",
-      "demo-summary.json",
-      "demo-report.json",
-      "demo-report.md",
+      ...demoPackageGeneratedFiles,
     ]);
     expect(summary.packagePreview.boundaryNotes).toContain("not signed");
+  });
+
+  it("keeps the structured Aethra fixture contract aligned with CLI demo expectations", () => {
+    const summary = buildDemoStudioSummary();
+
+    expect(summary.storySteps).toHaveLength(demoStoryStepIds.length);
+    expect(summary.boundaries).toEqual([...requiredDemoBoundaryTerms]);
+    expect(summary.packagePreview.packageMode).toBe("local-preview");
+    expect(summary.packagePreview.status).toBe("demo_guidance");
+
+    for (const term of requiredDemoBoundaryTerms) {
+      expect(summary.boundaries).toContain(term);
+    }
+
+    const reportSnippet = buildDemoReportSnippet().toLowerCase();
+    for (const term of summary.packagePreview.boundaryNotes) {
+      expect(reportSnippet).toContain(term.toLowerCase());
+    }
   });
 
   it("keeps demo snippets conservative and copy-safe", () => {

@@ -24,6 +24,38 @@ export type DemoStudioSummary = {
   boundaries: string[];
 };
 
+export const demoStoryStepIds = [
+  "local-readiness",
+  "operator-workflow",
+  "evidence-workflow",
+  "policy-scenarios",
+  "aethra-review",
+  "export-package-summary",
+] as const;
+
+export const demoPackageGeneratedFiles = [
+  "README.md",
+  "manifest.json",
+  "demo-summary.json",
+  "demo-report.json",
+  "demo-report.md",
+] as const;
+
+export const requiredDemoBoundaryTerms = [
+  "local preview demo only",
+  "synthetic story steps only",
+  "route/status/package values are hints, not guarantees",
+  "local helper checks, not certification",
+  "package validation is structural/local only",
+  "not signed",
+  "no cryptographic validation",
+  "not tamper evident",
+  "no telemetry",
+  "no cloud calls by default",
+  "no global aggregation",
+  "Aethra is fixture-backed by default with manual live-local loading",
+] as const;
+
 export const demoStorySteps: DemoStoryStep[] = [
   {
     id: "local-readiness",
@@ -86,20 +118,7 @@ export const demoStorySteps: DemoStoryStep[] = [
   },
 ];
 
-export const demoBoundaries = [
-  "local preview demo only",
-  "synthetic story steps only",
-  "route/status/package values are hints, not guarantees",
-  "local helper checks, not certification",
-  "package validation is structural/local only",
-  "not signed",
-  "no cryptographic validation",
-  "not tamper evident",
-  "no telemetry",
-  "no cloud calls by default",
-  "no global aggregation",
-  "Aethra is fixture-backed by default with manual live-local loading",
-];
+export const demoBoundaries = [...requiredDemoBoundaryTerms];
 
 export function buildDemoStudioSummary(): DemoStudioSummary {
   return {
@@ -109,13 +128,7 @@ export function buildDemoStudioSummary(): DemoStudioSummary {
       packageMode: "local-preview",
       packageRoot: "local-evidence/demo-studio/demo",
       status: "demo_guidance",
-      generatedFiles: [
-        "README.md",
-        "manifest.json",
-        "demo-summary.json",
-        "demo-report.json",
-        "demo-report.md",
-      ],
+      generatedFiles: [...demoPackageGeneratedFiles],
       boundaryNotes: [
         "local preview demo only",
         "package validation is structural/local only",
