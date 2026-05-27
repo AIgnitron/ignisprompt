@@ -59,6 +59,12 @@ git diff --check
 
 `make preview-release-check` is a local preview validation helper only. It must not be treated as release publication, production readiness, legal accuracy validation, compliance certification, signed attestation, tamper-evident storage, or cryptographic verification.
 
+## Package Validation Compatibility
+
+v0.1.8 made package validation stricter. Older locally generated packages may be rejected by current package validation; regenerate them with the current CLI commands or check scripts instead of weakening validation to accept stale packages. This applies to demo packages under `local-evidence/demo-studio/`, policy packages under `local-evidence/policy/`, operator packages under `local-evidence/operator/`, readiness packages under `local-evidence/readiness/`, and evidence packages or bundles under ignored `local-evidence/` paths.
+
+Keep regenerated outputs under ignored `local-evidence/` paths and do not commit them. Package validation remains structural/local only, and packages are local-only helper outputs: not signed, not attestation, not certification, and not production evidence.
+
 ## v0.1.5 Readiness Notes
 
 For v0.1.5 release-readiness work, keep the local readiness quality gate aligned with Aethra Local Readiness and the CLI:
@@ -131,7 +137,7 @@ For v0.1.8 release-readiness work, keep the local demo studio aligned across Aet
 
 - `docs/releases/v0.1.8-local-preview.md` exists and stays conservative
 - `docs/README.md`, `README.md`, `CHANGELOG.md`, `docs/CODEX_HANDOFF.md`, `docs/ROADMAP.md`, and this checklist mention the v0.1.8 published release scope
-- #189 and #190 are closed after the v0.1.8 docs work; optional post-release follow-ups #191 and #192 remain open
+- #189 and #190 are closed after the v0.1.8 docs work; optional post-release follow-up #191 remains open
 - `make demo-check` passes
 - `make preview-release-check` passes before final release notes are drafted
 - `cargo run -p ignispromptctl -- demo-summary` stays local preview demo only
