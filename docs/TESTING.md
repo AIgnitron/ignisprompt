@@ -117,6 +117,14 @@ The `audit-events` command reads the existing local `GET /v1/audit/events` endpo
 
 The `evidence-bundle` command writes a local-only diagnostic bundle under an ignored `local-evidence/` path by reading the existing local health, version status, model, model and runner status hint, and sustainability endpoints. Audit events stay omitted unless `--include-audit-events` is passed. `--json` prints the bundle summary JSON. `--list` inspects an existing bundle without calling the daemon, `--validate` checks the on-disk bundle contract without daemon access, `--archive` creates a local tar.gz archive under `local-evidence/archives/` by default after validating the bundle, `--archive-output` can override that path when it stays under `local-evidence/`, `--verify-archive` inspects an existing archive without calling the daemon, and `--print-manifest` prints the manifest for an existing bundle without calling the daemon. The bundle is for local preview review only: it is not signed, not certified, not production evidence, and does not call cloud services or external endpoints.
 
+## Package Validation Compatibility
+
+v0.1.8 made package validation stricter across local preview package workflows. Older locally generated packages may be rejected after this hardening. This is expected; regenerate packages with the current CLI commands or check scripts instead of weakening validation to accept stale packages.
+
+This applies to demo packages under `local-evidence/demo-studio/`, policy packages under `local-evidence/policy/`, operator packages under `local-evidence/operator/`, readiness packages under `local-evidence/readiness/`, and evidence packages or bundles under ignored `local-evidence/` paths. Keep regenerated outputs under ignored local evidence paths and do not commit them.
+
+Package validation remains structural/local only. Packages are local-only helper outputs: they are not signed, not attestation, not certification, and not production evidence.
+
 Safe local-preview examples:
 
 ```bash

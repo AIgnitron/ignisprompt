@@ -128,6 +128,8 @@ The Aethra Local Policy Workbench adds a read-only policy workflow view that sho
 
 The Aethra Local Demo Studio adds a read-only demo story view that stitches together Local Readiness, Local Operator Console, Evidence Bundle Viewer, Local Policy Workbench, Aethra review, and demo package summary steps. Demo packages stay under ignored `local-evidence/demo-studio/`, validation is structural/local only, and the page does not execute commands, upload packages, read local package paths, persist data, add polling, add telemetry, or add cloud calls.
 
+v0.1.8 made local package validation stricter. Older locally generated demo, policy, operator, readiness, or evidence packages may fail current validation. Regenerate packages with the current CLI commands or check scripts under ignored `local-evidence/` paths instead of weakening validation; packages remain local-only helper outputs, not signed, not attestation, not certification, and not production evidence.
+
 ## Golden and bakeoff demos
 
 `./scripts/run-golden-legal-v0.3.sh` runs a nine-case local subset against the live GGUF path. It includes the Tier 3 success case, fail-closed local-only cases, adversarial document-instruction handling, explanation quality, a subtle legal-language routing-instruction case, and an expanded synthetic adversarial fixture matrix. It writes evidence under `./local-evidence/golden-legal-v0.3/`.

@@ -9,9 +9,9 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - MVP tag: `v0.1.0-mvp`
 - Final readiness result: **PASS WITH GAPS**
 - Public feedback issue: https://github.com/AIgnitron/ignisprompt/issues/56
-- Latest known main commit: `3e5bfec docs: prepare v0.1.8 local preview release (#193)`
+- Latest known main commit: `3db4804 docs: align v0.1.8 published release state (#194)`
 - Open PRs at this handoff: none
-- Open issues at this handoff: #56, #191, and #192. Issues #189 and #190 are closed after the v0.1.8 release docs work.
+- Open issues at this handoff: #56 and #191. Issues #189 and #190 are closed after the v0.1.8 release docs work; #192 and #195 are addressed by the post-v0.1.8 package compatibility and CI action runtime maintenance work.
 
 ## Recent Completed Work
 
@@ -75,6 +75,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - PR #187 added the Local Demo Studio arc for v0.1.8 development, including Aethra Local Demo Studio, `ignispromptctl demo-summary`, human, JSON, and Markdown report output, demo packages under ignored `local-evidence/demo-studio/`, `make demo-check`, and demo workflow integration.
 - PR #188 hardened Local Demo Studio and shared package/path validation across demo, policy, operator, readiness, and evidence workflows. It added stricter demo package validation, CLI/Aethra conservative language parity checks, unsafe-content and package-isolation tests, and `make preview-release-check`.
 - `v0.1.8-local-preview` is published and is the latest local preview release. It includes the Local Demo Studio arc and PR #188 hardening work. The GitHub Release uses conservative local-preview wording and does not claim production deployment, certification, signed attestation, tamper-evident storage, or cryptographic verification.
+- Post-v0.1.8 maintenance documents package validation compatibility for stale local packages after the stricter validation hardening and updates the Aethra GitHub Actions setup-node action to a Node 24-runtime major while preserving the existing Node 24 app test configuration.
 - A repeatable local evidence demo workflow script now drives route-explain, audit-events, evidence-bundle generation, listing, validation, archiving, archive verification, and manifest inspection under ignored local-evidence paths. It includes dry-run and self-test modes that stay local-only.
 - `make evidence-check` runs the local evidence workflow regression checks without requiring a live daemon. It verifies the demo workflow script, the `ignispromptctl evidence-bundle` help surface, and the Aethra boundary-language alignment.
 - `make policy-check` runs deterministic local policy workbench checks without requiring a live daemon. It verifies policy scenario CLI output, report output, grouping metadata, package generation/list/validate behavior, demo workflow command construction, and Aethra policy wording alignment.
@@ -247,7 +248,7 @@ Add `--include-route-explain` only when you intentionally want to append a local
 ## Open Issues
 
 - #56 Request for feedback: IgnisPrompt MVP architecture and local-first routing design: https://github.com/AIgnitron/ignisprompt/issues/56
-- #191 and #192 are optional post-release follow-ups and should stay out of unrelated docs cleanup unless explicitly scoped.
+- #191 remains an optional post-release follow-up and should stay out of unrelated docs cleanup unless explicitly scoped.
 
 ## Closed Follow-Up Blockers
 
@@ -272,8 +273,7 @@ Add `--include-route-explain` only when you intentionally want to append a local
 5. Keep Aethra live-local diagnostics limited to local connection/debugging state; avoid polling, persistence, external lookup, cloud calls, update checks, readiness claims, or controls.
 6. Keep copyable command helpers local and explicit; avoid dashboard-side command execution, remote command language, telemetry, or persistence.
 7. Keep any future model and runner status work limited to hints; avoid readiness, certification, legal-quality, or compliance claims.
-8. Keep v0.1.8 post-release docs aligned with the published GitHub Release without moving tags or recreating releases.
-9. Keep optional post-release follow-ups #191 and #192 separate unless a future task scopes them directly.
+8. Keep optional post-release follow-up #191 separate unless a future task scopes it directly.
 
 Avoid cloud telemetry, analytics, auth providers, a SaaS backend, model install/delete controls, and production/legal/compliance/sustainability overclaims unless a future task explicitly scopes and reviews those changes.
 
@@ -294,3 +294,5 @@ Avoid cloud telemetry, analytics, auth providers, a SaaS backend, model install/
 Post-v0.1.7 local demo studio work adds local demo studio CLI, Aethra, demo package, demo-check, and demo workflow validation. Keep it local-preview only, fixture-backed/read-only in Aethra, and do not claim production readiness, certification, signed attestation, or tamper-evident storage.
 
 Post-v0.1.7 hardening adds shared package path validation across readiness, operator, policy, and demo package list/validate paths. Package validation now rejects absolute paths, parent traversal, symlink traversal, package roots outside their ignored local-evidence subtrees, unexpected package files, symlinked required files, placeholder-like JSON values, unsafe content, script-like text, and terminal control characters where practical. `make preview-release-check` is a local preview helper that chains the local readiness/operator/policy/demo/evidence/security/dev checks and `git diff --check`; it does not publish a release, move tags, sign packages, provide cryptographic verification, or claim production readiness.
+
+After the v0.1.8 validation hardening, older locally generated demo, policy, operator, readiness, or evidence packages may fail current structural/local validation. Regenerate packages with the current CLI commands or check scripts under ignored `local-evidence/` paths instead of weakening validation. These packages remain local-only helper outputs, not signed, not attestation, not certification, and not production evidence.

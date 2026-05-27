@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Changed
+- Documented that v0.1.8 package validation hardening may reject older locally generated packages and that users should regenerate local packages with current CLI/check scripts instead of weakening validation.
+- Updated the Aethra CI setup-node action to the Node 24-runtime major while keeping the existing Node 24 app test configuration.
 - Aligned documentation after `v0.1.8-local-preview` was published as the latest local-preview release.
 - Updated the `v0.1.8-local-preview` release docs for the Local Demo Studio arc after publication.
 - Documented `ignispromptctl demo-summary`, human, JSON, Markdown report, package output/list/validate, Aethra Local Demo Studio preview, demo-check coverage, demo workflow integration, and `make preview-release-check` as local-preview scope only.
