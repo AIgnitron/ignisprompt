@@ -2050,8 +2050,12 @@ fn format_demo_summary_json() -> String {
         "status": "demo_guidance",
         "scope": {
             "local_preview_demo_only": true,
+            "synthetic_story_steps_only": true,
             "route_status_package_values_are_hints_not_guarantees": true,
+            "route_status_package_hints_only": true,
             "local_helper_checks_not_certification": true,
+            "package_validation_structural_local_only": true,
+            "not_signed": true,
             "no_formal_legal_guidance": true,
             "no_formal_legal_correctness_claim": true,
             "aethra_fixture_backed_by_default": true,
@@ -2505,52 +2509,118 @@ fn validate_relative_path(output: &str, label: &str) -> Result<PathBuf, String> 
     Ok(path)
 }
 
-fn validate_readiness_package_output_dir(output: &str) -> Result<PathBuf, String> {
-    let path = validate_relative_path(output, "readiness package output")?;
-    if !path.starts_with("local-evidence/readiness") {
-        return Err(
-            "readiness package output must stay under ignored local-evidence/readiness/"
-                .to_string(),
-        );
+fn validate_package_path_under_root(
+    input: &str,
+    label: &str,
+    root: &str,
+    require_leaf_dir: bool,
+) -> Result<PathBuf, String> {
+    let path = validate_relative_path(input, label)?;
+    let root_path = Path::new(root);
+    if !path.starts_with(root_path) {
+        return Err(format!("{} must stay under ignored {}/", label, root));
     }
-    if path == Path::new("local-evidence/readiness") {
-        return Err(
-            "readiness package output must include a package directory under local-evidence/readiness/"
-                .to_string(),
-        );
-    }
-    if path.exists() {
+    if require_leaf_dir && path == root_path {
         return Err(format!(
-            "readiness package output already exists: {}",
-            path.display()
+            "{} must include a package directory under {}/",
+            label, root
+        ));
+    }
+    reject_existing_symlink_component(&path, label)?;
+    Ok(path)
+}
+
+fn validate_package_output_dir(output: &str, label: &str, root: &str) -> Result<PathBuf, String> {
+    let path = validate_package_path_under_root(output, label, root, true)?;
+    if path.exists() {
+        return Err(format!("{} already exists: {}", label, path.display()));
+    }
+    Ok(path)
+}
+
+fn validate_package_input_dir(input: &Path, label: &str, root: &str) -> Result<PathBuf, String> {
+    let input_text = input
+        .to_str()
+        .ok_or_else(|| format!("{} must be valid UTF-8", label))?;
+    let path = validate_package_path_under_root(input_text, label, root, true)?;
+    if !path.exists() {
+        return Err(format!(
+            "{} directory does not exist: {}",
+            label,
+            safe_relative_package_path(&path, label)
+        ));
+    }
+    let metadata = fs::symlink_metadata(&path)
+        .map_err(|error| format!("could not inspect {}: {}", label, error))?;
+    if metadata.file_type().is_symlink() {
+        return Err(format!("{} must not be a symlink", label));
+    }
+    if !metadata.is_dir() {
+        return Err(format!(
+            "{} path is not a directory: {}",
+            label,
+            safe_relative_package_path(&path, label)
         ));
     }
     Ok(path)
 }
 
-fn safe_readiness_package_path(path: &Path) -> String {
+fn reject_existing_symlink_component(path: &Path, label: &str) -> Result<(), String> {
+    let mut current = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Normal(part) => {
+                current.push(part);
+                match fs::symlink_metadata(&current) {
+                    Ok(metadata) if metadata.file_type().is_symlink() => {
+                        return Err(format!("{} must not traverse symlinks", label));
+                    }
+                    Ok(_) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(error) => {
+                        return Err(format!(
+                            "could not inspect {} component {}: {}",
+                            label,
+                            current.display(),
+                            error
+                        ));
+                    }
+                }
+            }
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(format!("{} must not use parent traversal", label));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn safe_relative_package_path(path: &Path, label: &str) -> String {
     if path.is_absolute() {
-        "[redacted readiness package path]".to_string()
+        format!("[redacted {} path]", label)
     } else {
         path.display().to_string()
     }
 }
 
+fn validate_readiness_package_output_dir(output: &str) -> Result<PathBuf, String> {
+    validate_package_output_dir(
+        output,
+        "readiness package output",
+        "local-evidence/readiness",
+    )
+}
+
+fn safe_readiness_package_path(path: &Path) -> String {
+    safe_relative_package_path(path, "readiness package")
+}
+
 fn build_readiness_package_validation_report(
     package_dir: &Path,
 ) -> Result<ReadinessPackageValidationReport, String> {
-    if !package_dir.exists() {
-        return Err(format!(
-            "readiness package directory does not exist: {}",
-            safe_readiness_package_path(package_dir)
-        ));
-    }
-    if !package_dir.is_dir() {
-        return Err(format!(
-            "readiness package path is not a directory: {}",
-            safe_readiness_package_path(package_dir)
-        ));
-    }
+    let package_dir =
+        validate_package_input_dir(package_dir, "readiness package", "local-evidence/readiness")?;
 
     let mut files = Vec::new();
     let mut issues = Vec::new();
@@ -2565,6 +2635,34 @@ fn build_readiness_package_validation_report(
                 text: None,
             });
             continue;
+        }
+
+        match fs::symlink_metadata(&path) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                issues.push(format!("{} must not be a symlink", file_name));
+                files.push(ReadinessPackageFileState {
+                    file_name,
+                    present: true,
+                    json_valid: None,
+                    text: None,
+                });
+                continue;
+            }
+            Ok(metadata) if !metadata.is_file() => {
+                issues.push(format!("{} must be a regular file", file_name));
+                files.push(ReadinessPackageFileState {
+                    file_name,
+                    present: true,
+                    json_valid: None,
+                    text: None,
+                });
+                continue;
+            }
+            Ok(_) => {}
+            Err(error) => {
+                issues.push(format!("could not inspect {}: {}", file_name, error));
+                continue;
+            }
         }
 
         let text = fs::read_to_string(&path)
@@ -2595,6 +2693,11 @@ fn build_readiness_package_validation_report(
             text: Some(text),
         });
     }
+    issues.extend(package_directory_issues(
+        &package_dir,
+        READINESS_PACKAGE_REQUIRED_FILES,
+        "readiness package",
+    ));
 
     if let Some(readme) = files
         .iter()
@@ -2615,15 +2718,82 @@ fn build_readiness_package_validation_report(
     }
 
     Ok(ReadinessPackageValidationReport {
-        package_dir: package_dir.to_path_buf(),
+        package_dir,
         files,
         issues,
     })
 }
 
+fn package_directory_issues(
+    package_dir: &Path,
+    required_files: &[&'static str],
+    label: &str,
+) -> Vec<String> {
+    let mut issues = Vec::new();
+    let entries = match fs::read_dir(package_dir) {
+        Ok(entries) => entries,
+        Err(error) => {
+            issues.push(format!("could not list {} directory: {}", label, error));
+            return issues;
+        }
+    };
+
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(error) => {
+                issues.push(format!("could not inspect {} entry: {}", label, error));
+                continue;
+            }
+        };
+        let name = match entry.file_name().into_string() {
+            Ok(name) => name,
+            Err(_) => {
+                issues.push(format!("{} contains non-UTF-8 file name", label));
+                continue;
+            }
+        };
+        if !required_files.iter().any(|required| *required == name) {
+            issues.push(format!("unexpected package file: {}", name));
+            continue;
+        }
+        match entry.file_type() {
+            Ok(file_type) if file_type.is_symlink() => {
+                issues.push(format!("{} must not be a symlink", name));
+            }
+            Ok(file_type) if !file_type.is_file() => {
+                issues.push(format!("{} must be a regular file", name));
+            }
+            Ok(_) => {}
+            Err(error) => {
+                issues.push(format!("could not inspect {}: {}", name, error));
+            }
+        }
+    }
+
+    issues
+}
+
 fn validate_readiness_package_safe_text(label: &str, text: &str) -> Result<(), String> {
+    const MAX_PACKAGE_TEXT_BYTES: usize = 256 * 1024;
+    if text.len() > MAX_PACKAGE_TEXT_BYTES {
+        return Err(format!("{} exceeds package text size limit", label));
+    }
+    if text
+        .chars()
+        .any(|ch| ch.is_control() && ch != '\n' && ch != '\r' && ch != '\t')
+    {
+        return Err(format!("{} contains control characters", label));
+    }
     let lower = text.to_ascii_lowercase();
     for unsafe_term in [
+        "\u{1b}[",
+        "<script",
+        "</script",
+        "javascript:",
+        "<iframe",
+        "<html",
+        "<body",
         "prompt:",
         "raw user text",
         "raw audit text",
@@ -2854,6 +3024,8 @@ fn operator_package_boundaries() -> Vec<&'static str> {
         "local helper checks, not certification",
         "package validation is structural/local only",
         "not signed",
+        "no cryptographic validation",
+        "not tamper evident",
         "not production attestation",
         "no telemetry",
         "no cloud calls by default",
@@ -2874,6 +3046,8 @@ fn build_operator_package_readme() -> String {
         "- local helper checks, not certification",
         "- package validation is structural/local only",
         "- not signed",
+        "- no cryptographic validation",
+        "- not tamper evident",
         "- not production attestation",
         "- no telemetry",
         "- no cloud calls by default",
@@ -3048,25 +3222,7 @@ fn write_operator_package_report(report: &OperatorPackageReport) -> Result<(), S
 }
 
 fn validate_operator_package_output_dir(output: &str) -> Result<PathBuf, String> {
-    let path = validate_relative_path(output, "operator package output")?;
-    if !path.starts_with("local-evidence/operator") {
-        return Err(
-            "operator package output must stay under ignored local-evidence/operator/".to_string(),
-        );
-    }
-    if path == Path::new("local-evidence/operator") {
-        return Err(
-            "operator package output must include a package directory under local-evidence/operator/"
-                .to_string(),
-        );
-    }
-    if path.exists() {
-        return Err(format!(
-            "operator package output already exists: {}",
-            path.display()
-        ));
-    }
-    Ok(path)
+    validate_package_output_dir(output, "operator package output", "local-evidence/operator")
 }
 
 fn safe_operator_package_path(path: &Path) -> String {
@@ -3080,18 +3236,8 @@ fn safe_operator_package_path(path: &Path) -> String {
 fn build_operator_package_validation_report(
     package_dir: &Path,
 ) -> Result<OperatorPackageValidationReport, String> {
-    if !package_dir.exists() {
-        return Err(format!(
-            "operator package directory does not exist: {}",
-            safe_operator_package_path(package_dir)
-        ));
-    }
-    if !package_dir.is_dir() {
-        return Err(format!(
-            "operator package path is not a directory: {}",
-            safe_operator_package_path(package_dir)
-        ));
-    }
+    let package_dir =
+        validate_package_input_dir(package_dir, "operator package", "local-evidence/operator")?;
 
     let mut files = Vec::new();
     let mut issues = Vec::new();
@@ -3106,6 +3252,34 @@ fn build_operator_package_validation_report(
                 text: None,
             });
             continue;
+        }
+
+        match fs::symlink_metadata(&path) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                issues.push(format!("{} must not be a symlink", file_name));
+                files.push(ReadinessPackageFileState {
+                    file_name,
+                    present: true,
+                    json_valid: None,
+                    text: None,
+                });
+                continue;
+            }
+            Ok(metadata) if !metadata.is_file() => {
+                issues.push(format!("{} must be a regular file", file_name));
+                files.push(ReadinessPackageFileState {
+                    file_name,
+                    present: true,
+                    json_valid: None,
+                    text: None,
+                });
+                continue;
+            }
+            Ok(_) => {}
+            Err(error) => {
+                issues.push(format!("could not inspect {}: {}", file_name, error));
+                continue;
+            }
         }
 
         let text = fs::read_to_string(&path)
@@ -3136,6 +3310,11 @@ fn build_operator_package_validation_report(
             text: Some(text),
         });
     }
+    issues.extend(package_directory_issues(
+        &package_dir,
+        OPERATOR_PACKAGE_REQUIRED_FILES,
+        "operator package",
+    ));
 
     if let Some(readme) = files
         .iter()
@@ -3148,6 +3327,8 @@ fn build_operator_package_validation_report(
             "local helper checks, not certification",
             "package validation is structural/local only",
             "not signed",
+            "no cryptographic validation",
+            "not tamper evident",
             "not production attestation",
             "no telemetry",
             "no cloud calls by default",
@@ -3159,7 +3340,7 @@ fn build_operator_package_validation_report(
     }
 
     Ok(OperatorPackageValidationReport {
-        package_dir: package_dir.to_path_buf(),
+        package_dir,
         files,
         issues,
     })
@@ -3406,6 +3587,8 @@ fn policy_package_boundaries() -> Vec<&'static str> {
         "local helper checks, not certification",
         "package validation is structural/local only",
         "not signed",
+        "no cryptographic validation",
+        "not tamper evident",
         "not production attestation",
         "no formal legal guidance",
         "no formal legal correctness claim",
@@ -3429,6 +3612,8 @@ fn build_policy_package_readme() -> String {
         "- local helper checks, not certification",
         "- package validation is structural/local only",
         "- not signed",
+        "- no cryptographic validation",
+        "- not tamper evident",
         "- not production attestation",
         "- no formal legal guidance",
         "- no formal legal correctness claim",
@@ -3503,25 +3688,7 @@ fn write_policy_package_report(report: &PolicyPackageReport) -> Result<(), Strin
 }
 
 fn validate_policy_package_output_dir(output: &str) -> Result<PathBuf, String> {
-    let path = validate_relative_path(output, "policy package output")?;
-    if !path.starts_with("local-evidence/policy") {
-        return Err(
-            "policy package output must stay under ignored local-evidence/policy/".to_string(),
-        );
-    }
-    if path == Path::new("local-evidence/policy") {
-        return Err(
-            "policy package output must include a package directory under local-evidence/policy/"
-                .to_string(),
-        );
-    }
-    if path.exists() {
-        return Err(format!(
-            "policy package output already exists: {}",
-            path.display()
-        ));
-    }
-    Ok(path)
+    validate_package_output_dir(output, "policy package output", "local-evidence/policy")
 }
 
 fn safe_policy_package_path(path: &Path) -> String {
@@ -3535,18 +3702,8 @@ fn safe_policy_package_path(path: &Path) -> String {
 fn build_policy_package_validation_report(
     package_dir: &Path,
 ) -> Result<PolicyPackageValidationReport, String> {
-    if !package_dir.exists() {
-        return Err(format!(
-            "policy package directory does not exist: {}",
-            safe_policy_package_path(package_dir)
-        ));
-    }
-    if !package_dir.is_dir() {
-        return Err(format!(
-            "policy package path is not a directory: {}",
-            safe_policy_package_path(package_dir)
-        ));
-    }
+    let package_dir =
+        validate_package_input_dir(package_dir, "policy package", "local-evidence/policy")?;
 
     let mut files = Vec::new();
     let mut issues = Vec::new();
@@ -3561,6 +3718,34 @@ fn build_policy_package_validation_report(
                 text: None,
             });
             continue;
+        }
+
+        match fs::symlink_metadata(&path) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                issues.push(format!("{} must not be a symlink", file_name));
+                files.push(ReadinessPackageFileState {
+                    file_name,
+                    present: true,
+                    json_valid: None,
+                    text: None,
+                });
+                continue;
+            }
+            Ok(metadata) if !metadata.is_file() => {
+                issues.push(format!("{} must be a regular file", file_name));
+                files.push(ReadinessPackageFileState {
+                    file_name,
+                    present: true,
+                    json_valid: None,
+                    text: None,
+                });
+                continue;
+            }
+            Ok(_) => {}
+            Err(error) => {
+                issues.push(format!("could not inspect {}: {}", file_name, error));
+                continue;
+            }
         }
 
         let text = fs::read_to_string(&path)
@@ -3594,6 +3779,11 @@ fn build_policy_package_validation_report(
             text: Some(text),
         });
     }
+    issues.extend(package_directory_issues(
+        &package_dir,
+        POLICY_PACKAGE_REQUIRED_FILES,
+        "policy package",
+    ));
 
     if let Some(readme) = files
         .iter()
@@ -3607,6 +3797,8 @@ fn build_policy_package_validation_report(
             "local helper checks, not certification",
             "package validation is structural/local only",
             "not signed",
+            "no cryptographic validation",
+            "not tamper evident",
             "not production attestation",
             "no formal legal guidance",
             "no formal legal correctness claim",
@@ -3620,7 +3812,7 @@ fn build_policy_package_validation_report(
     }
 
     Ok(PolicyPackageValidationReport {
-        package_dir: package_dir.to_path_buf(),
+        package_dir,
         files,
         issues,
     })
@@ -3760,6 +3952,94 @@ fn expect_json_array_len(value: &Value, field: &str, expected: usize) -> Result<
         )),
         None => Err(format!("is missing array field: {}", field)),
     }
+}
+
+fn expect_json_array_strings(
+    value: &Value,
+    field: &str,
+    expected: &[&'static str],
+) -> Result<(), String> {
+    let actual = value
+        .get(field)
+        .and_then(|field| field.as_array())
+        .ok_or_else(|| format!("is missing array field: {}", field))?
+        .iter()
+        .map(|item| {
+            item.as_str()
+                .ok_or_else(|| format!("{} contains a non-string item", field))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(format!(
+            "has unexpected {} values: {}, expected {}",
+            field,
+            actual.join(", "),
+            expected.join(", ")
+        ))
+    }
+}
+
+fn expect_json_bool_at_path(value: &Value, path: &[&str], expected: bool) -> Result<(), String> {
+    let mut current = value;
+    for segment in path {
+        current = current
+            .get(*segment)
+            .ok_or_else(|| format!("is missing field path: {}", path.join(".")))?;
+    }
+    match current.as_bool() {
+        Some(actual) if actual == expected => Ok(()),
+        Some(actual) => Err(format!(
+            "has unexpected {}: {}, expected {}",
+            path.join("."),
+            actual,
+            expected
+        )),
+        None => Err(format!("is missing bool field: {}", path.join("."))),
+    }
+}
+
+fn expect_boundary_terms(
+    value: &Value,
+    field: &str,
+    expected_terms: &[&'static str],
+) -> Result<(), String> {
+    let actual = value
+        .get(field)
+        .and_then(|field| field.as_array())
+        .ok_or_else(|| format!("is missing array field: {}", field))?;
+    for term in expected_terms {
+        if !actual.iter().any(|item| item.as_str() == Some(*term)) {
+            return Err(format!("{} is missing boundary term: {}", field, term));
+        }
+    }
+    Ok(())
+}
+
+fn expect_package_file_entries(
+    value: &Value,
+    expected_files: &[&'static str],
+) -> Result<(), String> {
+    let files = value
+        .get("files")
+        .and_then(|field| field.as_array())
+        .ok_or_else(|| "is missing files array".to_string())?;
+    for file_name in expected_files {
+        if !files.iter().any(|file| {
+            file.get("name").and_then(|name| name.as_str()) == Some(*file_name)
+                && file
+                    .get("purpose")
+                    .and_then(|purpose| purpose.as_str())
+                    .is_some()
+        }) {
+            return Err(format!(
+                "files is missing generated file entry: {}",
+                file_name
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn validate_policy_package_safe_text(label: &str, text: &str) -> Result<(), String> {
@@ -4013,6 +4293,8 @@ fn demo_package_boundaries() -> Vec<&'static str> {
         "local helper checks, not certification",
         "package validation is structural/local only",
         "not signed",
+        "no cryptographic validation",
+        "not tamper evident",
         "not production attestation",
         "no formal legal guidance",
         "no formal legal correctness claim",
@@ -4037,6 +4319,8 @@ fn build_demo_package_readme() -> String {
         "- local helper checks, not certification",
         "- package validation is structural/local only",
         "- not signed",
+        "- no cryptographic validation",
+        "- not tamper evident",
         "- not production attestation",
         "- no formal legal guidance",
         "- no formal legal correctness claim",
@@ -4109,25 +4393,7 @@ fn write_demo_package_report(report: &DemoPackageReport) -> Result<(), String> {
 }
 
 fn validate_demo_package_output_dir(output: &str) -> Result<PathBuf, String> {
-    let path = validate_relative_path(output, "demo package output")?;
-    if !path.starts_with("local-evidence/demo-studio") {
-        return Err(
-            "demo package output must stay under ignored local-evidence/demo-studio/".to_string(),
-        );
-    }
-    if path == Path::new("local-evidence/demo-studio") {
-        return Err(
-            "demo package output must include a package directory under local-evidence/demo-studio/"
-                .to_string(),
-        );
-    }
-    if path.exists() {
-        return Err(format!(
-            "demo package output already exists: {}",
-            path.display()
-        ));
-    }
-    Ok(path)
+    validate_package_output_dir(output, "demo package output", "local-evidence/demo-studio")
 }
 
 fn safe_demo_package_path(path: &Path) -> String {
@@ -4141,18 +4407,8 @@ fn safe_demo_package_path(path: &Path) -> String {
 fn build_demo_package_validation_report(
     package_dir: &Path,
 ) -> Result<DemoPackageValidationReport, String> {
-    if !package_dir.exists() {
-        return Err(format!(
-            "demo package directory does not exist: {}",
-            safe_demo_package_path(package_dir)
-        ));
-    }
-    if !package_dir.is_dir() {
-        return Err(format!(
-            "demo package path is not a directory: {}",
-            safe_demo_package_path(package_dir)
-        ));
-    }
+    let package_dir =
+        validate_package_input_dir(package_dir, "demo package", "local-evidence/demo-studio")?;
 
     let mut files = Vec::new();
     let mut issues = Vec::new();
@@ -4167,6 +4423,34 @@ fn build_demo_package_validation_report(
                 text: None,
             });
             continue;
+        }
+
+        match fs::symlink_metadata(&path) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                issues.push(format!("{} must not be a symlink", file_name));
+                files.push(ReadinessPackageFileState {
+                    file_name,
+                    present: true,
+                    json_valid: None,
+                    text: None,
+                });
+                continue;
+            }
+            Ok(metadata) if !metadata.is_file() => {
+                issues.push(format!("{} must be a regular file", file_name));
+                files.push(ReadinessPackageFileState {
+                    file_name,
+                    present: true,
+                    json_valid: None,
+                    text: None,
+                });
+                continue;
+            }
+            Ok(_) => {}
+            Err(error) => {
+                issues.push(format!("could not inspect {}: {}", file_name, error));
+                continue;
+            }
         }
 
         let text = fs::read_to_string(&path)
@@ -4200,6 +4484,11 @@ fn build_demo_package_validation_report(
             text: Some(text),
         });
     }
+    issues.extend(package_directory_issues(
+        &package_dir,
+        DEMO_PACKAGE_REQUIRED_FILES,
+        "demo package",
+    ));
 
     if let Some(readme) = files
         .iter()
@@ -4213,6 +4502,8 @@ fn build_demo_package_validation_report(
             "local helper checks, not certification",
             "package validation is structural/local only",
             "not signed",
+            "no cryptographic validation",
+            "not tamper evident",
             "not production attestation",
             "no formal legal guidance",
             "no formal legal correctness claim",
@@ -4226,7 +4517,7 @@ fn build_demo_package_validation_report(
     }
 
     Ok(DemoPackageValidationReport {
-        package_dir: package_dir.to_path_buf(),
+        package_dir,
         files,
         issues,
     })
@@ -4256,8 +4547,11 @@ fn validate_demo_manifest_json(value: &Value) -> Result<(), String> {
         "generated_file_names",
         DEMO_PACKAGE_REQUIRED_FILES.len(),
     )?;
+    expect_json_array_strings(value, "generated_file_names", DEMO_PACKAGE_REQUIRED_FILES)?;
     expect_json_array_len(value, "files", DEMO_PACKAGE_REQUIRED_FILES.len())?;
     expect_json_string(value, "demo_status", "demo_guidance")?;
+    expect_package_file_entries(value, DEMO_PACKAGE_REQUIRED_FILES)?;
+    expect_boundary_terms(value, "package_boundaries", &demo_package_boundaries())?;
     Ok(())
 }
 
@@ -4270,6 +4564,51 @@ fn validate_demo_summary_json_value(value: &Value) -> Result<(), String> {
     expect_json_string(value, "mode", "local-preview")?;
     expect_json_string(value, "status", "demo_guidance")?;
     expect_json_array_len(value, "story_steps", DEMO_STORY_STEPS.len())?;
+    expect_json_bool_at_path(value, &["scope", "local_preview_demo_only"], true)?;
+    expect_json_bool_at_path(value, &["scope", "synthetic_story_steps_only"], true)?;
+    expect_json_bool_at_path(
+        value,
+        &[
+            "scope",
+            "route_status_package_values_are_hints_not_guarantees",
+        ],
+        true,
+    )?;
+    expect_json_bool_at_path(value, &["scope", "route_status_package_hints_only"], true)?;
+    expect_json_bool_at_path(
+        value,
+        &["scope", "local_helper_checks_not_certification"],
+        true,
+    )?;
+    expect_json_bool_at_path(
+        value,
+        &["scope", "package_validation_structural_local_only"],
+        true,
+    )?;
+    expect_json_bool_at_path(value, &["scope", "not_signed"], true)?;
+    expect_json_bool_at_path(value, &["scope", "no_telemetry"], true)?;
+    expect_json_bool_at_path(value, &["scope", "no_cloud_calls_by_default"], true)?;
+    expect_json_bool_at_path(value, &["scope", "no_global_aggregation"], true)?;
+    expect_json_bool_at_path(value, &["scope", "aethra_fixture_backed_by_default"], true)?;
+    let steps = value
+        .get("story_steps")
+        .and_then(|field| field.as_array())
+        .ok_or_else(|| "is missing story_steps array".to_string())?;
+    for step in steps {
+        for field in [
+            "id",
+            "name",
+            "source_surface",
+            "summary",
+            "talking_point",
+            "local_next_step",
+            "boundary_note",
+        ] {
+            if step.get(field).and_then(|value| value.as_str()).is_none() {
+                return Err(format!("story step is missing string field: {}", field));
+            }
+        }
+    }
     Ok(())
 }
 
@@ -4292,7 +4631,11 @@ fn validate_demo_report_json(value: &Value) -> Result<(), String> {
         "generated_file_names",
         DEMO_PACKAGE_REQUIRED_FILES.len(),
     )?;
+    expect_json_array_strings(value, "generated_file_names", DEMO_PACKAGE_REQUIRED_FILES)?;
     expect_json_array_len(value, "story_steps", DEMO_STORY_STEPS.len())?;
+    expect_json_bool(value, "external_assurance_claim", false)?;
+    expect_json_bool(value, "external_integrity_claim", false)?;
+    expect_boundary_terms(value, "package_boundaries", &demo_package_boundaries())?;
     Ok(())
 }
 
@@ -7634,6 +7977,7 @@ mod tests {
         POLICY_PACKAGE_REQUIRED_FILES, POLICY_SCENARIOS, READINESS_PACKAGE_REQUIRED_FILES,
     };
     use serde_json::json;
+    use std::path::Path;
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static TEST_PATH_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -8268,6 +8612,11 @@ mod tests {
         assert!(validate_operator_package_output_dir("local-evidence/demo-operator").is_err());
         assert!(validate_operator_package_output_dir("/tmp/operator").is_err());
         assert!(validate_operator_package_output_dir("local-evidence/operator/../bad").is_err());
+        assert!(build_operator_package_validation_report(Path::new("/tmp/operator")).is_err());
+        assert!(build_operator_package_validation_report(Path::new(
+            "local-evidence/readiness/demo"
+        ))
+        .is_err());
     }
 
     #[test]
@@ -8306,6 +8655,8 @@ mod tests {
         assert!(lower_package_text.contains("local helper checks, not certification"));
         assert!(lower_package_text.contains("package validation is structural/local only"));
         assert!(lower_package_text.contains("not signed"));
+        assert!(lower_package_text.contains("no cryptographic validation"));
+        assert!(lower_package_text.contains("not tamper evident"));
         assert!(lower_package_text.contains("not production attestation"));
         assert!(!lower_package_text.contains("prompt:"));
         assert!(!lower_package_text.contains("raw user text"));
@@ -8441,6 +8792,11 @@ mod tests {
         assert!(validate_policy_package_output_dir("local-evidence/demo-policy").is_err());
         assert!(validate_policy_package_output_dir("/tmp/policy").is_err());
         assert!(validate_policy_package_output_dir("local-evidence/policy/../bad").is_err());
+        assert!(build_policy_package_validation_report(Path::new("/tmp/policy")).is_err());
+        assert!(
+            build_policy_package_validation_report(Path::new("local-evidence/operator/demo"))
+                .is_err()
+        );
     }
 
     #[test]
@@ -8480,6 +8836,8 @@ mod tests {
         assert!(lower_package_text.contains("local helper checks, not certification"));
         assert!(lower_package_text.contains("package validation is structural/local only"));
         assert!(lower_package_text.contains("not signed"));
+        assert!(lower_package_text.contains("no cryptographic validation"));
+        assert!(lower_package_text.contains("not tamper evident"));
         assert!(lower_package_text.contains("not production attestation"));
         assert!(!lower_package_text.contains("prompt:"));
         assert!(!lower_package_text.contains("real prompt"));
@@ -8578,6 +8936,16 @@ mod tests {
         );
         assert_eq!(report["status"], "demo_guidance");
         assert_eq!(report["scope"]["local_preview_demo_only"], true);
+        assert_eq!(report["scope"]["synthetic_story_steps_only"], true);
+        assert_eq!(
+            report["scope"]["route_status_package_values_are_hints_not_guarantees"],
+            true
+        );
+        assert_eq!(
+            report["scope"]["package_validation_structural_local_only"],
+            true
+        );
+        assert_eq!(report["scope"]["not_signed"], true);
         assert_eq!(report["story_steps"].as_array().unwrap().len(), 6);
         assert!(report_text.contains("# IgnisPrompt Local Demo Summary Report"));
         assert!(report_text.contains("Local readiness"));
@@ -8613,6 +8981,10 @@ mod tests {
         assert!(validate_demo_package_output_dir("local-evidence/demo").is_err());
         assert!(validate_demo_package_output_dir("/tmp/demo").is_err());
         assert!(validate_demo_package_output_dir("local-evidence/demo-studio/../bad").is_err());
+        assert!(build_demo_package_validation_report(Path::new("/tmp/demo")).is_err());
+        assert!(
+            build_demo_package_validation_report(Path::new("local-evidence/policy/demo")).is_err()
+        );
     }
 
     #[test]
@@ -8654,6 +9026,8 @@ mod tests {
         assert!(lower_package_text.contains("local helper checks, not certification"));
         assert!(lower_package_text.contains("package validation is structural/local only"));
         assert!(lower_package_text.contains("not signed"));
+        assert!(lower_package_text.contains("no cryptographic validation"));
+        assert!(lower_package_text.contains("not tamper evident"));
         assert!(lower_package_text.contains("not production attestation"));
         assert!(!lower_package_text.contains("prompt:"));
         assert!(!lower_package_text.contains("real prompt"));
@@ -8697,7 +9071,12 @@ mod tests {
         .unwrap();
         std::fs::write(
             output_dir.join("demo-report.md"),
-            "local preview demo only\nsynthetic story steps only\nprompt: raw audit text /Users/alice api_key sk-test\n",
+            "local preview demo only\nsynthetic story steps only\nprompt: raw audit text /Users/alice api_key sk-test\n<script>alert(1)</script>\n",
+        )
+        .unwrap();
+        std::fs::write(
+            output_dir.join("README.md"),
+            format!("{}\n\u{1b}[31mred\u{1b}[0m\n", package.readme),
         )
         .unwrap();
 
@@ -8706,6 +9085,43 @@ mod tests {
         assert!(issues.contains("placeholder"));
         assert!(issues.contains("unexpected demo_summary_schema_version"));
         assert!(issues.contains("unsafe content"));
+        assert!(issues.contains("control characters"));
+        assert!(format_demo_package_validation_summary(&validation).contains("Status: failed"));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[test]
+    fn demo_package_validation_reports_unexpected_files() {
+        let output_dir = unique_demo_package_test_dir("unexpected-file");
+        let _ = std::fs::remove_dir_all(&output_dir);
+
+        let package = build_demo_package_report(output_dir.clone()).unwrap();
+        write_demo_package_report(&package).unwrap();
+        std::fs::write(output_dir.join("extra.json"), "{}\n").unwrap();
+
+        let validation = build_demo_package_validation_report(&output_dir).unwrap();
+        let issues = validation.issues.join("\n");
+        assert!(issues.contains("unexpected package file: extra.json"));
+        assert!(format_demo_package_validation_summary(&validation).contains("Status: failed"));
+
+        let _ = std::fs::remove_dir_all(&output_dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn demo_package_validation_rejects_symlinked_required_files() {
+        let output_dir = unique_demo_package_test_dir("symlink-file");
+        let _ = std::fs::remove_dir_all(&output_dir);
+
+        let package = build_demo_package_report(output_dir.clone()).unwrap();
+        write_demo_package_report(&package).unwrap();
+        std::fs::remove_file(output_dir.join("demo-report.md")).unwrap();
+        std::os::unix::fs::symlink("README.md", output_dir.join("demo-report.md")).unwrap();
+
+        let validation = build_demo_package_validation_report(&output_dir).unwrap();
+        let issues = validation.issues.join("\n");
+        assert!(issues.contains("demo-report.md must not be a symlink"));
         assert!(format_demo_package_validation_summary(&validation).contains("Status: failed"));
 
         let _ = std::fs::remove_dir_all(&output_dir);
@@ -8721,6 +9137,11 @@ mod tests {
         assert!(validate_readiness_package_output_dir("local-evidence/demo-readiness").is_err());
         assert!(validate_readiness_package_output_dir("/tmp/readiness").is_err());
         assert!(validate_readiness_package_output_dir("local-evidence/readiness/../bad").is_err());
+        assert!(build_readiness_package_validation_report(Path::new("/tmp/readiness")).is_err());
+        assert!(build_readiness_package_validation_report(Path::new(
+            "local-evidence/operator/demo"
+        ))
+        .is_err());
     }
 
     #[test]
@@ -8830,7 +9251,7 @@ mod tests {
     }
 
     #[test]
-    fn readiness_package_validation_redacts_absolute_paths() {
+    fn readiness_package_validation_rejects_absolute_paths() {
         let output_dir = unique_readiness_package_test_dir("redact");
         let absolute_dir = std::env::current_dir().unwrap().join(&output_dir);
         let _ = std::fs::remove_dir_all(&output_dir);
@@ -8845,14 +9266,9 @@ mod tests {
             std::fs::write(output_dir.join(file_name), text).unwrap();
         }
 
-        let validation = build_readiness_package_validation_report(&absolute_dir).unwrap();
-        let summary = format_readiness_package_validation_summary(&validation);
-        let json_text = format_readiness_package_validation_json(&validation);
-
-        assert!(summary.contains("[redacted readiness package path]"));
-        assert!(json_text.contains("[redacted readiness package path]"));
-        assert!(!summary.contains("/Users/"));
-        assert!(!json_text.contains("/Users/"));
+        let error = build_readiness_package_validation_report(&absolute_dir).unwrap_err();
+        assert!(error.contains("readiness package must be a relative path"));
+        assert!(!error.contains("/Users/"));
 
         let _ = std::fs::remove_dir_all(&output_dir);
     }
