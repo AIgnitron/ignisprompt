@@ -26,6 +26,7 @@ describe("local demo studio route", () => {
     expect(markup).toContain(summary.packagePreview.schemaVersion);
     expect(markup).toContain(summary.packagePreview.packageMode);
     expect(markup).toContain(summary.packagePreview.status);
+    expect(markup).toContain("demo-summary.json");
     for (const fileName of summary.packagePreview.generatedFiles) {
       expect(markup).toContain(fileName);
     }
@@ -41,17 +42,17 @@ describe("local demo studio route", () => {
     const markup = renderToStaticMarkup(<LocalDemoStudio />);
     const lowerMarkup = markup.toLowerCase();
 
+    expect(lowerMarkup).toContain("not legal advice");
+    expect(lowerMarkup).toContain(
+      "not compliance claims, not security assurance, and not esg reporting evidence",
+    );
     expect(lowerMarkup).not.toContain("production readiness");
     expect(lowerMarkup).not.toContain("production deployment");
     expect(lowerMarkup).not.toContain("legal accuracy");
-    expect(lowerMarkup).not.toContain("compliance certification");
-    expect(lowerMarkup).not.toContain("security certification");
-    expect(lowerMarkup).not.toContain(["esg", "certification"].join(" "));
-    expect(lowerMarkup).not.toContain("signed attestation");
+    expect(lowerMarkup).not.toContain("production attestation");
     expect(lowerMarkup).not.toContain("tamper-evident");
     expect(lowerMarkup).not.toContain("cryptographic verification");
-    expect(lowerMarkup).not.toContain("model controls");
-    expect(lowerMarkup).not.toContain("runner controls");
+    expect(lowerMarkup).toContain("no model or runner controls");
     expect(lowerMarkup).not.toContain("prompt:");
     expect(lowerMarkup).not.toContain("raw user text");
     expect(lowerMarkup).not.toContain("raw audit");

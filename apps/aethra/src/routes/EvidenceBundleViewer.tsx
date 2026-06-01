@@ -689,9 +689,11 @@ export function EvidenceBundleViewer({ preview }: EvidenceBundleViewerProps) {
       </header>
 
       <PageHelp
+        collapsible
         items={[
           "Inspect safe manifest and summary fields from the fixture bundle sample.",
-          "Review the local validation helper result and required file coverage.",
+          "Review what is generated locally under ignored local-evidence paths and what git should continue to ignore.",
+          "Validation remains structural and local only; it does not imply signing, certification, or tamper evidence.",
           "Archive metadata preview is read-only and does not extract archives or load arbitrary local paths.",
         ]}
       />

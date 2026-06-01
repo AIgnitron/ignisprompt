@@ -48,6 +48,7 @@ type AethraRoute =
 
 export default function App() {
   const [activeRoute, setActiveRoute] = useState<AethraRoute>("overview");
+  const [isDataSourceExpanded, setIsDataSourceExpanded] = useState(false);
   const [dataMode, setDataMode] = useState<AethraDataMode>("fixture");
   const [baseUrlInput, setBaseUrlInput] = useState("");
   const [liveHealthState, setLiveHealthState] = useState<LiveHealthState>({
@@ -260,11 +261,12 @@ export default function App() {
           <p className="eyebrow">Aethra</p>
           <h1>Local AI Routing Observatory</h1>
           <p className="sidebar-note">
-            Local preview observability for routing, audit, model and runner
-            status hints, and proxy sustainability indicators.
+            The local-preview front door for routing, audit, local status
+            hints, package review, and conservative sustainability signals.
           </p>
         </div>
         <nav className="nav-list">
+          <span className="nav-group-label">Front door</span>
           <button
             type="button"
             aria-current={activeRoute === "overview" ? "page" : undefined}
@@ -275,47 +277,11 @@ export default function App() {
           <button
             type="button"
             aria-current={
-              activeRoute === "local-readiness" ? "page" : undefined
-            }
-            onClick={() => setActiveRoute("local-readiness")}
-          >
-            Local readiness
-          </button>
-          <button
-            type="button"
-            aria-current={
-              activeRoute === "local-command-center" ? "page" : undefined
-            }
-            onClick={() => setActiveRoute("local-command-center")}
-          >
-            Local command center
-          </button>
-          <button
-            type="button"
-            aria-current={
               activeRoute === "local-demo-studio" ? "page" : undefined
             }
             onClick={() => setActiveRoute("local-demo-studio")}
           >
             Local demo studio
-          </button>
-          <button
-            type="button"
-            aria-current={
-              activeRoute === "local-operator-console" ? "page" : undefined
-            }
-            onClick={() => setActiveRoute("local-operator-console")}
-          >
-            Local operator console
-          </button>
-          <button
-            type="button"
-            aria-current={
-              activeRoute === "local-policy-workbench" ? "page" : undefined
-            }
-            onClick={() => setActiveRoute("local-policy-workbench")}
-          >
-            Local policy workbench
           </button>
           <button
             type="button"
@@ -360,49 +326,93 @@ export default function App() {
           >
             Sustainability preview
           </button>
+          <span className="nav-group-label">Supporting workflows</span>
+          <button
+            type="button"
+            aria-current={
+              activeRoute === "local-readiness" ? "page" : undefined
+            }
+            onClick={() => setActiveRoute("local-readiness")}
+          >
+            Local readiness
+          </button>
+          <button
+            type="button"
+            aria-current={
+              activeRoute === "local-operator-console" ? "page" : undefined
+            }
+            onClick={() => setActiveRoute("local-operator-console")}
+          >
+            Local operator console
+          </button>
+          <button
+            type="button"
+            aria-current={
+              activeRoute === "local-policy-workbench" ? "page" : undefined
+            }
+            onClick={() => setActiveRoute("local-policy-workbench")}
+          >
+            Local policy workbench
+          </button>
+          <button
+            type="button"
+            aria-current={
+              activeRoute === "local-command-center" ? "page" : undefined
+            }
+            onClick={() => setActiveRoute("local-command-center")}
+          >
+            Local command center
+          </button>
         </nav>
       </aside>
 
       <main className="workspace">
-        <LocalPreviewBanner />
+        {activeRoute === "overview" ? <LocalPreviewBanner /> : null}
 
-        <section className="mode-strip" aria-label="Aethra data mode boundaries">
-          <div className="mode-copy">
-            <p className="eyebrow">Data mode</p>
-            <h2>
-              {dataMode === "fixture"
-                ? "fixture-backed by default"
-                : "live local selected"}
-            </h2>
-            <p>
-              {dataMode === "fixture"
-                ? "Live local actions are explicit and local. Aethra observes IgnisPrompt state without changing routing, runners, models, or audit policy."
-                : "Live local metadata loading is manual and read-only for health, daemon version status, models, model and runner status hints, audit events, and sustainability metrics."}
-            </p>
-          </div>
-          <div className="mode-badges" aria-label="Aethra mode guarantees">
-            <StatusBadge tone={dataMode === "fixture" ? "neutral" : "warning"}>
-              {dataMode === "fixture" ? "Fixture mode" : "Live local mode"}
-            </StatusBadge>
-            <StatusBadge tone="neutral">read-only</StatusBadge>
-            <StatusBadge tone="neutral">no telemetry</StatusBadge>
-            <StatusBadge tone="neutral">no cloud calls by default</StatusBadge>
-            <StatusBadge tone="neutral">model and runner status hints</StatusBadge>
-            <StatusBadge tone="warning">
-              proxy-only sustainability indicators
-            </StatusBadge>
-          </div>
-        </section>
+        {activeRoute === "overview" ? (
+          <section className="mode-strip" aria-label="Aethra data mode boundaries">
+            <div className="mode-copy">
+              <p className="eyebrow">Data mode</p>
+              <h2>
+                {dataMode === "fixture"
+                  ? "fixture-backed by default"
+                  : "live local selected"}
+              </h2>
+              <p>
+                {dataMode === "fixture"
+                  ? "Live local actions are explicit and local. Aethra observes IgnisPrompt state without changing routing, runners, models, or audit policy."
+                  : "Live local metadata loading is manual and read-only for health, daemon version status, models, model and runner status hints, audit events, and sustainability metrics."}
+              </p>
+            </div>
+            <div className="mode-badges" aria-label="Aethra mode guarantees">
+              <StatusBadge tone={dataMode === "fixture" ? "neutral" : "warning"}>
+                {dataMode === "fixture" ? "Fixture mode" : "Live local mode"}
+              </StatusBadge>
+              <StatusBadge tone="neutral">read-only</StatusBadge>
+              <StatusBadge tone="neutral">fixture-backed by default</StatusBadge>
+              <StatusBadge tone="neutral">manual live-local loading only</StatusBadge>
+              <StatusBadge tone="neutral">no telemetry</StatusBadge>
+              <StatusBadge tone="neutral">no cloud calls by default</StatusBadge>
+              <StatusBadge tone="warning">no model or runner controls</StatusBadge>
+              <StatusBadge tone="warning">
+                proxy-only sustainability indicators
+              </StatusBadge>
+            </div>
+          </section>
+        ) : null}
 
         <DataSourceControl
+          activeRoute={activeRoute}
           dataMode={dataMode}
           baseUrlInput={baseUrlInput}
           baseUrl={localBaseUrl}
           baseUrlError={baseUrlError}
           liveHealthState={liveHealthState}
+          isExpanded={isDataSourceExpanded}
           onDataModeChange={setDataMode}
           onBaseUrlInputChange={setBaseUrlInput}
           onLoadLiveHealth={loadLiveHealth}
+          onExpandedChange={setIsDataSourceExpanded}
         />
 
         {activeRoute === "overview" ? (
@@ -482,108 +492,171 @@ function LocalPreviewBanner() {
         <h2>Fixture-first observability for local IgnisPrompt review</h2>
         <p>
           Fixture mode is the default. Live-local loading is manual. Aethra is
-          read-only, sends no telemetry, makes no cloud calls by default, and is
-          not a production deployment.
+          read-only, sends no telemetry, makes no cloud calls by default, and
+          exists for local-preview observability only.
         </p>
       </div>
       <div className="preview-banner-badges" aria-label="Local preview guardrails">
         <StatusBadge tone="neutral">Fixture default</StatusBadge>
         <StatusBadge tone="neutral">Manual live-local</StatusBadge>
+        <StatusBadge tone="neutral">Read-only dashboard</StatusBadge>
         <StatusBadge tone="neutral">No telemetry</StatusBadge>
         <StatusBadge tone="neutral">No cloud calls by default</StatusBadge>
-        <StatusBadge tone="warning">Not production deployment</StatusBadge>
+        <StatusBadge tone="warning">No model or runner controls</StatusBadge>
+      </div>
+      <div className="preview-banner-boundaries">
+        <p>Not legal advice.</p>
+        <p>Not compliance claims, not security assurance, and not ESG reporting evidence.</p>
+        <p>Not signed attestation or tamper-evident audit evidence.</p>
       </div>
     </section>
   );
 }
 
 type DataSourceControlProps = {
+  activeRoute: AethraRoute;
   dataMode: AethraDataMode;
   baseUrlInput: string;
   baseUrl: string;
   baseUrlError?: string;
   liveHealthState: LiveHealthState;
+  isExpanded: boolean;
   onDataModeChange: (dataMode: AethraDataMode) => void;
   onBaseUrlInputChange: (baseUrl: string) => void;
   onLoadLiveHealth: () => void;
+  onExpandedChange: (isExpanded: boolean) => void;
 };
 
 function DataSourceControl({
+  activeRoute,
   dataMode,
   baseUrlInput,
   baseUrl,
   baseUrlError,
   liveHealthState,
+  isExpanded,
   onDataModeChange,
   onBaseUrlInputChange,
   onLoadLiveHealth,
+  onExpandedChange,
 }: DataSourceControlProps) {
   const canLoadHealth =
     dataMode === "live-local" &&
     !baseUrlError &&
     liveHealthState.status !== "loading";
+  const isOverviewRoute = activeRoute === "overview";
 
   return (
     <section className="data-source-control" aria-label="Aethra data source">
-      <div className="data-source-intro">
-        <p className="eyebrow">Manual live-local setup</p>
-        <h3>Choose fixture data or manually load local daemon metadata</h3>
-        <p className="muted">
-          Aethra does not poll, persist live-local state, execute commands, or
-          change IgnisPrompt routing.
-        </p>
+      <div className="data-source-compact-row">
+        <div className="data-source-intro">
+          <p className="eyebrow">Local preview</p>
+          <h3>Fixture mode first, live-local only when manually requested</h3>
+          <p className="muted">
+            Aethra opens in fixture mode using bundled demo data.
+          </p>
+        </div>
+        <div className="data-source-compact-badges" aria-label="Aethra compact boundaries">
+          <StatusBadge tone="neutral">Local preview</StatusBadge>
+          <StatusBadge tone={dataMode === "fixture" ? "neutral" : "warning"}>
+            {dataMode === "fixture" ? "Fixture mode by default" : "Live-local selected"}
+          </StatusBadge>
+          <StatusBadge tone="neutral">Read-only</StatusBadge>
+          <StatusBadge tone="neutral">No telemetry</StatusBadge>
+          <StatusBadge tone="neutral">No cloud calls by default</StatusBadge>
+        </div>
       </div>
 
-      <div className="mode-toggle" aria-label="Select Aethra data mode">
-        <button
-          type="button"
-          aria-pressed={dataMode === "fixture"}
-          onClick={() => onDataModeChange("fixture")}
-        >
-          Fixture
-        </button>
-        <button
-          type="button"
-          aria-pressed={dataMode === "live-local"}
-          onClick={() => onDataModeChange("live-local")}
-        >
-          Live local
-        </button>
-      </div>
+      <details
+        className="data-source-details"
+        open={isExpanded}
+        onToggle={(event) =>
+          onExpandedChange((event.currentTarget as HTMLDetailsElement).open)
+        }
+      >
+        <summary>
+          <span>{isOverviewRoute ? "Local preview and live-local setup" : "Live-local setup"}</span>
+          <span className="page-help-summary-note">
+            {isExpanded ? "Expanded" : "Collapsed"}
+          </span>
+        </summary>
 
-        <label className="base-url-field">
-        <span>Local daemon base URL</span>
-        <input
-          value={baseUrlInput}
-          onChange={(event) => onBaseUrlInputChange(event.target.value)}
-          placeholder="local daemon base URL"
-          aria-invalid={baseUrlError ? "true" : undefined}
-        />
-      </label>
+        <div className="data-source-details-grid">
+          <div className="data-source-explainer">
+            <p className="muted">
+              Aethra opens in fixture mode using bundled demo data. To inspect a
+              running local IgnisPrompt daemon, start <code>ignispromptd</code> and
+              manually load metadata from the daemon base URL. Aethra does not poll,
+              persist live-local state, execute commands, or change routing.
+            </p>
+            <ul className="data-source-boundary-list">
+              <li>Fixture-backed by default</li>
+              <li>Manual live-local loading only</li>
+              <li>No polling</li>
+              <li>No persistence of live-local state</li>
+              <li>No command execution</li>
+              <li>No routing changes</li>
+              <li>No model or runner controls</li>
+            </ul>
+          </div>
 
-      <div className="data-source-status">
-        <StatusBadge tone={baseUrlError ? "warning" : "neutral"}>
-          {baseUrlError ? "Local URL blocked" : baseUrl}
-        </StatusBadge>
-        <p className="muted">
-          {baseUrlError ??
-            "Fixture screens use bundled data until live local metadata is manually loaded on each screen."}
-        </p>
-      </div>
+          <div className="mode-toggle" aria-label="Select Aethra data mode">
+            <button
+              type="button"
+              aria-pressed={dataMode === "fixture"}
+              onClick={() => onDataModeChange("fixture")}
+            >
+              Fixture
+            </button>
+            <button
+              type="button"
+              aria-pressed={dataMode === "live-local"}
+              onClick={() => onDataModeChange("live-local")}
+            >
+              Live local
+            </button>
+          </div>
 
-      <div className="manual-refresh-card">
-        <span>Manual live-local refresh action</span>
-        <button
-          type="button"
-          className="secondary-button health-load-button"
-          disabled={!canLoadHealth}
-          onClick={onLoadLiveHealth}
-        >
-          {liveHealthState.status === "loading"
-            ? "Loading health"
-            : "Load live health"}
-        </button>
-      </div>
+          <label className="base-url-field">
+            <span>IgnisPrompt daemon base URL</span>
+            <input
+              value={baseUrlInput}
+              onChange={(event) => onBaseUrlInputChange(event.target.value)}
+              placeholder="http://127.0.0.1:8765"
+              aria-invalid={baseUrlError ? "true" : undefined}
+            />
+            <p className="muted">
+              Use the running <code>ignispromptd</code> loopback server, usually
+              <code> http://127.0.0.1:8765</code>. This field is not the Aethra
+              frontend URL such as <code>http://127.0.0.1:5173</code>.
+            </p>
+          </label>
+
+          <div className="data-source-status">
+            <StatusBadge tone={baseUrlError ? "warning" : "neutral"}>
+              {baseUrlError ? "Local URL blocked" : baseUrl}
+            </StatusBadge>
+            <p className="muted">
+              {baseUrlError ??
+                "Manual live-local loads use the daemon base URL above and never poll or persist state."}
+            </p>
+          </div>
+
+          <div className="manual-refresh-card">
+            <span>Manual live-local refresh action</span>
+            <button
+              type="button"
+              className="secondary-button health-load-button"
+              disabled={!canLoadHealth}
+              onClick={onLoadLiveHealth}
+            >
+              {liveHealthState.status === "loading"
+                ? "Loading health"
+                : "Load live health"}
+            </button>
+          </div>
+        </div>
+      </details>
     </section>
   );
 }

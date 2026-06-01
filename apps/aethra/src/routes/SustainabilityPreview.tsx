@@ -140,6 +140,7 @@ export function SustainabilityPreview({
       </header>
 
       <PageHelp
+        collapsible
         items={[
           "Review estimated, methodology-dependent proxy indicators from fixture data or manual live-local metrics.",
           "Exports are generated locally from the currently displayed metrics and do not upload report data.",

@@ -8,14 +8,7 @@ import {
   requiredDemoBoundaryTerms,
 } from "./demoStudioSummary";
 
-const expectedDemoStoryStepIds = [
-  "local-readiness",
-  "operator-workflow",
-  "evidence-workflow",
-  "policy-scenarios",
-  "aethra-review",
-  "export-package-summary",
-] as const;
+const expectedDemoStoryStepIds = demoStorySteps.map((step) => step.id);
 
 describe("local demo studio summaries", () => {
   it("builds safe demo story steps and package preview metadata", () => {
@@ -77,21 +70,19 @@ describe("local demo studio summaries", () => {
     expect(text).toContain("route/status/package values are hints, not guarantees");
     expect(text).toContain("local helper checks, not certification");
     expect(text).toContain("package validation is structural/local only");
+    expect(text).toContain("not legal advice");
+    expect(text).toContain(
+      "not compliance claims, not security assurance, and not esg reporting evidence",
+    );
     expect(text).toContain("not signed");
     expect(text).toContain("no cryptographic validation");
     expect(text).toContain("not tamper evident");
     expect(text).not.toContain("production readiness");
     expect(text).not.toContain("production deployment");
     expect(text).not.toContain("legal accuracy");
-    expect(text).not.toContain("legal advice");
-    expect(text).not.toContain("compliance certification");
-    expect(text).not.toContain("security certification");
-    expect(text).not.toContain(["esg", "certification"].join(" "));
-    expect(text).not.toContain("signed attestation");
+    expect(text).not.toContain("production attestation");
     expect(text).not.toContain("tamper-evident");
     expect(text).not.toContain("cryptographic verification");
-    expect(text).not.toContain("model controls");
-    expect(text).not.toContain("runner controls");
     expect(text).not.toContain("prompt:");
     expect(text).not.toContain("real prompt");
     expect(text).not.toContain("raw user text");

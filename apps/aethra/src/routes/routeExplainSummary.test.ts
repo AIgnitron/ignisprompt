@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import { AethraApiError } from "../api/errors";
 import { routeExplainFixture } from "../api/fixtures";
 import {
+  buildRouteLadder,
   buildRouteExplainRequest,
+  buildRouteStateLegend,
   buildRouteDecisionCopyText,
   buildRouteFixtureScenarios,
   describeRouteExplainError,
+  formatRouteLadderState,
   isWarningRouteDecision,
   validateRoutePrompt,
 } from "./routeExplainSummary";
@@ -115,5 +118,33 @@ describe("route explain helpers", () => {
         warnings: [],
       }),
     ).toBe(true);
+  });
+
+  it("builds a conservative route ladder with cloud disabled by default", () => {
+    const ladder = buildRouteLadder(routeExplainFixture);
+
+    expect(ladder.map((item) => item.state)).toEqual([
+      "skipped",
+      "skipped",
+      "selected",
+      "disabled",
+    ]);
+    expect(ladder[2].reason).toContain("selected the local legal route");
+    expect(ladder[3].reason).toContain("cloud_allowed=false");
+    expect(formatRouteLadderState(ladder[3].state)).toBe("disabled");
+  });
+
+  it("documents all route ladder state labels without claiming missing routes", () => {
+    const legend = buildRouteStateLegend();
+
+    expect(legend.map((item) => item.state)).toEqual([
+      "selected",
+      "skipped",
+      "blocked",
+      "unavailable",
+      "disabled",
+      "not-implemented",
+    ]);
+    expect(legend[5].reason).toContain("does not claim a working route");
   });
 });

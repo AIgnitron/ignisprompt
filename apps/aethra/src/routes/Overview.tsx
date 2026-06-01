@@ -45,42 +45,42 @@ const guidedDemoSteps = [
   {
     title: "Overview",
     detail:
-      "Confirm fixture-backed by default, then use live-local mode only for manual refreshes.",
+      "Start with the local-preview guardrails, then use live-local mode only for manual refreshes.",
   },
   {
-    title: "Local readiness",
+    title: "Local Demo Studio",
     detail:
-      "Review local preview readiness cards, safe daemon guidance, and helper check status hints.",
+      "Open the product story view before drilling into detailed routing or evidence panels.",
   },
   {
-    title: "Local command center",
+    title: "Routing Explorer",
     detail:
-      "Copy safe CLI recipes, review the evidence workflow checklist, and confirm demo readiness notes.",
+      "Compare candidate routes by tier and confirm cloud-disabled-by-default behavior.",
   },
   {
-    title: "Route explorer",
-    detail:
-      "Open Routing Explorer to compare fixture examples with a local route explanation.",
-  },
-  {
-    title: "Audit events",
+    title: "Audit Events",
     detail:
       "Inspect local audit history, warnings, and request IDs without leaving the browser.",
   },
   {
-    title: "Model and runner status",
+    title: "Model and Runner Status",
     detail:
-      "Review model manifests and local status hints as read-only prerequisites, not controls.",
+      "Review capability-style local status hints as read-only prerequisites, not controls.",
   },
   {
-    title: "Evidence bundle",
+    title: "Evidence Bundle",
     detail:
-      "Open the Evidence Bundle Viewer and report export helpers for manifest, validation, archive, and local report review.",
+      "Review what is generated locally, what stays ignored by git, and what local validation does and does not mean.",
   },
   {
-    title: "Sustainability preview",
+    title: "Sustainability Preview",
     detail:
       "Finish with methodology-dependent proxy metrics and local export helpers.",
+  },
+  {
+    title: "Boundaries and supporting workflows",
+    detail:
+      "Use Local Readiness, Local Operator Console, Local Policy Workbench, and Local Command Center as supporting pages after the main story.",
   },
 ] as const;
 
@@ -162,6 +162,8 @@ export function Overview({
       </header>
 
       <PageHelp
+        defaultOpen
+        collapsible
         items={[
           "Review local preview status, fixture fallback data, diagnostics, and copyable local commands.",
           "Use manual live-local refresh actions to load daemon health and version metadata from loopback endpoints.",
@@ -190,9 +192,9 @@ export function Overview({
             ))}
           </ol>
           <p className="muted">
-            This path keeps route inspection, audit review, model and runner
-            hints, evidence workflow, and sustainability preview in a safe
-            order for demos and screenshots.
+            This path keeps the front-door story focused on overview, routing,
+            audit, status hints, package review, sustainability, and explicit
+            non-claims before the supporting workflow pages.
           </p>
         </div>
       </section>
