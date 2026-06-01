@@ -7,15 +7,16 @@ describe("Aethra app navigation and demo guidance", () => {
     const markup = renderToStaticMarkup(<App />);
     const labels = [
       "Overview",
-      "Local readiness",
-      "Local command center",
-      "Local operator console",
-      "Local policy workbench",
+      "Local demo studio",
       "Route explorer",
       "Audit events",
       "Model and runner status",
       "Evidence bundle",
       "Sustainability preview",
+      "Local readiness",
+      "Local operator console",
+      "Local policy workbench",
+      "Local command center",
     ];
 
     let previousIndex = -1;
@@ -27,22 +28,43 @@ describe("Aethra app navigation and demo guidance", () => {
 
     expect(markup).toContain("Guided Demo Path");
     expect(markup).toContain("Recommended safe walkthrough");
-    expect(markup).toContain("Local command center");
+    expect(markup).toContain("Local Demo Studio");
     expect(markup).toContain("Evidence bundle");
-    expect(markup).toContain("Open the Evidence Bundle Viewer and report export helpers");
+    expect(markup).toContain("Review what is generated locally, what stays ignored by git");
   });
 
-  it("keeps demo copy away from unsafe claim phrases by default", () => {
+  it("keeps explicit boundary language while avoiding unsafe positive claims", () => {
     const markup = renderToStaticMarkup(<App />);
 
-    expect(markup).not.toContain("signed attestation");
-    expect(markup).not.toContain("tamper-evident storage");
+    expect(markup).toContain("Not legal advice.");
+    expect(markup).toContain(
+      "Not compliance claims, not security assurance, and not ESG reporting evidence.",
+    );
+    expect(markup).toContain(
+      "Not signed attestation or tamper-evident audit evidence.",
+    );
     expect(markup).not.toContain("production attestation");
     expect(markup).not.toContain("production readiness");
     expect(markup).not.toContain("raw audit text");
-    expect(markup).not.toContain("127.0.0.1");
     expect(markup).not.toContain("ghp_");
     expect(markup).not.toContain("sk-");
     expect(markup).not.toContain("/Users/");
+  });
+
+  it("renders a compact collapsed local-preview panel with daemon-url guidance", () => {
+    const markup = renderToStaticMarkup(<App />);
+
+    expect(markup).toContain("Fixture mode by default");
+    expect(markup).toContain("Read-only");
+    expect(markup).toContain("No telemetry");
+    expect(markup).toContain("No cloud calls by default");
+    expect(markup).toContain("Local preview and live-local setup");
+    expect(markup).toContain("http://127.0.0.1:8765");
+    expect(markup).toContain("http://127.0.0.1:5173");
+    expect(markup).toContain("This field is not the Aethra frontend URL");
+    expect(markup).toContain("No model or runner controls");
+    expect(markup).toContain("No command execution");
+    expect(markup).toContain("<details");
+    expect(markup).not.toContain("<details class=\"data-source-details\" open");
   });
 });

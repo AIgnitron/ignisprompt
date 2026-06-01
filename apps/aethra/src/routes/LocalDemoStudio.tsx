@@ -44,8 +44,8 @@ export function LocalDemoStudio() {
           <p className="eyebrow">Local Demo Studio</p>
           <h2>Aethra local demo studio</h2>
           <p className="page-subtitle">
-            Read-only local preview demo story guidance across readiness,
-            operator, evidence, and policy surfaces.
+            Read-only product-story guidance across overview, routing, audit,
+            status, package review, sustainability, and explicit non-claims.
           </p>
         </div>
         <div className="status-strip" aria-label="Local demo boundaries">
@@ -57,6 +57,7 @@ export function LocalDemoStudio() {
       </header>
 
       <PageHelp
+        collapsible
         items={[
           "The demo story uses synthetic fixture-backed steps only.",
           "Route, status, and package values are local-preview hints, not guarantees.",
@@ -69,8 +70,8 @@ export function LocalDemoStudio() {
           <p className="eyebrow">Story</p>
           <h3>Local preview demo story mode</h3>
           <p className="muted">
-            Walk through existing Aethra surfaces in a safe order without
-            changing local daemon state.
+            Walk through the primary Aethra product flow without changing local
+            daemon state.
           </p>
         </div>
         <div className="metric-grid" aria-label="Demo story cards">

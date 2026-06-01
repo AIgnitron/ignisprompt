@@ -5,7 +5,7 @@ import type {
   LiveModelsState,
   LiveModelStatusState,
 } from "../dataSource";
-import { modelFixtures } from "../fixtures/aethraFixture";
+import { modelFixtures, modelStatusFixture } from "../fixtures/aethraFixture";
 import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
 import { PageHelp } from "../components/PageHelp";
@@ -19,6 +19,7 @@ import {
   toModelManifestRows,
 } from "./modelManifestSummary";
 import {
+  buildCapabilityMatrixRows,
   describeExecutableInferenceStatus,
   describeLocalPathStatus,
   describeRunnerStatus,
@@ -51,19 +52,26 @@ export function ModelRunnerStatus({
   );
   const isLiveModelsLoaded =
     dataMode === "live-local" && liveModelsState.status === "loaded";
+  const isLiveStatusLoaded =
+    dataMode === "live-local" && liveModelStatusState.status === "loaded";
   const models = isLiveModelsLoaded ? liveModelsState.models : modelFixtures;
   const rows = useMemo(() => toModelManifestRows(models), [models]);
+  const effectiveStatusHints = isLiveStatusLoaded
+    ? liveModelStatusState.statusHints
+    : modelStatusFixture.statusHints;
+  const capabilityRows = useMemo(
+    () => buildCapabilityMatrixRows(models, effectiveStatusHints),
+    [effectiveStatusHints, models],
+  );
   const selectedModel =
     selectedModelId === undefined
       ? undefined
       : findModelManifestById(models, selectedModelId);
   const selectedStatusHint =
-    selectedModelId === undefined ||
-    dataMode !== "live-local" ||
-    liveModelStatusState.status !== "loaded"
+    selectedModelId === undefined
       ? undefined
-      : liveModelStatusState.statusHints.find(
-          (hint) => hint.modelId === selectedModelId,
+      : effectiveStatusHints.find(
+          (hint: ModelStatusHint) => hint.modelId === selectedModelId,
         );
   const sourceLabel = isLiveModelsLoaded
     ? "Live local metadata"
@@ -101,14 +109,16 @@ export function ModelRunnerStatus({
             {sourceLabel}
           </StatusBadge>
           <StatusBadge tone="neutral">Read-only</StatusBadge>
+          <StatusBadge tone="warning">No model or runner controls</StatusBadge>
           <StatusBadge tone="warning">Status hints only</StatusBadge>
         </div>
       </header>
 
       <PageHelp
+        collapsible
         items={[
-          "Review model manifests and model and runner status hints from fixture data or manual live-local refresh.",
-          "Status values are configuration, path, and runner hints only.",
+          "Review model manifests and capability-style model and runner status hints from fixture data or manual live-local refresh.",
+          "Status values are configuration, path, runner, and availability hints only.",
           "Aethra observes local status; it does not install, delete, start, stop, or change models or runners.",
         ]}
       />
@@ -122,6 +132,8 @@ export function ModelRunnerStatus({
       <ModelStatusPanel
         dataMode={dataMode}
         liveModelStatusState={liveModelStatusState}
+        statusHints={effectiveStatusHints}
+        capabilityRows={capabilityRows}
         onLoadLiveModelStatus={onLoadLiveModelStatus}
       />
 
@@ -152,12 +164,12 @@ export function ModelRunnerStatus({
         />
         <MetricCard
           label="Status hints"
-          value={
-            liveModelStatusState.status === "loaded"
-              ? liveModelStatusState.statusHints.length
-              : "Not loaded"
+          value={effectiveStatusHints.length}
+          detail={
+            isLiveStatusLoaded
+              ? "Live local daemon status hints"
+              : "Fixture-backed status hints"
           }
-          detail="Local daemon status hints only"
         />
       </div>
 
@@ -291,12 +303,16 @@ function ModelMetadataPanel({
 type ModelStatusPanelProps = {
   dataMode: AethraDataMode;
   liveModelStatusState: LiveModelStatusState;
+  statusHints: ModelStatusHint[];
+  capabilityRows: ReturnType<typeof buildCapabilityMatrixRows>;
   onLoadLiveModelStatus: () => void;
 };
 
 function ModelStatusPanel({
   dataMode,
   liveModelStatusState,
+  statusHints,
+  capabilityRows,
   onLoadLiveModelStatus,
 }: ModelStatusPanelProps) {
   const isLiveMode = dataMode === "live-local";
@@ -306,11 +322,11 @@ function ModelStatusPanel({
     <section className="panel" aria-label="Model and runner status hints">
       <div className="panel-heading">
         <div>
-          <h3>Model and runner status hints</h3>
+          <h3>Capability and status matrix</h3>
           <p className="muted">
             {isLiveMode
               ? "Manual read-only GET /v1/status/models from the configured local daemon."
-              : "Fixture mode does not contact the local daemon for status hints."}
+              : "Fixture mode keeps a conservative local capability matrix visible by default."}
           </p>
         </div>
         <StatusBadge
@@ -327,9 +343,9 @@ function ModelStatusPanel({
       </div>
 
       <p className="explanation">
-        Local daemon status hints are configuration, path, and runner hints only.
-        They are not production readiness, model quality certification, legal
-        accuracy, or compliance certification.
+        Local daemon status hints are configuration, path, runner, and
+        availability hints only. They are not production readiness, model
+        quality certification, legal accuracy, or compliance certification.
       </p>
 
       {isLiveMode && liveModelStatusState.status === "not-loaded" ? (
@@ -366,33 +382,29 @@ function ModelStatusPanel({
             {isLoaded
               ? "Local daemon status hints"
               : isLiveMode
-                ? "Not loaded"
-                : "Fixture mode"}
+                ? "Fixture fallback status hints"
+                : "Fixture status hints"}
           </dd>
         </div>
         <div>
           <dt>Endpoint</dt>
-          <dd>{isLiveMode ? "GET /v1/status/models" : "manual live only"}</dd>
+          <dd>{isLiveMode ? "GET /v1/status/models" : "fixture status sample"}</dd>
         </div>
         <div>
           <dt>Status hints</dt>
-          <dd>
-            {isLoaded ? liveModelStatusState.statusHints.length : "not loaded"}
-          </dd>
+          <dd>{statusHints.length}</dd>
         </div>
         <div>
           <dt>Loaded at</dt>
           <dd>
             {isLoaded
               ? formatTimestamp(liveModelStatusState.loadedAt)
-              : "not loaded"}
+              : "fixture sample"}
           </dd>
         </div>
       </dl>
 
-      {isLoaded ? (
-        <ModelStatusHintTable statusHints={liveModelStatusState.statusHints} />
-      ) : null}
+      <CapabilityMatrixTable rows={capabilityRows} />
 
       {isLiveMode ? (
         <div className="manual-refresh-card model-action-row">
@@ -413,12 +425,12 @@ function ModelStatusPanel({
   );
 }
 
-type ModelStatusHintTableProps = {
-  statusHints: ModelStatusHint[];
+type CapabilityMatrixTableProps = {
+  rows: ReturnType<typeof buildCapabilityMatrixRows>;
 };
 
-function ModelStatusHintTable({ statusHints }: ModelStatusHintTableProps) {
-  if (statusHints.length === 0) {
+function CapabilityMatrixTable({ rows }: CapabilityMatrixTableProps) {
+  if (rows.length === 0) {
     return null;
   }
 
@@ -427,32 +439,27 @@ function ModelStatusHintTable({ statusHints }: ModelStatusHintTableProps) {
       <table className="audit-table model-status-table">
         <thead>
           <tr>
-            <th>Model</th>
-            <th>Availability</th>
-            <th>Local path</th>
-            <th>Runner</th>
-            <th>Inference</th>
-            <th>Last checked</th>
+            <th>Tier</th>
+            <th>Provider / name</th>
+            <th>Status</th>
+            <th>Available</th>
+            <th>Configured</th>
+            <th>Data boundary</th>
+            <th>Reason</th>
             <th>Warnings</th>
           </tr>
         </thead>
         <tbody>
-          {statusHints.map((hint) => (
-            <tr key={hint.modelId}>
-              <td>
-                <strong>{hint.modelId}</strong>
-                <span className="table-subtext">{hint.displayName}</span>
-              </td>
-              <td>{formatAvailability(hint.availability)}</td>
-              <td>
-                {describeLocalPathStatus(hint)}
-              </td>
-              <td>{describeRunnerStatus(hint)}</td>
-              <td>{describeExecutableInferenceStatus(hint)}</td>
-              <td>{formatTimestamp(hint.lastCheckedAt)}</td>
-              <td>
-                {hint.warnings.length > 0 ? hint.warnings.join(" ") : "none"}
-              </td>
+          {rows.map((row) => (
+            <tr key={row.key}>
+              <td>{row.tier}</td>
+              <td>{row.providerName}</td>
+              <td>{row.status}</td>
+              <td>{row.available}</td>
+              <td>{row.configured}</td>
+              <td>{row.dataBoundary}</td>
+              <td>{row.reason}</td>
+              <td>{row.warnings}</td>
             </tr>
           ))}
         </tbody>

@@ -9,11 +9,38 @@ export type RouteExplainFixtureScenario = {
   errorMessage?: string;
 };
 
+export type RouteLadderState =
+  | "selected"
+  | "skipped"
+  | "blocked"
+  | "unavailable"
+  | "disabled"
+  | "not-implemented";
+
+export type RouteLadderItem = {
+  id: string;
+  tierLabel: string;
+  title: string;
+  state: RouteLadderState;
+  reason: string;
+};
+
 export const sampleRoutePrompt =
   "Review this synthetic indemnification clause excerpt and identify which local routing tier IgnisPrompt would choose.";
 
 const warningDecisionPattern =
   /ERR|ERROR|REJECT|FAIL|UNAVAILABLE|RAM_PRESSURE|MEMORY_PRESSURE/i;
+
+const routeStateLabels: Record<RouteLadderState, string> = {
+  selected: "selected",
+  skipped: "skipped",
+  blocked: "blocked",
+  unavailable: "unavailable",
+  disabled: "disabled",
+  "not-implemented": "not implemented",
+};
+
+const rejectedTierPattern = /REJECT/i;
 
 export function buildRouteExplainRequest(
   prompt: string,
@@ -66,6 +93,127 @@ export function isWarningRouteDecision(
     warningDecisionPattern.test(response.decision.tier) ||
     warningDecisionPattern.test(response.decision.route_code)
   );
+}
+
+export function formatRouteLadderState(state: RouteLadderState): string {
+  return routeStateLabels[state];
+}
+
+export function buildRouteStateLegend(): RouteLadderItem[] {
+  return [
+    {
+      id: "legend-selected",
+      tierLabel: "State",
+      title: "Selected",
+      state: "selected",
+      reason: "IgnisPrompt reported this candidate as the chosen local route.",
+    },
+    {
+      id: "legend-skipped",
+      tierLabel: "State",
+      title: "Skipped",
+      state: "skipped",
+      reason: "A candidate existed, but a different route was chosen first.",
+    },
+    {
+      id: "legend-blocked",
+      tierLabel: "State",
+      title: "Blocked",
+      state: "blocked",
+      reason: "Policy or preflight checks stopped routing before this tier ran.",
+    },
+    {
+      id: "legend-unavailable",
+      tierLabel: "State",
+      title: "Unavailable",
+      state: "unavailable",
+      reason: "A local prerequisite was missing, so the tier could not be used.",
+    },
+    {
+      id: "legend-disabled",
+      tierLabel: "State",
+      title: "Disabled",
+      state: "disabled",
+      reason: "The path is intentionally off in the current local-preview mode.",
+    },
+    {
+      id: "legend-not-implemented",
+      tierLabel: "State",
+      title: "Not implemented",
+      state: "not-implemented",
+      reason: "This UI does not claim a working route where the repo has none.",
+    },
+  ];
+}
+
+export function buildRouteLadder(
+  response: RouteExplainResponse,
+): RouteLadderItem[] {
+  const selectedTier = response.decision.tier;
+  const rejected = rejectedTierPattern.test(selectedTier);
+
+  return [
+    {
+      id: "tier-1",
+      tierLabel: "Tier 1",
+      title: "Local cache candidate",
+      state: rejected
+        ? "blocked"
+        : selectedTier === "TIER_1"
+          ? "selected"
+          : "skipped",
+      reason: rejected
+        ? "The request was rejected before cache candidate selection."
+        : selectedTier === "TIER_1"
+          ? "IgnisPrompt reported a cache-backed local route."
+          : "No cache-backed route was reported for this request.",
+    },
+    {
+      id: "tier-2",
+      tierLabel: "Tier 2",
+      title: "Local general candidate",
+      state: rejected
+        ? "blocked"
+        : selectedTier === "TIER_2"
+          ? "selected"
+          : selectedTier === "TIER_3"
+            ? "skipped"
+            : "unavailable",
+      reason: rejected
+        ? "The request was rejected before general local routing."
+        : selectedTier === "TIER_2"
+          ? "IgnisPrompt selected a general local route for this request."
+          : selectedTier === "TIER_3"
+            ? "Domain routing continued to the local legal tier."
+            : "No general local route was reported in this fixture path.",
+    },
+    {
+      id: "tier-3",
+      tierLabel: "Tier 3",
+      title: "Local legal candidate",
+      state: rejected
+        ? "blocked"
+        : selectedTier === "TIER_3"
+          ? "selected"
+          : "unavailable",
+      reason: rejected
+        ? "The request was rejected before the legal-local candidate could run."
+        : selectedTier === "TIER_3"
+          ? "IgnisPrompt selected the local legal route for this request."
+          : "This response did not report a Tier 3 legal selection.",
+    },
+    {
+      id: "cloud",
+      tierLabel: "Cloud",
+      title: "Cloud route candidate",
+      state: response.decision.cloud_allowed
+        ? "not-implemented"
+        : "disabled",
+      reason: response.decision.cloud_allowed
+        ? "Cloud routing must not be assumed from this local-preview UI."
+        : "Cloud routing is disabled by default and this response keeps cloud_allowed=false.",
+    },
+  ];
 }
 
 export function buildRouteDecisionCopyText(

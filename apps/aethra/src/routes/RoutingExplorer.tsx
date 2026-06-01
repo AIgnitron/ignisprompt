@@ -6,10 +6,13 @@ import { EmptyState } from "../components/EmptyState";
 import { PageHelp } from "../components/PageHelp";
 import { StatusBadge } from "../components/StatusBadge";
 import {
+  buildRouteLadder,
   buildRouteDecisionCopyText,
   buildRouteExplainRequest,
   buildRouteFixtureScenarios,
+  buildRouteStateLegend,
   describeRouteExplainError,
+  formatRouteLadderState,
   isWarningRouteDecision,
   sampleRoutePrompt,
   validateRoutePrompt,
@@ -157,6 +160,7 @@ export function RoutingExplorer({
       </header>
 
       <PageHelp
+        collapsible
         items={[
           "Compare fixture-backed local preview examples with an optional live local route-explain request.",
           "Route tiers, route codes, warnings, and explanations come from IgnisPrompt and explain why a tier was selected.",
@@ -352,6 +356,8 @@ function RouteExplainResult({ result }: RouteExplainResultProps) {
       ? "warning"
       : "ok";
   const response = result.response;
+  const routeLadder = response ? buildRouteLadder(response) : [];
+  const routeStateLegend = buildRouteStateLegend();
 
   useEffect(() => {
     setCopyStatus("idle");
@@ -479,6 +485,50 @@ function RouteExplainResult({ result }: RouteExplainResultProps) {
           </section>
 
           <section className="detail-section">
+            <div className="panel-heading compact-panel-heading">
+              <div>
+                <h4>Route ladder</h4>
+                <p className="muted">
+                  Candidate routes by tier with conservative local-preview
+                  status reasons.
+                </p>
+              </div>
+              <StatusBadge
+                tone={response.decision.cloud_allowed ? "warning" : "neutral"}
+              >
+                {response.decision.cloud_allowed
+                  ? "Cloud must not be assumed"
+                  : "Cloud disabled by default"}
+              </StatusBadge>
+            </div>
+            <div className="route-ladder">
+              {routeLadder.map((item) => (
+                <article key={item.id} className="route-ladder-item">
+                  <div className="route-ladder-heading">
+                    <div>
+                      <p className="metric-label">{item.tierLabel}</p>
+                      <strong>{item.title}</strong>
+                    </div>
+                    <StatusBadge
+                      tone={
+                        item.state === "selected"
+                          ? "ok"
+                          : item.state === "disabled" ||
+                              item.state === "not-implemented"
+                            ? "neutral"
+                            : "warning"
+                      }
+                    >
+                      {formatRouteLadderState(item.state)}
+                    </StatusBadge>
+                  </div>
+                  <p>{item.reason}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="detail-section">
             <h4>Explanation</h4>
             <p className="explanation">{response.explanation}</p>
           </section>
@@ -494,6 +544,32 @@ function RouteExplainResult({ result }: RouteExplainResultProps) {
             ) : (
               <p className="muted">No warnings returned.</p>
             )}
+          </section>
+
+          <section className="detail-section">
+            <h4>Route state legend</h4>
+            <div className="route-state-grid">
+              {routeStateLegend.map((item) => (
+                <article key={item.id} className="route-state-card">
+                  <div className="route-ladder-heading">
+                    <strong>{item.title}</strong>
+                    <StatusBadge
+                      tone={
+                        item.state === "selected"
+                          ? "ok"
+                          : item.state === "disabled" ||
+                              item.state === "not-implemented"
+                            ? "neutral"
+                            : "warning"
+                      }
+                    >
+                      {formatRouteLadderState(item.state)}
+                    </StatusBadge>
+                  </div>
+                  <p>{item.reason}</p>
+                </article>
+              ))}
+            </div>
           </section>
         </>
       )}

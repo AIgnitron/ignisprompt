@@ -98,8 +98,16 @@ textarea:focus {
   gap: 8px;
 }
 
-.nav-list button,
-.nav-list span {
+.nav-group-label {
+  margin-top: 10px;
+  color: #8ea2a8;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nav-list button {
   display: block;
   width: 100%;
   padding: 10px 12px;
@@ -129,6 +137,7 @@ textarea:focus {
 
 .preview-banner {
   display: flex;
+  flex-wrap: wrap;
   gap: 18px;
   align-items: flex-start;
   justify-content: space-between;
@@ -161,6 +170,25 @@ textarea:focus {
   gap: 8px;
   justify-content: flex-end;
   max-width: 420px;
+}
+
+.preview-banner-boundaries {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.preview-banner-boundaries p {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #e2e8ea;
+  border-radius: 8px;
+  background: #f7fafb;
+  color: #40545c;
+  font-size: 0.84rem;
+  font-weight: 600;
 }
 
 .mode-strip {
@@ -203,15 +231,20 @@ textarea:focus {
 
 .data-source-control {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) auto minmax(260px, 360px) minmax(0, 1fr);
   gap: 12px;
-  align-items: center;
   max-width: 1160px;
   margin-top: 12px;
   padding: 12px;
   border: 1px solid #d9e1e3;
   border-radius: 8px;
   background: #ffffff;
+}
+
+.data-source-compact-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
 }
 
 .data-source-intro {
@@ -222,6 +255,59 @@ textarea:focus {
   margin: 0;
   color: #172026;
   font-size: 0.98rem;
+}
+
+.data-source-compact-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  max-width: 520px;
+}
+
+.data-source-details {
+  border: 1px solid #d9e1e3;
+  border-radius: 8px;
+  background: #f7fafb;
+}
+
+.data-source-details > summary,
+.page-help-collapsible > summary {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 700;
+}
+
+.data-source-details > summary::-webkit-details-marker,
+.page-help-collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+.data-source-details-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.1fr) auto minmax(260px, 360px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 0 14px 14px;
+}
+
+.data-source-explainer {
+  display: grid;
+  gap: 10px;
+}
+
+.data-source-boundary-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  color: #40545c;
+  font-size: 0.88rem;
 }
 
 .mode-toggle {
@@ -311,6 +397,16 @@ textarea:focus {
   background: #f7fbfa;
 }
 
+.page-help-collapsible {
+  padding: 0;
+}
+
+.page-help-summary-note {
+  color: #607176;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
 .page-help h3 {
   margin: 0;
   color: #172026;
@@ -324,6 +420,10 @@ textarea:focus {
   padding-left: 18px;
   color: #40545c;
   font-size: 0.9rem;
+}
+
+.page-help-collapsible ul {
+  padding: 0 16px 14px 34px;
 }
 
 .status-strip {
@@ -697,6 +797,36 @@ textarea:focus {
   margin: 0;
 }
 
+.route-ladder,
+.route-state-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.route-ladder-item,
+.route-state-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #e2e8ea;
+  border-radius: 8px;
+  background: #f7fafb;
+}
+
+.route-ladder-item p,
+.route-state-card p {
+  margin: 0;
+  color: #40545c;
+  font-size: 0.88rem;
+}
+
+.route-ladder-heading {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
 .sustainability-layout {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1050,8 +1180,10 @@ textarea:focus {
   .fact-columns,
   .audit-filter-bar,
   .data-source-control,
+  .data-source-details-grid,
   .overview-operations-grid,
   .overview-metadata-grid,
+  .preview-banner-boundaries,
   .sustainability-action-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1059,6 +1191,15 @@ textarea:focus {
   .data-source-intro,
   .data-source-status {
     grid-column: 1 / -1;
+  }
+
+  .data-source-compact-row {
+    flex-direction: column;
+  }
+
+  .data-source-compact-badges {
+    justify-content: flex-start;
+    max-width: none;
   }
 
   .workspace {
@@ -1086,6 +1227,7 @@ textarea:focus {
 
   .mode-strip,
   .preview-banner,
+  .data-source-compact-row,
   .page-header,
   .panel-heading {
     align-items: flex-start;
@@ -1100,6 +1242,7 @@ textarea:focus {
 
   .nav-list,
   .data-source-control,
+  .data-source-details-grid,
   .metric-grid,
   .definition-grid,
   .two-column,
@@ -1112,7 +1255,8 @@ textarea:focus {
   .sustainability-layout,
   .sustainability-action-row,
   .overview-operations-grid,
-  .overview-metadata-grid {
+  .overview-metadata-grid,
+  .preview-banner-boundaries {
     grid-template-columns: 1fr;
   }
 }
