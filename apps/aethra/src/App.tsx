@@ -16,6 +16,7 @@ import type {
   LiveLocalRefreshState,
   LiveLocalSurfaceId,
   LiveModelInventoryState,
+  LiveModelReadinessState,
   LiveModelStatusState,
   LiveModelsState,
   LiveOperationsSummaryState,
@@ -67,6 +68,10 @@ export default function App() {
   });
   const [liveModelInventoryState, setLiveModelInventoryState] =
     useState<LiveModelInventoryState>({
+      status: "not-loaded",
+    });
+  const [liveModelReadinessState, setLiveModelReadinessState] =
+    useState<LiveModelReadinessState>({
       status: "not-loaded",
     });
   const [liveModelStatusState, setLiveModelStatusState] =
@@ -348,6 +353,7 @@ export default function App() {
       setLiveVersionStatusState(blocked);
       setLiveModelsState(blocked);
       setLiveModelInventoryState(blocked);
+      setLiveModelReadinessState(blocked);
       setLiveModelStatusState(blocked);
       setLiveCapabilitiesState(blocked);
       setLiveAuditEventsState(blocked);
@@ -365,6 +371,7 @@ export default function App() {
           "version-status",
           "models",
           "model-inventory",
+          "model-readiness",
           "model-status",
           "capabilities",
           "audit-events",
@@ -386,6 +393,7 @@ export default function App() {
     setLiveVersionStatusState({ status: "loading" });
     setLiveModelsState({ status: "loading" });
     setLiveModelInventoryState({ status: "loading" });
+    setLiveModelReadinessState({ status: "loading" });
     setLiveModelStatusState({ status: "loading" });
     setLiveCapabilitiesState({ status: "loading" });
     setLiveAuditEventsState({ status: "loading" });
@@ -404,6 +412,7 @@ export default function App() {
     setLiveVersionStatusState(snapshot.versionStatus);
     setLiveModelsState(snapshot.models);
     setLiveModelInventoryState(snapshot.modelInventory);
+    setLiveModelReadinessState(snapshot.modelReadiness);
     setLiveModelStatusState(snapshot.modelStatus);
     setLiveCapabilitiesState(snapshot.capabilities);
     setLiveAuditEventsState(snapshot.auditEvents);
@@ -544,7 +553,7 @@ export default function App() {
               <p>
                 {dataMode === "fixture"
                   ? "Use Refresh local daemon data when ignispromptd is running. Aethra observes IgnisPrompt state without changing routing, runners, models, or audit policy."
-                  : "Live local metadata loading is manual and read-only for health, daemon version status, models, local model inventory, capabilities, model and runner status hints, audit events, operations summary, and sustainability metrics."}
+                  : "Live local metadata loading is manual and read-only for health, daemon version status, models, local model inventory, model readiness, capabilities, model and runner status hints, audit events, operations summary, and sustainability metrics."}
               </p>
             </div>
             <div className="mode-badges" aria-label="Aethra mode guarantees">
@@ -588,6 +597,7 @@ export default function App() {
             liveHealthState={liveHealthState}
             liveModelsState={liveModelsState}
             liveModelInventoryState={liveModelInventoryState}
+            liveModelReadinessState={liveModelReadinessState}
             liveModelStatusState={liveModelStatusState}
             liveCapabilitiesState={liveCapabilitiesState}
             liveVersionStatusState={liveVersionStatusState}
@@ -637,6 +647,7 @@ export default function App() {
             dataMode={dataMode}
             liveModelsState={liveModelsState}
             liveModelInventoryState={liveModelInventoryState}
+            liveModelReadinessState={liveModelReadinessState}
             liveModelStatusState={liveModelStatusState}
             liveCapabilitiesState={liveCapabilitiesState}
             onLoadLiveModels={loadLiveModels}
@@ -842,9 +853,10 @@ function DataSourceControl({
             </button>
             <p className="muted refresh-card-note">
               Loads health, version, models, local model inventory,
-              capabilities, status hints, audit events, operations summary, and
-              30d sustainability metrics from read-only GET endpoints. Route
-              execution and model execution are not included.
+              model readiness, capabilities, status hints, audit events,
+              operations summary, and 30d sustainability metrics from read-only
+              GET endpoints. Route execution and model execution are not
+              included.
             </p>
           </div>
 

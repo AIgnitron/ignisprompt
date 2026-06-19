@@ -5,6 +5,7 @@ export {
   healthFixture,
   modelFixtures,
   modelInventoryFixture,
+  modelReadinessFixture,
   modelStatusFixture,
   operationsSummaryFixture,
   routeExplainFixture,

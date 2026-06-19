@@ -135,6 +135,12 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// Print read-only local model readiness summary metadata
+    ModelReadiness {
+        /// Print raw JSON response instead of a terminal summary
+        #[arg(long)]
+        json: bool,
+    },
     /// Print read-only local operations summary metadata
     OperationsSummary {
         /// Print raw JSON response instead of a terminal summary
@@ -285,6 +291,7 @@ fn main() {
         Commands::StatusVersion => cmd_status_version(&cli.daemon_url),
         Commands::Capabilities { json } => cmd_capabilities(&cli.daemon_url, *json),
         Commands::ModelInventory { json } => cmd_model_inventory(&cli.daemon_url, *json),
+        Commands::ModelReadiness { json } => cmd_model_readiness(&cli.daemon_url, *json),
         Commands::OperationsSummary { json } => cmd_operations_summary(&cli.daemon_url, *json),
         Commands::Sustainability { period, json } => {
             cmd_sustainability(&cli.daemon_url, period, *json)
@@ -947,6 +954,13 @@ const DOCTOR_CHECKS: &[DoctorCheckSpec] = &[
         path: "/v1/models/inventory",
         level: DoctorCheckLevel::Informational,
         validate: validate_doctor_model_inventory,
+    },
+    DoctorCheckSpec {
+        id: "model_readiness",
+        label: "local model readiness",
+        path: "/v1/models/readiness",
+        level: DoctorCheckLevel::Informational,
+        validate: validate_doctor_model_readiness,
     },
     DoctorCheckSpec {
         id: "operations_summary",
@@ -4908,6 +4922,65 @@ fn validate_doctor_model_inventory(body: &Value) -> Result<String, String> {
     ))
 }
 
+fn validate_doctor_model_readiness(body: &Value) -> Result<String, String> {
+    required_string(body, "schema_version")?;
+    required_string(body, "generated_at")?;
+    let summary = body
+        .get("summary")
+        .ok_or_else(|| "missing required object field 'summary'".to_string())?;
+    let models = required_array(body, "models")?;
+    required_array(body, "warnings")?;
+    required_array(body, "boundary_notes")?;
+
+    let manifest_declared_count = summary
+        .get("manifest_declared_count")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| {
+            "missing required integer field 'summary.manifest_declared_count'".to_string()
+        })?;
+    let ready_hint_count = summary
+        .get("ready_hint_count")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| "missing required integer field 'summary.ready_hint_count'".to_string())?;
+    for field in [
+        "inventory_file_count",
+        "missing_file_count",
+        "unsupported_format_count",
+        "unknown_count",
+    ] {
+        summary
+            .get(field)
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| format!("missing required integer field 'summary.{field}'"))?;
+    }
+
+    for model in models {
+        required_string(model, "model_id")?;
+        required_string(model, "display_name")?;
+        required_string(model, "file_state")?;
+        required_string(model, "format")?;
+        required_string(model, "readiness_level")?;
+        required_array(model, "notes")?;
+        let runner_hint = model
+            .get("runner_hint")
+            .ok_or_else(|| "missing required object field 'runner_hint'".to_string())?;
+        required_bool(runner_hint, "configured")?;
+        required_string(runner_hint, "kind")?;
+        required_bool(runner_hint, "executable_exists")?;
+        required_string(runner_hint, "availability")?;
+        if let Some(size_bytes) = model.get("size_bytes") {
+            if !size_bytes.is_u64() {
+                return Err("optional field 'size_bytes' must be an integer".to_string());
+            }
+        }
+    }
+
+    Ok(format!(
+        "{} models ({} ready hints)",
+        manifest_declared_count, ready_hint_count
+    ))
+}
+
 fn validate_doctor_operations_summary(body: &Value) -> Result<String, String> {
     required_string(body, "schema_version")?;
     required_string(body, "generated_at")?;
@@ -4940,6 +5013,7 @@ fn validate_doctor_operations_summary(body: &Value) -> Result<String, String> {
         "health_available",
         "models_available",
         "model_inventory_available",
+        "model_readiness_available",
         "capabilities_available",
         "status_models_available",
         "status_version_available",
@@ -5648,6 +5722,146 @@ fn format_model_inventory_file_line(file: &Value) -> String {
     )
 }
 
+fn cmd_model_readiness(base_url: &str, json_output: bool) {
+    let url = format!("{}/v1/models/readiness", base_url);
+    match ureq::get(&url).call() {
+        Ok(resp) => {
+            let body = parse_response(resp);
+            if json_output {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&body).unwrap_or_default()
+                );
+            } else {
+                println!("{}", format_model_readiness_summary(&body));
+            }
+        }
+        Err(e) => {
+            eprintln!("error: {}", e);
+            process::exit(1);
+        }
+    }
+}
+
+fn format_model_readiness_summary(body: &Value) -> String {
+    let summary = body.get("summary").unwrap_or(&Value::Null);
+    let models = body
+        .get("models")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let mut lines = vec![
+        "IgnisPrompt Local Model Readiness".to_string(),
+        format!(
+            "schema_version:          {}",
+            body.get("schema_version")
+                .and_then(|value| value.as_str())
+                .unwrap_or("-")
+        ),
+        format!(
+            "manifest_models:         {}",
+            summary
+                .get("manifest_declared_count")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0)
+        ),
+        format!(
+            "inventory_files:         {}",
+            summary
+                .get("inventory_file_count")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0)
+        ),
+        format!(
+            "ready_hints:             {}",
+            summary
+                .get("ready_hint_count")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0)
+        ),
+        format!(
+            "missing_files:           {}",
+            summary
+                .get("missing_file_count")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0)
+        ),
+        format!(
+            "unsupported_formats:     {}",
+            summary
+                .get("unsupported_format_count")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0)
+        ),
+        "".to_string(),
+        "Models:".to_string(),
+    ];
+
+    if models.is_empty() {
+        lines.push("- none declared".to_string());
+    } else {
+        for model in models.iter().take(20) {
+            lines.push(format_model_readiness_line(model));
+        }
+        if models.len() > 20 {
+            lines.push(format!(
+                "- ... {} additional models omitted",
+                models.len() - 20
+            ));
+        }
+    }
+
+    if let Some(warnings) = body.get("warnings").and_then(|value| value.as_array()) {
+        if !warnings.is_empty() {
+            lines.push("".to_string());
+            lines.push("Warnings:".to_string());
+            for warning in warnings {
+                if let Some(warning) = warning.as_str() {
+                    lines.push(format!("- {}", warning));
+                }
+            }
+        }
+    }
+
+    lines.push("".to_string());
+    lines.push("Boundaries: read-only readiness hints only; no model execution; no route execution; no downloads; no deletes; no uploads; no manifest mutation; no file contents or expensive hashes returned.".to_string());
+    lines.join("\n")
+}
+
+fn format_model_readiness_line(model: &Value) -> String {
+    let model_id = model
+        .get("model_id")
+        .and_then(|value| value.as_str())
+        .unwrap_or("-");
+    let readiness_level = model
+        .get("readiness_level")
+        .and_then(|value| value.as_str())
+        .unwrap_or("-");
+    let file_state = model
+        .get("file_state")
+        .and_then(|value| value.as_str())
+        .unwrap_or("-");
+    let format = model
+        .get("format")
+        .and_then(|value| value.as_str())
+        .unwrap_or("-");
+    let runner_kind = model
+        .get("runner_hint")
+        .and_then(|value| value.get("kind"))
+        .and_then(|value| value.as_str())
+        .unwrap_or("-");
+    let matched_file = model
+        .get("matched_inventory_file")
+        .and_then(|value| value.as_str())
+        .unwrap_or("no matched inventory file");
+
+    format!(
+        "- {}: {} / file={} / format={} / runner={} / {}",
+        model_id, readiness_level, file_state, format, runner_kind, matched_file
+    )
+}
+
 fn cmd_operations_summary(base_url: &str, json_output: bool) {
     let url = format!("{}/v1/operations/summary", base_url);
     match ureq::get(&url).call() {
@@ -5678,6 +5892,7 @@ fn format_operations_summary(body: &Value) -> String {
         "health_available",
         "models_available",
         "model_inventory_available",
+        "model_readiness_available",
         "capabilities_available",
         "status_models_available",
         "status_version_available",
@@ -5693,7 +5908,7 @@ fn format_operations_summary(body: &Value) -> String {
             .unwrap_or(false)
     })
     .count();
-    let total_endpoints = 9usize;
+    let total_endpoints = 10usize;
 
     let mut lines = vec![
         "IgnisPrompt Local Operations Summary".to_string(),
@@ -8576,11 +8791,11 @@ mod tests {
         format_evidence_bundle_unreachable_error, format_evidence_bundle_validation_json,
         format_evidence_bundle_validation_summary, format_http_error,
         format_invalid_response_error, format_model_inventory_summary, format_model_manifest_line,
-        format_operations_summary, format_operator_package_list_json,
-        format_operator_package_list_summary, format_operator_package_summary,
-        format_operator_package_summary_json, format_operator_package_validation_json,
-        format_operator_package_validation_summary, format_operator_summary,
-        format_operator_summary_json, format_policy_package_list_json,
+        format_model_readiness_summary, format_operations_summary,
+        format_operator_package_list_json, format_operator_package_list_summary,
+        format_operator_package_summary, format_operator_package_summary_json,
+        format_operator_package_validation_json, format_operator_package_validation_summary,
+        format_operator_summary, format_operator_summary_json, format_policy_package_list_json,
         format_policy_package_list_summary, format_policy_package_summary,
         format_policy_package_summary_json, format_policy_package_validation_json,
         format_policy_package_validation_summary, format_policy_scenarios_json,
@@ -8596,17 +8811,17 @@ mod tests {
         policy_scenarios_with_boundary_note, readiness_report_next_steps, route_explain_url,
         string_field, sustainability_url, validate_demo_package_output_dir,
         validate_doctor_capabilities, validate_doctor_health, validate_doctor_model_inventory,
-        validate_doctor_model_status_hints, validate_doctor_models,
-        validate_doctor_operations_summary, validate_doctor_sustainability_metrics,
-        validate_doctor_version_status, validate_evidence_bundle_archive_output_path,
-        validate_evidence_bundle_output_dir, validate_no_placeholder_string_values,
-        validate_operator_package_output_dir, validate_policy_package_output_dir,
-        validate_readiness_package_output_dir, validate_sustainability_period,
-        write_demo_package_report, write_evidence_bundle_report, write_operator_package_report,
-        write_policy_package_report, write_readiness_package_report, DoctorCheckLevel,
-        DoctorCheckResult, DoctorReport, EvidenceBundleCapture, DEMO_PACKAGE_REQUIRED_FILES,
-        DOCTOR_CHECKS, OPERATOR_PACKAGE_REQUIRED_FILES, POLICY_PACKAGE_REQUIRED_FILES,
-        POLICY_SCENARIOS, READINESS_PACKAGE_REQUIRED_FILES,
+        validate_doctor_model_readiness, validate_doctor_model_status_hints,
+        validate_doctor_models, validate_doctor_operations_summary,
+        validate_doctor_sustainability_metrics, validate_doctor_version_status,
+        validate_evidence_bundle_archive_output_path, validate_evidence_bundle_output_dir,
+        validate_no_placeholder_string_values, validate_operator_package_output_dir,
+        validate_policy_package_output_dir, validate_readiness_package_output_dir,
+        validate_sustainability_period, write_demo_package_report, write_evidence_bundle_report,
+        write_operator_package_report, write_policy_package_report, write_readiness_package_report,
+        DoctorCheckLevel, DoctorCheckResult, DoctorReport, EvidenceBundleCapture,
+        DEMO_PACKAGE_REQUIRED_FILES, DOCTOR_CHECKS, OPERATOR_PACKAGE_REQUIRED_FILES,
+        POLICY_PACKAGE_REQUIRED_FILES, POLICY_SCENARIOS, READINESS_PACKAGE_REQUIRED_FILES,
     };
     use serde_json::json;
     use std::path::Path;
@@ -8676,6 +8891,7 @@ mod tests {
         assert!(endpoints.contains(&("/v1/status/version", DoctorCheckLevel::Required)));
         assert!(endpoints.contains(&("/v1/models", DoctorCheckLevel::Required)));
         assert!(endpoints.contains(&("/v1/models/inventory", DoctorCheckLevel::Informational)));
+        assert!(endpoints.contains(&("/v1/models/readiness", DoctorCheckLevel::Informational)));
         assert!(endpoints.contains(&("/v1/capabilities", DoctorCheckLevel::Required)));
         assert!(endpoints.contains(&("/v1/status/models", DoctorCheckLevel::Required)));
         assert!(endpoints.contains(&("/v1/operations/summary", DoctorCheckLevel::Informational)));
@@ -8695,6 +8911,12 @@ mod tests {
     fn model_inventory_url_format() {
         let url = format!("{}/v1/models/inventory", "http://127.0.0.1:8765");
         assert_eq!(url, "http://127.0.0.1:8765/v1/models/inventory");
+    }
+
+    #[test]
+    fn model_readiness_url_format() {
+        let url = format!("{}/v1/models/readiness", "http://127.0.0.1:8765");
+        assert_eq!(url, "http://127.0.0.1:8765/v1/models/readiness");
     }
 
     #[test]
@@ -8823,6 +9045,42 @@ mod tests {
             "1 files (1 GGUF, 0 safetensors)"
         );
         assert_eq!(
+            validate_doctor_model_readiness(&json!({
+                "schema_version": "ignisprompt-model-readiness-v0.1",
+                "generated_at": "2026-06-19T00:00:00Z",
+                "summary": {
+                    "manifest_declared_count": 1,
+                    "inventory_file_count": 1,
+                    "ready_hint_count": 1,
+                    "missing_file_count": 0,
+                    "unsupported_format_count": 0,
+                    "unknown_count": 0
+                },
+                "models": [{
+                    "model_id": "legal",
+                    "display_name": "Legal",
+                    "declared_path": "models/legal.gguf",
+                    "matched_inventory_file": "models/legal.gguf",
+                    "file_state": "present",
+                    "format": "gguf",
+                    "size_bytes": 10,
+                    "size_mb": 0.01,
+                    "runner_hint": {
+                        "configured": true,
+                        "kind": "stub-legal-runner",
+                        "executable_exists": true,
+                        "availability": "staged"
+                    },
+                    "readiness_level": "ready_hint",
+                    "notes": ["No executable inference was attempted."]
+                }],
+                "warnings": [],
+                "boundary_notes": ["Read-only readiness hints only."]
+            }))
+            .unwrap(),
+            "1 models (1 ready hints)"
+        );
+        assert_eq!(
             validate_doctor_operations_summary(&json!({
                 "schema_version": "ignisprompt-operations-summary-v0.1",
                 "generated_at": "2026-06-19T00:00:00Z",
@@ -8838,6 +9096,7 @@ mod tests {
                     "health_available": true,
                     "models_available": true,
                     "model_inventory_available": true,
+                    "model_readiness_available": true,
                     "capabilities_available": true,
                     "status_models_available": true,
                     "status_version_available": true,
@@ -8979,6 +9238,35 @@ mod tests {
         }))
         .unwrap_err()
         .contains("summary"));
+        assert!(validate_doctor_model_readiness(&json!({
+            "schema_version": "ignisprompt-model-readiness-v0.1",
+            "generated_at": "2026-06-19T00:00:00Z",
+            "summary": {
+                "manifest_declared_count": 1,
+                "inventory_file_count": 1,
+                "ready_hint_count": 1,
+                "missing_file_count": 0,
+                "unsupported_format_count": 0,
+                "unknown_count": 0
+            },
+            "models": [{
+                "model_id": "legal",
+                "display_name": "Legal",
+                "file_state": "present",
+                "format": "gguf",
+                "runner_hint": {
+                    "configured": true,
+                    "kind": "stub-legal-runner",
+                    "executable_exists": true
+                },
+                "readiness_level": "ready_hint",
+                "notes": []
+            }],
+            "warnings": [],
+            "boundary_notes": []
+        }))
+        .unwrap_err()
+        .contains("availability"));
         assert!(validate_doctor_operations_summary(&json!({
             "schema_version": "ignisprompt-operations-summary-v0.1",
             "generated_at": "2026-06-19T00:00:00Z",
@@ -8994,6 +9282,7 @@ mod tests {
                 "health_available": true,
                 "models_available": true,
                 "model_inventory_available": true,
+                "model_readiness_available": true,
                 "capabilities_available": true,
                 "status_models_available": true,
                 "status_version_available": true,
@@ -9032,6 +9321,7 @@ mod tests {
                 "health_available": true,
                 "models_available": true,
                 "model_inventory_available": true,
+                "model_readiness_available": true,
                 "capabilities_available": true,
                 "status_models_available": true,
                 "status_version_available": true,
@@ -10434,6 +10724,76 @@ mod tests {
     }
 
     #[test]
+    fn model_readiness_summary_is_read_only_and_path_safe() {
+        let response = json!({
+            "schema_version": "ignisprompt-model-readiness-v0.1",
+            "generated_at": "2026-06-19T00:00:00Z",
+            "summary": {
+                "manifest_declared_count": 2,
+                "inventory_file_count": 1,
+                "ready_hint_count": 1,
+                "missing_file_count": 1,
+                "unsupported_format_count": 0,
+                "unknown_count": 0
+            },
+            "models": [
+                {
+                    "model_id": "legal",
+                    "display_name": "Legal",
+                    "declared_path": "models/legal.gguf",
+                    "matched_inventory_file": "models/legal.gguf",
+                    "file_state": "present",
+                    "format": "gguf",
+                    "size_bytes": 10,
+                    "size_mb": 0.01,
+                    "runner_hint": {
+                        "configured": true,
+                        "kind": "stub-legal-runner",
+                        "executable_exists": true,
+                        "availability": "staged"
+                    },
+                    "readiness_level": "ready_hint",
+                    "notes": ["No executable inference was attempted."]
+                },
+                {
+                    "model_id": "missing",
+                    "display_name": "Missing",
+                    "declared_path": "models/missing.gguf",
+                    "file_state": "missing",
+                    "format": "gguf",
+                    "runner_hint": {
+                        "configured": true,
+                        "kind": "stub-legal-runner",
+                        "executable_exists": true,
+                        "availability": "model-file-missing"
+                    },
+                    "readiness_level": "missing_file",
+                    "notes": ["Declared local model path did not match an observed inventory file."]
+                }
+            ],
+            "warnings": [],
+            "boundary_notes": ["Read-only readiness hints only."]
+        });
+
+        let summary = format_model_readiness_summary(&response);
+        assert!(summary.contains("IgnisPrompt Local Model Readiness"));
+        assert!(summary.contains("schema_version:          ignisprompt-model-readiness-v0.1"));
+        assert!(summary.contains("manifest_models:         2"));
+        assert!(summary.contains("ready_hints:             1"));
+        assert!(summary.contains("missing_files:           1"));
+        assert!(summary.contains("legal: ready_hint / file=present / format=gguf"));
+        assert!(summary.contains("missing: missing_file / file=missing / format=gguf"));
+        assert!(summary.contains("read-only readiness hints only"));
+        assert!(summary.contains("no model execution"));
+        assert!(summary.contains("no route execution"));
+        assert!(summary.contains("no downloads"));
+        assert!(summary.contains("no deletes"));
+        assert!(summary.contains("no file contents or expensive hashes returned"));
+        assert!(!summary.contains("/Users/"));
+        assert!(!summary.contains("PRIVATE_PROMPT"));
+    }
+
+    #[test]
     fn operations_summary_is_aggregate_and_safe() {
         let response = json!({
             "schema_version": "ignisprompt-operations-summary-v0.1",
@@ -10450,6 +10810,7 @@ mod tests {
                 "health_available": true,
                 "models_available": true,
                 "model_inventory_available": true,
+                "model_readiness_available": true,
                 "capabilities_available": true,
                 "status_models_available": true,
                 "status_version_available": true,
@@ -10487,7 +10848,7 @@ mod tests {
         assert!(summary.contains("schema_version:       ignisprompt-operations-summary-v0.1"));
         assert!(summary.contains("daemon_status:        ok"));
         assert!(summary.contains("daemon_version:       0.1.0"));
-        assert!(summary.contains("endpoints_available: 9 / 9"));
+        assert!(summary.contains("endpoints_available: 10 / 10"));
         assert!(summary.contains("audit_events:         3 total / 2 recent"));
         assert!(summary
             .contains("recent_activity:      2 requests / 1 routes / 0 warning-or-error records"));

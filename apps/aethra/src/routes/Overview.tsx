@@ -14,6 +14,7 @@ import type {
   LiveHealthState,
   LiveLocalDiagnostics,
   LiveModelInventoryState,
+  LiveModelReadinessState,
   LiveModelStatusState,
   LiveModelsState,
   LiveOperationsSummaryState,
@@ -30,6 +31,7 @@ import {
   healthFixture,
   modelFixtures,
   modelInventoryFixture,
+  modelReadinessFixture,
   operationsSummaryFixture,
   versionStatusFixture,
 } from "../fixtures/aethraFixture";
@@ -97,6 +99,7 @@ type OverviewProps = {
   liveHealthState: LiveHealthState;
   liveModelsState: LiveModelsState;
   liveModelInventoryState: LiveModelInventoryState;
+  liveModelReadinessState: LiveModelReadinessState;
   liveModelStatusState: LiveModelStatusState;
   liveCapabilitiesState: LiveCapabilitiesState;
   liveVersionStatusState: LiveVersionStatusState;
@@ -114,6 +117,7 @@ export function Overview({
   liveHealthState,
   liveModelsState,
   liveModelInventoryState,
+  liveModelReadinessState,
   liveModelStatusState,
   liveCapabilitiesState,
   liveVersionStatusState,
@@ -139,12 +143,18 @@ export function Overview({
     dataMode === "live-local" && liveModelInventoryState.status === "loaded"
       ? liveModelInventoryState.inventory
       : undefined;
+  const liveModelReadiness =
+    dataMode === "live-local" && liveModelReadinessState.status === "loaded"
+      ? liveModelReadinessState.readiness
+      : undefined;
   const liveOperationsSummary =
     dataMode === "live-local" && liveOperationsSummaryState.status === "loaded"
       ? liveOperationsSummaryState.summary
       : undefined;
   const healthForStatus = liveHealth ?? healthFixture;
   const modelInventoryForSummary = liveModelInventory ?? modelInventoryFixture;
+  const modelReadinessForSummary =
+    liveModelReadiness ?? modelReadinessFixture;
   const operationsSummaryForDisplay =
     liveOperationsSummary ?? operationsSummaryFixture;
   const modelsForSummary = liveModels ?? modelFixtures;
@@ -167,6 +177,9 @@ export function Overview({
   const inventorySourceLabel = formatLiveLocalDisplaySource(
     getLiveLocalDisplaySource(dataMode, liveModelInventoryState),
   );
+  const readinessSourceLabel = formatLiveLocalDisplaySource(
+    getLiveLocalDisplaySource(dataMode, liveModelReadinessState),
+  );
   const operationsSourceLabel = formatLiveLocalDisplaySource(
     getLiveLocalDisplaySource(dataMode, liveOperationsSummaryState),
   );
@@ -182,6 +195,7 @@ export function Overview({
       liveVersionStatusState,
       liveModelsState,
       liveModelInventoryState,
+      liveModelReadinessState,
       liveModelStatusState,
       liveCapabilitiesState,
       liveAuditEventsState,
@@ -220,7 +234,7 @@ export function Overview({
         collapsible
         items={[
           "Review local preview status, local daemon metadata, fixture fallback data, diagnostics, and copyable local commands.",
-          "Use Refresh local daemon data to load read-only health, version, model, local model inventory, capability, audit, and sustainability metadata from loopback endpoints.",
+          "Use Refresh local daemon data to load read-only health, version, model, local model inventory, model readiness, capability, audit, and sustainability metadata from loopback endpoints.",
           "Read displayed route, warning, and local-only summaries before moving to detailed pages.",
         ]}
       />
@@ -306,6 +320,11 @@ export function Overview({
           label="Local model files"
           value={modelInventoryForSummary.summary.total_files}
           detail={`${formatBytes(modelInventoryForSummary.summary.total_size_bytes)} observed via ${inventorySourceLabel}`}
+        />
+        <MetricCard
+          label="Ready model hints"
+          value={modelReadinessForSummary.summary.ready_hint_count}
+          detail={`Read-only readiness hints from ${readinessSourceLabel}`}
         />
         <MetricCard
           label="Recent audit events"
@@ -520,7 +539,7 @@ function OperationsSummaryPanel({
         </div>
         <div>
           <dt>Endpoints available</dt>
-          <dd>{availableEndpoints} / 9</dd>
+          <dd>{availableEndpoints} / 10</dd>
         </div>
         <div>
           <dt>Audit events</dt>

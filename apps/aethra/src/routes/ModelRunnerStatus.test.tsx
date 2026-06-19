@@ -1,6 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { capabilitiesFixture, modelInventoryFixture } from "../api/fixtures";
+import {
+  capabilitiesFixture,
+  modelInventoryFixture,
+  modelReadinessFixture,
+} from "../api/fixtures";
 import { ModelRunnerStatus } from "./ModelRunnerStatus";
 
 describe("ModelRunnerStatus route", () => {
@@ -10,6 +14,7 @@ describe("ModelRunnerStatus route", () => {
         dataMode="fixture"
         liveModelsState={{ status: "not-loaded" }}
         liveModelInventoryState={{ status: "not-loaded" }}
+        liveModelReadinessState={{ status: "not-loaded" }}
         liveModelStatusState={{ status: "not-loaded" }}
         liveCapabilitiesState={{ status: "not-loaded" }}
         onLoadLiveModels={() => undefined}
@@ -21,6 +26,9 @@ describe("ModelRunnerStatus route", () => {
 
     expect(markup).toContain("Capability and status matrix");
     expect(markup).toContain("Local model inventory");
+    expect(markup).toContain("Local model readiness");
+    expect(markup).toContain("offline preview readiness metadata");
+    expect(markup).toContain("Readiness compares manifest declarations");
     expect(markup).toContain("offline preview inventory metadata");
     expect(markup).toContain("Inventory observes local file metadata only");
     expect(markup).toContain("Offline preview capabilities");
@@ -51,6 +59,7 @@ describe("ModelRunnerStatus route", () => {
         dataMode="live-local"
         liveModelsState={{ status: "not-loaded" }}
         liveModelInventoryState={{ status: "not-loaded" }}
+        liveModelReadinessState={{ status: "not-loaded" }}
         liveModelStatusState={{ status: "not-loaded" }}
         liveCapabilitiesState={{
           status: "loaded",
@@ -98,6 +107,7 @@ describe("ModelRunnerStatus route", () => {
           inventory: liveInventory,
           loadedAt: "2026-06-19T00:00:00Z",
         }}
+        liveModelReadinessState={{ status: "not-loaded" }}
         liveModelStatusState={{ status: "not-loaded" }}
         liveCapabilitiesState={{ status: "not-loaded" }}
         onLoadLiveModels={() => undefined}
@@ -114,12 +124,58 @@ describe("ModelRunnerStatus route", () => {
     expect(markup).toContain("Refresh model inventory");
   });
 
+  it("renders manually loaded live-local model readiness", () => {
+    const liveReadiness = {
+      ...modelReadinessFixture,
+      summary: {
+        ...modelReadinessFixture.summary,
+        manifest_declared_count: 2,
+        ready_hint_count: 1,
+        missing_file_count: 1,
+      },
+      models: [
+        {
+          ...modelReadinessFixture.models[0],
+          model_id: "live-ready-model",
+          display_name: "Live Ready Model",
+          matched_inventory_file: "configured-model-dir/live-ready-model.gguf",
+        },
+      ],
+    };
+    const markup = renderToStaticMarkup(
+      <ModelRunnerStatus
+        dataMode="live-local"
+        liveModelsState={{ status: "not-loaded" }}
+        liveModelInventoryState={{ status: "not-loaded" }}
+        liveModelReadinessState={{
+          status: "loaded",
+          readiness: liveReadiness,
+          loadedAt: "2026-06-19T00:00:00Z",
+        }}
+        liveModelStatusState={{ status: "not-loaded" }}
+        liveCapabilitiesState={{ status: "not-loaded" }}
+        onLoadLiveModels={() => undefined}
+        onLoadLiveModelInventory={() => undefined}
+        onLoadLiveModelStatus={() => undefined}
+        onLoadLiveCapabilities={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Local daemon data");
+    expect(markup).toContain("GET /v1/models/readiness");
+    expect(markup).toContain("Live Ready Model");
+    expect(markup).toContain("configured-model-dir/live-ready-model.gguf");
+    expect(markup).toContain("Ready model hints");
+    expect(markup).toContain("Missing model files");
+  });
+
   it("shows a safe warning and preserves fixture capabilities after live load failure", () => {
     const markup = renderToStaticMarkup(
       <ModelRunnerStatus
         dataMode="live-local"
         liveModelsState={{ status: "not-loaded" }}
         liveModelInventoryState={{ status: "not-loaded" }}
+        liveModelReadinessState={{ status: "not-loaded" }}
         liveModelStatusState={{ status: "not-loaded" }}
         liveCapabilitiesState={{
           status: "error",
@@ -149,6 +205,7 @@ describe("ModelRunnerStatus route", () => {
         dataMode="live-local"
         liveModelsState={{ status: "not-loaded" }}
         liveModelInventoryState={{ status: "not-loaded" }}
+        liveModelReadinessState={{ status: "not-loaded" }}
         liveModelStatusState={{ status: "not-loaded" }}
         liveCapabilitiesState={{
           status: "loaded",
