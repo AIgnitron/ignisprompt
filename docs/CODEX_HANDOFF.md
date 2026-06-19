@@ -150,12 +150,13 @@ Aethra currently provides fixture-backed screens for Overview, Routing Explorer,
 
 - `GET /health`
 - `GET /v1/models`
+- `GET /v1/capabilities`
 - `GET /v1/status/models`
 - `GET /v1/audit/events`
 - `GET /v1/metrics/sustainability?period=30d`
 - `GET /v1/status/version`
 
-The live metadata controls use the configured loopback/local daemon base URL. They do not poll, do not persist state in local storage or session storage, do not add telemetry, and do not make cloud calls by default. The rollout did not add model or runner controls.
+The live metadata controls use the configured loopback/local daemon base URL. They do not poll, do not persist state in local storage or session storage, do not add telemetry, and do not make cloud calls by default. The rollout did not add connector, model, or runner controls.
 
 Aethra also includes a fixture-backed evidence bundle viewer for manifest, validation summary, archive metadata preview, safe local-preview CLI snippets, and clipboard-only Markdown and JSON report export helpers. It is read-only and local-preview only. It does not extract archives, upload data, persist bundle state, or read arbitrary local paths.
 
@@ -199,9 +200,9 @@ IgnisPrompt now exposes `GET /v1/metrics/sustainability?period=30d` for Aethra v
 
 `ignispromptctl sustainability` provides terminal access to the same local aggregate metrics without opening Aethra. It validates supported periods before sending a request, shows daemon-unreachable guidance that mentions `./scripts/start-dev.sh` and the local endpoint, and does not add telemetry, cloud calls, GitHub calls, update checks, external coefficient lookup, persistence, upload, global aggregation, prompts, raw audit text, PII, or machine identifiers.
 
-Aethra can manually load `GET /v1/status/models` on the Model / Runner Status screen. It can also manually load `GET /v1/metrics/sustainability?period=30d` on the Sustainability Preview screen in live-local mode, with fixture fallback data remaining visible until a successful manual load. Fixture mode remains the default, live loading remains explicit/manual, and the UI presents these values as local daemon hints and methodology-dependent proxy estimates.
+Aethra can manually load `GET /v1/capabilities` and `GET /v1/status/models` on the Model / Runner Status screen. It can also manually load `GET /v1/metrics/sustainability?period=30d` on the Sustainability Preview screen in live-local mode, with fixture fallback data remaining visible until a successful manual load. Fixture mode remains the default, live loading remains explicit/manual, and the UI presents these values as local daemon hints and methodology-dependent proxy estimates.
 
-Aethra's visual capability/status matrix remains fixture-backed or derived from existing model/status hints for now. Wiring `GET /v1/capabilities` into manual live-local loading is a safe follow-up, not part of the initial backend foundation.
+Aethra's visual capability/status matrix uses fixture capability metadata by default and switches to manually loaded `GET /v1/capabilities` rows only after an explicit live-local refresh. Failed or empty capability loads keep safe fixture fallback states visible. This adds no polling, no telemetry, no cloud calls, no connector controls, and no model or runner controls.
 
 Sustainability Preview can export a structured local Markdown report and a deterministic schema-versioned JSON report from the currently displayed sustainability metrics, whether those metrics are fixture fallback data or manually loaded live-local data. The JSON report uses `report_schema_version: "aethra-sustainability-report-0.1"` and includes summary, estimates, tier breakdown, baseline, methodology, confidence, disclaimer, limitations, and `local_only: true`. Export is client-side only. It does not persist report data, send report data to a backend, add telemetry, call cloud services, call GitHub, check for updates, poll endpoints, look up external coefficients, or include request content, prompts, raw audit event bodies, PII, machine identifiers, hostnames, usernames, filesystem paths, secrets, or API keys.
 

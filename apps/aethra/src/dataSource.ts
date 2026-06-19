@@ -1,5 +1,6 @@
 import type {
   AuditEvent,
+  CapabilitiesResponse,
   HealthResponse,
   ModelManifest,
   ModelStatusHint,
@@ -99,6 +100,26 @@ export type LiveModelStatusState =
       checkedAt?: string;
     };
 
+export type LiveCapabilitiesState =
+  | {
+      status: "not-loaded";
+    }
+  | {
+      status: "loading";
+    }
+  | {
+      status: "loaded";
+      capabilities: CapabilitiesResponse;
+      loadedAt: string;
+    }
+  | {
+      status: "error";
+      label: string;
+      message: string;
+      diagnosticKind: LiveEndpointErrorKind;
+      checkedAt?: string;
+    };
+
 export type LiveVersionStatusState =
   | {
       status: "not-loaded";
@@ -165,6 +186,7 @@ export type LiveEndpointState =
   | LiveHealthState
   | LiveModelsState
   | LiveModelStatusState
+  | LiveCapabilitiesState
   | LiveVersionStatusState
   | LiveAuditEventsState
   | LiveSustainabilityMetricsState;
@@ -278,6 +300,12 @@ export function describeModelStatusLoadError(
   return describeEndpointLoadError(error, "model-status");
 }
 
+export function describeCapabilitiesLoadError(
+  error: unknown,
+): LiveEndpointErrorDescription {
+  return describeEndpointLoadError(error, "capabilities");
+}
+
 export function describeVersionStatusLoadError(
   error: unknown,
 ): LiveEndpointErrorDescription {
@@ -302,6 +330,7 @@ function describeEndpointLoadError(
     | "health"
     | "models"
     | "model-status"
+    | "capabilities"
     | "version-status"
     | "audit-events"
     | "sustainability-metrics",
@@ -313,11 +342,13 @@ function describeEndpointLoadError(
         ? "model manifest"
         : endpoint === "model-status"
           ? "model and runner status hint"
-          : endpoint === "version-status"
-            ? "daemon version status"
-            : endpoint === "audit-events"
-              ? "audit event"
-              : "sustainability metrics";
+          : endpoint === "capabilities"
+            ? "connector and capability status"
+            : endpoint === "version-status"
+              ? "daemon version status"
+              : endpoint === "audit-events"
+                ? "audit event"
+                : "sustainability metrics";
 
   if (error instanceof AethraApiError) {
     switch (error.kind) {
@@ -366,11 +397,13 @@ function describeEndpointLoadError(
           ? "Models load failed"
           : endpoint === "model-status"
             ? "Model status load failed"
-            : endpoint === "version-status"
-              ? "Version status load failed"
-              : endpoint === "audit-events"
-                ? "Audit events load failed"
-                : "Sustainability metrics load failed",
+            : endpoint === "capabilities"
+              ? "Capabilities load failed"
+              : endpoint === "version-status"
+                ? "Version status load failed"
+                : endpoint === "audit-events"
+                  ? "Audit events load failed"
+                  : "Sustainability metrics load failed",
     message: `Aethra could not load live local ${noun} metadata.`,
     diagnosticKind: "unknown",
   };

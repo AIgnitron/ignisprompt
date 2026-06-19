@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import App from "./App";
 
 describe("Aethra app navigation and demo guidance", () => {
@@ -61,10 +61,19 @@ describe("Aethra app navigation and demo guidance", () => {
     expect(markup).toContain("Local preview and live-local setup");
     expect(markup).toContain("http://127.0.0.1:8765");
     expect(markup).toContain("http://127.0.0.1:5173");
-    expect(markup).toContain("This field is not the Aethra frontend URL");
+    expect(markup).toContain("This field is not the Aethra dev server URL");
     expect(markup).toContain("No model or runner controls");
     expect(markup).toContain("No command execution");
     expect(markup).toContain("<details");
     expect(markup).not.toContain("<details class=\"data-source-details\" open");
+  });
+
+  it("does not fetch live-local capability metadata during fixture-first render", () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    renderToStaticMarkup(<App />);
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
   });
 });

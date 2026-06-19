@@ -1,5 +1,6 @@
 export {
   auditEventFixtures,
+  capabilitiesFixture,
   evidenceBundleFixture,
   healthFixture,
   modelFixtures,

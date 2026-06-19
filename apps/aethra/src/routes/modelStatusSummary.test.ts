@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { modelFixtures, modelStatusFixture } from "../api/fixtures";
+import {
+  capabilitiesFixture,
+  modelFixtures,
+  modelStatusFixture,
+} from "../api/fixtures";
 import {
   buildCapabilityMatrixRows,
+  buildCapabilityMatrixRowsFromCapabilities,
   describeCapabilityReason,
   describeExecutableInferenceStatus,
   describeLocalPathStatus,
@@ -22,6 +27,32 @@ describe("model and runner status summaries", () => {
       "not reported by status check",
     );
     expect(formatAvailability(hint.availability)).toBe("model file missing");
+  });
+
+  it("builds capability matrix rows from daemon capability metadata", () => {
+    const rows = buildCapabilityMatrixRowsFromCapabilities(
+      capabilitiesFixture.capabilities,
+    );
+    const cloud = rows.find((row) => row.key === "cloud-disabled");
+
+    expect(rows).toHaveLength(6);
+    expect(rows[0]).toMatchObject({
+      tier: "TIER_0",
+      providerName: "local_policy_guard / Local Policy Guard",
+      status: "available",
+      available: "yes",
+      configured: "yes",
+      dataBoundary: "local process",
+    });
+    expect(cloud).toMatchObject({
+      tier: "TIER_5",
+      status: "disabled",
+      available: "no",
+      configured: "no",
+      dataBoundary: "cloud with consent",
+      reason: "cloud_disabled_by_default",
+    });
+    expect(cloud?.warnings).toContain("No cloud calls");
   });
 
   it("uses daemon warning language when executable inference was explicitly not attempted", () => {

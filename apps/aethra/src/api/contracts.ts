@@ -70,6 +70,46 @@ export type ModelStatusResponse = {
   statusHints: ModelStatusHint[];
 };
 
+export type CapabilityStatusValue =
+  | "unknown"
+  | "not_configured"
+  | "configured"
+  | "available"
+  | "unavailable"
+  | "disabled"
+  | "blocked_by_policy"
+  | "not_implemented";
+
+export type CapabilityDataBoundary =
+  | "on_device"
+  | "local_process"
+  | "local_network"
+  | "private_enterprise"
+  | "cloud_with_consent";
+
+export type CapabilityStatus = {
+  provider_id: string;
+  display_name: string;
+  tier: string;
+  connector_type: string;
+  status: CapabilityStatusValue;
+  available: boolean;
+  configured: boolean;
+  data_boundary: CapabilityDataBoundary;
+  reason: string;
+  confidence: string;
+  warnings: string[];
+  last_checked?: string;
+};
+
+export type CapabilitiesResponse = {
+  release_channel: string;
+  local_only: boolean;
+  cloud_enabled: boolean;
+  routing_order: string[];
+  capabilities: CapabilityStatus[];
+};
+
 export type ChatMessage = {
   role: string;
   content: string;
@@ -235,6 +275,36 @@ const isModelStatusAvailability = (
   isString(value) &&
   modelStatusAvailabilityValues.has(value as ModelStatusAvailability);
 
+const capabilityStatusValues = new Set<CapabilityStatusValue>([
+  "unknown",
+  "not_configured",
+  "configured",
+  "available",
+  "unavailable",
+  "disabled",
+  "blocked_by_policy",
+  "not_implemented",
+]);
+
+const isCapabilityStatusValue = (
+  value: unknown,
+): value is CapabilityStatusValue =>
+  isString(value) && capabilityStatusValues.has(value as CapabilityStatusValue);
+
+const capabilityDataBoundaryValues = new Set<CapabilityDataBoundary>([
+  "on_device",
+  "local_process",
+  "local_network",
+  "private_enterprise",
+  "cloud_with_consent",
+]);
+
+const isCapabilityDataBoundary = (
+  value: unknown,
+): value is CapabilityDataBoundary =>
+  isString(value) &&
+  capabilityDataBoundaryValues.has(value as CapabilityDataBoundary);
+
 const isOptionalString = (value: unknown): value is string | undefined =>
   value === undefined || isString(value);
 
@@ -336,6 +406,38 @@ export function isModelStatusResponse(
     value.source === "local-daemon" &&
     Array.isArray(value.statusHints) &&
     value.statusHints.every(isModelStatusHint)
+  );
+}
+
+export function isCapabilityStatus(value: unknown): value is CapabilityStatus {
+  return (
+    isRecord(value) &&
+    isString(value.provider_id) &&
+    isString(value.display_name) &&
+    isString(value.tier) &&
+    isString(value.connector_type) &&
+    isCapabilityStatusValue(value.status) &&
+    isBoolean(value.available) &&
+    isBoolean(value.configured) &&
+    isCapabilityDataBoundary(value.data_boundary) &&
+    isString(value.reason) &&
+    isString(value.confidence) &&
+    isStringArray(value.warnings) &&
+    isOptionalString(value.last_checked)
+  );
+}
+
+export function isCapabilitiesResponse(
+  value: unknown,
+): value is CapabilitiesResponse {
+  return (
+    isRecord(value) &&
+    isString(value.release_channel) &&
+    isBoolean(value.local_only) &&
+    isBoolean(value.cloud_enabled) &&
+    isStringArray(value.routing_order) &&
+    Array.isArray(value.capabilities) &&
+    value.capabilities.every(isCapabilityStatus)
   );
 }
 
