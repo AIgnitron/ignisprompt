@@ -28,6 +28,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - v0.1.7 local preview release record for the post-v0.1.6 local policy workbench arc.
 - Local Demo Studio workflow with Aethra Local Demo Studio, `ignispromptctl demo-summary`, copy-safe demo reports, demo packages under ignored `local-evidence/demo-studio/`, stricter shared package path/list/validate behavior, `make demo-check`, demo workflow integration, and `make preview-release-check`.
 - v0.1.8 local preview release record for the Local Demo Studio arc and PR #188 hardening work.
+- Local-preview connector and capability status foundation with `GET /v1/capabilities` and `ignispromptctl capabilities`, reporting sanitized status metadata only with cloud disabled by default.
 - Local evidence demo workflow automation script for route-explain, audit-events, evidence-bundle generation, listing, validation, archiving, archive verification, and manifest inspection.
 - Adversarial document-instruction detection for known instruction strings.
 - OpenAI-compatible chat completion request shape, including a `stream: true` compatibility scaffold that frames an already-produced local completion as SSE chunks.

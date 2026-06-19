@@ -123,6 +123,12 @@ enum Commands {
     Health,
     /// Print daemon version and local preview status
     StatusVersion,
+    /// Print local-preview connector and capability status metadata
+    Capabilities {
+        /// Print raw JSON response instead of a terminal summary
+        #[arg(long)]
+        json: bool,
+    },
     /// Print local sustainability metrics summary
     Sustainability {
         /// Metrics period: 7d, 30d, or 90d
@@ -265,6 +271,7 @@ fn main() {
         ),
         Commands::Health => cmd_health(&cli.daemon_url),
         Commands::StatusVersion => cmd_status_version(&cli.daemon_url),
+        Commands::Capabilities { json } => cmd_capabilities(&cli.daemon_url, *json),
         Commands::Sustainability { period, json } => {
             cmd_sustainability(&cli.daemon_url, period, *json)
         }
@@ -919,6 +926,13 @@ const DOCTOR_CHECKS: &[DoctorCheckSpec] = &[
         path: "/v1/models",
         level: DoctorCheckLevel::Required,
         validate: validate_doctor_models,
+    },
+    DoctorCheckSpec {
+        id: "capabilities",
+        label: "connector and capability status",
+        path: "/v1/capabilities",
+        level: DoctorCheckLevel::Required,
+        validate: validate_doctor_capabilities,
     },
     DoctorCheckSpec {
         id: "model_status_hints",
@@ -2139,6 +2153,7 @@ fn readiness_check_category(check_id: &str) -> &'static str {
         "health" => "daemon",
         "version_status" => "endpoints",
         "models" => "models",
+        "capabilities" => "connector status",
         "model_status_hints" => "runner hints",
         "sustainability_metrics" => "endpoints",
         _ => "endpoints",
@@ -2165,6 +2180,7 @@ fn readiness_check_next_step(check: &DoctorCheckResult) -> String {
         "health" => "Start the local daemon with ./scripts/start-dev.sh, then rerun cargo run -p ignispromptctl -- readiness.".to_string(),
         "version_status" => "Confirm the daemon is the current local preview build, then rerun cargo run -p ignispromptctl -- readiness.".to_string(),
         "models" => "Review local model manifest configuration; model weights are optional and must stay under ignored models/ paths.".to_string(),
+        "capabilities" => "Review connector and capability status as local-preview metadata only; do not treat it as a control plane.".to_string(),
         "model_status_hints" => "Review model and runner status hints as prerequisites only; Aethra remains read-only.".to_string(),
         "sustainability_metrics" => "Treat sustainability metrics as advisory local preview data and continue if required checks pass.".to_string(),
         _ => "Review the local preview endpoint shape and rerun cargo run -p ignispromptctl -- readiness.".to_string(),
@@ -2173,6 +2189,7 @@ fn readiness_check_next_step(check: &DoctorCheckResult) -> String {
 
 fn readiness_check_boundary_note(check: &DoctorCheckResult) -> &'static str {
     match check.id {
+        "capabilities" => "connector status metadata, not controls",
         "model_status_hints" => "status hints, not controls",
         "sustainability_metrics" => "local helper checks, not certification",
         "models" => "configured models are readiness inputs, not operator actions",
@@ -4823,6 +4840,72 @@ fn validate_doctor_models(body: &Value) -> Result<String, String> {
     ))
 }
 
+fn validate_doctor_capabilities(body: &Value) -> Result<String, String> {
+    let release_channel = required_string(body, "release_channel")?;
+    let local_only = required_bool(body, "local_only")?;
+    let cloud_enabled = required_bool(body, "cloud_enabled")?;
+    let routing_order = required_array(body, "routing_order")?;
+    let capabilities = required_array(body, "capabilities")?;
+
+    if release_channel != "local-preview" {
+        return Err(format!(
+            "release_channel is '{}', expected local-preview",
+            release_channel
+        ));
+    }
+    if !local_only {
+        return Err("local_only is false".to_string());
+    }
+    if cloud_enabled {
+        return Err("cloud_enabled is true".to_string());
+    }
+    if routing_order.is_empty() {
+        return Err("routing_order is empty".to_string());
+    }
+
+    let mut cloud_disabled = false;
+    for capability in capabilities {
+        required_string(capability, "provider_id")?;
+        required_string(capability, "display_name")?;
+        required_string(capability, "tier")?;
+        required_string(capability, "connector_type")?;
+        required_string(capability, "status")?;
+        required_bool(capability, "available")?;
+        required_bool(capability, "configured")?;
+        required_string(capability, "data_boundary")?;
+        required_string(capability, "reason")?;
+        required_string(capability, "confidence")?;
+        required_array(capability, "warnings")?;
+
+        if capability.get("provider_id").and_then(|v| v.as_str()) == Some("cloud-disabled") {
+            cloud_disabled = true;
+            if capability.get("status").and_then(|v| v.as_str()) != Some("disabled") {
+                return Err("cloud-disabled capability is not disabled".to_string());
+            }
+            if capability.get("available").and_then(|v| v.as_bool()) != Some(false) {
+                return Err("cloud-disabled capability is available".to_string());
+            }
+            if capability.get("configured").and_then(|v| v.as_bool()) != Some(false) {
+                return Err("cloud-disabled capability is configured".to_string());
+            }
+        }
+    }
+
+    if !cloud_disabled {
+        return Err("missing cloud-disabled capability".to_string());
+    }
+
+    Ok(format!(
+        "available ({} {}; cloud disabled)",
+        capabilities.len(),
+        if capabilities.len() == 1 {
+            "capability"
+        } else {
+            "capabilities"
+        }
+    ))
+}
+
 fn validate_doctor_model_status_hints(body: &Value) -> Result<String, String> {
     required_string(body, "schemaVersion")?;
     required_string(body, "generatedAt")?;
@@ -5160,6 +5243,109 @@ fn cmd_status_version(base_url: &str) {
             process::exit(1);
         }
     }
+}
+
+fn cmd_capabilities(base_url: &str, json_output: bool) {
+    let url = format!("{}/v1/capabilities", base_url);
+    match ureq::get(&url).call() {
+        Ok(resp) => {
+            let body = parse_response(resp);
+            if json_output {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&body).unwrap_or_default()
+                );
+            } else {
+                println!("{}", format_capabilities_summary(&body));
+            }
+        }
+        Err(e) => {
+            eprintln!("error: {}", e);
+            process::exit(1);
+        }
+    }
+}
+
+fn format_capabilities_summary(body: &Value) -> String {
+    let mut lines = vec![
+        "IgnisPrompt Capabilities".to_string(),
+        format!(
+            "release_channel: {}",
+            body.get("release_channel")
+                .and_then(|v| v.as_str())
+                .unwrap_or("-")
+        ),
+        format!(
+            "local_only:      {}",
+            body.get("local_only")
+                .and_then(|v| v.as_bool())
+                .map(|b| if b { "true" } else { "false" })
+                .unwrap_or("-")
+        ),
+        format!(
+            "cloud_enabled:   {}",
+            body.get("cloud_enabled")
+                .and_then(|v| v.as_bool())
+                .map(|b| if b { "true" } else { "false" })
+                .unwrap_or("-")
+        ),
+        "".to_string(),
+        "Capabilities:".to_string(),
+    ];
+
+    if let Some(capabilities) = body.get("capabilities").and_then(|v| v.as_array()) {
+        if capabilities.is_empty() {
+            lines.push("- none reported".to_string());
+        } else {
+            for capability in capabilities {
+                lines.push(format_capability_line(capability));
+            }
+        }
+    } else {
+        lines.push("- invalid response shape".to_string());
+    }
+
+    lines.push("".to_string());
+    lines.push("Boundaries: status metadata only; no cloud calls; no telemetry; no runner execution; no secrets returned.".to_string());
+    lines.join("\n")
+}
+
+fn format_capability_line(capability: &Value) -> String {
+    let tier = capability
+        .get("tier")
+        .and_then(|v| v.as_str())
+        .unwrap_or("-");
+    let provider_id = capability
+        .get("provider_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("-");
+    let status = capability
+        .get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("-");
+    let available = capability
+        .get("available")
+        .and_then(|v| v.as_bool())
+        .map(|b| if b { "available" } else { "not available" })
+        .unwrap_or("unknown");
+    let configured = capability
+        .get("configured")
+        .and_then(|v| v.as_bool())
+        .map(|b| if b { "configured" } else { "not configured" })
+        .unwrap_or("unknown");
+    let boundary = capability
+        .get("data_boundary")
+        .and_then(|v| v.as_str())
+        .unwrap_or("-");
+    let reason = capability
+        .get("reason")
+        .and_then(|v| v.as_str())
+        .unwrap_or("-");
+
+    format!(
+        "- {} {}: {} / {} / {} / boundary={} / reason={}",
+        tier, provider_id, status, available, configured, boundary, reason
+    )
 }
 
 fn cmd_models(base_url: &str) {
@@ -7934,13 +8120,13 @@ mod tests {
         build_operator_package_validation_report, build_policy_package_report,
         build_policy_package_validation_report, build_readiness_package_report,
         build_readiness_package_validation_report, build_route_explain_body, current_unix_seconds,
-        doctor_endpoint_url, format_audit_events_summary, format_demo_package_list_json,
-        format_demo_package_list_summary, format_demo_package_summary,
-        format_demo_package_summary_json, format_demo_package_validation_json,
-        format_demo_package_validation_summary, format_demo_summary, format_demo_summary_json,
-        format_demo_summary_report, format_doctor_json, format_doctor_summary,
-        format_evidence_bundle_archive_json, format_evidence_bundle_archive_summary,
-        format_evidence_bundle_archive_verification_json,
+        doctor_endpoint_url, format_audit_events_summary, format_capabilities_summary,
+        format_demo_package_list_json, format_demo_package_list_summary,
+        format_demo_package_summary, format_demo_package_summary_json,
+        format_demo_package_validation_json, format_demo_package_validation_summary,
+        format_demo_summary, format_demo_summary_json, format_demo_summary_report,
+        format_doctor_json, format_doctor_summary, format_evidence_bundle_archive_json,
+        format_evidence_bundle_archive_summary, format_evidence_bundle_archive_verification_json,
         format_evidence_bundle_archive_verification_summary, format_evidence_bundle_list_json,
         format_evidence_bundle_list_summary, format_evidence_bundle_manifest_json,
         format_evidence_bundle_manifest_summary, format_evidence_bundle_summary,
@@ -7964,17 +8150,18 @@ mod tests {
         policy_scenario_groups_by_category, policy_scenario_groups_by_expected_tier,
         policy_scenarios_expected_fail_closed, policy_scenarios_expected_local_only,
         policy_scenarios_with_boundary_note, readiness_report_next_steps, route_explain_url,
-        string_field, sustainability_url, validate_demo_package_output_dir, validate_doctor_health,
-        validate_doctor_model_status_hints, validate_doctor_models,
-        validate_doctor_sustainability_metrics, validate_doctor_version_status,
-        validate_evidence_bundle_archive_output_path, validate_evidence_bundle_output_dir,
-        validate_no_placeholder_string_values, validate_operator_package_output_dir,
-        validate_policy_package_output_dir, validate_readiness_package_output_dir,
-        validate_sustainability_period, write_demo_package_report, write_evidence_bundle_report,
-        write_operator_package_report, write_policy_package_report, write_readiness_package_report,
-        DoctorCheckLevel, DoctorCheckResult, DoctorReport, EvidenceBundleCapture,
-        DEMO_PACKAGE_REQUIRED_FILES, DOCTOR_CHECKS, OPERATOR_PACKAGE_REQUIRED_FILES,
-        POLICY_PACKAGE_REQUIRED_FILES, POLICY_SCENARIOS, READINESS_PACKAGE_REQUIRED_FILES,
+        string_field, sustainability_url, validate_demo_package_output_dir,
+        validate_doctor_capabilities, validate_doctor_health, validate_doctor_model_status_hints,
+        validate_doctor_models, validate_doctor_sustainability_metrics,
+        validate_doctor_version_status, validate_evidence_bundle_archive_output_path,
+        validate_evidence_bundle_output_dir, validate_no_placeholder_string_values,
+        validate_operator_package_output_dir, validate_policy_package_output_dir,
+        validate_readiness_package_output_dir, validate_sustainability_period,
+        write_demo_package_report, write_evidence_bundle_report, write_operator_package_report,
+        write_policy_package_report, write_readiness_package_report, DoctorCheckLevel,
+        DoctorCheckResult, DoctorReport, EvidenceBundleCapture, DEMO_PACKAGE_REQUIRED_FILES,
+        DOCTOR_CHECKS, OPERATOR_PACKAGE_REQUIRED_FILES, POLICY_PACKAGE_REQUIRED_FILES,
+        POLICY_SCENARIOS, READINESS_PACKAGE_REQUIRED_FILES,
     };
     use serde_json::json;
     use std::path::Path;
@@ -8043,6 +8230,7 @@ mod tests {
         assert!(endpoints.contains(&("/health", DoctorCheckLevel::Required)));
         assert!(endpoints.contains(&("/v1/status/version", DoctorCheckLevel::Required)));
         assert!(endpoints.contains(&("/v1/models", DoctorCheckLevel::Required)));
+        assert!(endpoints.contains(&("/v1/capabilities", DoctorCheckLevel::Required)));
         assert!(endpoints.contains(&("/v1/status/models", DoctorCheckLevel::Required)));
         assert!(endpoints.contains(&(
             "/v1/metrics/sustainability?period=30d",
@@ -8060,6 +8248,12 @@ mod tests {
     fn status_version_url_format() {
         let url = format!("{}/v1/status/version", "http://127.0.0.1:8765");
         assert_eq!(url, "http://127.0.0.1:8765/v1/status/version");
+    }
+
+    #[test]
+    fn capabilities_url_format() {
+        let url = format!("{}/v1/capabilities", "http://127.0.0.1:8765");
+        assert_eq!(url, "http://127.0.0.1:8765/v1/capabilities");
     }
 
     #[test]
@@ -8133,6 +8327,47 @@ mod tests {
             "1 model listed"
         );
         assert_eq!(
+            validate_doctor_capabilities(&json!({
+                "release_channel": "local-preview",
+                "local_only": true,
+                "cloud_enabled": false,
+                "routing_order": ["tier_0", "tier_1", "tier_2", "tier_3", "tier_4", "tier_5"],
+                "capabilities": [
+                    {
+                        "provider_id": "stub-legal-runner",
+                        "display_name": "Stub Legal Runner",
+                        "tier": "tier_3",
+                        "connector_type": "domain_local_path",
+                        "status": "available",
+                        "available": true,
+                        "configured": true,
+                        "data_boundary": "local_process",
+                        "reason": "default_local_preview_fallback",
+                        "confidence": "local_default",
+                        "warnings": ["Synthetic local-preview path."]
+                    },
+                    {
+                        "provider_id": "cloud-disabled",
+                        "display_name": "Cloud Providers",
+                        "tier": "tier_5",
+                        "connector_type": "cloud_provider_disabled",
+                        "status": "disabled",
+                        "available": false,
+                        "configured": false,
+                        "data_boundary": "cloud_with_consent",
+                        "reason": "cloud_disabled_by_default",
+                        "confidence": "policy",
+                        "warnings": [
+                            "Cloud is disabled by default.",
+                            "No cloud calls are made by local-preview capability discovery."
+                        ]
+                    }
+                ]
+            }))
+            .unwrap(),
+            "available (2 capabilities; cloud disabled)"
+        );
+        assert_eq!(
             validate_doctor_model_status_hints(&json!({
                 "schemaVersion": "ignisprompt.model-status.v1",
                 "generatedAt": "2026-05-21T00:00:00Z",
@@ -8189,6 +8424,36 @@ mod tests {
         .unwrap_err()
         .contains("local_only"));
         assert!(validate_doctor_models(&json!({ "items": [] })).is_err());
+        assert!(validate_doctor_capabilities(&json!({
+            "release_channel": "local-preview",
+            "local_only": true,
+            "cloud_enabled": true,
+            "routing_order": ["tier_5"],
+            "capabilities": []
+        }))
+        .unwrap_err()
+        .contains("cloud_enabled"));
+        assert!(validate_doctor_capabilities(&json!({
+            "release_channel": "local-preview",
+            "local_only": true,
+            "cloud_enabled": false,
+            "routing_order": ["tier_5"],
+            "capabilities": [{
+                "provider_id": "cloud-disabled",
+                "display_name": "Cloud Providers",
+                "tier": "tier_5",
+                "connector_type": "cloud_provider_disabled",
+                "status": "available",
+                "available": true,
+                "configured": false,
+                "data_boundary": "cloud_with_consent",
+                "reason": "cloud_disabled_by_default",
+                "confidence": "policy",
+                "warnings": ["Cloud is disabled by default."]
+            }]
+        }))
+        .unwrap_err()
+        .contains("cloud-disabled capability"));
         assert!(validate_doctor_model_status_hints(&json!({
             "schemaVersion": "ignisprompt.model-status.v1",
             "generatedAt": "2026-05-21T00:00:00Z",
@@ -9417,6 +9682,56 @@ mod tests {
         assert!(line.contains("TIER_1"));
         assert!(line.contains("domains=legal,contracts"));
         assert!(line.ends_with("missing"));
+    }
+
+    #[test]
+    fn capabilities_summary_is_status_metadata_only() {
+        let response = json!({
+            "release_channel": "local-preview",
+            "local_only": true,
+            "cloud_enabled": false,
+            "routing_order": ["tier_0", "tier_1", "tier_2", "tier_3", "tier_4", "tier_5"],
+            "capabilities": [
+                {
+                    "provider_id": "stub-legal-runner",
+                    "display_name": "Stub Legal Runner",
+                    "tier": "tier_3",
+                    "connector_type": "domain_local_path",
+                    "status": "available",
+                    "available": true,
+                    "configured": true,
+                    "data_boundary": "local_process",
+                    "reason": "default_local_preview_fallback",
+                    "confidence": "local_default",
+                    "warnings": ["Synthetic local-preview path."]
+                },
+                {
+                    "provider_id": "cloud-disabled",
+                    "display_name": "Cloud Providers",
+                    "tier": "tier_5",
+                    "connector_type": "cloud_provider_disabled",
+                    "status": "disabled",
+                    "available": false,
+                    "configured": false,
+                    "data_boundary": "cloud_with_consent",
+                    "reason": "cloud_disabled_by_default",
+                    "confidence": "policy",
+                    "warnings": ["No cloud calls are made by local-preview capability discovery."]
+                }
+            ]
+        });
+
+        let summary = format_capabilities_summary(&response);
+        assert!(summary.contains("IgnisPrompt Capabilities"));
+        assert!(summary.contains("release_channel: local-preview"));
+        assert!(summary.contains("cloud_enabled:   false"));
+        assert!(summary.contains("tier_3 stub-legal-runner: available"));
+        assert!(summary.contains("tier_5 cloud-disabled: disabled"));
+        assert!(summary.contains("status metadata only"));
+        assert!(summary.contains("no cloud calls"));
+        assert!(summary.contains("no telemetry"));
+        assert!(summary.contains("no runner execution"));
+        assert!(summary.contains("no secrets returned"));
     }
 
     #[test]

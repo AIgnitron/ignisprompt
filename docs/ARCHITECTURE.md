@@ -20,6 +20,7 @@ The architecture is intentionally small. It validates the local routing control 
 
 - `GET /health`: returns daemon status, package version, start time, local-only flag, and model count.
 - `GET /v1/models`: returns loaded model manifests.
+- `GET /v1/capabilities`: returns local-preview connector and capability status metadata for the route ladder, including provider id, tier, connector type, status, availability/configuration booleans, data boundary, reason, confidence, warnings, and last-checked metadata. It is sanitized status only: no secrets, no telemetry, no cloud checks, no runner execution, no polling, and no connector controls.
 - `GET /v1/status/models`: returns local preview model and runner status hints, including model identity, manifest/path availability, runner configuration, last-checked metadata, and conservative warnings. This is a debug/status surface only; it is not a model-quality, production-readiness, legal-accuracy, or compliance-evidence claim.
 - `GET /v1/status/version`: returns local preview daemon version and release status metadata, including service name, package version, release channel, local-only flag, build profile, nullable git commit, start time, and conservative warnings. It does not perform telemetry, update checking, external release lookup, GitHub calls, cloud calls, or production-readiness validation.
 - `POST /v1/route/explain`: returns a route decision, human-readable explanation, and warnings.
@@ -133,3 +134,9 @@ The daemon contains no default cloud provider calls. The current routes set `dat
 The Tier 1 cache is process-local and in-memory only. It is exact-match only, not semantic caching, not distributed, and not shared across daemon restarts. The default bound is `128` entries.
 
 Cloud BYOK, Tier 5, and enterprise provider routing are not implemented.
+
+## Connector and capability status
+
+`GET /v1/capabilities` is a local-preview foundation for exposing sanitized route-ladder metadata to CLIs and, later, Aethra. It currently reports static/default-backed status for local policy guard, Tier 1 exact-match cache, OS-native local bridge, Stub Legal Runner, edge providers, and cloud providers.
+
+The endpoint is deliberately observational. It does not enable cloud routing, call external endpoints, inspect cloud credentials, read secrets, execute model runners, start or stop connectors, or claim production readiness. Cloud providers are reported as disabled by default, and Aethra remains read-only and fixture-backed unless a user explicitly performs existing manual live-local loads.

@@ -36,7 +36,7 @@ For details, see the [demo flows](docs/DEMO.md), [testing notes](docs/TESTING.md
 
 `./scripts/dev-check.sh` is the recommended one-command developer path. `./scripts/start-dev.sh` plus `./scripts/smoke.sh` remains available as the lower-level manual debugging path when you want to inspect a running daemon directly.
 
-- `/health`, `/v1/models`, `/v1/status/models`, `/v1/route/explain`, `/v1/chat/completions`, `/v1/audit/events`, and `/v1/metrics/sustainability?period=30d` respond locally
+- `/health`, `/v1/models`, `/v1/capabilities`, `/v1/status/models`, `/v1/route/explain`, `/v1/chat/completions`, `/v1/audit/events`, and `/v1/metrics/sustainability?period=30d` respond locally
 - legal requests route to Tier 3 with a human-readable explanation
 - adversarial document instructions are detected and treated as untrusted content
 - audit events are written locally
@@ -104,6 +104,7 @@ Contributor entry points:
 
 - `GET /health`
 - `GET /v1/models`
+- `GET /v1/capabilities` for local-preview connector and capability status metadata
 - `GET /v1/status/models` for model and runner status hints
 - `GET /v1/metrics/sustainability?period=30d` for local-only Aethra counterfactual estimate summaries
 - `POST /v1/route/explain`
@@ -222,6 +223,8 @@ cargo run -p ignispromptctl -- demo-summary --package-list local-evidence/demo-s
 cargo run -p ignispromptctl -- demo-summary --package-validate local-evidence/demo-studio/demo
 cargo run -p ignispromptctl -- health
 cargo run -p ignispromptctl -- status-version
+cargo run -p ignispromptctl -- capabilities
+cargo run -p ignispromptctl -- capabilities --json
 cargo run -p ignispromptctl -- models
 cargo run -p ignispromptctl -- sustainability --period 30d
 cargo run -p ignispromptctl -- sustainability --period 30d --json
@@ -243,7 +246,9 @@ cargo run -p ignispromptctl -- route-explain --input ./tests/golden-legal/smoke-
 cargo run -p ignispromptctl -- audit tail
 ```
 
-`doctor` checks the local daemon health, version status, model manifest, and model and runner status hint endpoints, then reports local next steps for common failures. Its sustainability metrics check is informational. The command is local-only and does not perform telemetry, cloud calls, GitHub calls, update checks, external lookup, persistence, uploads, model controls, or runner controls.
+`doctor` checks the local daemon health, version status, model manifest, connector/capability status, and model and runner status hint endpoints, then reports local next steps for common failures. Its sustainability metrics check is informational. The command is local-only and does not perform telemetry, cloud calls, GitHub calls, update checks, external lookup, persistence, uploads, connector controls, model controls, or runner controls.
+
+`capabilities` reads `GET /v1/capabilities` and prints sanitized local-preview connector and capability status metadata. The endpoint reports route-ladder status hints such as the default Stub Legal Runner fallback and cloud-disabled-by-default policy state. It does not execute runners, check cloud providers, read secrets, perform telemetry, poll, mutate configuration, enable connectors, or imply production readiness.
 
 `readiness` reuses the same local endpoint checks as `doctor` and presents them as local preview readiness only. It keeps status hints framed as hints, not controls; local helper checks as checks, not certification; and Aethra live-local loading as manual. `--json` prints safe diagnostic fields for category, severity, result, local next step, and boundary note without daemon URLs or local machine details. `--markdown` prints a copy-safe local helper report for issue or demo notes without generated evidence contents or local machine details. `--package-output local-evidence/readiness/<name>` writes a local readiness package with README, manifest, JSON summaries, and Markdown report output under an ignored readiness path. `--package-list` and `--package-validate` inspect that package locally without calling the daemon. It does not add telemetry, cloud calls, persistence, uploads, model controls, or runner controls.
 
