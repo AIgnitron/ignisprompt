@@ -137,6 +137,6 @@ Cloud BYOK, Tier 5, and enterprise provider routing are not implemented.
 
 ## Connector and capability status
 
-`GET /v1/capabilities` is a local-preview foundation for exposing sanitized route-ladder metadata to CLIs and, later, Aethra. It currently reports static/default-backed status for local policy guard, Tier 1 exact-match cache, OS-native local bridge, Stub Legal Runner, edge providers, and cloud providers.
+`GET /v1/capabilities` is a local-preview foundation for exposing sanitized route-ladder metadata to CLIs and Aethra. It currently reports static/default-backed status for local policy guard, Tier 1 exact-match cache, OS-native local bridge, Stub Legal Runner, edge providers, and cloud providers.
 
-The endpoint is deliberately observational. It does not enable cloud routing, call external endpoints, inspect cloud credentials, read secrets, execute model runners, start or stop connectors, or claim production readiness. Cloud providers are reported as disabled by default, and Aethra remains read-only and fixture-backed unless a user explicitly performs existing manual live-local loads.
+The endpoint is deliberately observational. It does not enable cloud routing, call external endpoints, inspect cloud credentials, read secrets, execute model runners, start or stop connectors, or claim production readiness. Cloud providers are reported as disabled by default, and Aethra remains read-only and fixture-backed unless a user explicitly performs manual live-local loads.

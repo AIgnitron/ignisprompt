@@ -1,4 +1,8 @@
-import type { ModelManifest, ModelStatusHint } from "../api/contracts";
+import type {
+  CapabilityStatus,
+  ModelManifest,
+  ModelStatusHint,
+} from "../api/contracts";
 
 const noExecutableInferenceWarning =
   "does not attempt executable inference";
@@ -117,4 +121,36 @@ export function buildCapabilityMatrixRows(
           : "none",
     };
   });
+}
+
+export function buildCapabilityMatrixRowsFromCapabilities(
+  capabilities: CapabilityStatus[],
+): CapabilityMatrixRow[] {
+  return capabilities.map((capability) => ({
+    key: capability.provider_id,
+    tier: formatCapabilityTier(capability.tier),
+    providerName: `${capability.connector_type} / ${capability.display_name}`,
+    status: formatCapabilityStatus(capability.status),
+    available: capability.available ? "yes" : "no",
+    configured: capability.configured ? "yes" : "no",
+    dataBoundary: formatDataBoundary(capability.data_boundary),
+    reason: capability.reason,
+    warnings:
+      capability.warnings.length > 0
+        ? capability.warnings.join(" ")
+        : "none",
+  }));
+}
+
+function formatCapabilityTier(tier: string): string {
+  const match = /^tier_(\d+)$/i.exec(tier);
+  return match ? `TIER_${match[1]}` : tier;
+}
+
+function formatCapabilityStatus(status: CapabilityStatus["status"]): string {
+  return status.replace(/_/g, " ");
+}
+
+function formatDataBoundary(boundary: CapabilityStatus["data_boundary"]): string {
+  return boundary.replace(/_/g, " ");
 }

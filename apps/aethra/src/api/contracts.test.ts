@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isAuditEventList,
+  isCapabilitiesResponse,
   isHealthResponse,
   isModelRegistry,
   isModelStatusResponse,
@@ -9,6 +10,7 @@ import {
 } from "./contracts";
 import {
   auditEventFixtures,
+  capabilitiesFixture,
   evidenceBundleFixture,
   healthFixture,
   modelFixtures,
@@ -27,6 +29,7 @@ describe("Aethra fixture contract shapes", () => {
     expect(isVersionStatusResponse(versionStatusFixture)).toBe(true);
     expect(isModelRegistry({ models: modelFixtures })).toBe(true);
     expect(isModelStatusResponse(modelStatusFixture)).toBe(true);
+    expect(isCapabilitiesResponse(capabilitiesFixture)).toBe(true);
     expect(isAuditEventList(auditEventFixtures)).toBe(true);
     expect(isSustainabilityMetricsResponse(sustainabilityMetricsFixture)).toBe(
       true,
@@ -58,6 +61,13 @@ describe("Aethra fixture contract shapes", () => {
       "schemaVersion",
       "source",
       "statusHints",
+    ]);
+    expect(keysOf(capabilitiesFixture)).toEqual([
+      "capabilities",
+      "cloud_enabled",
+      "local_only",
+      "release_channel",
+      "routing_order",
     ]);
     expect(keysOf(sustainabilityMetricsFixture)).toEqual([
       "baseline_model",
@@ -94,6 +104,34 @@ describe("Aethra fixture contract shapes", () => {
     expect(modelStatusFixture.statusHints[0].warnings.join(" ")).toContain(
       "local hint",
     );
+  });
+
+  it("locks capability status fields as read-only status metadata", () => {
+    expect(keysOf(capabilitiesFixture.capabilities[0])).toEqual([
+      "available",
+      "confidence",
+      "configured",
+      "connector_type",
+      "data_boundary",
+      "display_name",
+      "last_checked",
+      "provider_id",
+      "reason",
+      "status",
+      "tier",
+      "warnings",
+    ]);
+    expect(capabilitiesFixture.cloud_enabled).toBe(false);
+    expect(
+      capabilitiesFixture.capabilities.find(
+        (capability) => capability.provider_id === "cloud-disabled",
+      ),
+    ).toMatchObject({
+      status: "disabled",
+      available: false,
+      configured: false,
+      data_boundary: "cloud_with_consent",
+    });
   });
 
   it("locks audit fixture fields including optional Aethra proxy estimate fields", () => {

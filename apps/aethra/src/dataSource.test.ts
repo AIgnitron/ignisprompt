@@ -4,6 +4,7 @@ import {
   DEFAULT_AETHRA_BASE_URL,
   buildLiveLocalDiagnostics,
   describeAuditEventsLoadError,
+  describeCapabilitiesLoadError,
   describeHealthLoadError,
   describeModelStatusLoadError,
   describeModelsLoadError,
@@ -152,6 +153,27 @@ describe("Aethra data source helpers", () => {
       label: "Unsupported schema",
       message:
         "The local daemon returned JSON that did not match the expected model and runner status hint schema. Fixture fallback remains available; confirm the daemon is from the current local-preview build before retrying manual refresh.",
+      diagnosticKind: "invalid-response-shape",
+    });
+  });
+
+  it("describes invalid JSON and unsupported capability schema failures", () => {
+    expect(
+      describeCapabilitiesLoadError(
+        new AethraApiError("invalid-json", "bad json"),
+      ),
+    ).toMatchObject({
+      label: "Invalid JSON",
+      message: expect.stringContaining("current local-preview daemon"),
+    });
+    expect(
+      describeCapabilitiesLoadError(
+        new AethraApiError("unexpected-shape", "bad schema"),
+      ),
+    ).toEqual({
+      label: "Unsupported schema",
+      message:
+        "The local daemon returned JSON that did not match the expected connector and capability status schema. Fixture fallback remains available; confirm the daemon is from the current local-preview build before retrying manual refresh.",
       diagnosticKind: "invalid-response-shape",
     });
   });

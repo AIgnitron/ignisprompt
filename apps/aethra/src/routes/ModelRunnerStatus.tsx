@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { ModelManifest, ModelStatusHint } from "../api/contracts";
+import { CapabilitiesResponse, ModelManifest, ModelStatusHint } from "../api/contracts";
 import type {
   AethraDataMode,
+  LiveCapabilitiesState,
   LiveModelsState,
   LiveModelStatusState,
 } from "../dataSource";
-import { modelFixtures, modelStatusFixture } from "../fixtures/aethraFixture";
+import {
+  capabilitiesFixture,
+  modelFixtures,
+  modelStatusFixture,
+} from "../fixtures/aethraFixture";
 import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
 import { PageHelp } from "../components/PageHelp";
@@ -19,7 +24,7 @@ import {
   toModelManifestRows,
 } from "./modelManifestSummary";
 import {
-  buildCapabilityMatrixRows,
+  buildCapabilityMatrixRowsFromCapabilities,
   describeExecutableInferenceStatus,
   describeLocalPathStatus,
   describeRunnerStatus,
@@ -36,16 +41,20 @@ type ModelRunnerStatusProps = {
   dataMode: AethraDataMode;
   liveModelsState: LiveModelsState;
   liveModelStatusState: LiveModelStatusState;
+  liveCapabilitiesState: LiveCapabilitiesState;
   onLoadLiveModels: () => void;
   onLoadLiveModelStatus: () => void;
+  onLoadLiveCapabilities: () => void;
 };
 
 export function ModelRunnerStatus({
   dataMode,
   liveModelsState,
   liveModelStatusState,
+  liveCapabilitiesState,
   onLoadLiveModels,
   onLoadLiveModelStatus,
+  onLoadLiveCapabilities,
 }: ModelRunnerStatusProps) {
   const [selectedModelId, setSelectedModelId] = useState<string | undefined>(
     initialSelectedModelId,
@@ -54,14 +63,20 @@ export function ModelRunnerStatus({
     dataMode === "live-local" && liveModelsState.status === "loaded";
   const isLiveStatusLoaded =
     dataMode === "live-local" && liveModelStatusState.status === "loaded";
+  const isLiveCapabilitiesLoaded =
+    dataMode === "live-local" && liveCapabilitiesState.status === "loaded";
   const models = isLiveModelsLoaded ? liveModelsState.models : modelFixtures;
   const rows = useMemo(() => toModelManifestRows(models), [models]);
   const effectiveStatusHints = isLiveStatusLoaded
     ? liveModelStatusState.statusHints
     : modelStatusFixture.statusHints;
+  const effectiveCapabilities = isLiveCapabilitiesLoaded
+    ? liveCapabilitiesState.capabilities
+    : capabilitiesFixture;
   const capabilityRows = useMemo(
-    () => buildCapabilityMatrixRows(models, effectiveStatusHints),
-    [effectiveStatusHints, models],
+    () =>
+      buildCapabilityMatrixRowsFromCapabilities(effectiveCapabilities.capabilities),
+    [effectiveCapabilities],
   );
   const selectedModel =
     selectedModelId === undefined
@@ -132,9 +147,11 @@ export function ModelRunnerStatus({
       <ModelStatusPanel
         dataMode={dataMode}
         liveModelStatusState={liveModelStatusState}
-        statusHints={effectiveStatusHints}
+        liveCapabilitiesState={liveCapabilitiesState}
+        capabilities={effectiveCapabilities}
         capabilityRows={capabilityRows}
         onLoadLiveModelStatus={onLoadLiveModelStatus}
+        onLoadLiveCapabilities={onLoadLiveCapabilities}
       />
 
       <div className="metric-grid" aria-label="Model manifest metrics">
@@ -303,20 +320,26 @@ function ModelMetadataPanel({
 type ModelStatusPanelProps = {
   dataMode: AethraDataMode;
   liveModelStatusState: LiveModelStatusState;
-  statusHints: ModelStatusHint[];
-  capabilityRows: ReturnType<typeof buildCapabilityMatrixRows>;
+  liveCapabilitiesState: LiveCapabilitiesState;
+  capabilities: CapabilitiesResponse;
+  capabilityRows: ReturnType<typeof buildCapabilityMatrixRowsFromCapabilities>;
   onLoadLiveModelStatus: () => void;
+  onLoadLiveCapabilities: () => void;
 };
 
 function ModelStatusPanel({
   dataMode,
   liveModelStatusState,
-  statusHints,
+  liveCapabilitiesState,
+  capabilities,
   capabilityRows,
   onLoadLiveModelStatus,
+  onLoadLiveCapabilities,
 }: ModelStatusPanelProps) {
   const isLiveMode = dataMode === "live-local";
   const isLoaded = isLiveMode && liveModelStatusState.status === "loaded";
+  const isCapabilitiesLoaded =
+    isLiveMode && liveCapabilitiesState.status === "loaded";
 
   return (
     <section className="panel" aria-label="Model and runner status hints">
@@ -325,7 +348,7 @@ function ModelStatusPanel({
           <h3>Capability and status matrix</h3>
           <p className="muted">
             {isLiveMode
-              ? "Manual read-only GET /v1/status/models from the configured local daemon."
+              ? "Manual read-only GET /v1/capabilities and GET /v1/status/models from the configured local daemon."
               : "Fixture mode keeps a conservative local capability matrix visible by default."}
           </p>
         </div>
@@ -343,9 +366,10 @@ function ModelStatusPanel({
       </div>
 
       <p className="explanation">
-        Local daemon status hints are configuration, path, runner, and
-        availability hints only. They are not production readiness, model
-        quality certification, legal accuracy, or compliance certification.
+        Capability values are status metadata only. Availability does not prove
+        production readiness, model quality, legal accuracy, compliance,
+        attestation, or runner execution. Cloud capability remains disabled by
+        default.
       </p>
 
       {isLiveMode && liveModelStatusState.status === "not-loaded" ? (
@@ -369,6 +393,41 @@ function ModelStatusPanel({
         />
       ) : null}
 
+      {isLiveMode && liveCapabilitiesState.status === "not-loaded" ? (
+        <EmptyState
+          title="Live capabilities have not been loaded"
+          message="Fixture capability metadata remains visible until you manually refresh GET /v1/capabilities from the local daemon."
+          nextAction="Start the daemon if needed, then use Refresh capabilities."
+        />
+      ) : null}
+
+      {isLiveMode && liveCapabilitiesState.status === "loading" ? (
+        <p className="explanation">
+          Loading read-only connector and capability status metadata from the
+          configured local daemon.
+        </p>
+      ) : null}
+
+      {isLiveMode && liveCapabilitiesState.status === "error" ? (
+        <EmptyState
+          {...buildLiveErrorEmptyState(
+            liveCapabilitiesState.label,
+            liveCapabilitiesState.message,
+            "Fixture capability metadata remains clearly labeled below.",
+          )}
+        />
+      ) : null}
+
+      {isLiveMode &&
+      liveCapabilitiesState.status === "loaded" &&
+      liveCapabilitiesState.capabilities.capabilities.length === 0 ? (
+        <EmptyState
+          title="No capabilities returned"
+          message="The local daemon returned an empty capabilities list. Fixture capability metadata remains available for review."
+          nextAction="Confirm the daemon is the current local-preview build and retry manual refresh."
+        />
+      ) : null}
+
       {isLiveMode &&
       liveModelStatusState.status === "loaded" &&
       liveModelStatusState.statusHints.length === 0 ? (
@@ -379,28 +438,36 @@ function ModelStatusPanel({
         <div>
           <dt>Source</dt>
           <dd>
-            {isLoaded
-              ? "Local daemon status hints"
+            {isCapabilitiesLoaded
+              ? "Manual live-local daemon capabilities"
               : isLiveMode
-                ? "Fixture fallback status hints"
-                : "Fixture status hints"}
+                ? "Fixture fallback capabilities"
+                : "Fixture capabilities"}
           </dd>
         </div>
         <div>
           <dt>Endpoint</dt>
-          <dd>{isLiveMode ? "GET /v1/status/models" : "fixture status sample"}</dd>
+          <dd>{isLiveMode ? "GET /v1/capabilities" : "fixture capabilities"}</dd>
         </div>
         <div>
-          <dt>Status hints</dt>
-          <dd>{statusHints.length}</dd>
+          <dt>Capabilities</dt>
+          <dd>{capabilities.capabilities.length}</dd>
         </div>
         <div>
           <dt>Loaded at</dt>
           <dd>
-            {isLoaded
-              ? formatTimestamp(liveModelStatusState.loadedAt)
+            {isCapabilitiesLoaded
+              ? formatTimestamp(liveCapabilitiesState.loadedAt)
               : "fixture sample"}
           </dd>
+        </div>
+        <div>
+          <dt>Cloud enabled</dt>
+          <dd>{String(capabilities.cloud_enabled)}</dd>
+        </div>
+        <div>
+          <dt>Route ladder</dt>
+          <dd>{capabilities.routing_order.join(", ")}</dd>
         </div>
       </dl>
 
@@ -408,7 +475,17 @@ function ModelStatusPanel({
 
       {isLiveMode ? (
         <div className="manual-refresh-card model-action-row">
-          <span>Manual live-local refresh action</span>
+          <span>Manual live-local refresh actions</span>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={liveCapabilitiesState.status === "loading"}
+            onClick={onLoadLiveCapabilities}
+          >
+            {liveCapabilitiesState.status === "loading"
+              ? "Loading capabilities"
+              : "Refresh capabilities"}
+          </button>
           <button
             type="button"
             className="secondary-button"
@@ -426,7 +503,7 @@ function ModelStatusPanel({
 }
 
 type CapabilityMatrixTableProps = {
-  rows: ReturnType<typeof buildCapabilityMatrixRows>;
+  rows: ReturnType<typeof buildCapabilityMatrixRowsFromCapabilities>;
 };
 
 function CapabilityMatrixTable({ rows }: CapabilityMatrixTableProps) {

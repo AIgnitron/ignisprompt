@@ -3,6 +3,7 @@ import { IgnisPromptClient } from "./client";
 import { AethraApiError } from "./errors";
 import {
   auditEventFixtures,
+  capabilitiesFixture,
   healthFixture,
   modelFixtures,
   modelStatusFixture,
@@ -52,6 +53,17 @@ describe("IgnisPromptClient", () => {
     await expect(client.modelStatus()).resolves.toEqual(modelStatusFixture);
     expect(fetchImpl).toHaveBeenCalledWith(
       "http://127.0.0.1:8765/v1/status/models",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("reads connector and capability status metadata with the current response shape", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(capabilitiesFixture));
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.capabilities()).resolves.toEqual(capabilitiesFixture);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "http://127.0.0.1:8765/v1/capabilities",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
@@ -139,6 +151,20 @@ describe("IgnisPromptClient", () => {
     const client = new IgnisPromptClient({ fetchImpl });
 
     await expect(client.modelStatus()).rejects.toMatchObject({
+      kind: "unexpected-shape",
+    });
+  });
+
+  it("rejects unsupported capability status response shapes", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
+        ...capabilitiesFixture,
+        cloud_enabled: "false",
+      }),
+    );
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.capabilities()).rejects.toMatchObject({
       kind: "unexpected-shape",
     });
   });

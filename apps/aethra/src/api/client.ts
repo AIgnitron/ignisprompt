@@ -1,5 +1,6 @@
 import {
   AuditEvent,
+  CapabilitiesResponse,
   HealthResponse,
   ModelRegistry,
   ModelStatusResponse,
@@ -8,6 +9,7 @@ import {
   SustainabilityMetricsResponse,
   VersionStatusResponse,
   isAuditEventList,
+  isCapabilitiesResponse,
   isHealthResponse,
   isModelRegistry,
   isModelStatusResponse,
@@ -51,6 +53,10 @@ export class IgnisPromptClient {
 
   modelStatus(): Promise<ModelStatusResponse> {
     return this.request("/v1/status/models", isModelStatusResponse);
+  }
+
+  capabilities(): Promise<CapabilitiesResponse> {
+    return this.request("/v1/capabilities", isCapabilitiesResponse);
   }
 
   versionStatus(): Promise<VersionStatusResponse> {
