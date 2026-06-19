@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { capabilitiesFixture } from "../api/fixtures";
+import { capabilitiesFixture, modelInventoryFixture } from "../api/fixtures";
 import { ModelRunnerStatus } from "./ModelRunnerStatus";
 
 describe("ModelRunnerStatus route", () => {
@@ -9,15 +9,20 @@ describe("ModelRunnerStatus route", () => {
       <ModelRunnerStatus
         dataMode="fixture"
         liveModelsState={{ status: "not-loaded" }}
+        liveModelInventoryState={{ status: "not-loaded" }}
         liveModelStatusState={{ status: "not-loaded" }}
         liveCapabilitiesState={{ status: "not-loaded" }}
         onLoadLiveModels={() => undefined}
+        onLoadLiveModelInventory={() => undefined}
         onLoadLiveModelStatus={() => undefined}
         onLoadLiveCapabilities={() => undefined}
       />,
     );
 
     expect(markup).toContain("Capability and status matrix");
+    expect(markup).toContain("Local model inventory");
+    expect(markup).toContain("offline preview inventory metadata");
+    expect(markup).toContain("Inventory observes local file metadata only");
     expect(markup).toContain("Offline preview capabilities");
     expect(markup).toContain("Stub Legal Runner");
     expect(markup).toContain("cloud with consent");
@@ -45,6 +50,7 @@ describe("ModelRunnerStatus route", () => {
       <ModelRunnerStatus
         dataMode="live-local"
         liveModelsState={{ status: "not-loaded" }}
+        liveModelInventoryState={{ status: "not-loaded" }}
         liveModelStatusState={{ status: "not-loaded" }}
         liveCapabilitiesState={{
           status: "loaded",
@@ -52,6 +58,7 @@ describe("ModelRunnerStatus route", () => {
           loadedAt: "2026-06-19T00:00:00Z",
         }}
         onLoadLiveModels={() => undefined}
+        onLoadLiveModelInventory={() => undefined}
         onLoadLiveModelStatus={() => undefined}
         onLoadLiveCapabilities={() => undefined}
       />,
@@ -64,11 +71,55 @@ describe("ModelRunnerStatus route", () => {
     expect(markup).toContain("Refresh capabilities");
   });
 
+  it("renders manually loaded live-local model inventory", () => {
+    const liveInventory = {
+      ...modelInventoryFixture,
+      inventory_source: "local_model_directories",
+      files: [
+        {
+          ...modelInventoryFixture.files[0],
+          filename: "live-legal-model-q4_k_m.gguf",
+          relative_path: "configured-model-dir/live-legal-model-q4_k_m.gguf",
+        },
+      ],
+      summary: {
+        ...modelInventoryFixture.summary,
+        total_files: 1,
+        gguf_files: 1,
+        unsupported_count: 0,
+      },
+    };
+    const markup = renderToStaticMarkup(
+      <ModelRunnerStatus
+        dataMode="live-local"
+        liveModelsState={{ status: "not-loaded" }}
+        liveModelInventoryState={{
+          status: "loaded",
+          inventory: liveInventory,
+          loadedAt: "2026-06-19T00:00:00Z",
+        }}
+        liveModelStatusState={{ status: "not-loaded" }}
+        liveCapabilitiesState={{ status: "not-loaded" }}
+        onLoadLiveModels={() => undefined}
+        onLoadLiveModelInventory={() => undefined}
+        onLoadLiveModelStatus={() => undefined}
+        onLoadLiveCapabilities={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Local daemon data");
+    expect(markup).toContain("GET /v1/models/inventory");
+    expect(markup).toContain("live-legal-model-q4_k_m.gguf");
+    expect(markup).toContain("Inventory observes local file metadata only");
+    expect(markup).toContain("Refresh model inventory");
+  });
+
   it("shows a safe warning and preserves fixture capabilities after live load failure", () => {
     const markup = renderToStaticMarkup(
       <ModelRunnerStatus
         dataMode="live-local"
         liveModelsState={{ status: "not-loaded" }}
+        liveModelInventoryState={{ status: "not-loaded" }}
         liveModelStatusState={{ status: "not-loaded" }}
         liveCapabilitiesState={{
           status: "error",
@@ -79,6 +130,7 @@ describe("ModelRunnerStatus route", () => {
           checkedAt: "2026-06-19T00:00:00Z",
         }}
         onLoadLiveModels={() => undefined}
+        onLoadLiveModelInventory={() => undefined}
         onLoadLiveModelStatus={() => undefined}
         onLoadLiveCapabilities={() => undefined}
       />,
@@ -96,6 +148,7 @@ describe("ModelRunnerStatus route", () => {
       <ModelRunnerStatus
         dataMode="live-local"
         liveModelsState={{ status: "not-loaded" }}
+        liveModelInventoryState={{ status: "not-loaded" }}
         liveModelStatusState={{ status: "not-loaded" }}
         liveCapabilitiesState={{
           status: "loaded",
@@ -103,6 +156,7 @@ describe("ModelRunnerStatus route", () => {
           loadedAt: "2026-06-19T00:00:00Z",
         }}
         onLoadLiveModels={() => undefined}
+        onLoadLiveModelInventory={() => undefined}
         onLoadLiveModelStatus={() => undefined}
         onLoadLiveCapabilities={() => undefined}
       />,

@@ -3,6 +3,7 @@ import {
   isAuditEventList,
   isCapabilitiesResponse,
   isHealthResponse,
+  isModelInventoryResponse,
   isModelRegistry,
   isModelStatusResponse,
   isSustainabilityMetricsResponse,
@@ -14,6 +15,7 @@ import {
   evidenceBundleFixture,
   healthFixture,
   modelFixtures,
+  modelInventoryFixture,
   modelStatusFixture,
   sustainabilityMetricsFixture,
   versionStatusFixture,
@@ -28,6 +30,7 @@ describe("Aethra fixture contract shapes", () => {
     expect(isHealthResponse(healthFixture)).toBe(true);
     expect(isVersionStatusResponse(versionStatusFixture)).toBe(true);
     expect(isModelRegistry({ models: modelFixtures })).toBe(true);
+    expect(isModelInventoryResponse(modelInventoryFixture)).toBe(true);
     expect(isModelStatusResponse(modelStatusFixture)).toBe(true);
     expect(isCapabilitiesResponse(capabilitiesFixture)).toBe(true);
     expect(isAuditEventList(auditEventFixtures)).toBe(true);
@@ -56,6 +59,15 @@ describe("Aethra fixture contract shapes", () => {
       "warnings",
     ]);
     expect(keysOf({ models: modelFixtures })).toEqual(["models"]);
+    expect(keysOf(modelInventoryFixture)).toEqual([
+      "base_paths_scanned",
+      "boundary_notes",
+      "files",
+      "generated_at",
+      "inventory_source",
+      "schema_version",
+      "summary",
+    ]);
     expect(keysOf(modelStatusFixture)).toEqual([
       "generatedAt",
       "schemaVersion",
@@ -103,6 +115,39 @@ describe("Aethra fixture contract shapes", () => {
     ]);
     expect(modelStatusFixture.statusHints[0].warnings.join(" ")).toContain(
       "local hint",
+    );
+  });
+
+  it("locks local model inventory fields as read-only metadata", () => {
+    expect(keysOf(modelInventoryFixture.summary)).toEqual([
+      "gguf_files",
+      "largest_file_mb",
+      "manifest_declared_count",
+      "notes",
+      "present_count",
+      "safetensors_files",
+      "scan_limited",
+      "scanned_directory_count",
+      "total_files",
+      "total_size_bytes",
+      "unsupported_count",
+    ]);
+    expect(keysOf(modelInventoryFixture.files[0])).toEqual([
+      "boundary_note",
+      "extension",
+      "filename",
+      "model_family",
+      "quantization",
+      "relative_path",
+      "size_bytes",
+      "size_mb",
+      "status",
+    ]);
+    expect(modelInventoryFixture.boundary_notes.join(" ")).toContain(
+      "does not execute models",
+    );
+    expect(modelInventoryFixture.boundary_notes.join(" ")).toContain(
+      "does not prove model quality",
     );
   });
 

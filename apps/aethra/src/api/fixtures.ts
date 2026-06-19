@@ -3,6 +3,7 @@ import {
   CapabilitiesResponse,
   EvidenceBundlePreview,
   HealthResponse,
+  ModelInventoryResponse,
   ModelManifest,
   ModelStatusResponse,
   RouteExplainResponse,
@@ -69,6 +70,56 @@ export const modelStatusFixture: ModelStatusResponse = {
         "Status is a local hint, not a production readiness, legal accuracy, or compliance claim.",
       ],
     },
+  ],
+};
+
+export const modelInventoryFixture: ModelInventoryResponse = {
+  schema_version: "ignisprompt-model-inventory-v0.1",
+  generated_at: "2026-05-15T00:00:00Z",
+  base_paths_scanned: ["models"],
+  inventory_source: "offline_preview_fixture",
+  files: [
+    {
+      filename: "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+      relative_path: "models/qwen2.5-0.5b-instruct-q4_k_m.gguf",
+      extension: "gguf",
+      size_bytes: 734003200,
+      size_mb: 700,
+      model_family: "qwen",
+      quantization: "q4_k_m",
+      status: "present",
+      boundary_note:
+        "Offline preview fixture metadata only; no model file is read or executed.",
+    },
+    {
+      filename: "README.txt",
+      relative_path: "models/README.txt",
+      extension: "txt",
+      size_bytes: 512,
+      size_mb: 0,
+      status: "unsupported",
+      boundary_note:
+        "Unsupported preview file metadata only; no file contents are returned.",
+    },
+  ],
+  summary: {
+    total_files: 2,
+    total_size_bytes: 734003712,
+    gguf_files: 1,
+    safetensors_files: 0,
+    manifest_declared_count: 1,
+    present_count: 1,
+    unsupported_count: 1,
+    largest_file_mb: 700,
+    scanned_directory_count: 1,
+    scan_limited: false,
+    notes: [
+      "Fixture fallback for offline preview; manually refresh local daemon data for observed local files.",
+    ],
+  },
+  boundary_notes: [
+    "Inventory metadata is observational and does not execute models.",
+    "Inventory does not prove model quality, readiness, compliance, or legal accuracy.",
   ],
 };
 

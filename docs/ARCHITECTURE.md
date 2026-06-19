@@ -20,6 +20,7 @@ The architecture is intentionally small. It validates the local routing control 
 
 - `GET /health`: returns daemon status, package version, start time, local-only flag, and model count.
 - `GET /v1/models`: returns loaded model manifests.
+- `GET /v1/models/inventory`: returns read-only local model inventory metadata from safe local model directories. It reports filenames or safe display paths, formats, sizes, simple filename-derived hints, summary counts, and boundary notes without reading model contents, hashing large files, executing models, downloading or deleting files, returning secrets, or scanning outside configured local model roots.
 - `GET /v1/capabilities`: returns local-preview connector and capability status metadata for the route ladder, including provider id, tier, connector type, status, availability/configuration booleans, data boundary, reason, confidence, warnings, and last-checked metadata. It is sanitized status only: no secrets, no telemetry, no cloud checks, no runner execution, no polling, and no connector controls.
 - `GET /v1/status/models`: returns local preview model and runner status hints, including model identity, manifest/path availability, runner configuration, last-checked metadata, and conservative warnings. This is a debug/status surface only; it is not a model-quality, production-readiness, legal-accuracy, or compliance-evidence claim.
 - `GET /v1/status/version`: returns local preview daemon version and release status metadata, including service name, package version, release channel, local-only flag, build profile, nullable git commit, start time, and conservative warnings. It does not perform telemetry, update checking, external release lookup, GitHub calls, cloud calls, or production-readiness validation.
@@ -140,3 +141,9 @@ Cloud BYOK, Tier 5, and enterprise provider routing are not implemented.
 `GET /v1/capabilities` is a local-preview foundation for exposing sanitized route-ladder metadata to CLIs and Aethra. It currently reports static/default-backed status for local policy guard, Tier 1 exact-match cache, OS-native local bridge, Stub Legal Runner, edge providers, and cloud providers.
 
 The endpoint is deliberately observational. It does not enable cloud routing, call external endpoints, inspect cloud credentials, read secrets, execute model runners, start or stop connectors, or claim production readiness. Cloud providers are reported as disabled by default, and Aethra remains read-only and fixture-backed unless a user explicitly performs manual live-local loads.
+
+## Local model inventory
+
+`GET /v1/models/inventory` is a local-preview foundation for observing local model files without managing or executing them. The daemon scans the configured model directory and safe manifest-declared local model roots, skips hidden directories and symlinks, applies conservative depth and file-count limits, and returns metadata such as safe display paths, extensions, byte sizes, modified timestamps when cheaply available, simple filename-derived model-family/quantization/shard hints, and summary counts.
+
+The endpoint is read-only and observational. It does not read model file contents into memory, compute hashes for large model files, execute runners, download models, delete models, modify manifests, expose secrets, call cloud services, or prove model quality, readiness, compliance, or legal accuracy. Missing or empty model directories are reported as local-preview information rather than daemon failure.

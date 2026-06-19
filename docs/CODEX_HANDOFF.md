@@ -103,6 +103,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - `./scripts/generate-local-only-attestation.sh --self-test` validates ignored local evidence, audit log, model, `target/`, and Aethra `dist/` paths, and rejects placeholder-like summary JSON containing literal `"string"` values. The normal script still generates developer local-only evidence only; it does not generate signed attestation reports or tamper-evident audit storage.
 - `make security-check` runs deterministic local helper scans for hidden Unicode format/control characters and conservative accidental secret patterns. Optional `make cargo-audit` and `./scripts/generate-sbom-local.sh` support local dependency advisory and SBOM review when their tools are installed. These helpers do not claim certification, compliance approval, production security approval, or complete supply-chain assurance.
 - `ignispromptctl models` should display current camelCase model manifest fields from the daemon and tolerate legacy snake_case model ids.
+- `GET /v1/models/inventory` reports read-only local model inventory metadata from safe local model directories. It scans configured/local manifest model roots with conservative limits, skips hidden directories and symlinks, returns safe display paths, sizes, formats, simple filename-derived hints, summary counts, and boundary notes, and handles missing/empty directories as local-preview information. It does not execute models, read model contents, hash huge files, download/delete files, modify manifests, expose secrets, call cloud services, or prove model quality, production readiness, compliance, or legal accuracy. `ignispromptctl model-inventory` reads the endpoint as either terminal summary or `--json`.
 - `GET /v1/capabilities` reports sanitized local-preview connector and capability status metadata for route-ladder destinations. It is static/default-backed status only, keeps cloud disabled by default, returns no secrets, performs no telemetry, makes no cloud or external network checks, does not execute model runners, and adds no write/admin controls. `ignispromptctl capabilities` reads the endpoint as either terminal summary or `--json`.
 - `GET /v1/status/version` reports daemon service, crate version, release channel `local-preview`, local-only flag, build profile, start time, nullable git commit metadata, and conservative warning language. It is local-only support/debugging metadata, not telemetry, an update checker, an external release lookup, or a production readiness signal.
 - `ignispromptctl status-version` reads `GET /v1/status/version` and prints the same local preview metadata.
@@ -151,6 +152,7 @@ Aethra currently provides local-preview screens for Overview, Routing Explorer, 
 
 - `GET /health`
 - `GET /v1/models`
+- `GET /v1/models/inventory`
 - `GET /v1/capabilities`
 - `GET /v1/status/models`
 - `GET /v1/audit/events`
@@ -166,6 +168,8 @@ The evidence bundle viewer shows conservative empty states when metadata is miss
 `POST /v1/route/explain` remains local and inspection-oriented, but it appends a local audit event. Aethra now requires explicit confirmation before sending a live local route-explain request, resets that confirmation when the target daemon URL or request inputs change, and continues to recommend synthetic or non-sensitive text.
 
 IgnisPrompt now exposes `GET /v1/status/models` for local model and runner status hints. This endpoint is read-only, local-only, and conservative: it reports configuration/path/runner hints and warning language, not production readiness, model quality, legal accuracy, or compliance status.
+
+IgnisPrompt now exposes `GET /v1/models/inventory` for read-only local model inventory metadata. Aethra can show the inventory on the Model / Runner Status page and a small Overview summary after manual refresh. Inventory is observational file metadata only; it does not execute models, read file contents, hash large files, download/delete model files, mutate manifests, call cloud services, return secrets, or prove readiness, compliance, legal accuracy, or model quality.
 
 IgnisPrompt now exposes `GET /v1/capabilities` for local-preview connector and capability status metadata. This endpoint is read-only, local-only, and conservative: it reports route-ladder status hints, keeps cloud disabled by default, returns no secrets, performs no telemetry, makes no cloud or external network checks, does not execute model runners, and does not add connector write/admin controls.
 
@@ -201,7 +205,7 @@ IgnisPrompt now exposes `GET /v1/metrics/sustainability?period=30d` for Aethra v
 
 `ignispromptctl sustainability` provides terminal access to the same local aggregate metrics without opening Aethra. It validates supported periods before sending a request, shows daemon-unreachable guidance that mentions `./scripts/start-dev.sh` and the local endpoint, and does not add telemetry, cloud calls, GitHub calls, update checks, external coefficient lookup, persistence, upload, global aggregation, prompts, raw audit text, PII, or machine identifiers.
 
-Aethra can manually load `GET /v1/capabilities` and `GET /v1/status/models` on the Model / Runner Status screen. It can also manually load `GET /v1/metrics/sustainability?period=30d` on the Sustainability Preview screen in live-local mode, with fixture fallback data remaining visible until a successful manual load. The top-level local daemon refresh loads those same read-only metadata surfaces together. Live loading remains explicit/manual, and the UI presents these values as local daemon hints and methodology-dependent proxy estimates.
+Aethra can manually load `GET /v1/models/inventory`, `GET /v1/capabilities`, and `GET /v1/status/models` on the Model / Runner Status screen. It can also manually load `GET /v1/metrics/sustainability?period=30d` on the Sustainability Preview screen in live-local mode, with fixture fallback data remaining visible until a successful manual load. The top-level local daemon refresh loads those same read-only metadata surfaces together. Live loading remains explicit/manual, and the UI presents these values as local daemon hints, read-only inventory metadata, and methodology-dependent proxy estimates.
 
 Aethra's visual capability/status matrix uses fixture capability metadata by default and switches to manually loaded `GET /v1/capabilities` rows only after an explicit live-local refresh. Failed or empty capability loads keep safe fixture fallback states visible. This adds no polling, no telemetry, no cloud calls, no connector controls, and no model or runner controls.
 

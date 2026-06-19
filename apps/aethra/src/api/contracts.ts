@@ -70,6 +70,50 @@ export type ModelStatusResponse = {
   statusHints: ModelStatusHint[];
 };
 
+export type ModelInventoryFileStatus =
+  | "present"
+  | "ignored"
+  | "unsupported"
+  | "unknown";
+
+export type ModelInventoryFile = {
+  filename: string;
+  relative_path: string;
+  extension: string;
+  size_bytes: number;
+  size_mb: number;
+  modified_at?: string;
+  model_family?: string;
+  quantization?: string;
+  shard?: string;
+  status: ModelInventoryFileStatus;
+  boundary_note: string;
+};
+
+export type ModelInventorySummary = {
+  total_files: number;
+  total_size_bytes: number;
+  gguf_files: number;
+  safetensors_files: number;
+  manifest_declared_count: number;
+  present_count: number;
+  unsupported_count: number;
+  largest_file_mb: number;
+  scanned_directory_count: number;
+  scan_limited: boolean;
+  notes: string[];
+};
+
+export type ModelInventoryResponse = {
+  schema_version: string;
+  generated_at: string;
+  base_paths_scanned: string[];
+  inventory_source: string;
+  files: ModelInventoryFile[];
+  summary: ModelInventorySummary;
+  boundary_notes: string[];
+};
+
 export type CapabilityStatusValue =
   | "unknown"
   | "not_configured"
@@ -275,6 +319,19 @@ const isModelStatusAvailability = (
   isString(value) &&
   modelStatusAvailabilityValues.has(value as ModelStatusAvailability);
 
+const modelInventoryFileStatusValues = new Set<ModelInventoryFileStatus>([
+  "present",
+  "ignored",
+  "unsupported",
+  "unknown",
+]);
+
+const isModelInventoryFileStatus = (
+  value: unknown,
+): value is ModelInventoryFileStatus =>
+  isString(value) &&
+  modelInventoryFileStatusValues.has(value as ModelInventoryFileStatus);
+
 const capabilityStatusValues = new Set<CapabilityStatusValue>([
   "unknown",
   "not_configured",
@@ -406,6 +463,60 @@ export function isModelStatusResponse(
     value.source === "local-daemon" &&
     Array.isArray(value.statusHints) &&
     value.statusHints.every(isModelStatusHint)
+  );
+}
+
+export function isModelInventoryFile(
+  value: unknown,
+): value is ModelInventoryFile {
+  return (
+    isRecord(value) &&
+    isString(value.filename) &&
+    isString(value.relative_path) &&
+    isString(value.extension) &&
+    isNumber(value.size_bytes) &&
+    isNumber(value.size_mb) &&
+    isOptionalString(value.modified_at) &&
+    isOptionalString(value.model_family) &&
+    isOptionalString(value.quantization) &&
+    isOptionalString(value.shard) &&
+    isModelInventoryFileStatus(value.status) &&
+    isString(value.boundary_note)
+  );
+}
+
+export function isModelInventorySummary(
+  value: unknown,
+): value is ModelInventorySummary {
+  return (
+    isRecord(value) &&
+    isNumber(value.total_files) &&
+    isNumber(value.total_size_bytes) &&
+    isNumber(value.gguf_files) &&
+    isNumber(value.safetensors_files) &&
+    isNumber(value.manifest_declared_count) &&
+    isNumber(value.present_count) &&
+    isNumber(value.unsupported_count) &&
+    isNumber(value.largest_file_mb) &&
+    isNumber(value.scanned_directory_count) &&
+    isBoolean(value.scan_limited) &&
+    isStringArray(value.notes)
+  );
+}
+
+export function isModelInventoryResponse(
+  value: unknown,
+): value is ModelInventoryResponse {
+  return (
+    isRecord(value) &&
+    isString(value.schema_version) &&
+    isString(value.generated_at) &&
+    isStringArray(value.base_paths_scanned) &&
+    isString(value.inventory_source) &&
+    Array.isArray(value.files) &&
+    value.files.every(isModelInventoryFile) &&
+    isModelInventorySummary(value.summary) &&
+    isStringArray(value.boundary_notes)
   );
 }
 

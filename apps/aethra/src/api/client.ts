@@ -2,6 +2,7 @@ import {
   AuditEvent,
   CapabilitiesResponse,
   HealthResponse,
+  ModelInventoryResponse,
   ModelRegistry,
   ModelStatusResponse,
   RouteExplainRequest,
@@ -11,6 +12,7 @@ import {
   isAuditEventList,
   isCapabilitiesResponse,
   isHealthResponse,
+  isModelInventoryResponse,
   isModelRegistry,
   isModelStatusResponse,
   isRouteExplainResponse,
@@ -49,6 +51,10 @@ export class IgnisPromptClient {
 
   models(): Promise<ModelRegistry> {
     return this.request("/v1/models", isModelRegistry);
+  }
+
+  modelInventory(): Promise<ModelInventoryResponse> {
+    return this.request("/v1/models/inventory", isModelInventoryResponse);
   }
 
   modelStatus(): Promise<ModelStatusResponse> {

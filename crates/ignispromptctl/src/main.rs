@@ -129,6 +129,12 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// Print read-only local model inventory metadata
+    ModelInventory {
+        /// Print raw JSON response instead of a terminal summary
+        #[arg(long)]
+        json: bool,
+    },
     /// Print local sustainability metrics summary
     Sustainability {
         /// Metrics period: 7d, 30d, or 90d
@@ -272,6 +278,7 @@ fn main() {
         Commands::Health => cmd_health(&cli.daemon_url),
         Commands::StatusVersion => cmd_status_version(&cli.daemon_url),
         Commands::Capabilities { json } => cmd_capabilities(&cli.daemon_url, *json),
+        Commands::ModelInventory { json } => cmd_model_inventory(&cli.daemon_url, *json),
         Commands::Sustainability { period, json } => {
             cmd_sustainability(&cli.daemon_url, period, *json)
         }
@@ -926,6 +933,13 @@ const DOCTOR_CHECKS: &[DoctorCheckSpec] = &[
         path: "/v1/models",
         level: DoctorCheckLevel::Required,
         validate: validate_doctor_models,
+    },
+    DoctorCheckSpec {
+        id: "model_inventory",
+        label: "local model inventory",
+        path: "/v1/models/inventory",
+        level: DoctorCheckLevel::Informational,
+        validate: validate_doctor_model_inventory,
     },
     DoctorCheckSpec {
         id: "capabilities",
@@ -4840,6 +4854,46 @@ fn validate_doctor_models(body: &Value) -> Result<String, String> {
     ))
 }
 
+fn validate_doctor_model_inventory(body: &Value) -> Result<String, String> {
+    required_string(body, "schema_version")?;
+    required_string(body, "generated_at")?;
+    required_array(body, "base_paths_scanned")?;
+    required_string(body, "inventory_source")?;
+    let files = required_array(body, "files")?;
+    let summary = body
+        .get("summary")
+        .ok_or_else(|| "missing required object field 'summary'".to_string())?;
+    let total_files = summary
+        .get("total_files")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| "missing required integer field 'summary.total_files'".to_string())?;
+    let gguf_files = summary
+        .get("gguf_files")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| "missing required integer field 'summary.gguf_files'".to_string())?;
+    let safetensors_files = summary
+        .get("safetensors_files")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| "missing required integer field 'summary.safetensors_files'".to_string())?;
+    required_array(body, "boundary_notes")?;
+
+    for file in files {
+        required_string(file, "filename")?;
+        required_string(file, "relative_path")?;
+        required_string(file, "extension")?;
+        required_string(file, "status")?;
+        required_string(file, "boundary_note")?;
+        file.get("size_bytes")
+            .and_then(|v| v.as_u64())
+            .ok_or_else(|| "missing required integer field 'size_bytes'".to_string())?;
+    }
+
+    Ok(format!(
+        "{} files ({} GGUF, {} safetensors)",
+        total_files, gguf_files, safetensors_files
+    ))
+}
+
 fn validate_doctor_capabilities(body: &Value) -> Result<String, String> {
     let release_channel = required_string(body, "release_channel")?;
     let local_only = required_bool(body, "local_only")?;
@@ -5346,6 +5400,156 @@ fn format_capability_line(capability: &Value) -> String {
         "- {} {}: {} / {} / {} / boundary={} / reason={}",
         tier, provider_id, status, available, configured, boundary, reason
     )
+}
+
+fn cmd_model_inventory(base_url: &str, json_output: bool) {
+    let url = format!("{}/v1/models/inventory", base_url);
+    match ureq::get(&url).call() {
+        Ok(resp) => {
+            let body = parse_response(resp);
+            if json_output {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&body).unwrap_or_default()
+                );
+            } else {
+                println!("{}", format_model_inventory_summary(&body));
+            }
+        }
+        Err(e) => {
+            eprintln!("error: {}", e);
+            process::exit(1);
+        }
+    }
+}
+
+fn format_model_inventory_summary(body: &Value) -> String {
+    let summary = body.get("summary").unwrap_or(&Value::Null);
+    let files = body
+        .get("files")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let largest_file_mb = summary
+        .get("largest_file_mb")
+        .and_then(|value| value.as_f64())
+        .unwrap_or(0.0);
+
+    let mut lines = vec![
+        "IgnisPrompt Local Model Inventory".to_string(),
+        format!(
+            "schema_version:     {}",
+            body.get("schema_version")
+                .and_then(|value| value.as_str())
+                .unwrap_or("-")
+        ),
+        format!(
+            "inventory_source:   {}",
+            body.get("inventory_source")
+                .and_then(|value| value.as_str())
+                .unwrap_or("-")
+        ),
+        format!(
+            "total_files:        {}",
+            summary
+                .get("total_files")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0)
+        ),
+        format!(
+            "total_size:         {}",
+            format_bytes(
+                summary
+                    .get("total_size_bytes")
+                    .and_then(|value| value.as_u64())
+                    .unwrap_or(0)
+            )
+        ),
+        format!(
+            "gguf_files:         {}",
+            summary
+                .get("gguf_files")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0)
+        ),
+        format!("largest_file_mb:    {:.2}", largest_file_mb),
+        "".to_string(),
+        "Files:".to_string(),
+    ];
+
+    if files.is_empty() {
+        lines.push("- none found".to_string());
+    } else {
+        for file in files.iter().take(20) {
+            lines.push(format_model_inventory_file_line(file));
+        }
+        if files.len() > 20 {
+            lines.push(format!(
+                "- ... {} additional files omitted",
+                files.len() - 20
+            ));
+        }
+    }
+
+    if let Some(notes) = summary.get("notes").and_then(|value| value.as_array()) {
+        if !notes.is_empty() {
+            lines.push("".to_string());
+            lines.push("Notes:".to_string());
+            for note in notes {
+                if let Some(note) = note.as_str() {
+                    lines.push(format!("- {}", note));
+                }
+            }
+        }
+    }
+
+    lines.push("".to_string());
+    lines.push("Boundaries: read-only inventory only; no model execution; no downloads; no deletes; no file contents or hashes returned.".to_string());
+    lines.join("\n")
+}
+
+fn format_model_inventory_file_line(file: &Value) -> String {
+    let relative_path = file
+        .get("relative_path")
+        .and_then(|value| value.as_str())
+        .unwrap_or("-");
+    let extension = file
+        .get("extension")
+        .and_then(|value| value.as_str())
+        .unwrap_or("-");
+    let status = file
+        .get("status")
+        .and_then(|value| value.as_str())
+        .unwrap_or("-");
+    let size_bytes = file
+        .get("size_bytes")
+        .and_then(|value| value.as_u64())
+        .unwrap_or(0);
+    let quantization = file
+        .get("quantization")
+        .and_then(|value| value.as_str())
+        .unwrap_or("-");
+
+    format!(
+        "- {}: {} / {} / {} / quantization={}",
+        relative_path,
+        extension,
+        format_bytes(size_bytes),
+        status,
+        quantization
+    )
+}
+
+fn format_bytes(size_bytes: u64) -> String {
+    if size_bytes >= 1_073_741_824 {
+        format!("{:.2} GB", size_bytes as f64 / 1_073_741_824.0)
+    } else if size_bytes >= 1_048_576 {
+        format!("{:.2} MB", size_bytes as f64 / 1_048_576.0)
+    } else if size_bytes >= 1024 {
+        format!("{:.2} KB", size_bytes as f64 / 1024.0)
+    } else {
+        format!("{} B", size_bytes)
+    }
 }
 
 fn cmd_models(base_url: &str) {
@@ -8132,7 +8336,7 @@ mod tests {
         format_evidence_bundle_manifest_summary, format_evidence_bundle_summary,
         format_evidence_bundle_unreachable_error, format_evidence_bundle_validation_json,
         format_evidence_bundle_validation_summary, format_http_error,
-        format_invalid_response_error, format_model_manifest_line,
+        format_invalid_response_error, format_model_inventory_summary, format_model_manifest_line,
         format_operator_package_list_json, format_operator_package_list_summary,
         format_operator_package_summary, format_operator_package_summary_json,
         format_operator_package_validation_json, format_operator_package_validation_summary,
@@ -8151,17 +8355,17 @@ mod tests {
         policy_scenarios_expected_fail_closed, policy_scenarios_expected_local_only,
         policy_scenarios_with_boundary_note, readiness_report_next_steps, route_explain_url,
         string_field, sustainability_url, validate_demo_package_output_dir,
-        validate_doctor_capabilities, validate_doctor_health, validate_doctor_model_status_hints,
-        validate_doctor_models, validate_doctor_sustainability_metrics,
-        validate_doctor_version_status, validate_evidence_bundle_archive_output_path,
-        validate_evidence_bundle_output_dir, validate_no_placeholder_string_values,
-        validate_operator_package_output_dir, validate_policy_package_output_dir,
-        validate_readiness_package_output_dir, validate_sustainability_period,
-        write_demo_package_report, write_evidence_bundle_report, write_operator_package_report,
-        write_policy_package_report, write_readiness_package_report, DoctorCheckLevel,
-        DoctorCheckResult, DoctorReport, EvidenceBundleCapture, DEMO_PACKAGE_REQUIRED_FILES,
-        DOCTOR_CHECKS, OPERATOR_PACKAGE_REQUIRED_FILES, POLICY_PACKAGE_REQUIRED_FILES,
-        POLICY_SCENARIOS, READINESS_PACKAGE_REQUIRED_FILES,
+        validate_doctor_capabilities, validate_doctor_health, validate_doctor_model_inventory,
+        validate_doctor_model_status_hints, validate_doctor_models,
+        validate_doctor_sustainability_metrics, validate_doctor_version_status,
+        validate_evidence_bundle_archive_output_path, validate_evidence_bundle_output_dir,
+        validate_no_placeholder_string_values, validate_operator_package_output_dir,
+        validate_policy_package_output_dir, validate_readiness_package_output_dir,
+        validate_sustainability_period, write_demo_package_report, write_evidence_bundle_report,
+        write_operator_package_report, write_policy_package_report, write_readiness_package_report,
+        DoctorCheckLevel, DoctorCheckResult, DoctorReport, EvidenceBundleCapture,
+        DEMO_PACKAGE_REQUIRED_FILES, DOCTOR_CHECKS, OPERATOR_PACKAGE_REQUIRED_FILES,
+        POLICY_PACKAGE_REQUIRED_FILES, POLICY_SCENARIOS, READINESS_PACKAGE_REQUIRED_FILES,
     };
     use serde_json::json;
     use std::path::Path;
@@ -8230,6 +8434,7 @@ mod tests {
         assert!(endpoints.contains(&("/health", DoctorCheckLevel::Required)));
         assert!(endpoints.contains(&("/v1/status/version", DoctorCheckLevel::Required)));
         assert!(endpoints.contains(&("/v1/models", DoctorCheckLevel::Required)));
+        assert!(endpoints.contains(&("/v1/models/inventory", DoctorCheckLevel::Informational)));
         assert!(endpoints.contains(&("/v1/capabilities", DoctorCheckLevel::Required)));
         assert!(endpoints.contains(&("/v1/status/models", DoctorCheckLevel::Required)));
         assert!(endpoints.contains(&(
@@ -8242,6 +8447,12 @@ mod tests {
     fn models_url_format() {
         let url = format!("{}/v1/models", "http://127.0.0.1:8765");
         assert_eq!(url, "http://127.0.0.1:8765/v1/models");
+    }
+
+    #[test]
+    fn model_inventory_url_format() {
+        let url = format!("{}/v1/models/inventory", "http://127.0.0.1:8765");
+        assert_eq!(url, "http://127.0.0.1:8765/v1/models/inventory");
     }
 
     #[test]
@@ -8325,6 +8536,43 @@ mod tests {
             }))
             .unwrap(),
             "1 model listed"
+        );
+        assert_eq!(
+            validate_doctor_model_inventory(&json!({
+                "schema_version": "ignisprompt-model-inventory-v0.1",
+                "generated_at": "2026-06-19T00:00:00Z",
+                "base_paths_scanned": ["configured-model-dir/models"],
+                "inventory_source": "local_model_directories",
+                "files": [{
+                    "filename": "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+                    "relative_path": "configured-model-dir/models/qwen2.5-0.5b-instruct-q4_k_m.gguf",
+                    "extension": "gguf",
+                    "size_bytes": 734003200,
+                    "size_mb": 700.0,
+                    "model_family": "qwen",
+                    "quantization": "q4_k_m",
+                    "status": "present",
+                    "boundary_note": "File metadata only; contents are not read."
+                }],
+                "summary": {
+                    "total_files": 1,
+                    "total_size_bytes": 734003200,
+                    "gguf_files": 1,
+                    "safetensors_files": 0,
+                    "manifest_declared_count": 1,
+                    "present_count": 1,
+                    "unsupported_count": 0,
+                    "largest_file_mb": 700.0,
+                    "scanned_directory_count": 1,
+                    "scan_limited": false,
+                    "notes": ["Read-only model inventory metadata."]
+                },
+                "boundary_notes": [
+                    "Inventory metadata is observational and does not execute models."
+                ]
+            }))
+            .unwrap(),
+            "1 files (1 GGUF, 0 safetensors)"
         );
         assert_eq!(
             validate_doctor_capabilities(&json!({
@@ -8424,6 +8672,16 @@ mod tests {
         .unwrap_err()
         .contains("local_only"));
         assert!(validate_doctor_models(&json!({ "items": [] })).is_err());
+        assert!(validate_doctor_model_inventory(&json!({
+            "schema_version": "ignisprompt-model-inventory-v0.1",
+            "generated_at": "2026-06-19T00:00:00Z",
+            "base_paths_scanned": [],
+            "inventory_source": "local_model_directories",
+            "files": [],
+            "boundary_notes": []
+        }))
+        .unwrap_err()
+        .contains("summary"));
         assert!(validate_doctor_capabilities(&json!({
             "release_channel": "local-preview",
             "local_only": true,
@@ -9732,6 +9990,68 @@ mod tests {
         assert!(summary.contains("no telemetry"));
         assert!(summary.contains("no runner execution"));
         assert!(summary.contains("no secrets returned"));
+    }
+
+    #[test]
+    fn model_inventory_summary_is_read_only_and_path_safe() {
+        let response = json!({
+            "schema_version": "ignisprompt-model-inventory-v0.1",
+            "generated_at": "2026-06-19T00:00:00Z",
+            "base_paths_scanned": ["configured-model-dir/models"],
+            "inventory_source": "local_model_directories",
+            "files": [
+                {
+                    "filename": "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+                    "relative_path": "configured-model-dir/models/qwen2.5-0.5b-instruct-q4_k_m.gguf",
+                    "extension": "gguf",
+                    "size_bytes": 734003200,
+                    "size_mb": 700.0,
+                    "model_family": "qwen",
+                    "quantization": "q4_k_m",
+                    "status": "present",
+                    "boundary_note": "File metadata only; contents are not read."
+                },
+                {
+                    "filename": "notes.txt",
+                    "relative_path": "configured-model-dir/models/notes.txt",
+                    "extension": "txt",
+                    "size_bytes": 32,
+                    "size_mb": 0.0,
+                    "status": "unsupported",
+                    "boundary_note": "File metadata only; contents are not read."
+                }
+            ],
+            "summary": {
+                "total_files": 2,
+                "total_size_bytes": 734003232,
+                "gguf_files": 1,
+                "safetensors_files": 0,
+                "manifest_declared_count": 1,
+                "present_count": 1,
+                "unsupported_count": 1,
+                "largest_file_mb": 700.0,
+                "scanned_directory_count": 1,
+                "scan_limited": false,
+                "notes": ["Read-only model inventory metadata."]
+            },
+            "boundary_notes": [
+                "Inventory metadata is observational and does not execute models."
+            ]
+        });
+
+        let summary = format_model_inventory_summary(&response);
+        assert!(summary.contains("IgnisPrompt Local Model Inventory"));
+        assert!(summary.contains("schema_version:     ignisprompt-model-inventory-v0.1"));
+        assert!(summary.contains("total_files:        2"));
+        assert!(summary.contains("total_size:         700.00 MB"));
+        assert!(summary.contains("qwen2.5-0.5b-instruct-q4_k_m.gguf"));
+        assert!(summary.contains("notes.txt"));
+        assert!(summary.contains("read-only inventory only"));
+        assert!(summary.contains("no model execution"));
+        assert!(summary.contains("no downloads"));
+        assert!(summary.contains("no deletes"));
+        assert!(summary.contains("no file contents or hashes returned"));
+        assert!(!summary.contains("/Users/"));
     }
 
     #[test]
