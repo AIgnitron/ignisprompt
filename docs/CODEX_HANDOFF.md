@@ -139,14 +139,15 @@ AETHRA - Local AI Routing Observatory is implemented under `apps/aethra/` as a l
 
 Current Aethra boundaries:
 
-- fixture-backed by default
+- local daemon data when manually refreshed
+- fixture fallback for offline preview
 - read-only
 - no telemetry
 - no cloud calls by default
 - model and runner status hints
 - proxy-only sustainability indicators
 
-Aethra currently provides fixture-backed screens for Overview, Routing Explorer, Audit Events, Model / Runner Status, Evidence Bundle Viewer, and Sustainability Preview. Fixture mode remains the default. Live local mode is explicit and manual, with read-only local metadata loading for:
+Aethra currently provides local-preview screens for Overview, Routing Explorer, Audit Events, Model / Runner Status, Evidence Bundle Viewer, and Sustainability Preview. Aethra can prefer manually refreshed local daemon metadata when available and keeps fixture data as offline preview fallback. Live local mode is explicit and manual, with read-only local metadata loading for:
 
 - `GET /health`
 - `GET /v1/models`
@@ -156,7 +157,7 @@ Aethra currently provides fixture-backed screens for Overview, Routing Explorer,
 - `GET /v1/metrics/sustainability?period=30d`
 - `GET /v1/status/version`
 
-The live metadata controls use the configured loopback/local daemon base URL. They do not poll, do not persist state in local storage or session storage, do not add telemetry, and do not make cloud calls by default. The rollout did not add connector, model, or runner controls.
+The live metadata controls use the configured loopback/local daemon base URL. The top-level **Refresh local daemon data** action loads these supported read-only surfaces together and reports which sections loaded or failed. Failed sections keep fixture fallback data visible. These controls do not poll, do not persist state in local storage or session storage, do not add telemetry, do not make cloud calls by default, do not execute routes or models, and do not add connector, model, or runner controls.
 
 Aethra also includes a fixture-backed evidence bundle viewer for manifest, validation summary, archive metadata preview, safe local-preview CLI snippets, and clipboard-only Markdown and JSON report export helpers. It is read-only and local-preview only. It does not extract archives, upload data, persist bundle state, or read arbitrary local paths.
 
@@ -176,7 +177,7 @@ Aethra Overview live-local diagnostics explain next local steps such as starting
 
 Aethra Overview includes a Local Commands panel with copyable local preview helper commands. The commands are for the operator to run in a terminal. The panel does not add remote execution, telemetry, cloud calls, GitHub calls, update checks, polling, or local/session storage persistence.
 
-Aethra includes a local preview banner and grouped manual live-local refresh controls. Fixture mode remains the default, live local loading remains explicit/manual, and no polling, local/session storage persistence, telemetry, cloud calls, GitHub calls, update checks, command execution, backend changes, or API shape changes are added by this UI polish.
+Aethra includes a local preview banner and grouped manual live-local refresh controls. Aethra can prefer manually refreshed local daemon metadata and keeps fixture fallback data visible for unavailable sections. Live local loading remains explicit/manual, and no polling, local/session storage persistence, telemetry, cloud calls, GitHub calls, update checks, command execution, backend changes, route execution, model execution, connector mutation, or API shape changes are added by this UI polish.
 
 Aethra includes a Local Readiness page that summarizes daemon health, version/status, configured models, model and runner status hints, evidence workflow availability, and local helper checks. The page is fixture-backed by default, uses already-loaded live-local data only after manual refreshes elsewhere, provides copy-only snippets for `./scripts/start-dev.sh`, `cargo run -p ignispromptctl -- health`, `cargo run -p ignispromptctl -- doctor`, `cargo run -p ignispromptctl -- readiness`, `cargo run -p ignispromptctl -- readiness --markdown`, readiness package generation/list/validate commands, `make dev-check`, and `make evidence-check`, offers a browser-local copy-only readiness report snippet, shows a read-only readiness package preview, and shows read-only diagnostic drilldown hints for category, status, severity, local next step, and boundary note.
 
@@ -200,7 +201,7 @@ IgnisPrompt now exposes `GET /v1/metrics/sustainability?period=30d` for Aethra v
 
 `ignispromptctl sustainability` provides terminal access to the same local aggregate metrics without opening Aethra. It validates supported periods before sending a request, shows daemon-unreachable guidance that mentions `./scripts/start-dev.sh` and the local endpoint, and does not add telemetry, cloud calls, GitHub calls, update checks, external coefficient lookup, persistence, upload, global aggregation, prompts, raw audit text, PII, or machine identifiers.
 
-Aethra can manually load `GET /v1/capabilities` and `GET /v1/status/models` on the Model / Runner Status screen. It can also manually load `GET /v1/metrics/sustainability?period=30d` on the Sustainability Preview screen in live-local mode, with fixture fallback data remaining visible until a successful manual load. Fixture mode remains the default, live loading remains explicit/manual, and the UI presents these values as local daemon hints and methodology-dependent proxy estimates.
+Aethra can manually load `GET /v1/capabilities` and `GET /v1/status/models` on the Model / Runner Status screen. It can also manually load `GET /v1/metrics/sustainability?period=30d` on the Sustainability Preview screen in live-local mode, with fixture fallback data remaining visible until a successful manual load. The top-level local daemon refresh loads those same read-only metadata surfaces together. Live loading remains explicit/manual, and the UI presents these values as local daemon hints and methodology-dependent proxy estimates.
 
 Aethra's visual capability/status matrix uses fixture capability metadata by default and switches to manually loaded `GET /v1/capabilities` rows only after an explicit live-local refresh. Failed or empty capability loads keep safe fixture fallback states visible. This adds no polling, no telemetry, no cloud calls, no connector controls, and no model or runner controls.
 

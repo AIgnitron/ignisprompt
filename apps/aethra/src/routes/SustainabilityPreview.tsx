@@ -55,10 +55,10 @@ export function SustainabilityPreview({
     ? liveSustainabilityMetricsState.metrics
     : sustainabilityMetricsFixture;
   const sourceLabel = isLiveLoaded
-    ? "Live local metrics"
+    ? "Local daemon metrics"
     : isLiveMode
       ? "Fixture fallback metrics"
-      : "Fixture metrics";
+      : "Offline preview metrics";
   const reportDataSource: SustainabilityReportDataSource = isLiveLoaded
     ? "live-local"
     : "fixture";

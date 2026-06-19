@@ -999,6 +999,24 @@ textarea:focus {
   text-transform: uppercase;
 }
 
+.refresh-card-note {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.refresh-receipt {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #cdd8dc;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.refresh-receipt p {
+  margin: 0;
+}
+
 .sustainability-refresh-card {
   align-items: end;
 }

@@ -18,7 +18,7 @@ describe("ModelRunnerStatus route", () => {
     );
 
     expect(markup).toContain("Capability and status matrix");
-    expect(markup).toContain("Fixture capabilities");
+    expect(markup).toContain("Offline preview capabilities");
     expect(markup).toContain("Stub Legal Runner");
     expect(markup).toContain("cloud with consent");
     expect(markup).toContain("Cloud capability remains disabled by default");
@@ -57,7 +57,7 @@ describe("ModelRunnerStatus route", () => {
       />,
     );
 
-    expect(markup).toContain("Manual live-local daemon capabilities");
+    expect(markup).toContain("Local daemon capabilities");
     expect(markup).toContain("GET /v1/capabilities");
     expect(markup).toContain("Live Stub Legal Runner");
     expect(markup).toContain("live_local_capability_metadata");

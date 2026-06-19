@@ -55,10 +55,10 @@ export function AuditEvents({
       ? undefined
       : findAuditEventByRequestId(events, selectedRequestId);
   const sourceLabel = isLiveAuditLoaded
-    ? "Live local metadata"
+    ? "Local daemon data"
     : dataMode === "live-local"
       ? "Fixture fallback"
-      : "Fixture mode";
+      : "Offline preview";
 
   useEffect(() => {
     if (visibleRows.length === 0) {
@@ -115,7 +115,7 @@ export function AuditEvents({
           detail={
             isLiveAuditLoaded
               ? "Local daemon records returned by GET /v1/audit/events"
-              : "Synthetic local process records"
+              : "Offline preview local process records"
           }
         />
         <MetricCard
@@ -222,7 +222,7 @@ function AuditMetadataPanel({
               ? "Live local metadata"
               : isLiveMode
                 ? "Fixture fallback"
-                : "Fixture metadata"}
+                : "Offline preview metadata"}
           </dd>
         </div>
         <div>
@@ -297,7 +297,7 @@ function AuditEventTable({
           title="No audit events are available"
           message={`No audit events are available from ${sourceLabel}.`}
           nextAction={
-            sourceLabel === "Live local metadata"
+            sourceLabel === "Local daemon data"
               ? localPreviewEmptyStates.auditEventsEmpty.nextAction
               : "Fixture mode remains available; live-local audit events require a manual refresh."
           }

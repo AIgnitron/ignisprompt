@@ -6,6 +6,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import type {
   AethraDataMode,
   LiveAuditEventsState,
+  LiveCapabilitiesState,
   LiveHealthState,
   LiveLocalDiagnostics,
   LiveModelStatusState,
@@ -13,7 +14,11 @@ import type {
   LiveSustainabilityMetricsState,
   LiveVersionStatusState,
 } from "../dataSource";
-import { buildLiveLocalDiagnostics } from "../dataSource";
+import {
+  buildLiveLocalDiagnostics,
+  formatLiveLocalDisplaySource,
+  getLiveLocalDisplaySource,
+} from "../dataSource";
 import {
   auditEventFixtures,
   healthFixture,
@@ -33,13 +38,6 @@ import {
   buildLiveErrorEmptyState,
   localPreviewEmptyStates,
 } from "./emptyStates";
-
-const summary = buildOverviewSummary(
-  healthFixture,
-  modelFixtures,
-  auditEventFixtures,
-);
-const warningExamples = getWarningExamples(auditEventFixtures);
 
 const guidedDemoSteps = [
   {
@@ -91,6 +89,7 @@ type OverviewProps = {
   liveHealthState: LiveHealthState;
   liveModelsState: LiveModelsState;
   liveModelStatusState: LiveModelStatusState;
+  liveCapabilitiesState: LiveCapabilitiesState;
   liveVersionStatusState: LiveVersionStatusState;
   liveAuditEventsState: LiveAuditEventsState;
   liveSustainabilityMetricsState: LiveSustainabilityMetricsState;
@@ -105,23 +104,43 @@ export function Overview({
   liveHealthState,
   liveModelsState,
   liveModelStatusState,
+  liveCapabilitiesState,
   liveVersionStatusState,
   liveAuditEventsState,
   liveSustainabilityMetricsState,
   onLoadLiveHealth,
   onLoadLiveVersionStatus,
 }: OverviewProps) {
-  const latestEvent = summary.latestEvent;
   const liveHealth =
     dataMode === "live-local" && liveHealthState.status === "loaded"
       ? liveHealthState.health
       : undefined;
+  const liveModels =
+    dataMode === "live-local" && liveModelsState.status === "loaded"
+      ? liveModelsState.models
+      : undefined;
+  const liveAuditEvents =
+    dataMode === "live-local" && liveAuditEventsState.status === "loaded"
+      ? liveAuditEventsState.events
+      : undefined;
   const healthForStatus = liveHealth ?? healthFixture;
-  const healthSourceLabel = liveHealth
-    ? "Live local health"
+  const modelsForSummary = liveModels ?? modelFixtures;
+  const auditEventsForSummary = liveAuditEvents ?? auditEventFixtures;
+  const summary = buildOverviewSummary(
+    healthForStatus,
+    modelsForSummary,
+    auditEventsForSummary,
+  );
+  const latestEvent = summary.latestEvent;
+  const warningExamples = getWarningExamples(auditEventsForSummary);
+  const healthSourceLabel = formatLiveLocalDisplaySource(
+    getLiveLocalDisplaySource(dataMode, liveHealthState),
+  );
+  const auditSourceLabel = liveAuditEvents
+    ? "Local daemon audit events"
     : dataMode === "live-local"
-      ? "Fixture fallback"
-      : "Fixture mode";
+      ? "Fixture fallback audit events"
+      : "Offline preview audit events";
   const diagnostics = buildLiveLocalDiagnostics({
     dataMode,
     baseUrl,
@@ -131,6 +150,7 @@ export function Overview({
       liveVersionStatusState,
       liveModelsState,
       liveModelStatusState,
+      liveCapabilitiesState,
       liveAuditEventsState,
       liveSustainabilityMetricsState,
     ],
@@ -143,8 +163,8 @@ export function Overview({
           <p className="eyebrow">Overview</p>
           <h2>IgnisPrompt overview</h2>
           <p className="page-subtitle">
-            Local preview status, diagnostics, commands, and fixture-backed
-            routing context.
+            Local preview status, diagnostics, commands, local daemon metadata,
+            and fixture fallback routing context.
           </p>
         </div>
         <div className="status-strip" aria-label="Overview health status">
@@ -165,9 +185,9 @@ export function Overview({
         defaultOpen
         collapsible
         items={[
-          "Review local preview status, fixture fallback data, diagnostics, and copyable local commands.",
-          "Use manual live-local refresh actions to load daemon health and version metadata from loopback endpoints.",
-          "Read fixture-backed route, warning, and local-only summaries before moving to detailed pages.",
+          "Review local preview status, local daemon metadata, fixture fallback data, diagnostics, and copyable local commands.",
+          "Use Refresh local daemon data to load read-only health, version, model, capability, audit, and sustainability metadata from loopback endpoints.",
+          "Read displayed route, warning, and local-only summaries before moving to detailed pages.",
         ]}
       />
 
@@ -242,12 +262,12 @@ export function Overview({
         <MetricCard
           label="Models loaded"
           value={summary.modelCount}
-          detail={`${healthFixture.model_count} reported by health fixture`}
+          detail={`${healthForStatus.model_count} reported by ${healthSourceLabel}`}
         />
         <MetricCard
           label="Recent audit events"
           value={summary.auditEventCount}
-          detail="Synthetic audit fixture records"
+          detail={liveAuditEvents ? "Local daemon records" : "Offline preview records"}
         />
         <MetricCard
           label="Data stayed local"
@@ -257,21 +277,21 @@ export function Overview({
         <MetricCard
           label="Warnings"
           value={summary.warningCount}
-          detail="Warnings across audit fixtures"
+          detail={`Warnings across ${auditSourceLabel}`}
         />
         <MetricCard
           label="Cache hits"
           value={summary.cacheHitCount}
-          detail="Fixture events with cache.hit=true"
+          detail={liveAuditEvents ? "Local daemon records with cache.hit=true" : "Fixture records with cache.hit=true"}
         />
       </div>
 
       {latestEvent ? (
-        <section className="panel" aria-label="Recent fixture route decision">
+        <section className="panel" aria-label="Recent local route decision">
           <div className="panel-heading">
             <div>
               <h3>Recent route summary</h3>
-              <p className="muted">Latest synthetic audit event by timestamp</p>
+              <p className="muted">Latest displayed audit event by timestamp from {auditSourceLabel}</p>
             </div>
             <StatusBadge tone="ok">{latestEvent.tier}</StatusBadge>
           </div>
@@ -296,7 +316,7 @@ export function Overview({
           <p className="explanation">{latestEvent.explanation}</p>
         </section>
       ) : (
-        <section className="panel" aria-label="Recent fixture route decision">
+        <section className="panel" aria-label="Recent local route decision">
           <h3>Recent route summary</h3>
           <EmptyState {...localPreviewEmptyStates.recentRouteSummaryEmpty} />
         </section>
@@ -306,11 +326,13 @@ export function Overview({
         <section className="panel" aria-label="Local-only posture summary">
           <div className="panel-heading">
             <h3>Local-only posture</h3>
-            <StatusBadge tone="neutral">Fixture facts</StatusBadge>
+            <StatusBadge tone="neutral">
+              {liveAuditEvents ? "Local daemon records" : "Offline preview facts"}
+            </StatusBadge>
           </div>
           <div className="fact-columns">
             <div>
-              <h4>Observed from fixtures</h4>
+              <h4>{liveAuditEvents ? "Observed from local daemon data" : "Observed from offline preview"}</h4>
               <ul>
                 {summary.observedFacts.map((fact) => (
                   <li key={fact}>{fact}</li>
@@ -327,7 +349,7 @@ export function Overview({
             </div>
           </div>
           <p className="muted">
-            These are synthetic fixture records, not signed audit evidence,
+            These are displayed local-preview records, not signed audit evidence,
             certified sustainability metrics, compliance evidence, or legal
             advice.
           </p>
