@@ -6,6 +6,7 @@ import {
   ModelInventoryResponse,
   ModelManifest,
   ModelStatusResponse,
+  OperationsSummaryResponse,
   RouteExplainResponse,
   SustainabilityMetricsResponse,
   VersionStatusResponse,
@@ -227,6 +228,56 @@ export const capabilitiesFixture: CapabilitiesResponse = {
       last_checked: "2026-05-15T00:00:00Z",
     },
   ],
+};
+
+export const operationsSummaryFixture: OperationsSummaryResponse = {
+  schema_version: "ignisprompt-operations-summary-v0.1",
+  generated_at: "2026-05-15T00:00:00Z",
+  daemon: {
+    status: "ok",
+    version: "0.1.0",
+    uptime_seconds: 312,
+    started_at: "2026-05-14T23:54:48Z",
+    local_preview: true,
+    local_only: true,
+  },
+  endpoints: {
+    health_available: true,
+    models_available: true,
+    model_inventory_available: true,
+    capabilities_available: true,
+    status_models_available: true,
+    status_version_available: true,
+    audit_events_available: true,
+    sustainability_available: true,
+    operations_summary_available: true,
+  },
+  audit_summary: {
+    total_events: 3,
+    recent_event_count: 3,
+    recent_event_types: ["chat_completion", "route_explain"],
+    latest_event_at: "2026-05-13T03:13:10.100000Z",
+    audit_store_status: "offline_preview_fixture",
+  },
+  activity_summary: {
+    recent_requests_observed: 3,
+    recent_routes_observed: 3,
+    recent_errors_observed: 1,
+    last_activity_at: "2026-05-13T03:13:10.100000Z",
+  },
+  boundaries: {
+    no_prompt_bodies: true,
+    no_raw_request_text: true,
+    no_secrets: true,
+    no_telemetry: true,
+    no_cloud_calls: true,
+    read_only: true,
+    notes: [
+      "Offline preview aggregate metadata only; manually refresh local daemon data for observed local activity.",
+      "No raw prompts, request bodies, secrets, telemetry, or cloud calls are represented.",
+      "Operations metadata is not production monitoring, compliance status, certification, or signed evidence.",
+    ],
+  },
 };
 
 export const auditEventFixtures: AuditEvent[] = [

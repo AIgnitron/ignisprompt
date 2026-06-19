@@ -5,6 +5,7 @@ import {
   ModelInventoryResponse,
   ModelRegistry,
   ModelStatusResponse,
+  OperationsSummaryResponse,
   RouteExplainRequest,
   RouteExplainResponse,
   SustainabilityMetricsResponse,
@@ -15,6 +16,7 @@ import {
   isModelInventoryResponse,
   isModelRegistry,
   isModelStatusResponse,
+  isOperationsSummaryResponse,
   isRouteExplainResponse,
   isSustainabilityMetricsResponse,
   isVersionStatusResponse,
@@ -63,6 +65,13 @@ export class IgnisPromptClient {
 
   capabilities(): Promise<CapabilitiesResponse> {
     return this.request("/v1/capabilities", isCapabilitiesResponse);
+  }
+
+  operationsSummary(): Promise<OperationsSummaryResponse> {
+    return this.request(
+      "/v1/operations/summary",
+      isOperationsSummaryResponse,
+    );
   }
 
   versionStatus(): Promise<VersionStatusResponse> {

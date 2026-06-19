@@ -8,6 +8,7 @@ import {
   modelFixtures,
   modelInventoryFixture,
   modelStatusFixture,
+  operationsSummaryFixture,
   routeExplainFixture,
   sustainabilityMetricsFixture,
   versionStatusFixture,
@@ -78,6 +79,19 @@ describe("IgnisPromptClient", () => {
     await expect(client.capabilities()).resolves.toEqual(capabilitiesFixture);
     expect(fetchImpl).toHaveBeenCalledWith(
       "http://127.0.0.1:8765/v1/capabilities",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("reads local operations summary metadata with the current response shape", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(operationsSummaryFixture));
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.operationsSummary()).resolves.toEqual(
+      operationsSummaryFixture,
+    );
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "http://127.0.0.1:8765/v1/operations/summary",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
@@ -196,6 +210,23 @@ describe("IgnisPromptClient", () => {
     const client = new IgnisPromptClient({ fetchImpl });
 
     await expect(client.capabilities()).rejects.toMatchObject({
+      kind: "unexpected-shape",
+    });
+  });
+
+  it("rejects unsupported operations summary response shapes", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
+        ...operationsSummaryFixture,
+        boundaries: {
+          ...operationsSummaryFixture.boundaries,
+          no_raw_request_text: "true",
+        },
+      }),
+    );
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.operationsSummary()).rejects.toMatchObject({
       kind: "unexpected-shape",
     });
   });

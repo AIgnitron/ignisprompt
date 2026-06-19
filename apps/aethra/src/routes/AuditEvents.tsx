@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { AuditEvent } from "../api/contracts";
-import { auditEventFixtures } from "../api/fixtures";
-import type { AethraDataMode, LiveAuditEventsState } from "../dataSource";
+import { AuditEvent, OperationsSummaryResponse } from "../api/contracts";
+import { auditEventFixtures, operationsSummaryFixture } from "../api/fixtures";
+import type {
+  AethraDataMode,
+  LiveAuditEventsState,
+  LiveOperationsSummaryState,
+} from "../dataSource";
 import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
 import { PageHelp } from "../components/PageHelp";
@@ -25,12 +29,14 @@ type AuditFilter = "all" | "warnings" | "cache-hit";
 type AuditEventsProps = {
   dataMode: AethraDataMode;
   liveAuditEventsState: LiveAuditEventsState;
+  liveOperationsSummaryState: LiveOperationsSummaryState;
   onLoadLiveAuditEvents: () => void;
 };
 
 export function AuditEvents({
   dataMode,
   liveAuditEventsState,
+  liveOperationsSummaryState,
   onLoadLiveAuditEvents,
 }: AuditEventsProps) {
   const [selectedRequestId, setSelectedRequestId] = useState<
@@ -59,6 +65,16 @@ export function AuditEvents({
     : dataMode === "live-local"
       ? "Fixture fallback"
       : "Offline preview";
+  const operationsSummary =
+    dataMode === "live-local" && liveOperationsSummaryState.status === "loaded"
+      ? liveOperationsSummaryState.summary
+      : operationsSummaryFixture;
+  const operationsSourceLabel =
+    dataMode === "live-local" && liveOperationsSummaryState.status === "loaded"
+      ? "Local daemon data"
+      : dataMode === "live-local"
+        ? "Fixture fallback"
+        : "Offline preview";
 
   useEffect(() => {
     if (visibleRows.length === 0) {
@@ -106,6 +122,11 @@ export function AuditEvents({
         dataMode={dataMode}
         liveAuditEventsState={liveAuditEventsState}
         onLoadLiveAuditEvents={onLoadLiveAuditEvents}
+      />
+
+      <AuditOperationsSummaryPanel
+        summary={operationsSummary}
+        sourceLabel={operationsSourceLabel}
       />
 
       <div className="metric-grid" aria-label="Audit metadata metrics">
@@ -262,6 +283,74 @@ function AuditMetadataPanel({
           </button>
         </div>
       ) : null}
+    </section>
+  );
+}
+
+type AuditOperationsSummaryPanelProps = {
+  summary: OperationsSummaryResponse;
+  sourceLabel: string;
+};
+
+function AuditOperationsSummaryPanel({
+  summary,
+  sourceLabel,
+}: AuditOperationsSummaryPanelProps) {
+  const latestEventAt = summary.audit_summary.latest_event_at
+    ? formatTimestamp(summary.audit_summary.latest_event_at)
+    : "none";
+  const eventTypes =
+    summary.audit_summary.recent_event_types.length > 0
+      ? summary.audit_summary.recent_event_types.join(", ")
+      : "none";
+
+  return (
+    <section className="panel" aria-label="Audit operations summary">
+      <div className="panel-heading">
+        <div>
+          <h3>Audit summary</h3>
+          <p className="muted">
+            Aggregate local operations metadata. Raw prompts and request bodies
+            are not shown.
+          </p>
+        </div>
+        <StatusBadge tone={sourceLabel === "Local daemon data" ? "ok" : "neutral"}>
+          {sourceLabel}
+        </StatusBadge>
+      </div>
+
+      <dl className="definition-grid audit-metadata-grid">
+        <div>
+          <dt>Total events</dt>
+          <dd>{summary.audit_summary.total_events}</dd>
+        </div>
+        <div>
+          <dt>Recent events</dt>
+          <dd>{summary.audit_summary.recent_event_count}</dd>
+        </div>
+        <div>
+          <dt>Latest event</dt>
+          <dd>{latestEventAt}</dd>
+        </div>
+        <div>
+          <dt>Recent event types</dt>
+          <dd>{eventTypes}</dd>
+        </div>
+        <div>
+          <dt>Audit store</dt>
+          <dd>{summary.audit_summary.audit_store_status}</dd>
+        </div>
+        <div>
+          <dt>Warning or error records</dt>
+          <dd>{summary.activity_summary.recent_errors_observed}</dd>
+        </div>
+      </dl>
+
+      <p className="muted">
+        This summary is read-only operational metadata, not production
+        monitoring, compliance status, certification, signed evidence, or legal
+        accuracy proof.
+      </p>
     </section>
   );
 }

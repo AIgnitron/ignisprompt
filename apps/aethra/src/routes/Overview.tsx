@@ -1,4 +1,8 @@
 import { useState } from "react";
+import type {
+  OperationsEndpointSummary,
+  OperationsSummaryResponse,
+} from "../api/contracts";
 import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
 import { PageHelp } from "../components/PageHelp";
@@ -12,6 +16,7 @@ import type {
   LiveModelInventoryState,
   LiveModelStatusState,
   LiveModelsState,
+  LiveOperationsSummaryState,
   LiveSustainabilityMetricsState,
   LiveVersionStatusState,
 } from "../dataSource";
@@ -25,6 +30,7 @@ import {
   healthFixture,
   modelFixtures,
   modelInventoryFixture,
+  operationsSummaryFixture,
   versionStatusFixture,
 } from "../fixtures/aethraFixture";
 import {
@@ -96,6 +102,7 @@ type OverviewProps = {
   liveVersionStatusState: LiveVersionStatusState;
   liveAuditEventsState: LiveAuditEventsState;
   liveSustainabilityMetricsState: LiveSustainabilityMetricsState;
+  liveOperationsSummaryState: LiveOperationsSummaryState;
   onLoadLiveHealth: () => void;
   onLoadLiveVersionStatus: () => void;
 };
@@ -112,6 +119,7 @@ export function Overview({
   liveVersionStatusState,
   liveAuditEventsState,
   liveSustainabilityMetricsState,
+  liveOperationsSummaryState,
   onLoadLiveHealth,
   onLoadLiveVersionStatus,
 }: OverviewProps) {
@@ -131,8 +139,14 @@ export function Overview({
     dataMode === "live-local" && liveModelInventoryState.status === "loaded"
       ? liveModelInventoryState.inventory
       : undefined;
+  const liveOperationsSummary =
+    dataMode === "live-local" && liveOperationsSummaryState.status === "loaded"
+      ? liveOperationsSummaryState.summary
+      : undefined;
   const healthForStatus = liveHealth ?? healthFixture;
   const modelInventoryForSummary = liveModelInventory ?? modelInventoryFixture;
+  const operationsSummaryForDisplay =
+    liveOperationsSummary ?? operationsSummaryFixture;
   const modelsForSummary = liveModels ?? modelFixtures;
   const auditEventsForSummary = liveAuditEvents ?? auditEventFixtures;
   const summary = buildOverviewSummary(
@@ -153,6 +167,12 @@ export function Overview({
   const inventorySourceLabel = formatLiveLocalDisplaySource(
     getLiveLocalDisplaySource(dataMode, liveModelInventoryState),
   );
+  const operationsSourceLabel = formatLiveLocalDisplaySource(
+    getLiveLocalDisplaySource(dataMode, liveOperationsSummaryState),
+  );
+  const endpointsAvailableCount = countAvailableOperationEndpoints(
+    operationsSummaryForDisplay.endpoints,
+  );
   const diagnostics = buildLiveLocalDiagnostics({
     dataMode,
     baseUrl,
@@ -166,6 +186,7 @@ export function Overview({
       liveCapabilitiesState,
       liveAuditEventsState,
       liveSustainabilityMetricsState,
+      liveOperationsSummaryState,
     ],
   });
 
@@ -243,6 +264,10 @@ export function Overview({
         </div>
         <div className="overview-operations-grid">
           <LiveLocalDiagnosticsPanel diagnostics={diagnostics} />
+          <OperationsSummaryPanel
+            summary={operationsSummaryForDisplay}
+            sourceLabel={operationsSourceLabel}
+          />
           <LocalCommandsPanel />
         </div>
       </section>
@@ -286,6 +311,16 @@ export function Overview({
           label="Recent audit events"
           value={summary.auditEventCount}
           detail={liveAuditEvents ? "Local daemon records" : "Offline preview records"}
+        />
+        <MetricCard
+          label="Operations endpoints"
+          value={endpointsAvailableCount}
+          detail={`Available read-only surfaces from ${operationsSourceLabel}`}
+        />
+        <MetricCard
+          label="Recent local activity"
+          value={operationsSummaryForDisplay.activity_summary.recent_requests_observed}
+          detail={`Aggregate requests observed via ${operationsSourceLabel}`}
         />
         <MetricCard
           label="Data stayed local"
@@ -434,6 +469,91 @@ function formatBytes(sizeBytes: number): string {
   }
 
   return `${sizeBytes} B`;
+}
+
+function countAvailableOperationEndpoints(
+  endpoints: OperationsEndpointSummary,
+): number {
+  return Object.values(endpoints).filter(Boolean).length;
+}
+
+type OperationsSummaryPanelProps = {
+  summary: OperationsSummaryResponse;
+  sourceLabel: string;
+};
+
+function OperationsSummaryPanel({
+  summary,
+  sourceLabel,
+}: OperationsSummaryPanelProps) {
+  const availableEndpoints = countAvailableOperationEndpoints(summary.endpoints);
+  const latestEventAt = summary.audit_summary.latest_event_at
+    ? formatTimestamp(summary.audit_summary.latest_event_at)
+    : "none";
+
+  return (
+    <section className="panel" aria-label="Local operations summary">
+      <div className="panel-heading">
+        <div>
+          <h3>Local operations summary</h3>
+          <p className="muted">
+            Read-only aggregate daemon activity and endpoint availability.
+          </p>
+        </div>
+        <StatusBadge tone={sourceLabel === "Local daemon data" ? "ok" : "neutral"}>
+          {sourceLabel}
+        </StatusBadge>
+      </div>
+
+      <dl className="definition-grid diagnostics-grid">
+        <div>
+          <dt>Daemon status</dt>
+          <dd>{summary.daemon.status}</dd>
+        </div>
+        <div>
+          <dt>Version</dt>
+          <dd>{summary.daemon.version}</dd>
+        </div>
+        <div>
+          <dt>Uptime</dt>
+          <dd>{summary.daemon.uptime_seconds}s</dd>
+        </div>
+        <div>
+          <dt>Endpoints available</dt>
+          <dd>{availableEndpoints} / 9</dd>
+        </div>
+        <div>
+          <dt>Audit events</dt>
+          <dd>
+            {summary.audit_summary.total_events} total /{" "}
+            {summary.audit_summary.recent_event_count} recent
+          </dd>
+        </div>
+        <div>
+          <dt>Recent local activity</dt>
+          <dd>{summary.activity_summary.recent_requests_observed}</dd>
+        </div>
+        <div>
+          <dt>Latest local audit event</dt>
+          <dd>{latestEventAt}</dd>
+        </div>
+        <div>
+          <dt>Recent event types</dt>
+          <dd>
+            {summary.audit_summary.recent_event_types.length > 0
+              ? summary.audit_summary.recent_event_types.join(", ")
+              : "none"}
+          </dd>
+        </div>
+      </dl>
+
+      <p className="muted diagnostics-note">
+        Operations metadata is aggregate and read-only. Aethra does not show raw
+        prompts, raw request bodies, secrets, telemetry, cloud activity, route
+        execution, model execution, or connector mutation.
+      </p>
+    </section>
+  );
 }
 
 type CopyStatus =

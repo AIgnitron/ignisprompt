@@ -154,6 +154,62 @@ export type CapabilitiesResponse = {
   capabilities: CapabilityStatus[];
 };
 
+export type OperationsDaemonSummary = {
+  status: string;
+  version: string;
+  uptime_seconds: number;
+  started_at: string;
+  local_preview: boolean;
+  local_only: boolean;
+};
+
+export type OperationsEndpointSummary = {
+  health_available: boolean;
+  models_available: boolean;
+  model_inventory_available: boolean;
+  capabilities_available: boolean;
+  status_models_available: boolean;
+  status_version_available: boolean;
+  audit_events_available: boolean;
+  sustainability_available: boolean;
+  operations_summary_available: boolean;
+};
+
+export type OperationsAuditSummary = {
+  total_events: number;
+  recent_event_count: number;
+  recent_event_types: string[];
+  latest_event_at?: string;
+  audit_store_status: string;
+};
+
+export type OperationsActivitySummary = {
+  recent_requests_observed: number;
+  recent_routes_observed: number;
+  recent_errors_observed: number;
+  last_activity_at?: string;
+};
+
+export type OperationsBoundarySummary = {
+  no_prompt_bodies: boolean;
+  no_raw_request_text: boolean;
+  no_secrets: boolean;
+  no_telemetry: boolean;
+  no_cloud_calls: boolean;
+  read_only: boolean;
+  notes: string[];
+};
+
+export type OperationsSummaryResponse = {
+  schema_version: string;
+  generated_at: string;
+  daemon: OperationsDaemonSummary;
+  endpoints: OperationsEndpointSummary;
+  audit_summary: OperationsAuditSummary;
+  activity_summary: OperationsActivitySummary;
+  boundaries: OperationsBoundarySummary;
+};
+
 export type ChatMessage = {
   role: string;
   content: string;
@@ -549,6 +605,92 @@ export function isCapabilitiesResponse(
     isStringArray(value.routing_order) &&
     Array.isArray(value.capabilities) &&
     value.capabilities.every(isCapabilityStatus)
+  );
+}
+
+export function isOperationsDaemonSummary(
+  value: unknown,
+): value is OperationsDaemonSummary {
+  return (
+    isRecord(value) &&
+    isString(value.status) &&
+    isString(value.version) &&
+    isNumber(value.uptime_seconds) &&
+    isString(value.started_at) &&
+    isBoolean(value.local_preview) &&
+    isBoolean(value.local_only)
+  );
+}
+
+export function isOperationsEndpointSummary(
+  value: unknown,
+): value is OperationsEndpointSummary {
+  return (
+    isRecord(value) &&
+    isBoolean(value.health_available) &&
+    isBoolean(value.models_available) &&
+    isBoolean(value.model_inventory_available) &&
+    isBoolean(value.capabilities_available) &&
+    isBoolean(value.status_models_available) &&
+    isBoolean(value.status_version_available) &&
+    isBoolean(value.audit_events_available) &&
+    isBoolean(value.sustainability_available) &&
+    isBoolean(value.operations_summary_available)
+  );
+}
+
+export function isOperationsAuditSummary(
+  value: unknown,
+): value is OperationsAuditSummary {
+  return (
+    isRecord(value) &&
+    isNumber(value.total_events) &&
+    isNumber(value.recent_event_count) &&
+    isStringArray(value.recent_event_types) &&
+    isOptionalString(value.latest_event_at) &&
+    isString(value.audit_store_status)
+  );
+}
+
+export function isOperationsActivitySummary(
+  value: unknown,
+): value is OperationsActivitySummary {
+  return (
+    isRecord(value) &&
+    isNumber(value.recent_requests_observed) &&
+    isNumber(value.recent_routes_observed) &&
+    isNumber(value.recent_errors_observed) &&
+    isOptionalString(value.last_activity_at)
+  );
+}
+
+export function isOperationsBoundarySummary(
+  value: unknown,
+): value is OperationsBoundarySummary {
+  return (
+    isRecord(value) &&
+    isBoolean(value.no_prompt_bodies) &&
+    isBoolean(value.no_raw_request_text) &&
+    isBoolean(value.no_secrets) &&
+    isBoolean(value.no_telemetry) &&
+    isBoolean(value.no_cloud_calls) &&
+    isBoolean(value.read_only) &&
+    isStringArray(value.notes)
+  );
+}
+
+export function isOperationsSummaryResponse(
+  value: unknown,
+): value is OperationsSummaryResponse {
+  return (
+    isRecord(value) &&
+    isString(value.schema_version) &&
+    isString(value.generated_at) &&
+    isOperationsDaemonSummary(value.daemon) &&
+    isOperationsEndpointSummary(value.endpoints) &&
+    isOperationsAuditSummary(value.audit_summary) &&
+    isOperationsActivitySummary(value.activity_summary) &&
+    isOperationsBoundarySummary(value.boundaries)
   );
 }
 

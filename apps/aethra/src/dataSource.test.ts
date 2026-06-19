@@ -6,6 +6,7 @@ import {
   modelFixtures,
   modelInventoryFixture,
   modelStatusFixture,
+  operationsSummaryFixture,
   sustainabilityMetricsFixture,
   versionStatusFixture,
 } from "./api/fixtures";
@@ -23,6 +24,7 @@ import {
   describeModelInventoryLoadError,
   describeModelStatusLoadError,
   describeModelsLoadError,
+  describeOperationsSummaryLoadError,
   describeSustainabilityMetricsLoadError,
   describeVersionStatusLoadError,
   normalizeLocalBaseUrl,
@@ -293,6 +295,27 @@ describe("Aethra data source helpers", () => {
       label: "Unsupported schema",
       message:
         "The local daemon returned JSON that did not match the expected sustainability metrics schema. Fixture fallback remains available; confirm the daemon is from the current local-preview build before retrying manual refresh.",
+      diagnosticKind: "invalid-response-shape",
+    });
+  });
+
+  it("describes invalid JSON and unsupported operations summary schema failures", () => {
+    expect(
+      describeOperationsSummaryLoadError(
+        new AethraApiError("invalid-json", "bad json"),
+      ),
+    ).toMatchObject({
+      label: "Invalid JSON",
+      message: expect.stringContaining("current local-preview daemon"),
+    });
+    expect(
+      describeOperationsSummaryLoadError(
+        new AethraApiError("unexpected-shape", "bad schema"),
+      ),
+    ).toEqual({
+      label: "Unsupported schema",
+      message:
+        "The local daemon returned JSON that did not match the expected local operations summary schema. Fixture fallback remains available; confirm the daemon is from the current local-preview build before retrying manual refresh.",
       diagnosticKind: "invalid-response-shape",
     });
   });
@@ -570,6 +593,10 @@ describe("Aethra data source helpers", () => {
           calls.push(`sustainability:${period}`);
           return sustainabilityMetricsFixture;
         },
+        operationsSummary: async () => {
+          calls.push("operations-summary");
+          return operationsSummaryFixture;
+        },
       },
     });
 
@@ -580,6 +607,7 @@ describe("Aethra data source helpers", () => {
       "model-inventory",
       "model-status",
       "models",
+      "operations-summary",
       "sustainability:30d",
       "version",
     ]);
@@ -591,6 +619,7 @@ describe("Aethra data source helpers", () => {
     expect(snapshot.capabilities.status).toBe("loaded");
     expect(snapshot.auditEvents.status).toBe("loaded");
     expect(snapshot.sustainabilityMetrics.status).toBe("loaded");
+    expect(snapshot.operationsSummary.status).toBe("loaded");
     expect(snapshot.results.every((result) => result.status === "loaded")).toBe(
       true,
     );
@@ -610,6 +639,9 @@ describe("Aethra data source helpers", () => {
         capabilities: async () => capabilitiesFixture,
         auditEvents: async () => auditEventFixtures,
         sustainabilityMetrics: async () => sustainabilityMetricsFixture,
+        operationsSummary: async () => {
+          throw new AethraApiError("http-error", "missing", { status: 404 });
+        },
       },
     });
 
@@ -623,6 +655,18 @@ describe("Aethra data source helpers", () => {
       surface: "model-inventory",
       status: "failed",
       label: "Model inventory",
+      message: "The local daemon returned HTTP 404.",
+      diagnosticKind: "endpoint-unavailable",
+    });
+    expect(snapshot.operationsSummary).toMatchObject({
+      status: "error",
+      label: "Endpoint unavailable",
+      diagnosticKind: "endpoint-unavailable",
+    });
+    expect(snapshot.results).toContainEqual({
+      surface: "operations-summary",
+      status: "failed",
+      label: "Operations summary",
       message: "The local daemon returned HTTP 404.",
       diagnosticKind: "endpoint-unavailable",
     });

@@ -6,6 +6,7 @@ export {
   modelFixtures,
   modelInventoryFixture,
   modelStatusFixture,
+  operationsSummaryFixture,
   routeExplainFixture,
   versionStatusFixture,
 } from "../api/fixtures";

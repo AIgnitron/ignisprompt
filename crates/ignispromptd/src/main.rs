@@ -54,6 +54,8 @@ const SUSTAINABILITY_METRICS_MAX_PERIOD_DAYS: i64 = 3650;
 const MODEL_INVENTORY_SCHEMA_VERSION: &str = "ignisprompt-model-inventory-v0.1";
 const MODEL_INVENTORY_MAX_FILES: usize = 200;
 const MODEL_INVENTORY_MAX_DEPTH: usize = 4;
+const OPERATIONS_SUMMARY_SCHEMA_VERSION: &str = "ignisprompt-operations-summary-v0.1";
+const OPERATIONS_SUMMARY_RECENT_EVENT_LIMIT: usize = 20;
 
 #[derive(Debug, Parser, Clone)]
 #[command(
@@ -620,6 +622,7 @@ async fn run_http_daemon(state: AppState, bind: SocketAddr) -> Result<()> {
         .route("/v1/capabilities", get(capabilities))
         .route("/v1/status/models", get(model_status))
         .route("/v1/status/version", get(version_status))
+        .route("/v1/operations/summary", get(operations_summary))
         .route("/v1/route/explain", post(route_explain))
         .route("/v1/chat/completions", post(chat_completions))
         .route("/v1/audit/events", get(list_audit_events))
@@ -751,6 +754,10 @@ async fn capabilities(State(state): State<AppState>) -> Json<CapabilitiesRespons
     Json(capabilities_response(&state))
 }
 
+async fn operations_summary(State(state): State<AppState>) -> Json<OperationsSummaryResponse> {
+    Json(operations_summary_response(&state).await)
+}
+
 async fn version_status(State(state): State<AppState>) -> Json<VersionStatusResponse> {
     Json(version_status_response(&state))
 }
@@ -816,6 +823,70 @@ struct ModelInventorySummary {
     largest_file_mb: f64,
     scanned_directory_count: usize,
     scan_limited: bool,
+    notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct OperationsSummaryResponse {
+    schema_version: String,
+    generated_at: DateTime<Utc>,
+    daemon: OperationsDaemonSummary,
+    endpoints: OperationsEndpointSummary,
+    audit_summary: OperationsAuditSummary,
+    activity_summary: OperationsActivitySummary,
+    boundaries: OperationsBoundarySummary,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct OperationsDaemonSummary {
+    status: String,
+    version: String,
+    uptime_seconds: i64,
+    started_at: DateTime<Utc>,
+    local_preview: bool,
+    local_only: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct OperationsEndpointSummary {
+    health_available: bool,
+    models_available: bool,
+    model_inventory_available: bool,
+    capabilities_available: bool,
+    status_models_available: bool,
+    status_version_available: bool,
+    audit_events_available: bool,
+    sustainability_available: bool,
+    operations_summary_available: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct OperationsAuditSummary {
+    total_events: usize,
+    recent_event_count: usize,
+    recent_event_types: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    latest_event_at: Option<DateTime<Utc>>,
+    audit_store_status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct OperationsActivitySummary {
+    recent_requests_observed: usize,
+    recent_routes_observed: usize,
+    recent_errors_observed: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_activity_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct OperationsBoundarySummary {
+    no_prompt_bodies: bool,
+    no_raw_request_text: bool,
+    no_secrets: bool,
+    no_telemetry: bool,
+    no_cloud_calls: bool,
+    read_only: bool,
     notes: Vec<String>,
 }
 
@@ -1014,6 +1085,90 @@ async fn model_inventory_response(
             "Inventory does not prove model quality, readiness, legal accuracy, compliance, or runner availability.".to_string(),
             "The daemon does not read model contents, hash model files, download models, delete models, or scan outside safe local model roots.".to_string(),
         ],
+    }
+}
+
+async fn operations_summary_response(state: &AppState) -> OperationsSummaryResponse {
+    let generated_at = Utc::now();
+    let events = state.audit.list().await;
+    let recent_start = events
+        .len()
+        .saturating_sub(OPERATIONS_SUMMARY_RECENT_EVENT_LIMIT);
+    let recent_events = &events[recent_start..];
+    let mut recent_event_types = recent_events
+        .iter()
+        .map(|event| event.event_type.clone())
+        .collect::<Vec<_>>();
+    recent_event_types.sort();
+    recent_event_types.dedup();
+    let latest_event_at = events.iter().map(|event| event.timestamp).max();
+    let recent_errors_observed = recent_events
+        .iter()
+        .filter(|event| {
+            !event.warnings.is_empty()
+                || event.route_code.contains("ERROR")
+                || event.route_code.contains("UNAVAILABLE")
+                || event.route_code.contains("FAILED")
+        })
+        .count();
+
+    OperationsSummaryResponse {
+        schema_version: OPERATIONS_SUMMARY_SCHEMA_VERSION.to_string(),
+        generated_at,
+        daemon: OperationsDaemonSummary {
+            status: "ok".to_string(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            uptime_seconds: (generated_at - state.started_at).num_seconds().max(0),
+            started_at: state.started_at,
+            local_preview: true,
+            local_only: state.config.local_only,
+        },
+        endpoints: OperationsEndpointSummary {
+            health_available: true,
+            models_available: true,
+            model_inventory_available: true,
+            capabilities_available: true,
+            status_models_available: true,
+            status_version_available: true,
+            audit_events_available: true,
+            sustainability_available: true,
+            operations_summary_available: true,
+        },
+        audit_summary: OperationsAuditSummary {
+            total_events: events.len(),
+            recent_event_count: recent_events.len(),
+            recent_event_types,
+            latest_event_at,
+            audit_store_status: "memory_and_local_jsonl_append".to_string(),
+        },
+        activity_summary: OperationsActivitySummary {
+            recent_requests_observed: recent_events.len(),
+            recent_routes_observed: recent_events
+                .iter()
+                .filter(|event| {
+                    matches!(
+                        event.event_type.as_str(),
+                        "route_explain" | "chat_completion"
+                    )
+                })
+                .count(),
+            recent_errors_observed,
+            last_activity_at: latest_event_at,
+        },
+        boundaries: OperationsBoundarySummary {
+            no_prompt_bodies: true,
+            no_raw_request_text: true,
+            no_secrets: true,
+            no_telemetry: true,
+            no_cloud_calls: true,
+            read_only: true,
+            notes: vec![
+                "Operations summary is aggregate local-preview metadata only.".to_string(),
+                "No raw prompts, request bodies, secrets, machine identifiers, or absolute local paths are returned.".to_string(),
+                "This endpoint does not execute routes, execute models, mutate configuration, poll, call cloud services, or send telemetry.".to_string(),
+                "Counts are not production monitoring, compliance status, certification, or signed evidence.".to_string(),
+            ],
+        },
     }
 }
 
@@ -3291,6 +3446,10 @@ mod tests {
         model_inventory(State(state.clone())).await.0
     }
 
+    async fn call_operations_summary(state: &AppState) -> OperationsSummaryResponse {
+        operations_summary(State(state.clone())).await.0
+    }
+
     async fn call_capabilities(state: &AppState) -> CapabilitiesResponse {
         capabilities(State(state.clone())).await.0
     }
@@ -3573,6 +3732,93 @@ mod tests {
         assert_eq!(model["domains"], json!(["legal"]));
         assert_eq!(model["localPath"], "./models/legal-saul-placeholder.gguf");
         assert_eq!(model["installed"], true);
+    }
+
+    #[tokio::test]
+    async fn operations_summary_endpoint_returns_safe_aggregate_metadata() {
+        let state = state_with_models(vec![legal_model()]);
+        let request = req(
+            "Review this synthetic contract clause. Do not expose raw request text.",
+            Some("ignisprompt/legal"),
+        );
+        let (status, _) = call_route_explain(&state, request).await;
+        assert_eq!(status, StatusCode::OK);
+
+        let response = call_operations_summary(&state).await;
+        assert_eq!(response.schema_version, OPERATIONS_SUMMARY_SCHEMA_VERSION);
+        assert_eq!(response.daemon.status, "ok");
+        assert_eq!(response.daemon.version, env!("CARGO_PKG_VERSION"));
+        assert!(response.daemon.local_preview);
+        assert!(response.daemon.local_only);
+        assert!(response.daemon.uptime_seconds >= 0);
+        assert!(response.endpoints.health_available);
+        assert!(response.endpoints.models_available);
+        assert!(response.endpoints.model_inventory_available);
+        assert!(response.endpoints.capabilities_available);
+        assert!(response.endpoints.audit_events_available);
+        assert!(response.endpoints.sustainability_available);
+        assert!(response.endpoints.operations_summary_available);
+        assert_eq!(response.audit_summary.total_events, 1);
+        assert_eq!(response.audit_summary.recent_event_count, 1);
+        assert_eq!(
+            response.audit_summary.recent_event_types,
+            vec!["route_explain".to_string()]
+        );
+        assert!(response.audit_summary.latest_event_at.is_some());
+        assert_eq!(response.activity_summary.recent_requests_observed, 1);
+        assert_eq!(response.activity_summary.recent_routes_observed, 1);
+        assert_eq!(response.activity_summary.recent_errors_observed, 0);
+        assert_eq!(
+            response.activity_summary.last_activity_at,
+            response.audit_summary.latest_event_at
+        );
+        assert!(response.boundaries.no_prompt_bodies);
+        assert!(response.boundaries.no_raw_request_text);
+        assert!(response.boundaries.no_secrets);
+        assert!(response.boundaries.no_telemetry);
+        assert!(response.boundaries.no_cloud_calls);
+        assert!(response.boundaries.read_only);
+    }
+
+    #[tokio::test]
+    async fn operations_summary_does_not_expose_raw_prompts_or_event_bodies() {
+        let state = state_with_models(vec![legal_model()]);
+        let secret_like_prompt =
+            "Review this synthetic contract clause with PRIVATE_PROMPT_SENTINEL_12345.";
+        let (status, _) = call_chat_completions(&state, req(secret_like_prompt, None)).await;
+        assert_eq!(status, StatusCode::OK);
+
+        let response = call_operations_summary(&state).await;
+        let encoded = serde_json::to_value(&response).unwrap();
+        assert_json_keys(
+            &encoded,
+            &[
+                "activity_summary",
+                "audit_summary",
+                "boundaries",
+                "daemon",
+                "endpoints",
+                "generated_at",
+                "schema_version",
+            ],
+        );
+        assert_json_keys(
+            &encoded["audit_summary"],
+            &[
+                "audit_store_status",
+                "latest_event_at",
+                "recent_event_count",
+                "recent_event_types",
+                "total_events",
+            ],
+        );
+        let encoded_text = serde_json::to_string(&encoded).unwrap();
+        assert!(!encoded_text.contains("PRIVATE_PROMPT_SENTINEL_12345"));
+        assert!(!encoded_text.contains("messages"));
+        assert!(!encoded_text.contains("explanation"));
+        assert!(!encoded_text.contains("request_id"));
+        assert!(!encoded_text.contains("/Users/"));
+        assert!(!encoded_text.contains("data/audit"));
     }
 
     #[tokio::test]

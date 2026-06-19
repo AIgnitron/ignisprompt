@@ -6,6 +6,7 @@ import {
   isModelInventoryResponse,
   isModelRegistry,
   isModelStatusResponse,
+  isOperationsSummaryResponse,
   isSustainabilityMetricsResponse,
   isVersionStatusResponse,
 } from "./contracts";
@@ -17,6 +18,7 @@ import {
   modelFixtures,
   modelInventoryFixture,
   modelStatusFixture,
+  operationsSummaryFixture,
   sustainabilityMetricsFixture,
   versionStatusFixture,
 } from "./fixtures";
@@ -33,6 +35,7 @@ describe("Aethra fixture contract shapes", () => {
     expect(isModelInventoryResponse(modelInventoryFixture)).toBe(true);
     expect(isModelStatusResponse(modelStatusFixture)).toBe(true);
     expect(isCapabilitiesResponse(capabilitiesFixture)).toBe(true);
+    expect(isOperationsSummaryResponse(operationsSummaryFixture)).toBe(true);
     expect(isAuditEventList(auditEventFixtures)).toBe(true);
     expect(isSustainabilityMetricsResponse(sustainabilityMetricsFixture)).toBe(
       true,
@@ -80,6 +83,15 @@ describe("Aethra fixture contract shapes", () => {
       "local_only",
       "release_channel",
       "routing_order",
+    ]);
+    expect(keysOf(operationsSummaryFixture)).toEqual([
+      "activity_summary",
+      "audit_summary",
+      "boundaries",
+      "daemon",
+      "endpoints",
+      "generated_at",
+      "schema_version",
     ]);
     expect(keysOf(sustainabilityMetricsFixture)).toEqual([
       "baseline_model",
@@ -177,6 +189,53 @@ describe("Aethra fixture contract shapes", () => {
       configured: false,
       data_boundary: "cloud_with_consent",
     });
+  });
+
+  it("locks operations summary fields as aggregate read-only metadata", () => {
+    expect(keysOf(operationsSummaryFixture.daemon)).toEqual([
+      "local_only",
+      "local_preview",
+      "started_at",
+      "status",
+      "uptime_seconds",
+      "version",
+    ]);
+    expect(keysOf(operationsSummaryFixture.endpoints)).toEqual([
+      "audit_events_available",
+      "capabilities_available",
+      "health_available",
+      "model_inventory_available",
+      "models_available",
+      "operations_summary_available",
+      "status_models_available",
+      "status_version_available",
+      "sustainability_available",
+    ]);
+    expect(keysOf(operationsSummaryFixture.audit_summary)).toEqual([
+      "audit_store_status",
+      "latest_event_at",
+      "recent_event_count",
+      "recent_event_types",
+      "total_events",
+    ]);
+    expect(keysOf(operationsSummaryFixture.activity_summary)).toEqual([
+      "last_activity_at",
+      "recent_errors_observed",
+      "recent_requests_observed",
+      "recent_routes_observed",
+    ]);
+    expect(keysOf(operationsSummaryFixture.boundaries)).toEqual([
+      "no_cloud_calls",
+      "no_prompt_bodies",
+      "no_raw_request_text",
+      "no_secrets",
+      "no_telemetry",
+      "notes",
+      "read_only",
+    ]);
+    expect(operationsSummaryFixture.boundaries.no_raw_request_text).toBe(true);
+    expect(operationsSummaryFixture.boundaries.no_telemetry).toBe(true);
+    expect(operationsSummaryFixture.boundaries.no_cloud_calls).toBe(true);
   });
 
   it("locks audit fixture fields including optional Aethra proxy estimate fields", () => {
