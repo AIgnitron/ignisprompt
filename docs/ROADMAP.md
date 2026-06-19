@@ -30,6 +30,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - v0.1.8 local preview release record for the Local Demo Studio arc and PR #188 hardening work.
 - Local-preview connector and capability status foundation with `GET /v1/capabilities` and `ignispromptctl capabilities`, reporting sanitized status metadata only with cloud disabled by default.
 - Read-only local model inventory foundation with `GET /v1/models/inventory`, `ignispromptctl model-inventory`, and Aethra manual live-local display with fixture fallback.
+- Read-only local model readiness foundation with `GET /v1/models/readiness`, `ignispromptctl model-readiness`, and Aethra manual live-local display with fixture fallback.
 - Read-only local operations summary foundation with `GET /v1/operations/summary`, `ignispromptctl operations-summary`, and Aethra manual live-local display for aggregate daemon activity and endpoint availability with fixture fallback.
 - Local evidence demo workflow automation script for route-explain, audit-events, evidence-bundle generation, listing, validation, archiving, archive verification, and manifest inspection.
 - Adversarial document-instruction detection for known instruction strings.
@@ -48,6 +49,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Keep route-policy regression coverage current for legal Tier 3 routing, general local routing, adversarial document-instruction handling, conservative explanations, and local audit emission.
 - Keep model availability semantics explicit: route eligibility, manifest configuration, local file presence, runner hints, and executable local inference are separate states.
 - Keep local model inventory observational: filename/path metadata does not imply model execution, quality, readiness, compliance, or legal accuracy.
+- Keep local model readiness advisory: manifest/inventory/runner hints do not imply executable inference, model quality, production readiness, compliance, certification, or legal accuracy.
 - Keep local operations metadata aggregate and read-only: endpoint availability, audit counts, and recent event type names do not imply telemetry, production monitoring, certification, signed evidence, or access to raw prompts/request bodies.
 - Keep the Golden Legal adversarial fixture matrix small, synthetic, deterministic, and local-only.
 - Keep local evidence validation strict while avoiding signed attestation or tamper-evident storage claims until those features are explicitly implemented.

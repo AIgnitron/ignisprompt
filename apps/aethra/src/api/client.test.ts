@@ -7,6 +7,7 @@ import {
   healthFixture,
   modelFixtures,
   modelInventoryFixture,
+  modelReadinessFixture,
   modelStatusFixture,
   operationsSummaryFixture,
   routeExplainFixture,
@@ -68,6 +69,19 @@ describe("IgnisPromptClient", () => {
     );
     expect(fetchImpl).toHaveBeenCalledWith(
       "http://127.0.0.1:8765/v1/models/inventory",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("reads local model readiness with the current response shape", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(modelReadinessFixture));
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.modelReadiness()).resolves.toEqual(
+      modelReadinessFixture,
+    );
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "http://127.0.0.1:8765/v1/models/readiness",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
@@ -196,6 +210,23 @@ describe("IgnisPromptClient", () => {
     const client = new IgnisPromptClient({ fetchImpl });
 
     await expect(client.modelInventory()).rejects.toMatchObject({
+      kind: "unexpected-shape",
+    });
+  });
+
+  it("rejects unsupported local model readiness response shapes", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
+        ...modelReadinessFixture,
+        summary: {
+          ...modelReadinessFixture.summary,
+          ready_hint_count: "1",
+        },
+      }),
+    );
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.modelReadiness()).rejects.toMatchObject({
       kind: "unexpected-shape",
     });
   });

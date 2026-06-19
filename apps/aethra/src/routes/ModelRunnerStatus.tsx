@@ -3,12 +3,14 @@ import {
   CapabilitiesResponse,
   ModelInventoryResponse,
   ModelManifest,
+  ModelReadinessResponse,
   ModelStatusHint,
 } from "../api/contracts";
 import type {
   AethraDataMode,
   LiveCapabilitiesState,
   LiveModelInventoryState,
+  LiveModelReadinessState,
   LiveModelsState,
   LiveModelStatusState,
 } from "../dataSource";
@@ -16,6 +18,7 @@ import {
   capabilitiesFixture,
   modelFixtures,
   modelInventoryFixture,
+  modelReadinessFixture,
   modelStatusFixture,
 } from "../fixtures/aethraFixture";
 import { EmptyState } from "../components/EmptyState";
@@ -48,6 +51,7 @@ type ModelRunnerStatusProps = {
   dataMode: AethraDataMode;
   liveModelsState: LiveModelsState;
   liveModelInventoryState: LiveModelInventoryState;
+  liveModelReadinessState: LiveModelReadinessState;
   liveModelStatusState: LiveModelStatusState;
   liveCapabilitiesState: LiveCapabilitiesState;
   onLoadLiveModels: () => void;
@@ -60,6 +64,7 @@ export function ModelRunnerStatus({
   dataMode,
   liveModelsState,
   liveModelInventoryState,
+  liveModelReadinessState,
   liveModelStatusState,
   liveCapabilitiesState,
   onLoadLiveModels,
@@ -76,12 +81,17 @@ export function ModelRunnerStatus({
     dataMode === "live-local" && liveModelStatusState.status === "loaded";
   const isLiveInventoryLoaded =
     dataMode === "live-local" && liveModelInventoryState.status === "loaded";
+  const isLiveReadinessLoaded =
+    dataMode === "live-local" && liveModelReadinessState.status === "loaded";
   const isLiveCapabilitiesLoaded =
     dataMode === "live-local" && liveCapabilitiesState.status === "loaded";
   const models = isLiveModelsLoaded ? liveModelsState.models : modelFixtures;
   const inventory = isLiveInventoryLoaded
     ? liveModelInventoryState.inventory
     : modelInventoryFixture;
+  const readiness = isLiveReadinessLoaded
+    ? liveModelReadinessState.readiness
+    : modelReadinessFixture;
   const rows = useMemo(() => toModelManifestRows(models), [models]);
   const effectiveStatusHints = isLiveStatusLoaded
     ? liveModelStatusState.statusHints
@@ -167,6 +177,12 @@ export function ModelRunnerStatus({
         onLoadLiveModelInventory={onLoadLiveModelInventory}
       />
 
+      <ModelReadinessPanel
+        dataMode={dataMode}
+        liveModelReadinessState={liveModelReadinessState}
+        readiness={readiness}
+      />
+
       <ModelStatusPanel
         dataMode={dataMode}
         liveModelStatusState={liveModelStatusState}
@@ -205,6 +221,20 @@ export function ModelRunnerStatus({
               ? "Observed local daemon file metadata"
               : "Fixture fallback inventory metadata"
           }
+        />
+        <MetricCard
+          label="Ready model hints"
+          value={readiness.summary.ready_hint_count}
+          detail={
+            isLiveReadinessLoaded
+              ? "Local daemon readiness hints"
+              : "Fixture fallback readiness hints"
+          }
+        />
+        <MetricCard
+          label="Missing model files"
+          value={readiness.summary.missing_file_count}
+          detail="Readiness hints only; missing files do not break preview"
         />
         <MetricCard
           label="Prompt packs"
@@ -544,6 +574,202 @@ function ModelInventoryTable({ inventory }: ModelInventoryTableProps) {
               <td>{file.model_family ?? "unknown"}</td>
               <td>{file.quantization ?? "unknown"}</td>
               <td>{file.boundary_note}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+type ModelReadinessPanelProps = {
+  dataMode: AethraDataMode;
+  liveModelReadinessState: LiveModelReadinessState;
+  readiness: ModelReadinessResponse;
+};
+
+function ModelReadinessPanel({
+  dataMode,
+  liveModelReadinessState,
+  readiness,
+}: ModelReadinessPanelProps) {
+  const isLiveMode = dataMode === "live-local";
+  const isLoaded = isLiveMode && liveModelReadinessState.status === "loaded";
+
+  return (
+    <section className="panel" aria-label="Local model readiness">
+      <div className="panel-heading">
+        <div>
+          <h3>Local model readiness</h3>
+          <p className="muted">
+            {isLiveMode
+              ? "Manual read-only GET /v1/models/readiness from the configured local daemon."
+              : "Fixture mode uses offline preview readiness metadata."}
+          </p>
+        </div>
+        <StatusBadge
+          tone={
+            liveModelReadinessState.status === "error"
+              ? "warning"
+              : isLoaded
+                ? "ok"
+                : "neutral"
+          }
+        >
+          {getModelReadinessStateLabel(dataMode, liveModelReadinessState)}
+        </StatusBadge>
+      </div>
+
+      <p className="explanation">
+        Readiness compares manifest declarations, observed inventory metadata,
+        file format hints, shard filename hints, and runner status hints. It
+        does not execute models, route requests, download or delete files, read
+        model contents, hash model files, mutate manifests, call cloud services,
+        or prove quality, compliance, legal accuracy, or production readiness.
+      </p>
+
+      {isLiveMode && liveModelReadinessState.status === "not-loaded" ? (
+        <EmptyState
+          title="Local model readiness has not been loaded"
+          message="Fixture fallback readiness metadata remains visible until you manually refresh local daemon data."
+          nextAction="Start the daemon if needed, then use Refresh local daemon data."
+        />
+      ) : null}
+
+      {isLiveMode && liveModelReadinessState.status === "loading" ? (
+        <p className="explanation">
+          Loading read-only local model readiness metadata from the configured
+          local daemon.
+        </p>
+      ) : null}
+
+      {isLiveMode && liveModelReadinessState.status === "error" ? (
+        <EmptyState
+          {...buildLiveErrorEmptyState(
+            liveModelReadinessState.label,
+            liveModelReadinessState.message,
+            "Fixture readiness metadata remains clearly labeled below.",
+          )}
+        />
+      ) : null}
+
+      {isLoaded && readiness.models.length === 0 ? (
+        <EmptyState
+          title="No model readiness rows returned"
+          message="The local daemon did not report manifest readiness rows for the current local-preview model registry."
+          nextAction="Missing readiness rows do not break local preview. Confirm local manifests separately before relying on readiness hints."
+        />
+      ) : null}
+
+      <dl className="definition-grid model-metadata-grid">
+        <div>
+          <dt>Source</dt>
+          <dd>
+            {isLoaded
+              ? "Local daemon data"
+              : isLiveMode
+                ? "Fixture fallback"
+                : "Offline preview"}
+          </dd>
+        </div>
+        <div>
+          <dt>Endpoint</dt>
+          <dd>{isLiveMode ? "GET /v1/models/readiness" : "fixture readiness"}</dd>
+        </div>
+        <div>
+          <dt>Manifest models</dt>
+          <dd>{readiness.summary.manifest_declared_count}</dd>
+        </div>
+        <div>
+          <dt>Inventory files</dt>
+          <dd>{readiness.summary.inventory_file_count}</dd>
+        </div>
+        <div>
+          <dt>Ready hints</dt>
+          <dd>{readiness.summary.ready_hint_count}</dd>
+        </div>
+        <div>
+          <dt>Missing files</dt>
+          <dd>{readiness.summary.missing_file_count}</dd>
+        </div>
+        <div>
+          <dt>Unsupported formats</dt>
+          <dd>{readiness.summary.unsupported_format_count}</dd>
+        </div>
+        <div>
+          <dt>Unknown</dt>
+          <dd>{readiness.summary.unknown_count}</dd>
+        </div>
+        <div>
+          <dt>Loaded at</dt>
+          <dd>
+            {isLoaded
+              ? formatTimestamp(liveModelReadinessState.loadedAt)
+              : "fixture sample"}
+          </dd>
+        </div>
+      </dl>
+
+      <ModelReadinessTable readiness={readiness} />
+
+      {readiness.warnings.length > 0 ? (
+        <ul className="status-hint-list">
+          {readiness.warnings.map((warning) => (
+            <li key={warning}>{warning}</li>
+          ))}
+        </ul>
+      ) : null}
+
+      <p className="muted diagnostics-note">
+        {readiness.boundary_notes.join(" ")}
+      </p>
+    </section>
+  );
+}
+
+type ModelReadinessTableProps = {
+  readiness: ModelReadinessResponse;
+};
+
+function ModelReadinessTable({ readiness }: ModelReadinessTableProps) {
+  if (readiness.models.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="table-scroll model-status-table-scroll">
+      <table className="audit-table model-status-table">
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Readiness</th>
+            <th>File state</th>
+            <th>Format</th>
+            <th>Matched file</th>
+            <th>Size</th>
+            <th>Runner hint</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {readiness.models.map((model) => (
+            <tr key={model.model_id}>
+              <td>{model.display_name}</td>
+              <td>{model.readiness_level}</td>
+              <td>{model.file_state}</td>
+              <td>{model.format}</td>
+              <td>{model.matched_inventory_file ?? model.declared_path ?? "none"}</td>
+              <td>
+                {model.size_bytes === undefined
+                  ? "unknown"
+                  : formatBytes(model.size_bytes)}
+              </td>
+              <td>
+                {model.runner_hint.kind} / configured=
+                {String(model.runner_hint.configured)} / executable=
+                {String(model.runner_hint.executable_exists)}
+              </td>
+              <td>{model.notes.join(" ")}</td>
             </tr>
           ))}
         </tbody>
@@ -1074,6 +1300,28 @@ function getModelInventoryStateLabel(
         : "Inventory loaded";
     case "error":
       return liveModelInventoryState.label;
+  }
+}
+
+function getModelReadinessStateLabel(
+  dataMode: AethraDataMode,
+  liveModelReadinessState: LiveModelReadinessState,
+): string {
+  if (dataMode === "fixture") {
+    return "Fixture readiness";
+  }
+
+  switch (liveModelReadinessState.status) {
+    case "not-loaded":
+      return "Readiness not loaded";
+    case "loading":
+      return "Loading readiness";
+    case "loaded":
+      return liveModelReadinessState.readiness.models.length === 0
+        ? "Empty readiness"
+        : "Readiness loaded";
+    case "error":
+      return liveModelReadinessState.label;
   }
 }
 

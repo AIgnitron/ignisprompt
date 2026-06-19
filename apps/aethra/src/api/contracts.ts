@@ -114,6 +114,58 @@ export type ModelInventoryResponse = {
   boundary_notes: string[];
 };
 
+export type ModelReadinessFileState =
+  | "present"
+  | "missing"
+  | "unsupported"
+  | "unknown";
+
+export type ModelReadinessLevel =
+  | "ready_hint"
+  | "missing_file"
+  | "unsupported_format"
+  | "unknown";
+
+export type ModelReadinessRunnerHint = {
+  configured: boolean;
+  kind: string;
+  executable_exists: boolean;
+  availability: ModelStatusAvailability;
+};
+
+export type ModelReadinessModel = {
+  model_id: string;
+  display_name: string;
+  declared_path?: string;
+  matched_inventory_file?: string;
+  file_state: ModelReadinessFileState;
+  format: string;
+  size_bytes?: number;
+  size_mb?: number;
+  shard?: string;
+  runner_hint: ModelReadinessRunnerHint;
+  readiness_level: ModelReadinessLevel;
+  notes: string[];
+};
+
+export type ModelReadinessSummary = {
+  manifest_declared_count: number;
+  inventory_file_count: number;
+  ready_hint_count: number;
+  missing_file_count: number;
+  unsupported_format_count: number;
+  unknown_count: number;
+};
+
+export type ModelReadinessResponse = {
+  schema_version: string;
+  generated_at: string;
+  summary: ModelReadinessSummary;
+  models: ModelReadinessModel[];
+  warnings: string[];
+  boundary_notes: string[];
+};
+
 export type CapabilityStatusValue =
   | "unknown"
   | "not_configured"
@@ -167,6 +219,7 @@ export type OperationsEndpointSummary = {
   health_available: boolean;
   models_available: boolean;
   model_inventory_available: boolean;
+  model_readiness_available: boolean;
   capabilities_available: boolean;
   status_models_available: boolean;
   status_version_available: boolean;
@@ -388,6 +441,31 @@ const isModelInventoryFileStatus = (
   isString(value) &&
   modelInventoryFileStatusValues.has(value as ModelInventoryFileStatus);
 
+const modelReadinessFileStateValues = new Set<ModelReadinessFileState>([
+  "present",
+  "missing",
+  "unsupported",
+  "unknown",
+]);
+
+const isModelReadinessFileState = (
+  value: unknown,
+): value is ModelReadinessFileState =>
+  isString(value) &&
+  modelReadinessFileStateValues.has(value as ModelReadinessFileState);
+
+const modelReadinessLevelValues = new Set<ModelReadinessLevel>([
+  "ready_hint",
+  "missing_file",
+  "unsupported_format",
+  "unknown",
+]);
+
+const isModelReadinessLevel = (
+  value: unknown,
+): value is ModelReadinessLevel =>
+  isString(value) && modelReadinessLevelValues.has(value as ModelReadinessLevel);
+
 const capabilityStatusValues = new Set<CapabilityStatusValue>([
   "unknown",
   "not_configured",
@@ -576,6 +654,67 @@ export function isModelInventoryResponse(
   );
 }
 
+export function isModelReadinessRunnerHint(
+  value: unknown,
+): value is ModelReadinessRunnerHint {
+  return (
+    isRecord(value) &&
+    isBoolean(value.configured) &&
+    isString(value.kind) &&
+    isBoolean(value.executable_exists) &&
+    isModelStatusAvailability(value.availability)
+  );
+}
+
+export function isModelReadinessModel(
+  value: unknown,
+): value is ModelReadinessModel {
+  return (
+    isRecord(value) &&
+    isString(value.model_id) &&
+    isString(value.display_name) &&
+    isOptionalString(value.declared_path) &&
+    isOptionalString(value.matched_inventory_file) &&
+    isModelReadinessFileState(value.file_state) &&
+    isString(value.format) &&
+    isOptionalNumber(value.size_bytes) &&
+    isOptionalNumber(value.size_mb) &&
+    isOptionalString(value.shard) &&
+    isModelReadinessRunnerHint(value.runner_hint) &&
+    isModelReadinessLevel(value.readiness_level) &&
+    isStringArray(value.notes)
+  );
+}
+
+export function isModelReadinessSummary(
+  value: unknown,
+): value is ModelReadinessSummary {
+  return (
+    isRecord(value) &&
+    isNumber(value.manifest_declared_count) &&
+    isNumber(value.inventory_file_count) &&
+    isNumber(value.ready_hint_count) &&
+    isNumber(value.missing_file_count) &&
+    isNumber(value.unsupported_format_count) &&
+    isNumber(value.unknown_count)
+  );
+}
+
+export function isModelReadinessResponse(
+  value: unknown,
+): value is ModelReadinessResponse {
+  return (
+    isRecord(value) &&
+    isString(value.schema_version) &&
+    isString(value.generated_at) &&
+    isModelReadinessSummary(value.summary) &&
+    Array.isArray(value.models) &&
+    value.models.every(isModelReadinessModel) &&
+    isStringArray(value.warnings) &&
+    isStringArray(value.boundary_notes)
+  );
+}
+
 export function isCapabilityStatus(value: unknown): value is CapabilityStatus {
   return (
     isRecord(value) &&
@@ -630,6 +769,7 @@ export function isOperationsEndpointSummary(
     isBoolean(value.health_available) &&
     isBoolean(value.models_available) &&
     isBoolean(value.model_inventory_available) &&
+    isBoolean(value.model_readiness_available) &&
     isBoolean(value.capabilities_available) &&
     isBoolean(value.status_models_available) &&
     isBoolean(value.status_version_available) &&

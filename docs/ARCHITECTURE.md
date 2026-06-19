@@ -21,6 +21,7 @@ The architecture is intentionally small. It validates the local routing control 
 - `GET /health`: returns daemon status, package version, start time, local-only flag, and model count.
 - `GET /v1/models`: returns loaded model manifests.
 - `GET /v1/models/inventory`: returns read-only local model inventory metadata from safe local model directories. It reports filenames or safe display paths, formats, sizes, simple filename-derived hints, summary counts, and boundary notes without reading model contents, hashing large files, executing models, downloading or deleting files, returning secrets, or scanning outside configured local model roots.
+- `GET /v1/models/readiness`: returns read-only local model readiness hints derived from loaded manifests, local inventory metadata, file format hints, shard filename hints, and runner status hints. It does not execute models, route requests, download or delete files, upload files, mutate manifests, read model contents, hash large files, return secrets, call cloud services, or claim production readiness.
 - `GET /v1/capabilities`: returns local-preview connector and capability status metadata for the route ladder, including provider id, tier, connector type, status, availability/configuration booleans, data boundary, reason, confidence, warnings, and last-checked metadata. It is sanitized status only: no secrets, no telemetry, no cloud checks, no runner execution, no polling, and no connector controls.
 - `GET /v1/status/models`: returns local preview model and runner status hints, including model identity, manifest/path availability, runner configuration, last-checked metadata, and conservative warnings. This is a debug/status surface only; it is not a model-quality, production-readiness, legal-accuracy, or compliance-evidence claim.
 - `GET /v1/status/version`: returns local preview daemon version and release status metadata, including service name, package version, release channel, local-only flag, build profile, nullable git commit, start time, and conservative warnings. It does not perform telemetry, update checking, external release lookup, GitHub calls, cloud calls, or production-readiness validation.
@@ -148,6 +149,12 @@ The endpoint is deliberately observational. It does not enable cloud routing, ca
 `GET /v1/models/inventory` is a local-preview foundation for observing local model files without managing or executing them. The daemon scans the configured model directory and safe manifest-declared local model roots, skips hidden directories and symlinks, applies conservative depth and file-count limits, and returns metadata such as safe display paths, extensions, byte sizes, modified timestamps when cheaply available, simple filename-derived model-family/quantization/shard hints, and summary counts.
 
 The endpoint is read-only and observational. It does not read model file contents into memory, compute hashes for large model files, execute runners, download models, delete models, modify manifests, expose secrets, call cloud services, or prove model quality, readiness, compliance, or legal accuracy. Missing or empty model directories are reported as local-preview information rather than daemon failure.
+
+## Local model readiness
+
+`GET /v1/models/readiness` summarizes whether loaded model manifests have matching local inventory entries and compatible local-preview hints. It compares manifest-declared model paths against the inventory response, records present/missing/unsupported/unknown file states, reports simple format and shard filename hints, and includes runner status hints such as configured runner kind and executable presence.
+
+The endpoint is read-only and advisory. It does not execute model inference, submit route requests, download or delete files, upload files, mutate manifests, mutate connectors, read full model contents, hash large model files, call cloud services, expose secrets, or scan beyond the inventory roots. A `ready_hint` means the local metadata lines up; it does not prove executable inference, model quality, legal accuracy, compliance, certification, or production readiness.
 
 ## Local operations summary
 

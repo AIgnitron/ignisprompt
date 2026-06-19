@@ -52,6 +52,7 @@ const MCP_AUDIT_EVENTS_DEFAULT_LIMIT: usize = 20;
 const MCP_AUDIT_EVENTS_MAX_LIMIT: usize = 100;
 const SUSTAINABILITY_METRICS_MAX_PERIOD_DAYS: i64 = 3650;
 const MODEL_INVENTORY_SCHEMA_VERSION: &str = "ignisprompt-model-inventory-v0.1";
+const MODEL_READINESS_SCHEMA_VERSION: &str = "ignisprompt-model-readiness-v0.1";
 const MODEL_INVENTORY_MAX_FILES: usize = 200;
 const MODEL_INVENTORY_MAX_DEPTH: usize = 4;
 const OPERATIONS_SUMMARY_SCHEMA_VERSION: &str = "ignisprompt-operations-summary-v0.1";
@@ -619,6 +620,7 @@ async fn run_http_daemon(state: AppState, bind: SocketAddr) -> Result<()> {
         .route("/health", get(health))
         .route("/v1/models", get(list_models))
         .route("/v1/models/inventory", get(model_inventory))
+        .route("/v1/models/readiness", get(model_readiness))
         .route("/v1/capabilities", get(capabilities))
         .route("/v1/status/models", get(model_status))
         .route("/v1/status/version", get(version_status))
@@ -750,6 +752,11 @@ async fn model_inventory(State(state): State<AppState>) -> Json<ModelInventoryRe
     Json(model_inventory_response(&state.config, &registry).await)
 }
 
+async fn model_readiness(State(state): State<AppState>) -> Json<ModelReadinessResponse> {
+    let registry = state.model_registry.read().await.clone();
+    Json(model_readiness_response(&state.config, &registry).await)
+}
+
 async fn capabilities(State(state): State<AppState>) -> Json<CapabilitiesResponse> {
     Json(capabilities_response(&state))
 }
@@ -827,6 +834,73 @@ struct ModelInventorySummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+struct ModelReadinessResponse {
+    schema_version: String,
+    generated_at: DateTime<Utc>,
+    summary: ModelReadinessSummary,
+    models: Vec<ModelReadinessModel>,
+    warnings: Vec<String>,
+    boundary_notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ModelReadinessSummary {
+    manifest_declared_count: usize,
+    inventory_file_count: usize,
+    ready_hint_count: usize,
+    missing_file_count: usize,
+    unsupported_format_count: usize,
+    unknown_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ModelReadinessModel {
+    model_id: String,
+    display_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    declared_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    matched_inventory_file: Option<String>,
+    file_state: ModelReadinessFileState,
+    format: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    size_bytes: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    size_mb: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    shard: Option<String>,
+    runner_hint: ModelReadinessRunnerHint,
+    readiness_level: ModelReadinessLevel,
+    notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ModelReadinessRunnerHint {
+    configured: bool,
+    kind: String,
+    executable_exists: bool,
+    availability: ModelAvailability,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum ModelReadinessFileState {
+    Present,
+    Missing,
+    Unsupported,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum ModelReadinessLevel {
+    ReadyHint,
+    MissingFile,
+    UnsupportedFormat,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct OperationsSummaryResponse {
     schema_version: String,
     generated_at: DateTime<Utc>,
@@ -852,6 +926,7 @@ struct OperationsEndpointSummary {
     health_available: bool,
     models_available: bool,
     model_inventory_available: bool,
+    model_readiness_available: bool,
     capabilities_available: bool,
     status_models_available: bool,
     status_version_available: bool,
@@ -1088,6 +1163,173 @@ async fn model_inventory_response(
     }
 }
 
+async fn model_readiness_response(
+    config: &Args,
+    registry: &ModelRegistry,
+) -> ModelReadinessResponse {
+    let generated_at = Utc::now();
+    let inventory = model_inventory_response(config, registry).await;
+    let inventory_by_path = inventory
+        .files
+        .iter()
+        .map(|file| (file.relative_path.clone(), file.clone()))
+        .collect::<HashMap<_, _>>();
+    let mut models = Vec::with_capacity(registry.models.len());
+    let mut warnings = Vec::new();
+
+    for model in registry.models.clone() {
+        let status_hint = model_status_hint_for_manifest(config, model.clone(), generated_at).await;
+        models.push(model_readiness_for_manifest(
+            model,
+            status_hint,
+            &inventory_by_path,
+        ));
+    }
+
+    if models.is_empty() {
+        warnings
+            .push("No manifest-declared models were available for readiness summary.".to_string());
+    }
+    if inventory.summary.scan_limited {
+        warnings.push(
+            "Inventory scan was limited by local-preview safety bounds; readiness matching may be incomplete.".to_string(),
+        );
+    }
+
+    let summary = ModelReadinessSummary {
+        manifest_declared_count: models.len(),
+        inventory_file_count: inventory.summary.total_files,
+        ready_hint_count: models
+            .iter()
+            .filter(|model| model.readiness_level == ModelReadinessLevel::ReadyHint)
+            .count(),
+        missing_file_count: models
+            .iter()
+            .filter(|model| model.readiness_level == ModelReadinessLevel::MissingFile)
+            .count(),
+        unsupported_format_count: models
+            .iter()
+            .filter(|model| model.readiness_level == ModelReadinessLevel::UnsupportedFormat)
+            .count(),
+        unknown_count: models
+            .iter()
+            .filter(|model| model.readiness_level == ModelReadinessLevel::Unknown)
+            .count(),
+    };
+
+    ModelReadinessResponse {
+        schema_version: MODEL_READINESS_SCHEMA_VERSION.to_string(),
+        generated_at,
+        summary,
+        models,
+        warnings,
+        boundary_notes: vec![
+            "Readiness summary is a local hint built from manifests, inventory metadata, and runner status hints.".to_string(),
+            "No model execution, route execution, downloads, deletes, uploads, manifest mutation, connector mutation, cloud calls, telemetry, or expensive hashing is performed.".to_string(),
+            "Ready hints do not prove model quality, legal accuracy, compliance, certification, production readiness, or executable inference success.".to_string(),
+        ],
+    }
+}
+
+fn model_readiness_for_manifest(
+    model: ModelManifest,
+    status_hint: ModelStatusHint,
+    inventory_by_path: &HashMap<String, ModelInventoryFile>,
+) -> ModelReadinessModel {
+    let declared_path = model
+        .local_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|path| !path.is_empty())
+        .map(|path| safe_inventory_path_label(Path::new(path)));
+    let matched_file = declared_path
+        .as_ref()
+        .and_then(|path| inventory_by_path.get(path));
+    let format = model.format.to_ascii_lowercase();
+    let extension = matched_file
+        .map(|file| file.extension.as_str())
+        .filter(|extension| !extension.is_empty())
+        .unwrap_or(format.as_str());
+    let format_supported = model_readiness_extension_supported(extension);
+    let file_state = match matched_file {
+        Some(file) if file.status == ModelInventoryFileStatus::Present => {
+            ModelReadinessFileState::Present
+        }
+        Some(file) if file.status == ModelInventoryFileStatus::Unsupported => {
+            ModelReadinessFileState::Unsupported
+        }
+        Some(_) => ModelReadinessFileState::Unknown,
+        None if status_hint.local_path_declared => ModelReadinessFileState::Missing,
+        None => ModelReadinessFileState::Unknown,
+    };
+    let readiness_level = model_readiness_level(file_state, format_supported, &status_hint);
+    let mut notes =
+        vec!["Readiness is a local hint only; no executable inference was attempted.".to_string()];
+
+    if !format_supported {
+        notes.push(format!(
+            "Model format or file extension '{}' is not supported by the local-preview readiness hint.",
+            extension
+        ));
+    }
+    if file_state == ModelReadinessFileState::Missing {
+        notes.push(
+            "Declared local model path did not match an observed inventory file.".to_string(),
+        );
+    }
+    if let Some(file) = matched_file {
+        if file.shard.is_some() {
+            notes.push("Shard notation was inferred from the filename only.".to_string());
+        }
+    }
+    notes.extend(status_hint.warnings.clone());
+
+    ModelReadinessModel {
+        model_id: status_hint.model_id,
+        display_name: status_hint.display_name,
+        declared_path,
+        matched_inventory_file: matched_file.map(|file| file.relative_path.clone()),
+        file_state,
+        format,
+        size_bytes: matched_file.map(|file| file.size_bytes),
+        size_mb: matched_file.map(|file| file.size_mb),
+        shard: matched_file.and_then(|file| file.shard.clone()),
+        runner_hint: ModelReadinessRunnerHint {
+            configured: status_hint.runner_configured,
+            kind: status_hint.runner_kind,
+            executable_exists: status_hint.runner_executable_exists,
+            availability: status_hint.availability,
+        },
+        readiness_level,
+        notes,
+    }
+}
+
+fn model_readiness_extension_supported(extension: &str) -> bool {
+    matches!(extension, "gguf" | "safetensors")
+}
+
+fn model_readiness_level(
+    file_state: ModelReadinessFileState,
+    format_supported: bool,
+    status_hint: &ModelStatusHint,
+) -> ModelReadinessLevel {
+    if !format_supported || file_state == ModelReadinessFileState::Unsupported {
+        return ModelReadinessLevel::UnsupportedFormat;
+    }
+    if file_state == ModelReadinessFileState::Missing {
+        return ModelReadinessLevel::MissingFile;
+    }
+    if file_state == ModelReadinessFileState::Present
+        && status_hint.runner_configured
+        && status_hint.runner_executable_exists
+    {
+        return ModelReadinessLevel::ReadyHint;
+    }
+
+    ModelReadinessLevel::Unknown
+}
+
 async fn operations_summary_response(state: &AppState) -> OperationsSummaryResponse {
     let generated_at = Utc::now();
     let events = state.audit.list().await;
@@ -1127,6 +1369,7 @@ async fn operations_summary_response(state: &AppState) -> OperationsSummaryRespo
             health_available: true,
             models_available: true,
             model_inventory_available: true,
+            model_readiness_available: true,
             capabilities_available: true,
             status_models_available: true,
             status_version_available: true,
@@ -3446,6 +3689,10 @@ mod tests {
         model_inventory(State(state.clone())).await.0
     }
 
+    async fn call_model_readiness(state: &AppState) -> ModelReadinessResponse {
+        model_readiness(State(state.clone())).await.0
+    }
+
     async fn call_operations_summary(state: &AppState) -> OperationsSummaryResponse {
         operations_summary(State(state.clone())).await.0
     }
@@ -3917,6 +4164,106 @@ mod tests {
             .any(|file| file.filename == "hidden.gguf"));
 
         let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[tokio::test]
+    async fn model_readiness_endpoint_matches_manifest_to_inventory_metadata() {
+        let filename = format!("readiness-{}.gguf", Uuid::new_v4());
+        let model_path = PathBuf::from("models").join(&filename);
+        std::fs::create_dir_all("models").unwrap();
+        std::fs::write(&model_path, b"local metadata only").unwrap();
+
+        let model = legal_model_with_local_path(model_path.to_string_lossy().to_string());
+        let state = state_with_models(vec![model]);
+        let response = call_model_readiness(&state).await;
+        let encoded = serde_json::to_value(&response).unwrap();
+
+        assert_json_keys(
+            &encoded,
+            &[
+                "schema_version",
+                "generated_at",
+                "summary",
+                "models",
+                "warnings",
+                "boundary_notes",
+            ],
+        );
+        assert_eq!(response.schema_version, MODEL_READINESS_SCHEMA_VERSION);
+        assert_eq!(response.summary.manifest_declared_count, 1);
+        assert!(response.summary.inventory_file_count >= 1);
+        assert_eq!(response.summary.ready_hint_count, 1);
+        assert_eq!(response.summary.missing_file_count, 0);
+        assert_eq!(response.models.len(), 1);
+
+        let model = &response.models[0];
+        assert_eq!(model.file_state, ModelReadinessFileState::Present);
+        assert_eq!(model.readiness_level, ModelReadinessLevel::ReadyHint);
+        assert_eq!(
+            model.declared_path.as_deref(),
+            Some(model_path.to_str().unwrap())
+        );
+        assert_eq!(
+            model.matched_inventory_file.as_deref(),
+            Some(model_path.to_str().unwrap())
+        );
+        assert_eq!(model.runner_hint.kind, "stub-legal-runner");
+        assert!(model.runner_hint.configured);
+        assert!(model.runner_hint.executable_exists);
+        assert!(model.size_bytes.is_some());
+        assert!(model
+            .notes
+            .iter()
+            .any(|note| note.contains("no executable inference")));
+
+        let _ = std::fs::remove_file(&model_path);
+    }
+
+    #[tokio::test]
+    async fn model_readiness_endpoint_handles_missing_and_unsupported_models_safely() {
+        let unsupported_filename = format!("readiness-{}.txt", Uuid::new_v4());
+        let unsupported_path = PathBuf::from("models").join(&unsupported_filename);
+        std::fs::create_dir_all("models").unwrap();
+        std::fs::write(&unsupported_path, b"unsupported metadata only").unwrap();
+
+        let missing = legal_model_with_local_path(format!(
+            "models/missing-readiness-{}.gguf",
+            Uuid::new_v4()
+        ));
+        let unsupported = ModelManifest {
+            model_id: "unsupported-readiness".to_string(),
+            display_name: "Unsupported Readiness".to_string(),
+            format: "txt".to_string(),
+            local_path: Some(unsupported_path.to_string_lossy().to_string()),
+            ..legal_model()
+        };
+        let state = state_with_models(vec![missing, unsupported]);
+        let response = call_model_readiness(&state).await;
+
+        assert_eq!(response.summary.manifest_declared_count, 2);
+        assert_eq!(response.summary.missing_file_count, 1);
+        assert_eq!(response.summary.unsupported_format_count, 1);
+        assert!(response.models.iter().any(|model| {
+            model.model_id == "legal-saul-placeholder"
+                && model.file_state == ModelReadinessFileState::Missing
+                && model.readiness_level == ModelReadinessLevel::MissingFile
+        }));
+        assert!(response.models.iter().any(|model| {
+            model.model_id == "unsupported-readiness"
+                && model.file_state == ModelReadinessFileState::Unsupported
+                && model.readiness_level == ModelReadinessLevel::UnsupportedFormat
+        }));
+        assert!(response
+            .boundary_notes
+            .iter()
+            .any(|note| { note.contains("No model execution") || note.contains("downloads") }));
+
+        let encoded = serde_json::to_string(&response).unwrap();
+        assert!(!encoded.contains("/Users/"));
+        assert!(!encoded.contains("PRIVATE_PROMPT"));
+        assert!(!encoded.contains("sha256"));
+
+        let _ = std::fs::remove_file(&unsupported_path);
     }
 
     #[test]

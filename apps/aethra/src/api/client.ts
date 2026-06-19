@@ -3,6 +3,7 @@ import {
   CapabilitiesResponse,
   HealthResponse,
   ModelInventoryResponse,
+  ModelReadinessResponse,
   ModelRegistry,
   ModelStatusResponse,
   OperationsSummaryResponse,
@@ -14,6 +15,7 @@ import {
   isCapabilitiesResponse,
   isHealthResponse,
   isModelInventoryResponse,
+  isModelReadinessResponse,
   isModelRegistry,
   isModelStatusResponse,
   isOperationsSummaryResponse,
@@ -57,6 +59,10 @@ export class IgnisPromptClient {
 
   modelInventory(): Promise<ModelInventoryResponse> {
     return this.request("/v1/models/inventory", isModelInventoryResponse);
+  }
+
+  modelReadiness(): Promise<ModelReadinessResponse> {
+    return this.request("/v1/models/readiness", isModelReadinessResponse);
   }
 
   modelStatus(): Promise<ModelStatusResponse> {

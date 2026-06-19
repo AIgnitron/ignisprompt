@@ -4,6 +4,7 @@ import type {
   HealthResponse,
   ModelInventoryResponse,
   ModelManifest,
+  ModelReadinessResponse,
   ModelStatusHint,
   OperationsSummaryResponse,
   SustainabilityMetricsResponse,
@@ -89,6 +90,26 @@ export type LiveModelInventoryState =
   | {
       status: "loaded";
       inventory: ModelInventoryResponse;
+      loadedAt: string;
+    }
+  | {
+      status: "error";
+      label: string;
+      message: string;
+      diagnosticKind: LiveEndpointErrorKind;
+      checkedAt?: string;
+    };
+
+export type LiveModelReadinessState =
+  | {
+      status: "not-loaded";
+    }
+  | {
+      status: "loading";
+    }
+  | {
+      status: "loaded";
+      readiness: ModelReadinessResponse;
       loadedAt: string;
     }
   | {
@@ -228,6 +249,7 @@ export type LiveEndpointState =
   | LiveHealthState
   | LiveModelsState
   | LiveModelInventoryState
+  | LiveModelReadinessState
   | LiveModelStatusState
   | LiveCapabilitiesState
   | LiveVersionStatusState
@@ -240,6 +262,7 @@ export type LiveLocalSurfaceId =
   | "version-status"
   | "models"
   | "model-inventory"
+  | "model-readiness"
   | "model-status"
   | "capabilities"
   | "audit-events"
@@ -280,6 +303,7 @@ export type LiveLocalDaemonClient = {
   versionStatus: () => Promise<VersionStatusResponse>;
   models: () => Promise<{ models: ModelManifest[] }>;
   modelInventory: () => Promise<ModelInventoryResponse>;
+  modelReadiness: () => Promise<ModelReadinessResponse>;
   modelStatus: () => Promise<{
     schemaVersion: string;
     generatedAt: string;
@@ -297,6 +321,7 @@ export type LiveLocalDaemonSnapshot = {
   versionStatus: LiveVersionStatusState;
   models: LiveModelsState;
   modelInventory: LiveModelInventoryState;
+  modelReadiness: LiveModelReadinessState;
   modelStatus: LiveModelStatusState;
   capabilities: LiveCapabilitiesState;
   auditEvents: LiveAuditEventsState;
@@ -434,6 +459,7 @@ export async function loadLiveLocalDaemonSnapshot(input: {
     versionStatus,
     models,
     modelInventory,
+    modelReadiness,
     modelStatus,
     capabilities,
     auditEvents,
@@ -453,6 +479,12 @@ export async function loadLiveLocalDaemonSnapshot(input: {
       "Model inventory",
       () => input.client.modelInventory(),
       describeModelInventoryLoadError,
+    ),
+    loadSurface(
+      "model-readiness",
+      "Model readiness",
+      () => input.client.modelReadiness(),
+      describeModelReadinessLoadError,
     ),
     loadSurface(
       "model-status",
@@ -515,6 +547,14 @@ export async function loadLiveLocalDaemonSnapshot(input: {
             loadedAt: input.loadedAt,
           }
         : endpointErrorState(modelInventory.error, input.loadedAt),
+    modelReadiness:
+      modelReadiness.status === "loaded"
+        ? {
+            status: "loaded",
+            readiness: modelReadiness.value,
+            loadedAt: input.loadedAt,
+          }
+        : endpointErrorState(modelReadiness.error, input.loadedAt),
     modelStatus:
       modelStatus.status === "loaded"
         ? {
@@ -568,6 +608,7 @@ export async function loadLiveLocalDaemonSnapshot(input: {
       versionStatus.result,
       models.result,
       modelInventory.result,
+      modelReadiness.result,
       modelStatus.result,
       capabilities.result,
       auditEvents.result,
@@ -671,6 +712,12 @@ export function describeModelInventoryLoadError(
   return describeEndpointLoadError(error, "model-inventory");
 }
 
+export function describeModelReadinessLoadError(
+  error: unknown,
+): LiveEndpointErrorDescription {
+  return describeEndpointLoadError(error, "model-readiness");
+}
+
 export function describeModelStatusLoadError(
   error: unknown,
 ): LiveEndpointErrorDescription {
@@ -713,6 +760,7 @@ function describeEndpointLoadError(
     | "health"
     | "models"
     | "model-inventory"
+    | "model-readiness"
     | "model-status"
     | "capabilities"
     | "version-status"
@@ -727,17 +775,19 @@ function describeEndpointLoadError(
         ? "model manifest"
         : endpoint === "model-inventory"
           ? "local model inventory"
-          : endpoint === "model-status"
-            ? "model and runner status hint"
-            : endpoint === "capabilities"
-              ? "connector and capability status"
-              : endpoint === "version-status"
-                ? "daemon version status"
-                : endpoint === "audit-events"
-                  ? "audit event"
-                  : endpoint === "sustainability-metrics"
-                    ? "sustainability metrics"
-                    : "local operations summary";
+          : endpoint === "model-readiness"
+            ? "local model readiness"
+            : endpoint === "model-status"
+              ? "model and runner status hint"
+              : endpoint === "capabilities"
+                ? "connector and capability status"
+                : endpoint === "version-status"
+                  ? "daemon version status"
+                  : endpoint === "audit-events"
+                    ? "audit event"
+                    : endpoint === "sustainability-metrics"
+                      ? "sustainability metrics"
+                      : "local operations summary";
 
   if (error instanceof AethraApiError) {
     switch (error.kind) {
@@ -786,17 +836,19 @@ function describeEndpointLoadError(
           ? "Models load failed"
           : endpoint === "model-inventory"
             ? "Model inventory load failed"
-            : endpoint === "model-status"
-              ? "Model status load failed"
-              : endpoint === "capabilities"
-                ? "Capabilities load failed"
-                : endpoint === "version-status"
-                  ? "Version status load failed"
-                  : endpoint === "audit-events"
-                    ? "Audit events load failed"
-                    : endpoint === "sustainability-metrics"
-                      ? "Sustainability metrics load failed"
-                      : "Operations summary load failed",
+            : endpoint === "model-readiness"
+              ? "Model readiness load failed"
+              : endpoint === "model-status"
+                ? "Model status load failed"
+                : endpoint === "capabilities"
+                  ? "Capabilities load failed"
+                  : endpoint === "version-status"
+                    ? "Version status load failed"
+                    : endpoint === "audit-events"
+                      ? "Audit events load failed"
+                      : endpoint === "sustainability-metrics"
+                        ? "Sustainability metrics load failed"
+                        : "Operations summary load failed",
     message: `Aethra could not load live local ${noun} metadata.`,
     diagnosticKind: "unknown",
   };

@@ -5,6 +5,7 @@ import {
   HealthResponse,
   ModelInventoryResponse,
   ModelManifest,
+  ModelReadinessResponse,
   ModelStatusResponse,
   OperationsSummaryResponse,
   RouteExplainResponse,
@@ -121,6 +122,48 @@ export const modelInventoryFixture: ModelInventoryResponse = {
   boundary_notes: [
     "Inventory metadata is observational and does not execute models.",
     "Inventory does not prove model quality, readiness, compliance, or legal accuracy.",
+  ],
+};
+
+export const modelReadinessFixture: ModelReadinessResponse = {
+  schema_version: "ignisprompt-model-readiness-v0.1",
+  generated_at: "2026-05-15T00:00:00Z",
+  summary: {
+    manifest_declared_count: 1,
+    inventory_file_count: 2,
+    ready_hint_count: 1,
+    missing_file_count: 0,
+    unsupported_format_count: 0,
+    unknown_count: 0,
+  },
+  models: [
+    {
+      model_id: "legal-qwen2.5-0.5b-instruct-q4-k-m-local",
+      display_name: "Qwen2.5 0.5B Instruct Q4_K_M Local Legal Model",
+      declared_path: "models/qwen2.5-0.5b-instruct-q4_k_m.gguf",
+      matched_inventory_file: "models/qwen2.5-0.5b-instruct-q4_k_m.gguf",
+      file_state: "present",
+      format: "gguf",
+      size_bytes: 734003200,
+      size_mb: 700,
+      runner_hint: {
+        configured: true,
+        kind: "stub-legal-runner",
+        executable_exists: true,
+        availability: "staged",
+      },
+      readiness_level: "ready_hint",
+      notes: [
+        "Offline preview readiness hint only; no executable inference is attempted.",
+        "Fixture fallback does not prove local model quality, legal accuracy, compliance, certification, or production readiness.",
+      ],
+    },
+  ],
+  warnings: [],
+  boundary_notes: [
+    "Readiness summary is a local hint built from manifests, inventory metadata, and runner status hints.",
+    "No model execution, route execution, downloads, deletes, uploads, manifest mutation, connector mutation, cloud calls, telemetry, or expensive hashing is performed.",
+    "Ready hints do not prove model quality, legal accuracy, compliance, certification, production readiness, or executable inference success.",
   ],
 };
 
@@ -245,6 +288,7 @@ export const operationsSummaryFixture: OperationsSummaryResponse = {
     health_available: true,
     models_available: true,
     model_inventory_available: true,
+    model_readiness_available: true,
     capabilities_available: true,
     status_models_available: true,
     status_version_available: true,

@@ -4,6 +4,7 @@ import {
   isCapabilitiesResponse,
   isHealthResponse,
   isModelInventoryResponse,
+  isModelReadinessResponse,
   isModelRegistry,
   isModelStatusResponse,
   isOperationsSummaryResponse,
@@ -17,6 +18,7 @@ import {
   healthFixture,
   modelFixtures,
   modelInventoryFixture,
+  modelReadinessFixture,
   modelStatusFixture,
   operationsSummaryFixture,
   sustainabilityMetricsFixture,
@@ -33,6 +35,7 @@ describe("Aethra fixture contract shapes", () => {
     expect(isVersionStatusResponse(versionStatusFixture)).toBe(true);
     expect(isModelRegistry({ models: modelFixtures })).toBe(true);
     expect(isModelInventoryResponse(modelInventoryFixture)).toBe(true);
+    expect(isModelReadinessResponse(modelReadinessFixture)).toBe(true);
     expect(isModelStatusResponse(modelStatusFixture)).toBe(true);
     expect(isCapabilitiesResponse(capabilitiesFixture)).toBe(true);
     expect(isOperationsSummaryResponse(operationsSummaryFixture)).toBe(true);
@@ -70,6 +73,14 @@ describe("Aethra fixture contract shapes", () => {
       "inventory_source",
       "schema_version",
       "summary",
+    ]);
+    expect(keysOf(modelReadinessFixture)).toEqual([
+      "boundary_notes",
+      "generated_at",
+      "models",
+      "schema_version",
+      "summary",
+      "warnings",
     ]);
     expect(keysOf(modelStatusFixture)).toEqual([
       "generatedAt",
@@ -163,6 +174,51 @@ describe("Aethra fixture contract shapes", () => {
     );
   });
 
+  it("locks local model readiness fields as read-only metadata", () => {
+    expect(keysOf(modelReadinessFixture.summary)).toEqual([
+      "inventory_file_count",
+      "manifest_declared_count",
+      "missing_file_count",
+      "ready_hint_count",
+      "unknown_count",
+      "unsupported_format_count",
+    ]);
+    expect(keysOf(modelReadinessFixture.models[0])).toEqual([
+      "declared_path",
+      "display_name",
+      "file_state",
+      "format",
+      "matched_inventory_file",
+      "model_id",
+      "notes",
+      "readiness_level",
+      "runner_hint",
+      "size_bytes",
+      "size_mb",
+    ]);
+    expect(keysOf(modelReadinessFixture.models[0].runner_hint)).toEqual([
+      "availability",
+      "configured",
+      "executable_exists",
+      "kind",
+    ]);
+    expect(modelReadinessFixture.boundary_notes.join(" ")).toContain(
+      "No model execution",
+    );
+    expect(modelReadinessFixture.boundary_notes.join(" ")).toContain(
+      "do not prove model quality",
+    );
+    expect(
+      isModelReadinessResponse({
+        ...modelReadinessFixture,
+        summary: {
+          ...modelReadinessFixture.summary,
+          ready_hint_count: "1",
+        },
+      }),
+    ).toBe(false);
+  });
+
   it("locks capability status fields as read-only status metadata", () => {
     expect(keysOf(capabilitiesFixture.capabilities[0])).toEqual([
       "available",
@@ -205,6 +261,7 @@ describe("Aethra fixture contract shapes", () => {
       "capabilities_available",
       "health_available",
       "model_inventory_available",
+      "model_readiness_available",
       "models_available",
       "operations_summary_available",
       "status_models_available",
