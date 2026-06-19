@@ -613,6 +613,7 @@ async fn run_http_daemon(state: AppState, bind: SocketAddr) -> Result<()> {
     let app = Router::new()
         .route("/health", get(health))
         .route("/v1/models", get(list_models))
+        .route("/v1/capabilities", get(capabilities))
         .route("/v1/status/models", get(model_status))
         .route("/v1/status/version", get(version_status))
         .route("/v1/route/explain", post(route_explain))
@@ -737,6 +738,10 @@ async fn list_models(State(state): State<AppState>) -> Json<ModelRegistry> {
     Json(state.model_registry.read().await.clone())
 }
 
+async fn capabilities(State(state): State<AppState>) -> Json<CapabilitiesResponse> {
+    Json(capabilities_response(&state))
+}
+
 async fn version_status(State(state): State<AppState>) -> Json<VersionStatusResponse> {
     Json(version_status_response(&state))
 }
@@ -758,6 +763,55 @@ struct ModelStatusResponse {
     source: String,
     #[serde(rename = "statusHints")]
     status_hints: Vec<ModelStatusHint>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct CapabilitiesResponse {
+    release_channel: String,
+    local_only: bool,
+    cloud_enabled: bool,
+    routing_order: Vec<String>,
+    capabilities: Vec<CapabilityStatus>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct CapabilityStatus {
+    provider_id: String,
+    display_name: String,
+    tier: String,
+    connector_type: String,
+    status: CapabilityStatusValue,
+    available: bool,
+    configured: bool,
+    data_boundary: DataBoundary,
+    reason: String,
+    confidence: String,
+    warnings: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_checked: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum CapabilityStatusValue {
+    Unknown,
+    NotConfigured,
+    Configured,
+    Available,
+    Unavailable,
+    Disabled,
+    BlockedByPolicy,
+    NotImplemented,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum DataBoundary {
+    OnDevice,
+    LocalProcess,
+    LocalNetwork,
+    PrivateEnterprise,
+    CloudWithConsent,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -826,6 +880,129 @@ async fn model_status(State(state): State<AppState>) -> Json<ModelStatusResponse
         source: "local-daemon".to_string(),
         status_hints,
     })
+}
+
+fn capabilities_response(state: &AppState) -> CapabilitiesResponse {
+    let checked_at = Utc::now();
+    CapabilitiesResponse {
+        release_channel: "local-preview".to_string(),
+        local_only: state.config.local_only,
+        cloud_enabled: false,
+        routing_order: ["tier_0", "tier_1", "tier_2", "tier_3", "tier_4", "tier_5"]
+            .iter()
+            .map(|tier| (*tier).to_string())
+            .collect(),
+        capabilities: vec![
+            CapabilityStatus {
+                provider_id: "local-policy-guard".to_string(),
+                display_name: "Local Policy Guard".to_string(),
+                tier: "tier_0".to_string(),
+                connector_type: "local_policy_guard".to_string(),
+                status: CapabilityStatusValue::Available,
+                available: true,
+                configured: true,
+                data_boundary: DataBoundary::LocalProcess,
+                reason: "default_local_preview_policy_guard".to_string(),
+                confidence: "local_default".to_string(),
+                warnings: vec![
+                    "Status metadata only; no runner execution is attempted.".to_string(),
+                    "Not production policy certification.".to_string(),
+                ],
+                last_checked: Some(checked_at),
+            },
+            CapabilityStatus {
+                provider_id: "tier-1-exact-match-cache".to_string(),
+                display_name: "Tier 1 Exact-Match Cache".to_string(),
+                tier: "tier_1".to_string(),
+                connector_type: "local_in_memory_cache".to_string(),
+                status: if state.config.exact_match_cache {
+                    CapabilityStatusValue::Configured
+                } else {
+                    CapabilityStatusValue::Disabled
+                },
+                available: state.config.exact_match_cache,
+                configured: state.config.exact_match_cache,
+                data_boundary: DataBoundary::OnDevice,
+                reason: if state.config.exact_match_cache {
+                    "local_exact_match_cache_enabled"
+                } else {
+                    "local_exact_match_cache_disabled"
+                }
+                .to_string(),
+                confidence: "config".to_string(),
+                warnings: vec![
+                    "Process-local cache status only.".to_string(),
+                    "No semantic cache or production cache readiness claim.".to_string(),
+                ],
+                last_checked: Some(checked_at),
+            },
+            CapabilityStatus {
+                provider_id: "os-native-local".to_string(),
+                display_name: "OS-Native Local Bridge".to_string(),
+                tier: "tier_2".to_string(),
+                connector_type: "os_native_local_bridge".to_string(),
+                status: CapabilityStatusValue::NotImplemented,
+                available: false,
+                configured: false,
+                data_boundary: DataBoundary::OnDevice,
+                reason: "os_native_bridge_not_implemented".to_string(),
+                confidence: "implementation_state".to_string(),
+                warnings: vec![
+                    "Status metadata only; no OS-native bridge call is made.".to_string()
+                ],
+                last_checked: Some(checked_at),
+            },
+            CapabilityStatus {
+                provider_id: "stub-legal-runner".to_string(),
+                display_name: "Stub Legal Runner".to_string(),
+                tier: "tier_3".to_string(),
+                connector_type: "domain_local_path".to_string(),
+                status: CapabilityStatusValue::Available,
+                available: true,
+                configured: true,
+                data_boundary: DataBoundary::LocalProcess,
+                reason: "default_local_preview_fallback".to_string(),
+                confidence: "local_default".to_string(),
+                warnings: vec![
+                    "Synthetic local-preview path.".to_string(),
+                    "Not legal advice.".to_string(),
+                    "Not legal accuracy proof.".to_string(),
+                ],
+                last_checked: Some(checked_at),
+            },
+            CapabilityStatus {
+                provider_id: "edge-disabled".to_string(),
+                display_name: "Edge Providers".to_string(),
+                tier: "tier_4".to_string(),
+                connector_type: "edge_provider_disabled".to_string(),
+                status: CapabilityStatusValue::NotImplemented,
+                available: false,
+                configured: false,
+                data_boundary: DataBoundary::LocalNetwork,
+                reason: "edge_routing_not_implemented".to_string(),
+                confidence: "implementation_state".to_string(),
+                warnings: vec!["Status metadata only; no edge provider check is made.".to_string()],
+                last_checked: Some(checked_at),
+            },
+            CapabilityStatus {
+                provider_id: "cloud-disabled".to_string(),
+                display_name: "Cloud Providers".to_string(),
+                tier: "tier_5".to_string(),
+                connector_type: "cloud_provider_disabled".to_string(),
+                status: CapabilityStatusValue::Disabled,
+                available: false,
+                configured: false,
+                data_boundary: DataBoundary::CloudWithConsent,
+                reason: "cloud_disabled_by_default".to_string(),
+                confidence: "policy".to_string(),
+                warnings: vec![
+                    "Cloud is disabled by default.".to_string(),
+                    "No cloud calls are made by local-preview capability discovery.".to_string(),
+                ],
+                last_checked: Some(checked_at),
+            },
+        ],
+    }
 }
 
 async fn model_status_hint_for_manifest(
@@ -2715,6 +2892,10 @@ mod tests {
         list_models(State(state.clone())).await.0
     }
 
+    async fn call_capabilities(state: &AppState) -> CapabilitiesResponse {
+        capabilities(State(state.clone())).await.0
+    }
+
     async fn call_version_status(state: &AppState) -> VersionStatusResponse {
         version_status(State(state.clone())).await.0
     }
@@ -2993,6 +3174,172 @@ mod tests {
         assert_eq!(model["domains"], json!(["legal"]));
         assert_eq!(model["localPath"], "./models/legal-saul-placeholder.gguf");
         assert_eq!(model["installed"], true);
+    }
+
+    #[tokio::test]
+    async fn capabilities_endpoint_response_schema_is_locked_for_local_preview_clients() {
+        let state = state_with_models(vec![legal_model()]);
+        let response = call_capabilities(&state).await;
+
+        assert_eq!(response.release_channel, "local-preview");
+        assert!(response.local_only);
+        assert!(!response.cloud_enabled);
+        assert_eq!(
+            response.routing_order,
+            vec!["tier_0", "tier_1", "tier_2", "tier_3", "tier_4", "tier_5"]
+        );
+        assert!(response
+            .capabilities
+            .iter()
+            .any(|capability| capability.provider_id == "stub-legal-runner"));
+        assert!(response
+            .capabilities
+            .iter()
+            .any(|capability| capability.provider_id == "cloud-disabled"));
+
+        let encoded = serde_json::to_value(&response).unwrap();
+        assert_json_keys(
+            &encoded,
+            &[
+                "release_channel",
+                "local_only",
+                "cloud_enabled",
+                "routing_order",
+                "capabilities",
+            ],
+        );
+        assert_eq!(encoded["release_channel"], "local-preview");
+        assert_eq!(encoded["local_only"], true);
+        assert_eq!(encoded["cloud_enabled"], false);
+        assert_eq!(
+            encoded["routing_order"],
+            json!(["tier_0", "tier_1", "tier_2", "tier_3", "tier_4", "tier_5"])
+        );
+
+        let capabilities = encoded["capabilities"].as_array().expect("capabilities");
+        assert_eq!(capabilities.len(), 6);
+        assert_json_keys(
+            &capabilities[0],
+            &[
+                "provider_id",
+                "display_name",
+                "tier",
+                "connector_type",
+                "status",
+                "available",
+                "configured",
+                "data_boundary",
+                "reason",
+                "confidence",
+                "warnings",
+                "last_checked",
+            ],
+        );
+        assert!(capabilities[0]["provider_id"].is_string());
+        assert!(capabilities[0]["display_name"].is_string());
+        assert!(capabilities[0]["tier"].is_string());
+        assert!(capabilities[0]["connector_type"].is_string());
+        assert!(capabilities[0]["status"].is_string());
+        assert!(capabilities[0]["available"].is_boolean());
+        assert!(capabilities[0]["configured"].is_boolean());
+        assert!(capabilities[0]["data_boundary"].is_string());
+        assert!(capabilities[0]["reason"].is_string());
+        assert!(capabilities[0]["confidence"].is_string());
+        assert!(capabilities[0]["warnings"].is_array());
+        assert!(capabilities[0]["last_checked"].is_string());
+    }
+
+    #[tokio::test]
+    async fn capabilities_endpoint_reports_cloud_disabled_by_default() {
+        let state = state_with_models(vec![legal_model()]);
+        let response = call_capabilities(&state).await;
+        let cloud = response
+            .capabilities
+            .iter()
+            .find(|capability| capability.provider_id == "cloud-disabled")
+            .expect("cloud-disabled capability");
+
+        assert_eq!(cloud.tier, "tier_5");
+        assert_eq!(cloud.connector_type, "cloud_provider_disabled");
+        assert_eq!(cloud.status, CapabilityStatusValue::Disabled);
+        assert!(!cloud.available);
+        assert!(!cloud.configured);
+        assert_eq!(cloud.data_boundary, DataBoundary::CloudWithConsent);
+        assert_eq!(cloud.reason, "cloud_disabled_by_default");
+        assert_eq!(cloud.confidence, "policy");
+        assert!(cloud
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("Cloud is disabled by default")));
+        assert!(cloud.warnings.iter().any(|warning| {
+            warning.contains("No cloud calls are made by local-preview capability discovery")
+        }));
+    }
+
+    #[tokio::test]
+    async fn capabilities_endpoint_includes_expected_tiers_statuses_and_boundaries() {
+        let state = state_with_models(vec![legal_model()]);
+        let response = call_capabilities(&state).await;
+        let statuses = response
+            .capabilities
+            .iter()
+            .map(|capability| capability.status)
+            .collect::<Vec<_>>();
+        let tiers = response
+            .capabilities
+            .iter()
+            .map(|capability| capability.tier.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            tiers,
+            vec!["tier_0", "tier_1", "tier_2", "tier_3", "tier_4", "tier_5"]
+        );
+        assert!(statuses.contains(&CapabilityStatusValue::Available));
+        assert!(statuses.contains(&CapabilityStatusValue::Configured));
+        assert!(statuses.contains(&CapabilityStatusValue::Disabled));
+        assert!(statuses.contains(&CapabilityStatusValue::NotImplemented));
+        assert!(response
+            .capabilities
+            .iter()
+            .any(|capability| capability.data_boundary == DataBoundary::LocalProcess));
+        assert!(response
+            .capabilities
+            .iter()
+            .any(|capability| capability.data_boundary == DataBoundary::OnDevice));
+    }
+
+    #[tokio::test]
+    async fn capabilities_endpoint_returns_sanitized_status_only() {
+        let state = state_with_models(vec![legal_model()]);
+        let response = call_capabilities(&state).await;
+        let encoded = serde_json::to_string(&response).unwrap();
+        let normalized = encoded.to_ascii_lowercase();
+
+        for forbidden in [
+            "api_key",
+            "api key",
+            "authorization",
+            "bearer",
+            "token",
+            "secret",
+            "sk-",
+            "ghp_",
+            "https://",
+            "http://",
+            "/users/",
+            "/home/",
+            "/private/",
+            "production ready",
+            "production-ready",
+            "legal accuracy is solved",
+            "compliance certification",
+        ] {
+            assert!(
+                !normalized.contains(forbidden),
+                "capabilities response should not expose forbidden content '{forbidden}': {encoded}"
+            );
+        }
     }
 
     #[tokio::test]
