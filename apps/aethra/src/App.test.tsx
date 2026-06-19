@@ -28,6 +28,9 @@ describe("Aethra app navigation and demo guidance", () => {
 
     expect(markup).toContain("Guided Demo Path");
     expect(markup).toContain("Recommended safe walkthrough");
+    expect(markup).toContain("Local operations summary");
+    expect(markup).toContain("Operations endpoints");
+    expect(markup).toContain("Recent local activity");
     expect(markup).toContain("Local Demo Studio");
     expect(markup).toContain("Evidence bundle");
     expect(markup).toContain("Review what is generated locally, what stays ignored by git");
@@ -63,6 +66,7 @@ describe("Aethra app navigation and demo guidance", () => {
     expect(markup).toContain("http://127.0.0.1:5173");
     expect(markup).toContain("This field is not the Aethra dev server URL");
     expect(markup).toContain("Refresh local daemon data");
+    expect(markup).toContain("operations summary");
     expect(markup).toContain("Health-only check");
     expect(markup).toContain("No model or runner controls");
     expect(markup).toContain("No command execution");

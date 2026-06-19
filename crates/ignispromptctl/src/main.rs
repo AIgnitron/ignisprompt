@@ -135,6 +135,12 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// Print read-only local operations summary metadata
+    OperationsSummary {
+        /// Print raw JSON response instead of a terminal summary
+        #[arg(long)]
+        json: bool,
+    },
     /// Print local sustainability metrics summary
     Sustainability {
         /// Metrics period: 7d, 30d, or 90d
@@ -279,6 +285,7 @@ fn main() {
         Commands::StatusVersion => cmd_status_version(&cli.daemon_url),
         Commands::Capabilities { json } => cmd_capabilities(&cli.daemon_url, *json),
         Commands::ModelInventory { json } => cmd_model_inventory(&cli.daemon_url, *json),
+        Commands::OperationsSummary { json } => cmd_operations_summary(&cli.daemon_url, *json),
         Commands::Sustainability { period, json } => {
             cmd_sustainability(&cli.daemon_url, period, *json)
         }
@@ -940,6 +947,13 @@ const DOCTOR_CHECKS: &[DoctorCheckSpec] = &[
         path: "/v1/models/inventory",
         level: DoctorCheckLevel::Informational,
         validate: validate_doctor_model_inventory,
+    },
+    DoctorCheckSpec {
+        id: "operations_summary",
+        label: "local operations summary",
+        path: "/v1/operations/summary",
+        level: DoctorCheckLevel::Informational,
+        validate: validate_doctor_operations_summary,
     },
     DoctorCheckSpec {
         id: "capabilities",
@@ -4894,6 +4908,100 @@ fn validate_doctor_model_inventory(body: &Value) -> Result<String, String> {
     ))
 }
 
+fn validate_doctor_operations_summary(body: &Value) -> Result<String, String> {
+    required_string(body, "schema_version")?;
+    required_string(body, "generated_at")?;
+    let daemon = body
+        .get("daemon")
+        .ok_or_else(|| "missing required object field 'daemon'".to_string())?;
+    let endpoints = body
+        .get("endpoints")
+        .ok_or_else(|| "missing required object field 'endpoints'".to_string())?;
+    let audit_summary = body
+        .get("audit_summary")
+        .ok_or_else(|| "missing required object field 'audit_summary'".to_string())?;
+    let activity_summary = body
+        .get("activity_summary")
+        .ok_or_else(|| "missing required object field 'activity_summary'".to_string())?;
+    let boundaries = body
+        .get("boundaries")
+        .ok_or_else(|| "missing required object field 'boundaries'".to_string())?;
+
+    let status = required_string(daemon, "status")?;
+    required_string(daemon, "version")?;
+    required_bool(daemon, "local_preview")?;
+    required_bool(daemon, "local_only")?;
+    daemon
+        .get("uptime_seconds")
+        .and_then(|v| v.as_i64())
+        .ok_or_else(|| "missing required integer field 'daemon.uptime_seconds'".to_string())?;
+
+    for field in [
+        "health_available",
+        "models_available",
+        "model_inventory_available",
+        "capabilities_available",
+        "status_models_available",
+        "status_version_available",
+        "audit_events_available",
+        "sustainability_available",
+        "operations_summary_available",
+    ] {
+        required_bool(endpoints, field)?;
+    }
+
+    let total_events = audit_summary
+        .get("total_events")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| "missing required integer field 'audit_summary.total_events'".to_string())?;
+    let recent_event_count = audit_summary
+        .get("recent_event_count")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| {
+            "missing required integer field 'audit_summary.recent_event_count'".to_string()
+        })?;
+    required_array(audit_summary, "recent_event_types")?;
+    required_string(audit_summary, "audit_store_status")?;
+
+    activity_summary
+        .get("recent_requests_observed")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| {
+            "missing required integer field 'activity_summary.recent_requests_observed'".to_string()
+        })?;
+    activity_summary
+        .get("recent_routes_observed")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| {
+            "missing required integer field 'activity_summary.recent_routes_observed'".to_string()
+        })?;
+    activity_summary
+        .get("recent_errors_observed")
+        .and_then(|v| v.as_u64())
+        .ok_or_else(|| {
+            "missing required integer field 'activity_summary.recent_errors_observed'".to_string()
+        })?;
+
+    for field in [
+        "no_prompt_bodies",
+        "no_raw_request_text",
+        "no_secrets",
+        "no_telemetry",
+        "no_cloud_calls",
+        "read_only",
+    ] {
+        let enabled = required_bool(boundaries, field)?;
+        if !enabled {
+            return Err(format!("boundary '{}' is false", field));
+        }
+    }
+
+    Ok(format!(
+        "{} ({} events; {} recent)",
+        status, total_events, recent_event_count
+    ))
+}
+
 fn validate_doctor_capabilities(body: &Value) -> Result<String, String> {
     let release_channel = required_string(body, "release_channel")?;
     let local_only = required_bool(body, "local_only")?;
@@ -5538,6 +5646,137 @@ fn format_model_inventory_file_line(file: &Value) -> String {
         status,
         quantization
     )
+}
+
+fn cmd_operations_summary(base_url: &str, json_output: bool) {
+    let url = format!("{}/v1/operations/summary", base_url);
+    match ureq::get(&url).call() {
+        Ok(resp) => {
+            let body = parse_response(resp);
+            if json_output {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&body).unwrap_or_default()
+                );
+            } else {
+                println!("{}", format_operations_summary(&body));
+            }
+        }
+        Err(e) => {
+            eprintln!("error: {}", e);
+            process::exit(1);
+        }
+    }
+}
+
+fn format_operations_summary(body: &Value) -> String {
+    let daemon = body.get("daemon").unwrap_or(&Value::Null);
+    let endpoints = body.get("endpoints").unwrap_or(&Value::Null);
+    let audit = body.get("audit_summary").unwrap_or(&Value::Null);
+    let activity = body.get("activity_summary").unwrap_or(&Value::Null);
+    let available_endpoints = [
+        "health_available",
+        "models_available",
+        "model_inventory_available",
+        "capabilities_available",
+        "status_models_available",
+        "status_version_available",
+        "audit_events_available",
+        "sustainability_available",
+        "operations_summary_available",
+    ]
+    .iter()
+    .filter(|field| {
+        endpoints
+            .get(**field)
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+    })
+    .count();
+    let total_endpoints = 9usize;
+
+    let mut lines = vec![
+        "IgnisPrompt Local Operations Summary".to_string(),
+        format!(
+            "schema_version:       {}",
+            body.get("schema_version")
+                .and_then(|value| value.as_str())
+                .unwrap_or("-")
+        ),
+        format!(
+            "daemon_status:        {}",
+            daemon
+                .get("status")
+                .and_then(|value| value.as_str())
+                .unwrap_or("-")
+        ),
+        format!(
+            "daemon_version:       {}",
+            daemon
+                .get("version")
+                .and_then(|value| value.as_str())
+                .unwrap_or("-")
+        ),
+        format!(
+            "uptime_seconds:       {}",
+            daemon
+                .get("uptime_seconds")
+                .and_then(|value| value.as_i64())
+                .unwrap_or(0)
+        ),
+        format!(
+            "endpoints_available: {} / {}",
+            available_endpoints, total_endpoints
+        ),
+        format!(
+            "audit_events:         {} total / {} recent",
+            audit
+                .get("total_events")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0),
+            audit
+                .get("recent_event_count")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0)
+        ),
+        format!(
+            "recent_activity:      {} requests / {} routes / {} warning-or-error records",
+            activity
+                .get("recent_requests_observed")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0),
+            activity
+                .get("recent_routes_observed")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0),
+            activity
+                .get("recent_errors_observed")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0)
+        ),
+    ];
+
+    if let Some(types) = audit
+        .get("recent_event_types")
+        .and_then(|value| value.as_array())
+    {
+        let event_types = types
+            .iter()
+            .filter_map(|value| value.as_str())
+            .collect::<Vec<_>>();
+        lines.push(format!(
+            "recent_event_types:   {}",
+            if event_types.is_empty() {
+                "none".to_string()
+            } else {
+                event_types.join(", ")
+            }
+        ));
+    }
+
+    lines.push("".to_string());
+    lines.push("Boundaries: read-only operations metadata only; no raw prompts or request bodies; no secrets; no telemetry; no cloud calls; no route or model execution.".to_string());
+    lines.join("\n")
 }
 
 fn format_bytes(size_bytes: u64) -> String {
@@ -8337,10 +8576,11 @@ mod tests {
         format_evidence_bundle_unreachable_error, format_evidence_bundle_validation_json,
         format_evidence_bundle_validation_summary, format_http_error,
         format_invalid_response_error, format_model_inventory_summary, format_model_manifest_line,
-        format_operator_package_list_json, format_operator_package_list_summary,
-        format_operator_package_summary, format_operator_package_summary_json,
-        format_operator_package_validation_json, format_operator_package_validation_summary,
-        format_operator_summary, format_operator_summary_json, format_policy_package_list_json,
+        format_operations_summary, format_operator_package_list_json,
+        format_operator_package_list_summary, format_operator_package_summary,
+        format_operator_package_summary_json, format_operator_package_validation_json,
+        format_operator_package_validation_summary, format_operator_summary,
+        format_operator_summary_json, format_policy_package_list_json,
         format_policy_package_list_summary, format_policy_package_summary,
         format_policy_package_summary_json, format_policy_package_validation_json,
         format_policy_package_validation_summary, format_policy_scenarios_json,
@@ -8357,15 +8597,16 @@ mod tests {
         string_field, sustainability_url, validate_demo_package_output_dir,
         validate_doctor_capabilities, validate_doctor_health, validate_doctor_model_inventory,
         validate_doctor_model_status_hints, validate_doctor_models,
-        validate_doctor_sustainability_metrics, validate_doctor_version_status,
-        validate_evidence_bundle_archive_output_path, validate_evidence_bundle_output_dir,
-        validate_no_placeholder_string_values, validate_operator_package_output_dir,
-        validate_policy_package_output_dir, validate_readiness_package_output_dir,
-        validate_sustainability_period, write_demo_package_report, write_evidence_bundle_report,
-        write_operator_package_report, write_policy_package_report, write_readiness_package_report,
-        DoctorCheckLevel, DoctorCheckResult, DoctorReport, EvidenceBundleCapture,
-        DEMO_PACKAGE_REQUIRED_FILES, DOCTOR_CHECKS, OPERATOR_PACKAGE_REQUIRED_FILES,
-        POLICY_PACKAGE_REQUIRED_FILES, POLICY_SCENARIOS, READINESS_PACKAGE_REQUIRED_FILES,
+        validate_doctor_operations_summary, validate_doctor_sustainability_metrics,
+        validate_doctor_version_status, validate_evidence_bundle_archive_output_path,
+        validate_evidence_bundle_output_dir, validate_no_placeholder_string_values,
+        validate_operator_package_output_dir, validate_policy_package_output_dir,
+        validate_readiness_package_output_dir, validate_sustainability_period,
+        write_demo_package_report, write_evidence_bundle_report, write_operator_package_report,
+        write_policy_package_report, write_readiness_package_report, DoctorCheckLevel,
+        DoctorCheckResult, DoctorReport, EvidenceBundleCapture, DEMO_PACKAGE_REQUIRED_FILES,
+        DOCTOR_CHECKS, OPERATOR_PACKAGE_REQUIRED_FILES, POLICY_PACKAGE_REQUIRED_FILES,
+        POLICY_SCENARIOS, READINESS_PACKAGE_REQUIRED_FILES,
     };
     use serde_json::json;
     use std::path::Path;
@@ -8437,6 +8678,7 @@ mod tests {
         assert!(endpoints.contains(&("/v1/models/inventory", DoctorCheckLevel::Informational)));
         assert!(endpoints.contains(&("/v1/capabilities", DoctorCheckLevel::Required)));
         assert!(endpoints.contains(&("/v1/status/models", DoctorCheckLevel::Required)));
+        assert!(endpoints.contains(&("/v1/operations/summary", DoctorCheckLevel::Informational)));
         assert!(endpoints.contains(&(
             "/v1/metrics/sustainability?period=30d",
             DoctorCheckLevel::Informational
@@ -8465,6 +8707,12 @@ mod tests {
     fn capabilities_url_format() {
         let url = format!("{}/v1/capabilities", "http://127.0.0.1:8765");
         assert_eq!(url, "http://127.0.0.1:8765/v1/capabilities");
+    }
+
+    #[test]
+    fn operations_summary_url_format() {
+        let url = format!("{}/v1/operations/summary", "http://127.0.0.1:8765");
+        assert_eq!(url, "http://127.0.0.1:8765/v1/operations/summary");
     }
 
     #[test]
@@ -8575,6 +8823,55 @@ mod tests {
             "1 files (1 GGUF, 0 safetensors)"
         );
         assert_eq!(
+            validate_doctor_operations_summary(&json!({
+                "schema_version": "ignisprompt-operations-summary-v0.1",
+                "generated_at": "2026-06-19T00:00:00Z",
+                "daemon": {
+                    "status": "ok",
+                    "version": "0.1.0",
+                    "uptime_seconds": 42,
+                    "started_at": "2026-06-19T00:00:00Z",
+                    "local_preview": true,
+                    "local_only": true
+                },
+                "endpoints": {
+                    "health_available": true,
+                    "models_available": true,
+                    "model_inventory_available": true,
+                    "capabilities_available": true,
+                    "status_models_available": true,
+                    "status_version_available": true,
+                    "audit_events_available": true,
+                    "sustainability_available": true,
+                    "operations_summary_available": true
+                },
+                "audit_summary": {
+                    "total_events": 3,
+                    "recent_event_count": 2,
+                    "recent_event_types": ["chat_completion", "route_explain"],
+                    "latest_event_at": "2026-06-19T00:00:01Z",
+                    "audit_store_status": "memory_and_local_jsonl_append"
+                },
+                "activity_summary": {
+                    "recent_requests_observed": 2,
+                    "recent_routes_observed": 1,
+                    "recent_errors_observed": 0,
+                    "last_activity_at": "2026-06-19T00:00:01Z"
+                },
+                "boundaries": {
+                    "no_prompt_bodies": true,
+                    "no_raw_request_text": true,
+                    "no_secrets": true,
+                    "no_telemetry": true,
+                    "no_cloud_calls": true,
+                    "read_only": true,
+                    "notes": ["Aggregate metadata only."]
+                }
+            }))
+            .unwrap(),
+            "ok (3 events; 2 recent)"
+        );
+        assert_eq!(
             validate_doctor_capabilities(&json!({
                 "release_channel": "local-preview",
                 "local_only": true,
@@ -8682,6 +8979,88 @@ mod tests {
         }))
         .unwrap_err()
         .contains("summary"));
+        assert!(validate_doctor_operations_summary(&json!({
+            "schema_version": "ignisprompt-operations-summary-v0.1",
+            "generated_at": "2026-06-19T00:00:00Z",
+            "daemon": {
+                "status": "ok",
+                "version": "0.1.0",
+                "uptime_seconds": 42,
+                "started_at": "2026-06-19T00:00:00Z",
+                "local_preview": true,
+                "local_only": true
+            },
+            "endpoints": {
+                "health_available": true,
+                "models_available": true,
+                "model_inventory_available": true,
+                "capabilities_available": true,
+                "status_models_available": true,
+                "status_version_available": true,
+                "audit_events_available": true,
+                "sustainability_available": true,
+                "operations_summary_available": true
+            },
+            "activity_summary": {
+                "recent_requests_observed": 2,
+                "recent_routes_observed": 1,
+                "recent_errors_observed": 0
+            },
+            "boundaries": {
+                "no_prompt_bodies": true,
+                "no_raw_request_text": true,
+                "no_secrets": true,
+                "no_telemetry": true,
+                "no_cloud_calls": true,
+                "read_only": true
+            }
+        }))
+        .unwrap_err()
+        .contains("audit_summary"));
+        assert!(validate_doctor_operations_summary(&json!({
+            "schema_version": "ignisprompt-operations-summary-v0.1",
+            "generated_at": "2026-06-19T00:00:00Z",
+            "daemon": {
+                "status": "ok",
+                "version": "0.1.0",
+                "uptime_seconds": 42,
+                "started_at": "2026-06-19T00:00:00Z",
+                "local_preview": true,
+                "local_only": true
+            },
+            "endpoints": {
+                "health_available": true,
+                "models_available": true,
+                "model_inventory_available": true,
+                "capabilities_available": true,
+                "status_models_available": true,
+                "status_version_available": true,
+                "audit_events_available": true,
+                "sustainability_available": true,
+                "operations_summary_available": true
+            },
+            "audit_summary": {
+                "total_events": 3,
+                "recent_event_count": 2,
+                "recent_event_types": ["chat_completion"],
+                "audit_store_status": "memory_and_local_jsonl_append"
+            },
+            "activity_summary": {
+                "recent_requests_observed": 2,
+                "recent_routes_observed": 1,
+                "recent_errors_observed": 0
+            },
+            "boundaries": {
+                "no_prompt_bodies": true,
+                "no_raw_request_text": false,
+                "no_secrets": true,
+                "no_telemetry": true,
+                "no_cloud_calls": true,
+                "read_only": true
+            }
+        }))
+        .unwrap_err()
+        .contains("boundary"));
         assert!(validate_doctor_capabilities(&json!({
             "release_channel": "local-preview",
             "local_only": true,
@@ -10052,6 +10431,74 @@ mod tests {
         assert!(summary.contains("no deletes"));
         assert!(summary.contains("no file contents or hashes returned"));
         assert!(!summary.contains("/Users/"));
+    }
+
+    #[test]
+    fn operations_summary_is_aggregate_and_safe() {
+        let response = json!({
+            "schema_version": "ignisprompt-operations-summary-v0.1",
+            "generated_at": "2026-06-19T00:00:00Z",
+            "daemon": {
+                "status": "ok",
+                "version": "0.1.0",
+                "uptime_seconds": 42,
+                "started_at": "2026-06-19T00:00:00Z",
+                "local_preview": true,
+                "local_only": true
+            },
+            "endpoints": {
+                "health_available": true,
+                "models_available": true,
+                "model_inventory_available": true,
+                "capabilities_available": true,
+                "status_models_available": true,
+                "status_version_available": true,
+                "audit_events_available": true,
+                "sustainability_available": true,
+                "operations_summary_available": true
+            },
+            "audit_summary": {
+                "total_events": 3,
+                "recent_event_count": 2,
+                "recent_event_types": ["chat_completion", "route_explain"],
+                "latest_event_at": "2026-06-19T00:00:01Z",
+                "audit_store_status": "memory_and_local_jsonl_append"
+            },
+            "activity_summary": {
+                "recent_requests_observed": 2,
+                "recent_routes_observed": 1,
+                "recent_errors_observed": 0,
+                "last_activity_at": "2026-06-19T00:00:01Z"
+            },
+            "boundaries": {
+                "no_prompt_bodies": true,
+                "no_raw_request_text": true,
+                "no_secrets": true,
+                "no_telemetry": true,
+                "no_cloud_calls": true,
+                "read_only": true,
+                "notes": ["Aggregate metadata only."]
+            },
+            "raw_prompt": "PRIVATE_PROMPT_SENTINEL"
+        });
+
+        let summary = format_operations_summary(&response);
+        assert!(summary.contains("IgnisPrompt Local Operations Summary"));
+        assert!(summary.contains("schema_version:       ignisprompt-operations-summary-v0.1"));
+        assert!(summary.contains("daemon_status:        ok"));
+        assert!(summary.contains("daemon_version:       0.1.0"));
+        assert!(summary.contains("endpoints_available: 9 / 9"));
+        assert!(summary.contains("audit_events:         3 total / 2 recent"));
+        assert!(summary
+            .contains("recent_activity:      2 requests / 1 routes / 0 warning-or-error records"));
+        assert!(summary.contains("recent_event_types:   chat_completion, route_explain"));
+        assert!(summary.contains("read-only operations metadata only"));
+        assert!(summary.contains("no raw prompts or request bodies"));
+        assert!(summary.contains("no telemetry"));
+        assert!(summary.contains("no cloud calls"));
+        assert!(!summary.contains("PRIVATE_PROMPT_SENTINEL"));
+        assert!(!summary.contains("raw_prompt"));
+        assert!(!summary.contains("request_id"));
     }
 
     #[test]

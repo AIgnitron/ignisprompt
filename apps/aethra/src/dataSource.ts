@@ -5,6 +5,7 @@ import type {
   ModelInventoryResponse,
   ModelManifest,
   ModelStatusHint,
+  OperationsSummaryResponse,
   SustainabilityMetricsResponse,
   VersionStatusResponse,
 } from "./api/contracts";
@@ -203,6 +204,26 @@ export type LiveSustainabilityMetricsState =
       checkedAt?: string;
     };
 
+export type LiveOperationsSummaryState =
+  | {
+      status: "not-loaded";
+    }
+  | {
+      status: "loading";
+    }
+  | {
+      status: "loaded";
+      summary: OperationsSummaryResponse;
+      loadedAt: string;
+    }
+  | {
+      status: "error";
+      label: string;
+      message: string;
+      diagnosticKind: LiveEndpointErrorKind;
+      checkedAt?: string;
+    };
+
 export type LiveEndpointState =
   | LiveHealthState
   | LiveModelsState
@@ -211,7 +232,8 @@ export type LiveEndpointState =
   | LiveCapabilitiesState
   | LiveVersionStatusState
   | LiveAuditEventsState
-  | LiveSustainabilityMetricsState;
+  | LiveSustainabilityMetricsState
+  | LiveOperationsSummaryState;
 
 export type LiveLocalSurfaceId =
   | "health"
@@ -221,7 +243,8 @@ export type LiveLocalSurfaceId =
   | "model-status"
   | "capabilities"
   | "audit-events"
-  | "sustainability-metrics";
+  | "sustainability-metrics"
+  | "operations-summary";
 
 export type LiveLocalRefreshResult =
   | {
@@ -266,6 +289,7 @@ export type LiveLocalDaemonClient = {
   capabilities: () => Promise<CapabilitiesResponse>;
   auditEvents: () => Promise<AuditEvent[]>;
   sustainabilityMetrics: (period?: string) => Promise<SustainabilityMetricsResponse>;
+  operationsSummary: () => Promise<OperationsSummaryResponse>;
 };
 
 export type LiveLocalDaemonSnapshot = {
@@ -277,6 +301,7 @@ export type LiveLocalDaemonSnapshot = {
   capabilities: LiveCapabilitiesState;
   auditEvents: LiveAuditEventsState;
   sustainabilityMetrics: LiveSustainabilityMetricsState;
+  operationsSummary: LiveOperationsSummaryState;
   results: LiveLocalRefreshResult[];
 };
 
@@ -413,6 +438,7 @@ export async function loadLiveLocalDaemonSnapshot(input: {
     capabilities,
     auditEvents,
     sustainabilityMetrics,
+    operationsSummary,
   ] = await Promise.all([
     loadSurface("health", "Health", () => input.client.health(), describeHealthLoadError),
     loadSurface(
@@ -451,6 +477,12 @@ export async function loadLiveLocalDaemonSnapshot(input: {
       "Sustainability metrics",
       () => input.client.sustainabilityMetrics(period),
       describeSustainabilityMetricsLoadError,
+    ),
+    loadSurface(
+      "operations-summary",
+      "Operations summary",
+      () => input.client.operationsSummary(),
+      describeOperationsSummaryLoadError,
     ),
   ]);
 
@@ -523,6 +555,14 @@ export async function loadLiveLocalDaemonSnapshot(input: {
             ...sustainabilityMetrics.error,
             checkedAt: input.loadedAt,
           },
+    operationsSummary:
+      operationsSummary.status === "loaded"
+        ? {
+            status: "loaded",
+            summary: operationsSummary.value,
+            loadedAt: input.loadedAt,
+          }
+        : endpointErrorState(operationsSummary.error, input.loadedAt),
     results: [
       health.result,
       versionStatus.result,
@@ -532,6 +572,7 @@ export async function loadLiveLocalDaemonSnapshot(input: {
       capabilities.result,
       auditEvents.result,
       sustainabilityMetrics.result,
+      operationsSummary.result,
     ],
   };
 }
@@ -660,6 +701,12 @@ export function describeSustainabilityMetricsLoadError(
   return describeEndpointLoadError(error, "sustainability-metrics");
 }
 
+export function describeOperationsSummaryLoadError(
+  error: unknown,
+): LiveEndpointErrorDescription {
+  return describeEndpointLoadError(error, "operations-summary");
+}
+
 function describeEndpointLoadError(
   error: unknown,
   endpoint:
@@ -670,7 +717,8 @@ function describeEndpointLoadError(
     | "capabilities"
     | "version-status"
     | "audit-events"
-    | "sustainability-metrics",
+    | "sustainability-metrics"
+    | "operations-summary",
 ): LiveEndpointErrorDescription {
   const noun =
     endpoint === "health"
@@ -687,7 +735,9 @@ function describeEndpointLoadError(
                 ? "daemon version status"
                 : endpoint === "audit-events"
                   ? "audit event"
-                  : "sustainability metrics";
+                  : endpoint === "sustainability-metrics"
+                    ? "sustainability metrics"
+                    : "local operations summary";
 
   if (error instanceof AethraApiError) {
     switch (error.kind) {
@@ -744,7 +794,9 @@ function describeEndpointLoadError(
                   ? "Version status load failed"
                   : endpoint === "audit-events"
                     ? "Audit events load failed"
-                    : "Sustainability metrics load failed",
+                    : endpoint === "sustainability-metrics"
+                      ? "Sustainability metrics load failed"
+                      : "Operations summary load failed",
     message: `Aethra could not load live local ${noun} metadata.`,
     diagnosticKind: "unknown",
   };

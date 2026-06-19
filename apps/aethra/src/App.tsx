@@ -18,6 +18,7 @@ import type {
   LiveModelInventoryState,
   LiveModelStatusState,
   LiveModelsState,
+  LiveOperationsSummaryState,
   LiveSustainabilityMetricsState,
   LiveVersionStatusState,
 } from "./dataSource";
@@ -86,6 +87,10 @@ export default function App() {
     });
   const [liveSustainabilityMetricsState, setLiveSustainabilityMetricsState] =
     useState<LiveSustainabilityMetricsState>({
+      status: "not-loaded",
+    });
+  const [liveOperationsSummaryState, setLiveOperationsSummaryState] =
+    useState<LiveOperationsSummaryState>({
       status: "not-loaded",
     });
   const [liveLocalRefreshState, setLiveLocalRefreshState] =
@@ -350,6 +355,7 @@ export default function App() {
         ...blocked,
         period: "30d",
       });
+      setLiveOperationsSummaryState(blocked);
       setLiveLocalRefreshState({
         status: "complete",
         requestedAt,
@@ -363,6 +369,7 @@ export default function App() {
           "capabilities",
           "audit-events",
           "sustainability-metrics",
+          "operations-summary",
         ].map((surface) => ({
           surface: surface as LiveLocalSurfaceId,
           status: "failed",
@@ -383,6 +390,7 @@ export default function App() {
     setLiveCapabilitiesState({ status: "loading" });
     setLiveAuditEventsState({ status: "loading" });
     setLiveSustainabilityMetricsState({ status: "loading", period: "30d" });
+    setLiveOperationsSummaryState({ status: "loading" });
 
     const loadedAt = new Date().toISOString();
     const client = createIgnisPromptClient({ baseUrl: localBaseUrl });
@@ -400,6 +408,7 @@ export default function App() {
     setLiveCapabilitiesState(snapshot.capabilities);
     setLiveAuditEventsState(snapshot.auditEvents);
     setLiveSustainabilityMetricsState(snapshot.sustainabilityMetrics);
+    setLiveOperationsSummaryState(snapshot.operationsSummary);
     setLiveLocalRefreshState({
       status: "complete",
       requestedAt,
@@ -535,7 +544,7 @@ export default function App() {
               <p>
                 {dataMode === "fixture"
                   ? "Use Refresh local daemon data when ignispromptd is running. Aethra observes IgnisPrompt state without changing routing, runners, models, or audit policy."
-                  : "Live local metadata loading is manual and read-only for health, daemon version status, models, local model inventory, capabilities, model and runner status hints, audit events, and sustainability metrics."}
+                  : "Live local metadata loading is manual and read-only for health, daemon version status, models, local model inventory, capabilities, model and runner status hints, audit events, operations summary, and sustainability metrics."}
               </p>
             </div>
             <div className="mode-badges" aria-label="Aethra mode guarantees">
@@ -584,6 +593,7 @@ export default function App() {
             liveVersionStatusState={liveVersionStatusState}
             liveAuditEventsState={liveAuditEventsState}
             liveSustainabilityMetricsState={liveSustainabilityMetricsState}
+            liveOperationsSummaryState={liveOperationsSummaryState}
             onLoadLiveHealth={loadLiveHealth}
             onLoadLiveVersionStatus={loadLiveVersionStatus}
           />
@@ -615,6 +625,7 @@ export default function App() {
           <AuditEvents
             dataMode={dataMode}
             liveAuditEventsState={liveAuditEventsState}
+            liveOperationsSummaryState={liveOperationsSummaryState}
             onLoadLiveAuditEvents={loadLiveAuditEvents}
           />
         ) : null}
@@ -831,9 +842,9 @@ function DataSourceControl({
             </button>
             <p className="muted refresh-card-note">
               Loads health, version, models, local model inventory,
-              capabilities, status hints, audit events, and 30d sustainability
-              metrics from read-only GET endpoints. Route execution and model
-              execution are not included.
+              capabilities, status hints, audit events, operations summary, and
+              30d sustainability metrics from read-only GET endpoints. Route
+              execution and model execution are not included.
             </p>
           </div>
 
