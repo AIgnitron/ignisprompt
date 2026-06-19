@@ -13,6 +13,8 @@ import type {
   LiveAuditEventsState,
   LiveCapabilitiesState,
   LiveHealthState,
+  LiveLocalRefreshState,
+  LiveLocalSurfaceId,
   LiveModelStatusState,
   LiveModelsState,
   LiveSustainabilityMetricsState,
@@ -27,8 +29,9 @@ import {
   describeModelsLoadError,
   describeSustainabilityMetricsLoadError,
   describeVersionStatusLoadError,
+  loadLiveLocalDaemonSnapshot,
   localUrlBlockedDescription,
-  validateLocalBaseUrl,
+  resolveAethraBaseUrlInput,
 } from "./dataSource";
 import { ModelRunnerStatus } from "./routes/ModelRunnerStatus";
 import { Overview } from "./routes/Overview";
@@ -79,7 +82,11 @@ export default function App() {
     useState<LiveSustainabilityMetricsState>({
       status: "not-loaded",
     });
-  const baseUrlValidation = validateLocalBaseUrl(baseUrlInput);
+  const [liveLocalRefreshState, setLiveLocalRefreshState] =
+    useState<LiveLocalRefreshState>({
+      status: "idle",
+    });
+  const baseUrlValidation = resolveAethraBaseUrlInput(baseUrlInput);
   const localBaseUrl = baseUrlValidation.ok
     ? baseUrlValidation.baseUrl
     : DEFAULT_AETHRA_BASE_URL;
@@ -288,6 +295,81 @@ export default function App() {
     }
   }
 
+  async function refreshLiveLocalDaemonData() {
+    setDataMode("live-local");
+    const requestedAt = new Date().toISOString();
+
+    if (baseUrlError) {
+      const blocked = {
+        status: "error" as const,
+        ...localUrlBlockedDescription(baseUrlError),
+        checkedAt: requestedAt,
+      };
+      setLiveHealthState(blocked);
+      setLiveVersionStatusState(blocked);
+      setLiveModelsState(blocked);
+      setLiveModelStatusState(blocked);
+      setLiveCapabilitiesState(blocked);
+      setLiveAuditEventsState(blocked);
+      setLiveSustainabilityMetricsState({
+        ...blocked,
+        period: "30d",
+      });
+      setLiveLocalRefreshState({
+        status: "complete",
+        requestedAt,
+        completedAt: requestedAt,
+        results: [
+          "health",
+          "version-status",
+          "models",
+          "model-status",
+          "capabilities",
+          "audit-events",
+          "sustainability-metrics",
+        ].map((surface) => ({
+          surface: surface as LiveLocalSurfaceId,
+          status: "failed",
+          label: "Local URL blocked",
+          message: baseUrlError,
+          diagnosticKind: "invalid-local-url",
+        })),
+      });
+      return;
+    }
+
+    setLiveLocalRefreshState({ status: "loading", requestedAt });
+    setLiveHealthState({ status: "loading" });
+    setLiveVersionStatusState({ status: "loading" });
+    setLiveModelsState({ status: "loading" });
+    setLiveModelStatusState({ status: "loading" });
+    setLiveCapabilitiesState({ status: "loading" });
+    setLiveAuditEventsState({ status: "loading" });
+    setLiveSustainabilityMetricsState({ status: "loading", period: "30d" });
+
+    const loadedAt = new Date().toISOString();
+    const client = createIgnisPromptClient({ baseUrl: localBaseUrl });
+    const snapshot = await loadLiveLocalDaemonSnapshot({
+      client,
+      loadedAt,
+      sustainabilityPeriod: "30d",
+    });
+
+    setLiveHealthState(snapshot.health);
+    setLiveVersionStatusState(snapshot.versionStatus);
+    setLiveModelsState(snapshot.models);
+    setLiveModelStatusState(snapshot.modelStatus);
+    setLiveCapabilitiesState(snapshot.capabilities);
+    setLiveAuditEventsState(snapshot.auditEvents);
+    setLiveSustainabilityMetricsState(snapshot.sustainabilityMetrics);
+    setLiveLocalRefreshState({
+      status: "complete",
+      requestedAt,
+      completedAt: loadedAt,
+      results: snapshot.results,
+    });
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Aethra sections">
@@ -409,22 +491,22 @@ export default function App() {
               <p className="eyebrow">Data mode</p>
               <h2>
                 {dataMode === "fixture"
-                  ? "fixture-backed by default"
+                  ? "offline preview ready"
                   : "live local selected"}
               </h2>
               <p>
                 {dataMode === "fixture"
-                  ? "Live local actions are explicit and local. Aethra observes IgnisPrompt state without changing routing, runners, models, or audit policy."
+                  ? "Use Refresh local daemon data when ignispromptd is running. Aethra observes IgnisPrompt state without changing routing, runners, models, or audit policy."
                   : "Live local metadata loading is manual and read-only for health, daemon version status, models, capabilities, model and runner status hints, audit events, and sustainability metrics."}
               </p>
             </div>
             <div className="mode-badges" aria-label="Aethra mode guarantees">
               <StatusBadge tone={dataMode === "fixture" ? "neutral" : "warning"}>
-                {dataMode === "fixture" ? "Fixture mode" : "Live local mode"}
+                {dataMode === "fixture" ? "Offline preview" : "Live local mode"}
               </StatusBadge>
               <StatusBadge tone="neutral">read-only</StatusBadge>
-              <StatusBadge tone="neutral">fixture-backed by default</StatusBadge>
-              <StatusBadge tone="neutral">manual live-local loading only</StatusBadge>
+              <StatusBadge tone="neutral">fixture fallback</StatusBadge>
+              <StatusBadge tone="neutral">manual live-local refresh</StatusBadge>
               <StatusBadge tone="neutral">no telemetry</StatusBadge>
               <StatusBadge tone="neutral">no cloud calls by default</StatusBadge>
               <StatusBadge tone="warning">no model or runner controls</StatusBadge>
@@ -442,10 +524,12 @@ export default function App() {
           baseUrl={localBaseUrl}
           baseUrlError={baseUrlError}
           liveHealthState={liveHealthState}
+          liveLocalRefreshState={liveLocalRefreshState}
           isExpanded={isDataSourceExpanded}
           onDataModeChange={setDataMode}
           onBaseUrlInputChange={setBaseUrlInput}
           onLoadLiveHealth={loadLiveHealth}
+          onRefreshLiveLocalData={refreshLiveLocalDaemonData}
           onExpandedChange={setIsDataSourceExpanded}
         />
 
@@ -457,6 +541,7 @@ export default function App() {
             liveHealthState={liveHealthState}
             liveModelsState={liveModelsState}
             liveModelStatusState={liveModelStatusState}
+            liveCapabilitiesState={liveCapabilitiesState}
             liveVersionStatusState={liveVersionStatusState}
             liveAuditEventsState={liveAuditEventsState}
             liveSustainabilityMetricsState={liveSustainabilityMetricsState}
@@ -525,16 +610,18 @@ function LocalPreviewBanner() {
     <section className="preview-banner" aria-label="Local preview boundary">
       <div>
         <p className="eyebrow">Local Preview</p>
-        <h2>Fixture-first observability for local IgnisPrompt review</h2>
+        <h2>Local daemon observability with offline preview fallback</h2>
         <p>
-          Fixture mode is the default. Live-local loading is manual. Aethra is
-          read-only, sends no telemetry, makes no cloud calls by default, and
-          exists for local-preview observability only.
+          Refresh local daemon data when <code>ignispromptd</code> is running.
+          Offline preview fixtures remain available. Aethra is read-only, sends
+          no telemetry, makes no cloud calls by default, and exists for
+          local-preview observability only.
         </p>
       </div>
       <div className="preview-banner-badges" aria-label="Local preview guardrails">
-        <StatusBadge tone="neutral">Fixture default</StatusBadge>
-        <StatusBadge tone="neutral">Manual live-local</StatusBadge>
+        <StatusBadge tone="neutral">Local daemon data</StatusBadge>
+        <StatusBadge tone="neutral">Fixture fallback</StatusBadge>
+        <StatusBadge tone="neutral">Manual refresh</StatusBadge>
         <StatusBadge tone="neutral">Read-only dashboard</StatusBadge>
         <StatusBadge tone="neutral">No telemetry</StatusBadge>
         <StatusBadge tone="neutral">No cloud calls by default</StatusBadge>
@@ -556,10 +643,12 @@ type DataSourceControlProps = {
   baseUrl: string;
   baseUrlError?: string;
   liveHealthState: LiveHealthState;
+  liveLocalRefreshState: LiveLocalRefreshState;
   isExpanded: boolean;
   onDataModeChange: (dataMode: AethraDataMode) => void;
   onBaseUrlInputChange: (baseUrl: string) => void;
   onLoadLiveHealth: () => void;
+  onRefreshLiveLocalData: () => void;
   onExpandedChange: (isExpanded: boolean) => void;
 };
 
@@ -570,32 +659,41 @@ function DataSourceControl({
   baseUrl,
   baseUrlError,
   liveHealthState,
+  liveLocalRefreshState,
   isExpanded,
   onDataModeChange,
   onBaseUrlInputChange,
   onLoadLiveHealth,
+  onRefreshLiveLocalData,
   onExpandedChange,
 }: DataSourceControlProps) {
   const canLoadHealth =
     dataMode === "live-local" &&
     !baseUrlError &&
     liveHealthState.status !== "loading";
+  const canRefreshLocalData =
+    !baseUrlError && liveLocalRefreshState.status !== "loading";
   const isOverviewRoute = activeRoute === "overview";
+  const refreshSummary =
+    liveLocalRefreshState.status === "complete"
+      ? summarizeLiveLocalRefresh(liveLocalRefreshState)
+      : undefined;
 
   return (
     <section className="data-source-control" aria-label="Aethra data source">
       <div className="data-source-compact-row">
         <div className="data-source-intro">
           <p className="eyebrow">Local preview</p>
-          <h3>Fixture mode first, live-local only when manually requested</h3>
+          <h3>Prefer local daemon data with fixture fallback</h3>
           <p className="muted">
-            Aethra opens in fixture mode using bundled demo data.
+            Refresh local daemon metadata when <code>ignispromptd</code> is
+            running; offline preview fixtures remain available when it is not.
           </p>
         </div>
         <div className="data-source-compact-badges" aria-label="Aethra compact boundaries">
           <StatusBadge tone="neutral">Local preview</StatusBadge>
           <StatusBadge tone={dataMode === "fixture" ? "neutral" : "warning"}>
-            {dataMode === "fixture" ? "Fixture mode by default" : "Live-local selected"}
+            {dataMode === "fixture" ? "Offline preview" : "Live-local selected"}
           </StatusBadge>
           <StatusBadge tone="neutral">Read-only</StatusBadge>
           <StatusBadge tone="neutral">No telemetry</StatusBadge>
@@ -620,14 +718,14 @@ function DataSourceControl({
         <div className="data-source-details-grid">
           <div className="data-source-explainer">
             <p className="muted">
-              Aethra opens in fixture mode using bundled demo data. To inspect a
-              running local IgnisPrompt daemon, start <code>ignispromptd</code> and
-              manually load metadata from the daemon base URL. Aethra does not poll,
-              persist live-local state, execute commands, or change routing.
+              Aethra can load real local-preview metadata from a running
+              IgnisPrompt daemon and falls back to bundled offline preview data
+              for unavailable sections. Aethra does not poll, persist live-local
+              state, execute commands, or change routing.
             </p>
             <ul className="data-source-boundary-list">
-              <li>Fixture-backed by default</li>
-              <li>Manual live-local loading only</li>
+              <li>Local daemon data when manually refreshed</li>
+              <li>Fixture fallback for offline preview</li>
               <li>No polling</li>
               <li>No persistence of live-local state</li>
               <li>No command execution</li>
@@ -674,12 +772,53 @@ function DataSourceControl({
             </StatusBadge>
             <p className="muted">
               {baseUrlError ??
-                "Manual live-local loads use the daemon base URL above and never poll or persist state."}
+                "Refresh uses the daemon base URL above for read-only local metadata and never polls or persists state."}
             </p>
           </div>
 
           <div className="manual-refresh-card">
-            <span>Manual live-local refresh action</span>
+            <span>Primary local daemon refresh</span>
+            <button
+              type="button"
+              className="primary-button"
+              disabled={!canRefreshLocalData}
+              onClick={onRefreshLiveLocalData}
+            >
+              {liveLocalRefreshState.status === "loading"
+                ? "Refreshing local daemon data"
+                : "Refresh local daemon data"}
+            </button>
+            <p className="muted refresh-card-note">
+              Loads health, version, models, capabilities, status hints, audit
+              events, and 30d sustainability metrics from read-only GET
+              endpoints. Route execution and model execution are not included.
+            </p>
+          </div>
+
+          {refreshSummary ? (
+            <div
+              className="refresh-receipt"
+              aria-label="Local daemon refresh receipt"
+            >
+              <StatusBadge tone={refreshSummary.failed > 0 ? "warning" : "ok"}>
+                {refreshSummary.loaded} loaded / {refreshSummary.failed} failed
+              </StatusBadge>
+              <p className="muted">
+                Last local daemon refresh completed at{" "}
+                {formatTimestamp(refreshSummary.completedAt)}. Failed
+                sections keep fixture fallback visible.
+              </p>
+              {refreshSummary.failedLabels.length > 0 ? (
+                <p className="muted">
+                  Fixture fallback still shown for:{" "}
+                  {refreshSummary.failedLabels.join(", ")}.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="manual-refresh-card">
+            <span>Health-only check</span>
             <button
               type="button"
               className="secondary-button health-load-button"
@@ -695,4 +834,35 @@ function DataSourceControl({
       </details>
     </section>
   );
+}
+
+function summarizeLiveLocalRefresh(refreshState: Extract<
+  LiveLocalRefreshState,
+  { status: "complete" }
+>) {
+  const loaded = refreshState.results.filter(
+    (result) => result.status === "loaded",
+  );
+  const failed = refreshState.results.filter(
+    (result) => result.status === "failed",
+  );
+
+  return {
+    loaded: loaded.length,
+    failed: failed.length,
+    failedLabels: failed.map((result) => result.label),
+    completedAt: refreshState.completedAt,
+  };
+}
+
+function formatTimestamp(timestamp: string): string {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return timestamp;
+  }
+
+  return date.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }

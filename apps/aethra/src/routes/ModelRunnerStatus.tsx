@@ -89,10 +89,10 @@ export function ModelRunnerStatus({
           (hint: ModelStatusHint) => hint.modelId === selectedModelId,
         );
   const sourceLabel = isLiveModelsLoaded
-    ? "Live local metadata"
+    ? "Local daemon data"
     : dataMode === "live-local"
       ? "Fixture fallback"
-      : "Fixture mode";
+      : "Offline preview";
 
   useEffect(() => {
     if (rows.length === 0) {
@@ -160,8 +160,8 @@ export function ModelRunnerStatus({
           value={models.length}
           detail={
             isLiveModelsLoaded
-              ? "Live local model registry entries"
-              : "Synthetic model registry fixtures"
+              ? "Local daemon model registry entries"
+              : "Offline preview model registry fixtures"
           }
         />
         <MetricCard
@@ -184,7 +184,7 @@ export function ModelRunnerStatus({
           value={effectiveStatusHints.length}
           detail={
             isLiveStatusLoaded
-              ? "Live local daemon status hints"
+              ? "Local daemon status hints"
               : "Fixture-backed status hints"
           }
         />
@@ -273,7 +273,7 @@ function ModelMetadataPanel({
               ? "Live local metadata"
               : isLiveMode
                 ? "Fixture fallback"
-                : "Fixture metadata"}
+                : "Offline preview metadata"}
           </dd>
         </div>
         <div>
@@ -439,10 +439,10 @@ function ModelStatusPanel({
           <dt>Source</dt>
           <dd>
             {isCapabilitiesLoaded
-              ? "Manual live-local daemon capabilities"
+              ? "Local daemon capabilities"
               : isLiveMode
                 ? "Fixture fallback capabilities"
-                : "Fixture capabilities"}
+                : "Offline preview capabilities"}
           </dd>
         </div>
         <div>

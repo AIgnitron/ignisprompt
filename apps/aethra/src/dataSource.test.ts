@@ -1,8 +1,21 @@
 import { describe, expect, it } from "vitest";
+import {
+  auditEventFixtures,
+  capabilitiesFixture,
+  healthFixture,
+  modelFixtures,
+  modelStatusFixture,
+  sustainabilityMetricsFixture,
+  versionStatusFixture,
+} from "./api/fixtures";
 import { AethraApiError } from "./api/errors";
 import {
   DEFAULT_AETHRA_BASE_URL,
   buildLiveLocalDiagnostics,
+  formatLiveLocalDisplaySource,
+  getLiveLocalDisplaySource,
+  loadLiveLocalDaemonSnapshot,
+  resolveAethraBaseUrlInput,
   describeAuditEventsLoadError,
   describeCapabilitiesLoadError,
   describeHealthLoadError,
@@ -17,6 +30,13 @@ import {
 describe("Aethra data source helpers", () => {
   it("defaults to the local IgnisPrompt daemon URL", () => {
     expect(DEFAULT_AETHRA_BASE_URL).toBe("http://127.0.0.1:8765");
+  });
+
+  it("resolves blank Aethra UI input to the default daemon URL", () => {
+    expect(resolveAethraBaseUrlInput("")).toEqual({
+      ok: true,
+      baseUrl: DEFAULT_AETHRA_BASE_URL,
+    });
   });
 
   it("normalizes trailing slashes from local base URLs", () => {
@@ -465,6 +485,116 @@ describe("Aethra data source helpers", () => {
     ).toMatchObject({
       state: "endpoint-unavailable",
       label: "Endpoint unavailable",
+    });
+  });
+
+  it("labels displayed data sources for local daemon data and fallback states", () => {
+    expect(
+      formatLiveLocalDisplaySource(
+        getLiveLocalDisplaySource("live-local", {
+          status: "loaded",
+          health: healthFixture,
+          loadedAt: "2026-05-20T00:01:00Z",
+        }),
+      ),
+    ).toBe("Local daemon data");
+    expect(
+      formatLiveLocalDisplaySource(
+        getLiveLocalDisplaySource("live-local", { status: "not-loaded" }),
+      ),
+    ).toBe("Fixture fallback");
+    expect(
+      formatLiveLocalDisplaySource(
+        getLiveLocalDisplaySource("fixture", { status: "not-loaded" }),
+      ),
+    ).toBe("Offline preview");
+  });
+
+  it("loads all supported read-only daemon surfaces into a live-local snapshot", async () => {
+    const calls: string[] = [];
+    const snapshot = await loadLiveLocalDaemonSnapshot({
+      loadedAt: "2026-05-20T00:01:00Z",
+      client: {
+        health: async () => {
+          calls.push("health");
+          return healthFixture;
+        },
+        versionStatus: async () => {
+          calls.push("version");
+          return versionStatusFixture;
+        },
+        models: async () => {
+          calls.push("models");
+          return { models: modelFixtures };
+        },
+        modelStatus: async () => {
+          calls.push("model-status");
+          return modelStatusFixture;
+        },
+        capabilities: async () => {
+          calls.push("capabilities");
+          return capabilitiesFixture;
+        },
+        auditEvents: async () => {
+          calls.push("audit-events");
+          return auditEventFixtures;
+        },
+        sustainabilityMetrics: async (period = "30d") => {
+          calls.push(`sustainability:${period}`);
+          return sustainabilityMetricsFixture;
+        },
+      },
+    });
+
+    expect(calls.sort()).toEqual([
+      "audit-events",
+      "capabilities",
+      "health",
+      "model-status",
+      "models",
+      "sustainability:30d",
+      "version",
+    ]);
+    expect(snapshot.health.status).toBe("loaded");
+    expect(snapshot.versionStatus.status).toBe("loaded");
+    expect(snapshot.models.status).toBe("loaded");
+    expect(snapshot.modelStatus.status).toBe("loaded");
+    expect(snapshot.capabilities.status).toBe("loaded");
+    expect(snapshot.auditEvents.status).toBe("loaded");
+    expect(snapshot.sustainabilityMetrics.status).toBe("loaded");
+    expect(snapshot.results.every((result) => result.status === "loaded")).toBe(
+      true,
+    );
+  });
+
+  it("keeps partial refresh failures isolated so fixture fallback can remain visible", async () => {
+    const snapshot = await loadLiveLocalDaemonSnapshot({
+      loadedAt: "2026-05-20T00:01:00Z",
+      client: {
+        health: async () => healthFixture,
+        versionStatus: async () => versionStatusFixture,
+        models: async () => ({ models: modelFixtures }),
+        modelStatus: async () => modelStatusFixture,
+        capabilities: async () => {
+          throw new AethraApiError("http-error", "missing", { status: 404 });
+        },
+        auditEvents: async () => auditEventFixtures,
+        sustainabilityMetrics: async () => sustainabilityMetricsFixture,
+      },
+    });
+
+    expect(snapshot.health.status).toBe("loaded");
+    expect(snapshot.capabilities).toMatchObject({
+      status: "error",
+      label: "Endpoint unavailable",
+      diagnosticKind: "endpoint-unavailable",
+    });
+    expect(snapshot.results).toContainEqual({
+      surface: "capabilities",
+      status: "failed",
+      label: "Capabilities",
+      message: "The local daemon returned HTTP 404.",
+      diagnosticKind: "endpoint-unavailable",
     });
   });
 });

@@ -54,7 +54,7 @@ describe("Aethra app navigation and demo guidance", () => {
   it("renders a compact collapsed local-preview panel with daemon-url guidance", () => {
     const markup = renderToStaticMarkup(<App />);
 
-    expect(markup).toContain("Fixture mode by default");
+    expect(markup).toContain("Offline preview");
     expect(markup).toContain("Read-only");
     expect(markup).toContain("No telemetry");
     expect(markup).toContain("No cloud calls by default");
@@ -62,18 +62,39 @@ describe("Aethra app navigation and demo guidance", () => {
     expect(markup).toContain("http://127.0.0.1:8765");
     expect(markup).toContain("http://127.0.0.1:5173");
     expect(markup).toContain("This field is not the Aethra dev server URL");
+    expect(markup).toContain("Refresh local daemon data");
+    expect(markup).toContain("Health-only check");
     expect(markup).toContain("No model or runner controls");
     expect(markup).toContain("No command execution");
     expect(markup).toContain("<details");
     expect(markup).not.toContain("<details class=\"data-source-details\" open");
   });
 
-  it("does not fetch live-local capability metadata during fixture-first render", () => {
+  it("does not fetch live-local metadata during initial render", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
     renderToStaticMarkup(<App />);
 
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
+  });
+
+  it("does not render mutation or execution controls in the local daemon refresh path", () => {
+    const markup = renderToStaticMarkup(<App />);
+
+    expect(markup).not.toContain("Enable cloud");
+    expect(markup).not.toContain("Run model");
+    expect(markup).not.toContain("Execute model");
+    expect(markup).not.toContain("Edit connector");
+    expect(markup).not.toContain("Disable connector");
+    expect(markup).not.toContain("Mutate routing");
+  });
+
+  it("does not add polling or live-local storage persistence APIs", () => {
+    const appSource = App.toString();
+
+    expect(appSource).not.toContain("setInterval");
+    expect(appSource).not.toContain("localStorage");
+    expect(appSource).not.toContain("sessionStorage");
   });
 });

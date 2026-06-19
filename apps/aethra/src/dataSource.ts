@@ -191,6 +191,70 @@ export type LiveEndpointState =
   | LiveAuditEventsState
   | LiveSustainabilityMetricsState;
 
+export type LiveLocalSurfaceId =
+  | "health"
+  | "version-status"
+  | "models"
+  | "model-status"
+  | "capabilities"
+  | "audit-events"
+  | "sustainability-metrics";
+
+export type LiveLocalRefreshResult =
+  | {
+      surface: LiveLocalSurfaceId;
+      status: "loaded";
+      label: string;
+    }
+  | {
+      surface: LiveLocalSurfaceId;
+      status: "failed";
+      label: string;
+      message: string;
+      diagnosticKind: LiveEndpointErrorKind;
+    };
+
+export type LiveLocalRefreshState =
+  | {
+      status: "idle";
+    }
+  | {
+      status: "loading";
+      requestedAt: string;
+    }
+  | {
+      status: "complete";
+      requestedAt: string;
+      completedAt: string;
+      results: LiveLocalRefreshResult[];
+    };
+
+export type LiveLocalDaemonClient = {
+  health: () => Promise<HealthResponse>;
+  versionStatus: () => Promise<VersionStatusResponse>;
+  models: () => Promise<{ models: ModelManifest[] }>;
+  modelStatus: () => Promise<{
+    schemaVersion: string;
+    generatedAt: string;
+    source: "local-daemon";
+    statusHints: ModelStatusHint[];
+  }>;
+  capabilities: () => Promise<CapabilitiesResponse>;
+  auditEvents: () => Promise<AuditEvent[]>;
+  sustainabilityMetrics: (period?: string) => Promise<SustainabilityMetricsResponse>;
+};
+
+export type LiveLocalDaemonSnapshot = {
+  health: LiveHealthState;
+  versionStatus: LiveVersionStatusState;
+  models: LiveModelsState;
+  modelStatus: LiveModelStatusState;
+  capabilities: LiveCapabilitiesState;
+  auditEvents: LiveAuditEventsState;
+  sustainabilityMetrics: LiveSustainabilityMetricsState;
+  results: LiveLocalRefreshResult[];
+};
+
 export type LiveLocalDiagnosticsState =
   | "fixture-mode-active"
   | "live-local-ready"
@@ -265,6 +329,231 @@ export function validateLocalBaseUrl(
   return {
     ok: true,
     baseUrl: normalizeLocalBaseUrl(baseUrl),
+  };
+}
+
+export function resolveAethraBaseUrlInput(
+  baseUrlInput: string,
+): LocalBaseUrlValidation {
+  if (baseUrlInput.trim().length === 0) {
+    return {
+      ok: true,
+      baseUrl: DEFAULT_AETHRA_BASE_URL,
+    };
+  }
+
+  return validateLocalBaseUrl(baseUrlInput);
+}
+
+export function getLiveLocalDisplaySource(
+  dataMode: AethraDataMode,
+  state: LiveEndpointState,
+): "local-daemon" | "fixture-fallback" | "offline-preview" {
+  if (dataMode === "live-local" && state.status === "loaded") {
+    return "local-daemon";
+  }
+
+  if (dataMode === "live-local") {
+    return "fixture-fallback";
+  }
+
+  return "offline-preview";
+}
+
+export function formatLiveLocalDisplaySource(
+  source: ReturnType<typeof getLiveLocalDisplaySource>,
+): string {
+  switch (source) {
+    case "local-daemon":
+      return "Local daemon data";
+    case "fixture-fallback":
+      return "Fixture fallback";
+    case "offline-preview":
+      return "Offline preview";
+  }
+}
+
+export async function loadLiveLocalDaemonSnapshot(input: {
+  client: LiveLocalDaemonClient;
+  loadedAt: string;
+  sustainabilityPeriod?: string;
+}): Promise<LiveLocalDaemonSnapshot> {
+  const period = input.sustainabilityPeriod ?? "30d";
+  const [
+    health,
+    versionStatus,
+    models,
+    modelStatus,
+    capabilities,
+    auditEvents,
+    sustainabilityMetrics,
+  ] = await Promise.all([
+    loadSurface("health", "Health", () => input.client.health(), describeHealthLoadError),
+    loadSurface(
+      "version-status",
+      "Version status",
+      () => input.client.versionStatus(),
+      describeVersionStatusLoadError,
+    ),
+    loadSurface("models", "Models", () => input.client.models(), describeModelsLoadError),
+    loadSurface(
+      "model-status",
+      "Model status hints",
+      () => input.client.modelStatus(),
+      describeModelStatusLoadError,
+    ),
+    loadSurface(
+      "capabilities",
+      "Capabilities",
+      () => input.client.capabilities(),
+      describeCapabilitiesLoadError,
+    ),
+    loadSurface(
+      "audit-events",
+      "Audit events",
+      () => input.client.auditEvents(),
+      describeAuditEventsLoadError,
+    ),
+    loadSurface(
+      "sustainability-metrics",
+      "Sustainability metrics",
+      () => input.client.sustainabilityMetrics(period),
+      describeSustainabilityMetricsLoadError,
+    ),
+  ]);
+
+  return {
+    health:
+      health.status === "loaded"
+        ? { status: "loaded", health: health.value, loadedAt: input.loadedAt }
+        : endpointErrorState(health.error, input.loadedAt),
+    versionStatus:
+      versionStatus.status === "loaded"
+        ? {
+            status: "loaded",
+            versionStatus: versionStatus.value,
+            loadedAt: input.loadedAt,
+          }
+        : endpointErrorState(versionStatus.error, input.loadedAt),
+    models:
+      models.status === "loaded"
+        ? {
+            status: "loaded",
+            models: models.value.models,
+            loadedAt: input.loadedAt,
+          }
+        : endpointErrorState(models.error, input.loadedAt),
+    modelStatus:
+      modelStatus.status === "loaded"
+        ? {
+            status: "loaded",
+            statusHints: modelStatus.value.statusHints,
+            schemaVersion: modelStatus.value.schemaVersion,
+            source: modelStatus.value.source,
+            generatedAt: modelStatus.value.generatedAt,
+            loadedAt: input.loadedAt,
+          }
+        : endpointErrorState(modelStatus.error, input.loadedAt),
+    capabilities:
+      capabilities.status === "loaded"
+        ? {
+            status: "loaded",
+            capabilities: capabilities.value,
+            loadedAt: input.loadedAt,
+          }
+        : endpointErrorState(capabilities.error, input.loadedAt),
+    auditEvents:
+      auditEvents.status === "loaded"
+        ? {
+            status: "loaded",
+            events: auditEvents.value,
+            loadedAt: input.loadedAt,
+          }
+        : endpointErrorState(auditEvents.error, input.loadedAt),
+    sustainabilityMetrics:
+      sustainabilityMetrics.status === "loaded"
+        ? {
+            status: "loaded",
+            metrics: sustainabilityMetrics.value,
+            loadedAt: input.loadedAt,
+          }
+        : {
+            status: "error",
+            period,
+            ...sustainabilityMetrics.error,
+            checkedAt: input.loadedAt,
+          },
+    results: [
+      health.result,
+      versionStatus.result,
+      models.result,
+      modelStatus.result,
+      capabilities.result,
+      auditEvents.result,
+      sustainabilityMetrics.result,
+    ],
+  };
+}
+
+type LoadedSurface<T> = {
+  status: "loaded";
+  value: T;
+  result: LiveLocalRefreshResult;
+};
+
+type FailedSurface = {
+  status: "failed";
+  error: LiveEndpointErrorDescription;
+  result: LiveLocalRefreshResult;
+};
+
+async function loadSurface<T>(
+  surface: LiveLocalSurfaceId,
+  label: string,
+  load: () => Promise<T>,
+  describeError: (error: unknown) => LiveEndpointErrorDescription,
+): Promise<LoadedSurface<T> | FailedSurface> {
+  try {
+    const value = await load();
+    return {
+      status: "loaded",
+      value,
+      result: {
+        surface,
+        status: "loaded",
+        label,
+      },
+    };
+  } catch (error) {
+    const description = describeError(error);
+    return {
+      status: "failed",
+      error: description,
+      result: {
+        surface,
+        status: "failed",
+        label,
+        message: description.message,
+        diagnosticKind: description.diagnosticKind,
+      },
+    };
+  }
+}
+
+function endpointErrorState(
+  error: LiveEndpointErrorDescription,
+  checkedAt: string,
+): {
+  status: "error";
+  label: string;
+  message: string;
+  diagnosticKind: LiveEndpointErrorKind;
+  checkedAt: string;
+} {
+  return {
+    status: "error",
+    ...error,
+    checkedAt,
   };
 }
 
