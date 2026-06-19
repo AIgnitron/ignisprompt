@@ -4,6 +4,7 @@ export {
   evidenceBundleFixture,
   healthFixture,
   modelFixtures,
+  modelInventoryFixture,
   modelStatusFixture,
   routeExplainFixture,
   versionStatusFixture,

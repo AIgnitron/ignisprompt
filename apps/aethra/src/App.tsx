@@ -15,6 +15,7 @@ import type {
   LiveHealthState,
   LiveLocalRefreshState,
   LiveLocalSurfaceId,
+  LiveModelInventoryState,
   LiveModelStatusState,
   LiveModelsState,
   LiveSustainabilityMetricsState,
@@ -25,6 +26,7 @@ import {
   describeAuditEventsLoadError,
   describeCapabilitiesLoadError,
   describeHealthLoadError,
+  describeModelInventoryLoadError,
   describeModelStatusLoadError,
   describeModelsLoadError,
   describeSustainabilityMetricsLoadError,
@@ -62,6 +64,10 @@ export default function App() {
   const [liveModelsState, setLiveModelsState] = useState<LiveModelsState>({
     status: "not-loaded",
   });
+  const [liveModelInventoryState, setLiveModelInventoryState] =
+    useState<LiveModelInventoryState>({
+      status: "not-loaded",
+    });
   const [liveModelStatusState, setLiveModelStatusState] =
     useState<LiveModelStatusState>({
       status: "not-loaded",
@@ -145,6 +151,34 @@ export default function App() {
       setLiveModelsState({
         status: "error",
         ...describeModelsLoadError(error),
+        checkedAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  async function loadLiveModelInventory() {
+    if (baseUrlError) {
+      setLiveModelInventoryState({
+        status: "error",
+        ...localUrlBlockedDescription(baseUrlError),
+        checkedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    setLiveModelInventoryState({ status: "loading" });
+    try {
+      const client = createIgnisPromptClient({ baseUrl: localBaseUrl });
+      const inventory = await client.modelInventory();
+      setLiveModelInventoryState({
+        status: "loaded",
+        inventory,
+        loadedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      setLiveModelInventoryState({
+        status: "error",
+        ...describeModelInventoryLoadError(error),
         checkedAt: new Date().toISOString(),
       });
     }
@@ -308,6 +342,7 @@ export default function App() {
       setLiveHealthState(blocked);
       setLiveVersionStatusState(blocked);
       setLiveModelsState(blocked);
+      setLiveModelInventoryState(blocked);
       setLiveModelStatusState(blocked);
       setLiveCapabilitiesState(blocked);
       setLiveAuditEventsState(blocked);
@@ -323,6 +358,7 @@ export default function App() {
           "health",
           "version-status",
           "models",
+          "model-inventory",
           "model-status",
           "capabilities",
           "audit-events",
@@ -342,6 +378,7 @@ export default function App() {
     setLiveHealthState({ status: "loading" });
     setLiveVersionStatusState({ status: "loading" });
     setLiveModelsState({ status: "loading" });
+    setLiveModelInventoryState({ status: "loading" });
     setLiveModelStatusState({ status: "loading" });
     setLiveCapabilitiesState({ status: "loading" });
     setLiveAuditEventsState({ status: "loading" });
@@ -358,6 +395,7 @@ export default function App() {
     setLiveHealthState(snapshot.health);
     setLiveVersionStatusState(snapshot.versionStatus);
     setLiveModelsState(snapshot.models);
+    setLiveModelInventoryState(snapshot.modelInventory);
     setLiveModelStatusState(snapshot.modelStatus);
     setLiveCapabilitiesState(snapshot.capabilities);
     setLiveAuditEventsState(snapshot.auditEvents);
@@ -497,7 +535,7 @@ export default function App() {
               <p>
                 {dataMode === "fixture"
                   ? "Use Refresh local daemon data when ignispromptd is running. Aethra observes IgnisPrompt state without changing routing, runners, models, or audit policy."
-                  : "Live local metadata loading is manual and read-only for health, daemon version status, models, capabilities, model and runner status hints, audit events, and sustainability metrics."}
+                  : "Live local metadata loading is manual and read-only for health, daemon version status, models, local model inventory, capabilities, model and runner status hints, audit events, and sustainability metrics."}
               </p>
             </div>
             <div className="mode-badges" aria-label="Aethra mode guarantees">
@@ -540,6 +578,7 @@ export default function App() {
             baseUrlError={baseUrlError}
             liveHealthState={liveHealthState}
             liveModelsState={liveModelsState}
+            liveModelInventoryState={liveModelInventoryState}
             liveModelStatusState={liveModelStatusState}
             liveCapabilitiesState={liveCapabilitiesState}
             liveVersionStatusState={liveVersionStatusState}
@@ -586,9 +625,11 @@ export default function App() {
           <ModelRunnerStatus
             dataMode={dataMode}
             liveModelsState={liveModelsState}
+            liveModelInventoryState={liveModelInventoryState}
             liveModelStatusState={liveModelStatusState}
             liveCapabilitiesState={liveCapabilitiesState}
             onLoadLiveModels={loadLiveModels}
+            onLoadLiveModelInventory={loadLiveModelInventory}
             onLoadLiveModelStatus={loadLiveModelStatus}
             onLoadLiveCapabilities={loadLiveCapabilities}
           />
@@ -789,9 +830,10 @@ function DataSourceControl({
                 : "Refresh local daemon data"}
             </button>
             <p className="muted refresh-card-note">
-              Loads health, version, models, capabilities, status hints, audit
-              events, and 30d sustainability metrics from read-only GET
-              endpoints. Route execution and model execution are not included.
+              Loads health, version, models, local model inventory,
+              capabilities, status hints, audit events, and 30d sustainability
+              metrics from read-only GET endpoints. Route execution and model
+              execution are not included.
             </p>
           </div>
 

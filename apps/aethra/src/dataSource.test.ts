@@ -4,6 +4,7 @@ import {
   capabilitiesFixture,
   healthFixture,
   modelFixtures,
+  modelInventoryFixture,
   modelStatusFixture,
   sustainabilityMetricsFixture,
   versionStatusFixture,
@@ -19,6 +20,7 @@ import {
   describeAuditEventsLoadError,
   describeCapabilitiesLoadError,
   describeHealthLoadError,
+  describeModelInventoryLoadError,
   describeModelStatusLoadError,
   describeModelsLoadError,
   describeSustainabilityMetricsLoadError,
@@ -152,6 +154,27 @@ describe("Aethra data source helpers", () => {
       label: "Unsupported schema",
       message:
         "The local daemon returned JSON that did not match the expected model manifest schema. Fixture fallback remains available; confirm the daemon is from the current local-preview build before retrying manual refresh.",
+      diagnosticKind: "invalid-response-shape",
+    });
+  });
+
+  it("describes invalid JSON and unsupported model inventory schema failures", () => {
+    expect(
+      describeModelInventoryLoadError(
+        new AethraApiError("invalid-json", "bad json"),
+      ),
+    ).toMatchObject({
+      label: "Invalid JSON",
+      message: expect.stringContaining("current local-preview daemon"),
+    });
+    expect(
+      describeModelInventoryLoadError(
+        new AethraApiError("unexpected-shape", "bad schema"),
+      ),
+    ).toEqual({
+      label: "Unsupported schema",
+      message:
+        "The local daemon returned JSON that did not match the expected local model inventory schema. Fixture fallback remains available; confirm the daemon is from the current local-preview build before retrying manual refresh.",
       diagnosticKind: "invalid-response-shape",
     });
   });
@@ -527,6 +550,10 @@ describe("Aethra data source helpers", () => {
           calls.push("models");
           return { models: modelFixtures };
         },
+        modelInventory: async () => {
+          calls.push("model-inventory");
+          return modelInventoryFixture;
+        },
         modelStatus: async () => {
           calls.push("model-status");
           return modelStatusFixture;
@@ -550,6 +577,7 @@ describe("Aethra data source helpers", () => {
       "audit-events",
       "capabilities",
       "health",
+      "model-inventory",
       "model-status",
       "models",
       "sustainability:30d",
@@ -558,6 +586,7 @@ describe("Aethra data source helpers", () => {
     expect(snapshot.health.status).toBe("loaded");
     expect(snapshot.versionStatus.status).toBe("loaded");
     expect(snapshot.models.status).toBe("loaded");
+    expect(snapshot.modelInventory.status).toBe("loaded");
     expect(snapshot.modelStatus.status).toBe("loaded");
     expect(snapshot.capabilities.status).toBe("loaded");
     expect(snapshot.auditEvents.status).toBe("loaded");
@@ -574,25 +603,26 @@ describe("Aethra data source helpers", () => {
         health: async () => healthFixture,
         versionStatus: async () => versionStatusFixture,
         models: async () => ({ models: modelFixtures }),
-        modelStatus: async () => modelStatusFixture,
-        capabilities: async () => {
+        modelInventory: async () => {
           throw new AethraApiError("http-error", "missing", { status: 404 });
         },
+        modelStatus: async () => modelStatusFixture,
+        capabilities: async () => capabilitiesFixture,
         auditEvents: async () => auditEventFixtures,
         sustainabilityMetrics: async () => sustainabilityMetricsFixture,
       },
     });
 
     expect(snapshot.health.status).toBe("loaded");
-    expect(snapshot.capabilities).toMatchObject({
+    expect(snapshot.modelInventory).toMatchObject({
       status: "error",
       label: "Endpoint unavailable",
       diagnosticKind: "endpoint-unavailable",
     });
     expect(snapshot.results).toContainEqual({
-      surface: "capabilities",
+      surface: "model-inventory",
       status: "failed",
-      label: "Capabilities",
+      label: "Model inventory",
       message: "The local daemon returned HTTP 404.",
       diagnosticKind: "endpoint-unavailable",
     });

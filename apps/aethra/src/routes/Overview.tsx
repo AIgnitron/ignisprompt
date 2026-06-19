@@ -9,6 +9,7 @@ import type {
   LiveCapabilitiesState,
   LiveHealthState,
   LiveLocalDiagnostics,
+  LiveModelInventoryState,
   LiveModelStatusState,
   LiveModelsState,
   LiveSustainabilityMetricsState,
@@ -23,6 +24,7 @@ import {
   auditEventFixtures,
   healthFixture,
   modelFixtures,
+  modelInventoryFixture,
   versionStatusFixture,
 } from "../fixtures/aethraFixture";
 import {
@@ -88,6 +90,7 @@ type OverviewProps = {
   baseUrlError?: string;
   liveHealthState: LiveHealthState;
   liveModelsState: LiveModelsState;
+  liveModelInventoryState: LiveModelInventoryState;
   liveModelStatusState: LiveModelStatusState;
   liveCapabilitiesState: LiveCapabilitiesState;
   liveVersionStatusState: LiveVersionStatusState;
@@ -103,6 +106,7 @@ export function Overview({
   baseUrlError,
   liveHealthState,
   liveModelsState,
+  liveModelInventoryState,
   liveModelStatusState,
   liveCapabilitiesState,
   liveVersionStatusState,
@@ -123,7 +127,12 @@ export function Overview({
     dataMode === "live-local" && liveAuditEventsState.status === "loaded"
       ? liveAuditEventsState.events
       : undefined;
+  const liveModelInventory =
+    dataMode === "live-local" && liveModelInventoryState.status === "loaded"
+      ? liveModelInventoryState.inventory
+      : undefined;
   const healthForStatus = liveHealth ?? healthFixture;
+  const modelInventoryForSummary = liveModelInventory ?? modelInventoryFixture;
   const modelsForSummary = liveModels ?? modelFixtures;
   const auditEventsForSummary = liveAuditEvents ?? auditEventFixtures;
   const summary = buildOverviewSummary(
@@ -141,6 +150,9 @@ export function Overview({
     : dataMode === "live-local"
       ? "Fixture fallback audit events"
       : "Offline preview audit events";
+  const inventorySourceLabel = formatLiveLocalDisplaySource(
+    getLiveLocalDisplaySource(dataMode, liveModelInventoryState),
+  );
   const diagnostics = buildLiveLocalDiagnostics({
     dataMode,
     baseUrl,
@@ -149,6 +161,7 @@ export function Overview({
       liveHealthState,
       liveVersionStatusState,
       liveModelsState,
+      liveModelInventoryState,
       liveModelStatusState,
       liveCapabilitiesState,
       liveAuditEventsState,
@@ -186,7 +199,7 @@ export function Overview({
         collapsible
         items={[
           "Review local preview status, local daemon metadata, fixture fallback data, diagnostics, and copyable local commands.",
-          "Use Refresh local daemon data to load read-only health, version, model, capability, audit, and sustainability metadata from loopback endpoints.",
+          "Use Refresh local daemon data to load read-only health, version, model, local model inventory, capability, audit, and sustainability metadata from loopback endpoints.",
           "Read displayed route, warning, and local-only summaries before moving to detailed pages.",
         ]}
       />
@@ -263,6 +276,11 @@ export function Overview({
           label="Models loaded"
           value={summary.modelCount}
           detail={`${healthForStatus.model_count} reported by ${healthSourceLabel}`}
+        />
+        <MetricCard
+          label="Local model files"
+          value={modelInventoryForSummary.summary.total_files}
+          detail={`${formatBytes(modelInventoryForSummary.summary.total_size_bytes)} observed via ${inventorySourceLabel}`}
         />
         <MetricCard
           label="Recent audit events"
@@ -400,6 +418,22 @@ export function Overview({
       </div>
     </section>
   );
+}
+
+function formatBytes(sizeBytes: number): string {
+  if (sizeBytes >= 1_073_741_824) {
+    return `${(sizeBytes / 1_073_741_824).toFixed(2)} GB`;
+  }
+
+  if (sizeBytes >= 1_048_576) {
+    return `${(sizeBytes / 1_048_576).toFixed(2)} MB`;
+  }
+
+  if (sizeBytes >= 1024) {
+    return `${(sizeBytes / 1024).toFixed(2)} KB`;
+  }
+
+  return `${sizeBytes} B`;
 }
 
 type CopyStatus =

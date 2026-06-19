@@ -1,7 +1,7 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     net::SocketAddr,
-    path::PathBuf,
+    path::{Component, Path, PathBuf},
     sync::Arc,
 };
 
@@ -51,6 +51,9 @@ const MCP_SUSTAINABILITY_SUMMARY_TOOL_NAME: &str = "sustainability_summary";
 const MCP_AUDIT_EVENTS_DEFAULT_LIMIT: usize = 20;
 const MCP_AUDIT_EVENTS_MAX_LIMIT: usize = 100;
 const SUSTAINABILITY_METRICS_MAX_PERIOD_DAYS: i64 = 3650;
+const MODEL_INVENTORY_SCHEMA_VERSION: &str = "ignisprompt-model-inventory-v0.1";
+const MODEL_INVENTORY_MAX_FILES: usize = 200;
+const MODEL_INVENTORY_MAX_DEPTH: usize = 4;
 
 #[derive(Debug, Parser, Clone)]
 #[command(
@@ -613,6 +616,7 @@ async fn run_http_daemon(state: AppState, bind: SocketAddr) -> Result<()> {
     let app = Router::new()
         .route("/health", get(health))
         .route("/v1/models", get(list_models))
+        .route("/v1/models/inventory", get(model_inventory))
         .route("/v1/capabilities", get(capabilities))
         .route("/v1/status/models", get(model_status))
         .route("/v1/status/version", get(version_status))
@@ -738,6 +742,11 @@ async fn list_models(State(state): State<AppState>) -> Json<ModelRegistry> {
     Json(state.model_registry.read().await.clone())
 }
 
+async fn model_inventory(State(state): State<AppState>) -> Json<ModelInventoryResponse> {
+    let registry = state.model_registry.read().await.clone();
+    Json(model_inventory_response(&state.config, &registry).await)
+}
+
 async fn capabilities(State(state): State<AppState>) -> Json<CapabilitiesResponse> {
     Json(capabilities_response(&state))
 }
@@ -763,6 +772,60 @@ struct ModelStatusResponse {
     source: String,
     #[serde(rename = "statusHints")]
     status_hints: Vec<ModelStatusHint>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ModelInventoryResponse {
+    schema_version: String,
+    generated_at: DateTime<Utc>,
+    base_paths_scanned: Vec<String>,
+    inventory_source: String,
+    files: Vec<ModelInventoryFile>,
+    summary: ModelInventorySummary,
+    boundary_notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ModelInventoryFile {
+    filename: String,
+    relative_path: String,
+    extension: String,
+    size_bytes: u64,
+    size_mb: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    modified_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    model_family: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    quantization: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    shard: Option<String>,
+    status: ModelInventoryFileStatus,
+    boundary_note: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ModelInventorySummary {
+    total_files: usize,
+    total_size_bytes: u64,
+    gguf_files: usize,
+    safetensors_files: usize,
+    manifest_declared_count: usize,
+    present_count: usize,
+    unsupported_count: usize,
+    largest_file_mb: f64,
+    scanned_directory_count: usize,
+    scan_limited: bool,
+    notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum ModelInventoryFileStatus {
+    Present,
+    Ignored,
+    Unsupported,
+    Unknown,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -880,6 +943,338 @@ async fn model_status(State(state): State<AppState>) -> Json<ModelStatusResponse
         source: "local-daemon".to_string(),
         status_hints,
     })
+}
+
+async fn model_inventory_response(
+    config: &Args,
+    registry: &ModelRegistry,
+) -> ModelInventoryResponse {
+    let generated_at = Utc::now();
+    let scan_roots = model_inventory_scan_roots(config, registry);
+    let mut files = Vec::new();
+    let mut base_paths_scanned = Vec::new();
+    let mut scanned_directory_count = 0usize;
+    let mut scan_limited = false;
+    let mut notes = Vec::new();
+
+    if scan_roots.is_empty() {
+        notes.push("No safe local model inventory roots were available for scanning.".to_string());
+    }
+
+    for root in scan_roots {
+        base_paths_scanned.push(root.label.clone());
+        if !fs::try_exists(&root.path).await.unwrap_or(false) {
+            notes.push(format!(
+                "{} was not found; inventory is still valid.",
+                root.label
+            ));
+            continue;
+        }
+
+        let scan = scan_model_inventory_root(&root).await;
+        scanned_directory_count += scan.scanned_directory_count;
+        scan_limited |= scan.scan_limited;
+        files.extend(scan.files);
+
+        if files.len() >= MODEL_INVENTORY_MAX_FILES {
+            files.truncate(MODEL_INVENTORY_MAX_FILES);
+            scan_limited = true;
+            break;
+        }
+    }
+
+    files.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+
+    if files.is_empty() {
+        notes.push(
+            "No local model files were found in the safe inventory roots. Missing model files do not break local preview.".to_string(),
+        );
+    }
+    if scan_limited {
+        notes.push("Inventory scan was limited by local-preview safety bounds.".to_string());
+    }
+
+    let summary = model_inventory_summary(
+        &files,
+        registry.models.len(),
+        scanned_directory_count,
+        scan_limited,
+        notes,
+    );
+
+    ModelInventoryResponse {
+        schema_version: MODEL_INVENTORY_SCHEMA_VERSION.to_string(),
+        generated_at,
+        base_paths_scanned,
+        inventory_source: "local-daemon-filesystem-metadata".to_string(),
+        files,
+        summary,
+        boundary_notes: vec![
+            "Read-only inventory metadata only; no model execution is attempted.".to_string(),
+            "Inventory does not prove model quality, readiness, legal accuracy, compliance, or runner availability.".to_string(),
+            "The daemon does not read model contents, hash model files, download models, delete models, or scan outside safe local model roots.".to_string(),
+        ],
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ModelInventoryRoot {
+    path: PathBuf,
+    label: String,
+}
+
+#[derive(Debug, Default)]
+struct ModelInventoryScan {
+    files: Vec<ModelInventoryFile>,
+    scanned_directory_count: usize,
+    scan_limited: bool,
+}
+
+fn model_inventory_scan_roots(config: &Args, registry: &ModelRegistry) -> Vec<ModelInventoryRoot> {
+    let mut seen = HashSet::new();
+    let mut roots = Vec::new();
+
+    push_inventory_root(&mut roots, &mut seen, config.model_dir.clone());
+
+    for model in &registry.models {
+        let Some(local_path) = model.local_path.as_deref() else {
+            continue;
+        };
+        let path = PathBuf::from(local_path);
+        if !is_safe_model_inventory_path(&path) {
+            continue;
+        }
+        if let Some(parent) = path.parent() {
+            push_inventory_root(&mut roots, &mut seen, parent.to_path_buf());
+        }
+    }
+
+    roots
+}
+
+fn push_inventory_root(
+    roots: &mut Vec<ModelInventoryRoot>,
+    seen: &mut HashSet<String>,
+    path: PathBuf,
+) {
+    let label = safe_inventory_path_label(&path);
+    if label.is_empty() || !seen.insert(label.clone()) {
+        return;
+    }
+
+    roots.push(ModelInventoryRoot { path, label });
+}
+
+fn is_safe_model_inventory_path(path: &Path) -> bool {
+    if path.is_absolute() {
+        return false;
+    }
+
+    let mut components = path.components();
+    if !matches!(components.next(), Some(Component::Normal(first)) if first.to_str() == Some("models"))
+    {
+        return false;
+    }
+
+    components.all(|component| matches!(component, Component::Normal(_) | Component::CurDir))
+}
+
+fn safe_inventory_path_label(path: &Path) -> String {
+    if path.is_absolute() {
+        return path
+            .file_name()
+            .and_then(|part| part.to_str())
+            .filter(|part| !part.is_empty())
+            .map(|part| format!("configured-model-dir/{part}"))
+            .unwrap_or_else(|| "configured-model-dir".to_string());
+    }
+
+    path.components()
+        .filter_map(|component| match component {
+            Component::CurDir => None,
+            Component::Normal(part) => part.to_str().map(str::to_string),
+            _ => Some("configured-model-dir".to_string()),
+        })
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+async fn scan_model_inventory_root(root: &ModelInventoryRoot) -> ModelInventoryScan {
+    let mut scan = ModelInventoryScan::default();
+    let mut queue = VecDeque::from([(root.path.clone(), String::new(), 0usize)]);
+
+    while let Some((dir, relative_prefix, depth)) = queue.pop_front() {
+        if depth > MODEL_INVENTORY_MAX_DEPTH {
+            scan.scan_limited = true;
+            continue;
+        }
+
+        let Ok(mut entries) = fs::read_dir(&dir).await else {
+            continue;
+        };
+        scan.scanned_directory_count += 1;
+
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let file_name = entry.file_name().to_string_lossy().to_string();
+            if file_name.starts_with('.') {
+                continue;
+            }
+
+            let Ok(file_type) = entry.file_type().await else {
+                continue;
+            };
+            if file_type.is_symlink() {
+                continue;
+            }
+
+            let relative_path = if relative_prefix.is_empty() {
+                file_name.clone()
+            } else {
+                format!("{relative_prefix}/{file_name}")
+            };
+
+            if file_type.is_dir() {
+                queue.push_back((entry.path(), relative_path, depth + 1));
+                continue;
+            }
+            if !file_type.is_file() {
+                continue;
+            }
+
+            let Ok(metadata) = entry.metadata().await else {
+                continue;
+            };
+            scan.files.push(model_inventory_file_from_metadata(
+                file_name,
+                format!("{}/{}", root.label, relative_path),
+                metadata.len(),
+                metadata.modified().ok(),
+            ));
+
+            if scan.files.len() >= MODEL_INVENTORY_MAX_FILES {
+                scan.scan_limited = true;
+                return scan;
+            }
+        }
+    }
+
+    scan
+}
+
+fn model_inventory_file_from_metadata(
+    filename: String,
+    relative_path: String,
+    size_bytes: u64,
+    modified_at: Option<std::time::SystemTime>,
+) -> ModelInventoryFile {
+    let extension = Path::new(&filename)
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let status = model_inventory_status_for_extension(&extension);
+
+    ModelInventoryFile {
+        model_family: guess_model_family(&filename),
+        quantization: guess_quantization(&filename),
+        shard: guess_shard(&filename),
+        filename,
+        relative_path,
+        extension,
+        size_bytes,
+        size_mb: bytes_to_mb(size_bytes),
+        modified_at: modified_at.map(DateTime::<Utc>::from),
+        status,
+        boundary_note:
+            "Observed local file metadata only; contents were not read and no execution was attempted."
+                .to_string(),
+    }
+}
+
+fn model_inventory_status_for_extension(extension: &str) -> ModelInventoryFileStatus {
+    match extension {
+        "gguf" | "safetensors" => ModelInventoryFileStatus::Present,
+        "bin" | "pt" | "pth" | "onnx" => ModelInventoryFileStatus::Unknown,
+        _ => ModelInventoryFileStatus::Unsupported,
+    }
+}
+
+fn model_inventory_summary(
+    files: &[ModelInventoryFile],
+    manifest_declared_count: usize,
+    scanned_directory_count: usize,
+    scan_limited: bool,
+    notes: Vec<String>,
+) -> ModelInventorySummary {
+    let total_size_bytes = files.iter().map(|file| file.size_bytes).sum();
+    let largest_file_mb = files
+        .iter()
+        .map(|file| file.size_mb)
+        .fold(0.0_f64, f64::max);
+
+    ModelInventorySummary {
+        total_files: files.len(),
+        total_size_bytes,
+        gguf_files: files.iter().filter(|file| file.extension == "gguf").count(),
+        safetensors_files: files
+            .iter()
+            .filter(|file| file.extension == "safetensors")
+            .count(),
+        manifest_declared_count,
+        present_count: files
+            .iter()
+            .filter(|file| file.status == ModelInventoryFileStatus::Present)
+            .count(),
+        unsupported_count: files
+            .iter()
+            .filter(|file| file.status == ModelInventoryFileStatus::Unsupported)
+            .count(),
+        largest_file_mb,
+        scanned_directory_count,
+        scan_limited,
+        notes,
+    }
+}
+
+fn bytes_to_mb(size_bytes: u64) -> f64 {
+    ((size_bytes as f64 / 1_048_576.0) * 100.0).round() / 100.0
+}
+
+fn guess_model_family(filename: &str) -> Option<String> {
+    let normalized = filename.to_ascii_lowercase();
+    for family in ["qwen", "phi", "llama", "mistral", "saul", "gemma"] {
+        if normalized.contains(family) {
+            return Some(family.to_string());
+        }
+    }
+    None
+}
+
+fn guess_quantization(filename: &str) -> Option<String> {
+    let normalized = filename.to_ascii_lowercase();
+    for marker in [
+        "q2_k", "q3_k", "q4_k_m", "q4_k_s", "q5_k_m", "q5_k_s", "q6_k", "q8_0",
+    ] {
+        if normalized.contains(marker) {
+            return Some(marker.to_string());
+        }
+    }
+    None
+}
+
+fn guess_shard(filename: &str) -> Option<String> {
+    let normalized = filename.to_ascii_lowercase();
+    let marker = "-of-";
+    let index = normalized.find(marker)?;
+    let start = normalized[..index]
+        .rfind(|character: char| !character.is_ascii_digit() && character != '-')
+        .map(|position| position + 1)
+        .unwrap_or(0);
+    let end = normalized[index + marker.len()..]
+        .find(|character: char| !character.is_ascii_digit())
+        .map(|position| index + marker.len() + position)
+        .unwrap_or(normalized.len());
+    Some(normalized[start..end].trim_matches('-').to_string())
 }
 
 fn capabilities_response(state: &AppState) -> CapabilitiesResponse {
@@ -2892,6 +3287,10 @@ mod tests {
         list_models(State(state.clone())).await.0
     }
 
+    async fn call_model_inventory(state: &AppState) -> ModelInventoryResponse {
+        model_inventory(State(state.clone())).await.0
+    }
+
     async fn call_capabilities(state: &AppState) -> CapabilitiesResponse {
         capabilities(State(state.clone())).await.0
     }
@@ -3174,6 +3573,120 @@ mod tests {
         assert_eq!(model["domains"], json!(["legal"]));
         assert_eq!(model["localPath"], "./models/legal-saul-placeholder.gguf");
         assert_eq!(model["installed"], true);
+    }
+
+    #[tokio::test]
+    async fn model_inventory_endpoint_reports_safe_local_file_metadata() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("ignispromptd-model-inventory-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        std::fs::write(temp_dir.join("qwen2.5-0.5b-instruct-q4_k_m.gguf"), b"local").unwrap();
+        std::fs::write(temp_dir.join("notes.txt"), b"not a model").unwrap();
+
+        let mut state = state_with_models(vec![legal_model()]);
+        state.config.model_dir = temp_dir.clone();
+
+        let response = call_model_inventory(&state).await;
+        let encoded = serde_json::to_value(&response).unwrap();
+
+        assert_json_keys(
+            &encoded,
+            &[
+                "schema_version",
+                "generated_at",
+                "base_paths_scanned",
+                "inventory_source",
+                "files",
+                "summary",
+                "boundary_notes",
+            ],
+        );
+        assert_eq!(response.schema_version, MODEL_INVENTORY_SCHEMA_VERSION);
+        assert_eq!(response.summary.manifest_declared_count, 1);
+        assert_eq!(response.summary.total_files, 2);
+        assert_eq!(response.summary.gguf_files, 1);
+        assert_eq!(response.summary.present_count, 1);
+        assert_eq!(response.summary.unsupported_count, 1);
+        assert!(response.files.iter().any(|file| file.filename
+            == "qwen2.5-0.5b-instruct-q4_k_m.gguf"
+            && file.status == ModelInventoryFileStatus::Present
+            && file.quantization.as_deref() == Some("q4_k_m")
+            && file.model_family.as_deref() == Some("qwen")));
+        assert!(!serde_json::to_string(&response)
+            .unwrap()
+            .contains(temp_dir.to_string_lossy().as_ref()));
+        assert!(!serde_json::to_string(&response)
+            .unwrap()
+            .to_ascii_lowercase()
+            .contains("/users/"));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[tokio::test]
+    async fn model_inventory_endpoint_handles_missing_or_empty_dirs_safely() {
+        let missing_dir = std::env::temp_dir().join(format!(
+            "ignispromptd-missing-model-inventory-{}",
+            Uuid::new_v4()
+        ));
+        let mut state = state_with_models(vec![]);
+        state.config.model_dir = missing_dir;
+
+        let response = call_model_inventory(&state).await;
+
+        assert_eq!(response.summary.total_files, 0);
+        assert_eq!(response.summary.present_count, 0);
+        assert_eq!(response.summary.manifest_declared_count, 0);
+        assert!(!response.summary.scan_limited);
+        assert!(response.summary.notes.iter().any(|note| {
+            note.contains("was not found") || note.contains("No local model files")
+        }));
+        assert!(response.boundary_notes.iter().any(|note| {
+            note.contains("no model execution") || note.contains("no model execution is attempted")
+        }));
+    }
+
+    #[tokio::test]
+    async fn model_inventory_skips_hidden_dirs() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "ignispromptd-model-inventory-hidden-{}",
+            Uuid::new_v4()
+        ));
+        let hidden_dir = temp_dir.join(".hidden");
+        std::fs::create_dir_all(&hidden_dir).unwrap();
+        std::fs::write(hidden_dir.join("hidden.gguf"), b"hidden").unwrap();
+        std::fs::write(temp_dir.join("visible.safetensors"), b"visible").unwrap();
+
+        let mut state = state_with_models(vec![]);
+        state.config.model_dir = temp_dir.clone();
+        let response = call_model_inventory(&state).await;
+
+        assert!(response
+            .files
+            .iter()
+            .any(|file| file.filename == "visible.safetensors"));
+        assert!(!response
+            .files
+            .iter()
+            .any(|file| file.filename == "hidden.gguf"));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn model_inventory_manifest_paths_reject_traversal() {
+        assert!(is_safe_model_inventory_path(Path::new(
+            "models/legal/model.gguf"
+        )));
+        assert!(!is_safe_model_inventory_path(Path::new(
+            "models/../secrets/model.gguf"
+        )));
+        assert!(!is_safe_model_inventory_path(Path::new(
+            "../models/legal/model.gguf"
+        )));
+        assert!(!is_safe_model_inventory_path(Path::new(
+            "/tmp/models/legal/model.gguf"
+        )));
     }
 
     #[tokio::test]

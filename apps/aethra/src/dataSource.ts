@@ -2,6 +2,7 @@ import type {
   AuditEvent,
   CapabilitiesResponse,
   HealthResponse,
+  ModelInventoryResponse,
   ModelManifest,
   ModelStatusHint,
   SustainabilityMetricsResponse,
@@ -67,6 +68,26 @@ export type LiveModelsState =
   | {
       status: "loaded";
       models: ModelManifest[];
+      loadedAt: string;
+    }
+  | {
+      status: "error";
+      label: string;
+      message: string;
+      diagnosticKind: LiveEndpointErrorKind;
+      checkedAt?: string;
+    };
+
+export type LiveModelInventoryState =
+  | {
+      status: "not-loaded";
+    }
+  | {
+      status: "loading";
+    }
+  | {
+      status: "loaded";
+      inventory: ModelInventoryResponse;
       loadedAt: string;
     }
   | {
@@ -185,6 +206,7 @@ export type LiveSustainabilityMetricsState =
 export type LiveEndpointState =
   | LiveHealthState
   | LiveModelsState
+  | LiveModelInventoryState
   | LiveModelStatusState
   | LiveCapabilitiesState
   | LiveVersionStatusState
@@ -195,6 +217,7 @@ export type LiveLocalSurfaceId =
   | "health"
   | "version-status"
   | "models"
+  | "model-inventory"
   | "model-status"
   | "capabilities"
   | "audit-events"
@@ -233,6 +256,7 @@ export type LiveLocalDaemonClient = {
   health: () => Promise<HealthResponse>;
   versionStatus: () => Promise<VersionStatusResponse>;
   models: () => Promise<{ models: ModelManifest[] }>;
+  modelInventory: () => Promise<ModelInventoryResponse>;
   modelStatus: () => Promise<{
     schemaVersion: string;
     generatedAt: string;
@@ -248,6 +272,7 @@ export type LiveLocalDaemonSnapshot = {
   health: LiveHealthState;
   versionStatus: LiveVersionStatusState;
   models: LiveModelsState;
+  modelInventory: LiveModelInventoryState;
   modelStatus: LiveModelStatusState;
   capabilities: LiveCapabilitiesState;
   auditEvents: LiveAuditEventsState;
@@ -383,6 +408,7 @@ export async function loadLiveLocalDaemonSnapshot(input: {
     health,
     versionStatus,
     models,
+    modelInventory,
     modelStatus,
     capabilities,
     auditEvents,
@@ -396,6 +422,12 @@ export async function loadLiveLocalDaemonSnapshot(input: {
       describeVersionStatusLoadError,
     ),
     loadSurface("models", "Models", () => input.client.models(), describeModelsLoadError),
+    loadSurface(
+      "model-inventory",
+      "Model inventory",
+      () => input.client.modelInventory(),
+      describeModelInventoryLoadError,
+    ),
     loadSurface(
       "model-status",
       "Model status hints",
@@ -443,6 +475,14 @@ export async function loadLiveLocalDaemonSnapshot(input: {
             loadedAt: input.loadedAt,
           }
         : endpointErrorState(models.error, input.loadedAt),
+    modelInventory:
+      modelInventory.status === "loaded"
+        ? {
+            status: "loaded",
+            inventory: modelInventory.value,
+            loadedAt: input.loadedAt,
+          }
+        : endpointErrorState(modelInventory.error, input.loadedAt),
     modelStatus:
       modelStatus.status === "loaded"
         ? {
@@ -487,6 +527,7 @@ export async function loadLiveLocalDaemonSnapshot(input: {
       health.result,
       versionStatus.result,
       models.result,
+      modelInventory.result,
       modelStatus.result,
       capabilities.result,
       auditEvents.result,
@@ -583,6 +624,12 @@ export function describeModelsLoadError(
   return describeEndpointLoadError(error, "models");
 }
 
+export function describeModelInventoryLoadError(
+  error: unknown,
+): LiveEndpointErrorDescription {
+  return describeEndpointLoadError(error, "model-inventory");
+}
+
 export function describeModelStatusLoadError(
   error: unknown,
 ): LiveEndpointErrorDescription {
@@ -618,6 +665,7 @@ function describeEndpointLoadError(
   endpoint:
     | "health"
     | "models"
+    | "model-inventory"
     | "model-status"
     | "capabilities"
     | "version-status"
@@ -629,15 +677,17 @@ function describeEndpointLoadError(
       ? "health"
       : endpoint === "models"
         ? "model manifest"
-        : endpoint === "model-status"
-          ? "model and runner status hint"
-          : endpoint === "capabilities"
-            ? "connector and capability status"
-            : endpoint === "version-status"
-              ? "daemon version status"
-              : endpoint === "audit-events"
-                ? "audit event"
-                : "sustainability metrics";
+        : endpoint === "model-inventory"
+          ? "local model inventory"
+          : endpoint === "model-status"
+            ? "model and runner status hint"
+            : endpoint === "capabilities"
+              ? "connector and capability status"
+              : endpoint === "version-status"
+                ? "daemon version status"
+                : endpoint === "audit-events"
+                  ? "audit event"
+                  : "sustainability metrics";
 
   if (error instanceof AethraApiError) {
     switch (error.kind) {
@@ -684,15 +734,17 @@ function describeEndpointLoadError(
         ? "Health load failed"
         : endpoint === "models"
           ? "Models load failed"
-          : endpoint === "model-status"
-            ? "Model status load failed"
-            : endpoint === "capabilities"
-              ? "Capabilities load failed"
-              : endpoint === "version-status"
-                ? "Version status load failed"
-                : endpoint === "audit-events"
-                  ? "Audit events load failed"
-                  : "Sustainability metrics load failed",
+          : endpoint === "model-inventory"
+            ? "Model inventory load failed"
+            : endpoint === "model-status"
+              ? "Model status load failed"
+              : endpoint === "capabilities"
+                ? "Capabilities load failed"
+                : endpoint === "version-status"
+                  ? "Version status load failed"
+                  : endpoint === "audit-events"
+                    ? "Audit events load failed"
+                    : "Sustainability metrics load failed",
     message: `Aethra could not load live local ${noun} metadata.`,
     diagnosticKind: "unknown",
   };

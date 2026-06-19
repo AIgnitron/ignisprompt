@@ -85,6 +85,8 @@ describe("Aethra app navigation and demo guidance", () => {
     expect(markup).not.toContain("Enable cloud");
     expect(markup).not.toContain("Run model");
     expect(markup).not.toContain("Execute model");
+    expect(markup).not.toContain("Download model");
+    expect(markup).not.toContain("Delete model");
     expect(markup).not.toContain("Edit connector");
     expect(markup).not.toContain("Disable connector");
     expect(markup).not.toContain("Mutate routing");

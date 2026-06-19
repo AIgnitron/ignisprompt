@@ -1,14 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
-import { CapabilitiesResponse, ModelManifest, ModelStatusHint } from "../api/contracts";
+import {
+  CapabilitiesResponse,
+  ModelInventoryResponse,
+  ModelManifest,
+  ModelStatusHint,
+} from "../api/contracts";
 import type {
   AethraDataMode,
   LiveCapabilitiesState,
+  LiveModelInventoryState,
   LiveModelsState,
   LiveModelStatusState,
 } from "../dataSource";
 import {
   capabilitiesFixture,
   modelFixtures,
+  modelInventoryFixture,
   modelStatusFixture,
 } from "../fixtures/aethraFixture";
 import { EmptyState } from "../components/EmptyState";
@@ -40,9 +47,11 @@ const initialSelectedModelId = toModelManifestRows(modelFixtures)[0]?.modelId;
 type ModelRunnerStatusProps = {
   dataMode: AethraDataMode;
   liveModelsState: LiveModelsState;
+  liveModelInventoryState: LiveModelInventoryState;
   liveModelStatusState: LiveModelStatusState;
   liveCapabilitiesState: LiveCapabilitiesState;
   onLoadLiveModels: () => void;
+  onLoadLiveModelInventory: () => void;
   onLoadLiveModelStatus: () => void;
   onLoadLiveCapabilities: () => void;
 };
@@ -50,9 +59,11 @@ type ModelRunnerStatusProps = {
 export function ModelRunnerStatus({
   dataMode,
   liveModelsState,
+  liveModelInventoryState,
   liveModelStatusState,
   liveCapabilitiesState,
   onLoadLiveModels,
+  onLoadLiveModelInventory,
   onLoadLiveModelStatus,
   onLoadLiveCapabilities,
 }: ModelRunnerStatusProps) {
@@ -63,9 +74,14 @@ export function ModelRunnerStatus({
     dataMode === "live-local" && liveModelsState.status === "loaded";
   const isLiveStatusLoaded =
     dataMode === "live-local" && liveModelStatusState.status === "loaded";
+  const isLiveInventoryLoaded =
+    dataMode === "live-local" && liveModelInventoryState.status === "loaded";
   const isLiveCapabilitiesLoaded =
     dataMode === "live-local" && liveCapabilitiesState.status === "loaded";
   const models = isLiveModelsLoaded ? liveModelsState.models : modelFixtures;
+  const inventory = isLiveInventoryLoaded
+    ? liveModelInventoryState.inventory
+    : modelInventoryFixture;
   const rows = useMemo(() => toModelManifestRows(models), [models]);
   const effectiveStatusHints = isLiveStatusLoaded
     ? liveModelStatusState.statusHints
@@ -144,6 +160,13 @@ export function ModelRunnerStatus({
         onLoadLiveModels={onLoadLiveModels}
       />
 
+      <ModelInventoryPanel
+        dataMode={dataMode}
+        liveModelInventoryState={liveModelInventoryState}
+        inventory={inventory}
+        onLoadLiveModelInventory={onLoadLiveModelInventory}
+      />
+
       <ModelStatusPanel
         dataMode={dataMode}
         liveModelStatusState={liveModelStatusState}
@@ -173,6 +196,15 @@ export function ModelRunnerStatus({
           label="Local paths"
           value={countDeclaredLocalPaths(models)}
           detail="Declared paths, not filesystem checks"
+        />
+        <MetricCard
+          label="Inventory files"
+          value={inventory.summary.total_files}
+          detail={
+            isLiveInventoryLoaded
+              ? "Observed local daemon file metadata"
+              : "Fixture fallback inventory metadata"
+          }
         />
         <MetricCard
           label="Prompt packs"
@@ -314,6 +346,209 @@ function ModelMetadataPanel({
         </div>
       ) : null}
     </section>
+  );
+}
+
+type ModelInventoryPanelProps = {
+  dataMode: AethraDataMode;
+  liveModelInventoryState: LiveModelInventoryState;
+  inventory: ModelInventoryResponse;
+  onLoadLiveModelInventory: () => void;
+};
+
+function ModelInventoryPanel({
+  dataMode,
+  liveModelInventoryState,
+  inventory,
+  onLoadLiveModelInventory,
+}: ModelInventoryPanelProps) {
+  const isLiveMode = dataMode === "live-local";
+  const isLoaded = isLiveMode && liveModelInventoryState.status === "loaded";
+
+  return (
+    <section className="panel" aria-label="Local model inventory">
+      <div className="panel-heading">
+        <div>
+          <h3>Local model inventory</h3>
+          <p className="muted">
+            {isLiveMode
+              ? "Manual read-only GET /v1/models/inventory from the configured local daemon."
+              : "Fixture mode uses offline preview inventory metadata."}
+          </p>
+        </div>
+        <StatusBadge
+          tone={
+            liveModelInventoryState.status === "error"
+              ? "warning"
+              : isLoaded
+                ? "ok"
+                : "neutral"
+          }
+        >
+          {getModelInventoryStateLabel(dataMode, liveModelInventoryState)}
+        </StatusBadge>
+      </div>
+
+      <p className="explanation">
+        Inventory observes local file metadata only. It does not execute models,
+        download or delete files, read model contents, hash model files, prove
+        model quality, prove readiness, prove compliance, or establish legal
+        accuracy.
+      </p>
+
+      {isLiveMode && liveModelInventoryState.status === "not-loaded" ? (
+        <EmptyState
+          title="Local model inventory has not been loaded"
+          message="Fixture fallback inventory metadata remains visible until you manually refresh GET /v1/models/inventory from the local daemon."
+          nextAction="Start the daemon if needed, then use Refresh model inventory."
+        />
+      ) : null}
+
+      {isLiveMode && liveModelInventoryState.status === "loading" ? (
+        <p className="explanation">
+          Loading read-only local model inventory metadata from the configured
+          local daemon.
+        </p>
+      ) : null}
+
+      {isLiveMode && liveModelInventoryState.status === "error" ? (
+        <EmptyState
+          {...buildLiveErrorEmptyState(
+            liveModelInventoryState.label,
+            liveModelInventoryState.message,
+            "Fixture inventory metadata remains clearly labeled below.",
+          )}
+        />
+      ) : null}
+
+      {isLoaded && inventory.files.length === 0 ? (
+        <EmptyState
+          title="No local model files returned"
+          message="The local daemon did not report GGUF, safetensors, or other supported inventory metadata from the configured local scan roots."
+          nextAction="Missing model files do not break local preview. Add files outside git-ignored model directories only when you intentionally stage local assets."
+        />
+      ) : null}
+
+      <dl className="definition-grid model-metadata-grid">
+        <div>
+          <dt>Source</dt>
+          <dd>
+            {isLoaded
+              ? "Local daemon data"
+              : isLiveMode
+                ? "Fixture fallback"
+                : "Offline preview"}
+          </dd>
+        </div>
+        <div>
+          <dt>Endpoint</dt>
+          <dd>
+            {isLiveMode ? "GET /v1/models/inventory" : "fixture inventory"}
+          </dd>
+        </div>
+        <div>
+          <dt>Total files</dt>
+          <dd>{inventory.summary.total_files}</dd>
+        </div>
+        <div>
+          <dt>Total size</dt>
+          <dd>{formatBytes(inventory.summary.total_size_bytes)}</dd>
+        </div>
+        <div>
+          <dt>GGUF files</dt>
+          <dd>{inventory.summary.gguf_files}</dd>
+        </div>
+        <div>
+          <dt>Safetensors files</dt>
+          <dd>{inventory.summary.safetensors_files}</dd>
+        </div>
+        <div>
+          <dt>Largest file</dt>
+          <dd>{inventory.summary.largest_file_mb.toFixed(2)} MB</dd>
+        </div>
+        <div>
+          <dt>Scan limited</dt>
+          <dd>{String(inventory.summary.scan_limited)}</dd>
+        </div>
+        <div>
+          <dt>Loaded at</dt>
+          <dd>
+            {isLoaded
+              ? formatTimestamp(liveModelInventoryState.loadedAt)
+              : "fixture sample"}
+          </dd>
+        </div>
+      </dl>
+
+      <ModelInventoryTable inventory={inventory} />
+
+      {inventory.summary.notes.length > 0 ? (
+        <ul className="status-hint-list">
+          {inventory.summary.notes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      ) : null}
+
+      {isLiveMode ? (
+        <div className="manual-refresh-card model-action-row">
+          <span>Manual live-local refresh action</span>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={liveModelInventoryState.status === "loading"}
+            onClick={onLoadLiveModelInventory}
+          >
+            {liveModelInventoryState.status === "loading"
+              ? "Loading model inventory"
+              : "Refresh model inventory"}
+          </button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+type ModelInventoryTableProps = {
+  inventory: ModelInventoryResponse;
+};
+
+function ModelInventoryTable({ inventory }: ModelInventoryTableProps) {
+  if (inventory.files.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="table-scroll model-status-table-scroll">
+      <table className="audit-table model-status-table">
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>Safe path</th>
+            <th>Format</th>
+            <th>Status</th>
+            <th>Size</th>
+            <th>Family</th>
+            <th>Quantization</th>
+            <th>Boundary</th>
+          </tr>
+        </thead>
+        <tbody>
+          {inventory.files.map((file) => (
+            <tr key={`${file.relative_path}-${file.size_bytes}`}>
+              <td>{file.filename}</td>
+              <td>{file.relative_path}</td>
+              <td>{file.extension || "unknown"}</td>
+              <td>{file.status}</td>
+              <td>{formatBytes(file.size_bytes)}</td>
+              <td>{file.model_family ?? "unknown"}</td>
+              <td>{file.quantization ?? "unknown"}</td>
+              <td>{file.boundary_note}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -820,6 +1055,28 @@ function getModelsStateLabel(
   }
 }
 
+function getModelInventoryStateLabel(
+  dataMode: AethraDataMode,
+  liveModelInventoryState: LiveModelInventoryState,
+): string {
+  if (dataMode === "fixture") {
+    return "Fixture inventory";
+  }
+
+  switch (liveModelInventoryState.status) {
+    case "not-loaded":
+      return "Inventory not loaded";
+    case "loading":
+      return "Loading inventory";
+    case "loaded":
+      return liveModelInventoryState.inventory.files.length === 0
+        ? "Empty inventory"
+        : "Inventory loaded";
+    case "error":
+      return liveModelInventoryState.label;
+  }
+}
+
 function manifestStatusHintLabel(hint: string, isLiveModel: boolean): string {
   if (hint === "Runner status unknown") {
     return "Runner status not inferred from manifest metadata";
@@ -836,4 +1093,20 @@ function manifestStatusHintLabel(hint: string, isLiveModel: boolean): string {
 
 function formatTimestamp(timestamp: string): string {
   return timestamp.replace("T", " ").replace("Z", " UTC");
+}
+
+function formatBytes(sizeBytes: number): string {
+  if (sizeBytes >= 1_073_741_824) {
+    return `${(sizeBytes / 1_073_741_824).toFixed(2)} GB`;
+  }
+
+  if (sizeBytes >= 1_048_576) {
+    return `${(sizeBytes / 1_048_576).toFixed(2)} MB`;
+  }
+
+  if (sizeBytes >= 1024) {
+    return `${(sizeBytes / 1024).toFixed(2)} KB`;
+  }
+
+  return `${sizeBytes} B`;
 }
