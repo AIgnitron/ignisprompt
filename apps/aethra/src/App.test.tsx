@@ -30,7 +30,9 @@ describe("Aethra app navigation and demo guidance", () => {
     expect(markup).toContain("Recommended safe walkthrough");
     expect(markup).toContain("Local operations summary");
     expect(markup).toContain("Local routing policy summary");
+    expect(markup).toContain("Local evidence packages");
     expect(markup).toContain("Operations endpoints");
+    expect(markup).toContain("Evidence packages");
     expect(markup).toContain("Recent local activity");
     expect(markup).toContain("Ready model hints");
     expect(markup).toContain("model readiness");
@@ -72,6 +74,7 @@ describe("Aethra app navigation and demo guidance", () => {
     expect(markup).toContain("operations summary");
     expect(markup).toContain("model readiness");
     expect(markup).toContain("routing policy summary");
+    expect(markup).toContain("evidence package index");
     expect(markup).toContain("Health-only check");
     expect(markup).toContain("No model or runner controls");
     expect(markup).toContain("No command execution");
@@ -101,6 +104,11 @@ describe("Aethra app navigation and demo guidance", () => {
     expect(markup).not.toContain("Edit policy");
     expect(markup).not.toContain("Mutate policy");
     expect(markup).not.toContain("Mutate routing");
+    expect(markup).not.toContain("Upload package");
+    expect(markup).not.toContain("Download package");
+    expect(markup).not.toContain("Delete package");
+    expect(markup).not.toContain("Generate package");
+    expect(markup).not.toContain("Validate package");
   });
 
   it("does not add polling or live-local storage persistence APIs", () => {

@@ -221,6 +221,7 @@ export type OperationsEndpointSummary = {
   model_inventory_available: boolean;
   model_readiness_available: boolean;
   routing_policy_available: boolean;
+  evidence_packages_available: boolean;
   capabilities_available: boolean;
   status_models_available: boolean;
   status_version_available: boolean;
@@ -327,6 +328,66 @@ export type RoutingPolicySummaryResponse = {
   audit_policy_hints: RoutingPolicyHint[];
   safety_boundaries: RoutingPolicySafetyBoundaries;
   warnings: string[];
+  next_steps: string[];
+};
+
+export type EvidencePackageType =
+  | "readiness_package"
+  | "legal_bakeoff"
+  | "golden_legal"
+  | "demo_evidence_workflow"
+  | "local_legal_review"
+  | "attestation_like_preview"
+  | "archive"
+  | "unknown";
+
+export type EvidencePackageRootSummary = {
+  evidence_root_label: string;
+  root_exists: boolean;
+  package_count: number;
+  scan_limit_reached: boolean;
+  ignored_paths_summary: string[];
+};
+
+export type EvidencePackageMetadata = {
+  package_id: string;
+  package_type: EvidencePackageType;
+  display_name: string;
+  relative_path: string;
+  observed_at?: string;
+  modified_at?: string;
+  file_count: number;
+  total_size_bytes: number;
+  has_manifest: boolean;
+  has_summary: boolean;
+  has_report: boolean;
+  has_validation_report: boolean;
+  has_attestation_like_files: boolean;
+  known_artifacts: string[];
+  warnings: string[];
+  boundary_notes: string[];
+};
+
+export type EvidencePackageAggregateSummary = {
+  total_packages: number;
+  packages_by_type: Record<string, number>;
+  packages_with_manifests: number;
+  packages_with_reports: number;
+  packages_with_validation_like_files: number;
+  packages_with_attestation_like_names: number;
+  packages_with_warnings: number;
+  latest_observed_package?: string;
+  scan_was_partial: boolean;
+};
+
+export type EvidencePackageIndexResponse = {
+  schema_version: string;
+  generated_at: string;
+  root_summary: EvidencePackageRootSummary;
+  packages: EvidencePackageMetadata[];
+  aggregate_summary: EvidencePackageAggregateSummary;
+  warnings: string[];
+  boundary_notes: string[];
   next_steps: string[];
 };
 
@@ -838,6 +899,7 @@ export function isOperationsEndpointSummary(
     isBoolean(value.model_inventory_available) &&
     isBoolean(value.model_readiness_available) &&
     isBoolean(value.routing_policy_available) &&
+    isBoolean(value.evidence_packages_available) &&
     isBoolean(value.capabilities_available) &&
     isBoolean(value.status_models_available) &&
     isBoolean(value.status_version_available) &&
@@ -940,6 +1002,103 @@ export function isRoutingPolicySummaryResponse(
     value.audit_policy_hints.every(isRoutingPolicyHint) &&
     isRoutingPolicySafetyBoundaries(value.safety_boundaries) &&
     isStringArray(value.warnings) &&
+    isStringArray(value.next_steps)
+  );
+}
+
+export function isEvidencePackageType(
+  value: unknown,
+): value is EvidencePackageType {
+  return (
+    value === "readiness_package" ||
+    value === "legal_bakeoff" ||
+    value === "golden_legal" ||
+    value === "demo_evidence_workflow" ||
+    value === "local_legal_review" ||
+    value === "attestation_like_preview" ||
+    value === "archive" ||
+    value === "unknown"
+  );
+}
+
+export function isEvidencePackageRootSummary(
+  value: unknown,
+): value is EvidencePackageRootSummary {
+  return (
+    isRecord(value) &&
+    isString(value.evidence_root_label) &&
+    isBoolean(value.root_exists) &&
+    isNumber(value.package_count) &&
+    isBoolean(value.scan_limit_reached) &&
+    isStringArray(value.ignored_paths_summary)
+  );
+}
+
+function isSafeEvidenceRelativePath(value: string): boolean {
+  return (
+    value.startsWith("local-evidence/") &&
+    !value.startsWith("/") &&
+    !value.includes("..") &&
+    !value.includes("\\")
+  );
+}
+
+export function isEvidencePackageMetadata(
+  value: unknown,
+): value is EvidencePackageMetadata {
+  return (
+    isRecord(value) &&
+    isString(value.package_id) &&
+    isEvidencePackageType(value.package_type) &&
+    isString(value.display_name) &&
+    isString(value.relative_path) &&
+    isSafeEvidenceRelativePath(value.relative_path) &&
+    isOptionalString(value.observed_at) &&
+    isOptionalString(value.modified_at) &&
+    isNumber(value.file_count) &&
+    isNumber(value.total_size_bytes) &&
+    isBoolean(value.has_manifest) &&
+    isBoolean(value.has_summary) &&
+    isBoolean(value.has_report) &&
+    isBoolean(value.has_validation_report) &&
+    isBoolean(value.has_attestation_like_files) &&
+    isStringArray(value.known_artifacts) &&
+    isStringArray(value.warnings) &&
+    isStringArray(value.boundary_notes)
+  );
+}
+
+export function isEvidencePackageAggregateSummary(
+  value: unknown,
+): value is EvidencePackageAggregateSummary {
+  return (
+    isRecord(value) &&
+    isNumber(value.total_packages) &&
+    isRecord(value.packages_by_type) &&
+    Object.values(value.packages_by_type).every(isNumber) &&
+    isNumber(value.packages_with_manifests) &&
+    isNumber(value.packages_with_reports) &&
+    isNumber(value.packages_with_validation_like_files) &&
+    isNumber(value.packages_with_attestation_like_names) &&
+    isNumber(value.packages_with_warnings) &&
+    isOptionalString(value.latest_observed_package) &&
+    isBoolean(value.scan_was_partial)
+  );
+}
+
+export function isEvidencePackageIndexResponse(
+  value: unknown,
+): value is EvidencePackageIndexResponse {
+  return (
+    isRecord(value) &&
+    isString(value.schema_version) &&
+    isString(value.generated_at) &&
+    isEvidencePackageRootSummary(value.root_summary) &&
+    Array.isArray(value.packages) &&
+    value.packages.every(isEvidencePackageMetadata) &&
+    isEvidencePackageAggregateSummary(value.aggregate_summary) &&
+    isStringArray(value.warnings) &&
+    isStringArray(value.boundary_notes) &&
     isStringArray(value.next_steps)
   );
 }

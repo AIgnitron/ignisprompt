@@ -6,10 +6,19 @@ import { StatusBadge } from "../components/StatusBadge";
 import type {
   EvidenceBundleArchivePreview,
   EvidenceBundleManifest,
+  EvidencePackageIndexResponse,
   EvidenceBundlePreview,
   EvidenceBundleValidationSummary,
 } from "../api/contracts";
-import { evidenceBundleFixture } from "../fixtures/aethraFixture";
+import type { AethraDataMode, LiveEvidencePackageIndexState } from "../dataSource";
+import {
+  formatLiveLocalDisplaySource,
+  getLiveLocalDisplaySource,
+} from "../dataSource";
+import {
+  evidenceBundleFixture,
+  evidencePackageIndexFixture,
+} from "../fixtures/aethraFixture";
 import {
   buildEvidenceBundleJsonReportText,
   buildEvidenceBundleMarkdownReport,
@@ -21,6 +30,8 @@ import {
 
 type EvidenceBundleViewerProps = {
   preview?: Partial<EvidenceBundlePreview> | null;
+  dataMode?: AethraDataMode;
+  liveEvidencePackagesState?: LiveEvidencePackageIndexState;
 };
 
 type BundleSectionState<T> =
@@ -589,6 +600,163 @@ function renderArchiveState(
   );
 }
 
+type EvidencePackageIndexSectionProps = {
+  index: EvidencePackageIndexResponse;
+  sourceLabel: string;
+  dataMode: AethraDataMode;
+  liveState: LiveEvidencePackageIndexState;
+};
+
+function EvidencePackageIndexSection({
+  index,
+  sourceLabel,
+  dataMode,
+  liveState,
+}: EvidencePackageIndexSectionProps) {
+  const packageTypes = Object.entries(index.aggregate_summary.packages_by_type)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([packageType, count]) => `${packageType}: ${count}`);
+
+  return (
+    <section className="panel" aria-label="Local evidence package index">
+      <div className="panel-heading">
+        <div>
+          <h3>Local evidence packages</h3>
+          <p className="muted">
+            Read-only package index metadata from <code>local-evidence/</code>.
+          </p>
+        </div>
+        <StatusBadge tone={sourceLabel === "Local daemon data" ? "ok" : "neutral"}>
+          {sourceLabel}
+        </StatusBadge>
+      </div>
+
+      {dataMode === "live-local" && liveState.status === "error" ? (
+        <EmptyState
+          title={liveState.label}
+          message={liveState.message}
+          nextAction="Fixture fallback package metadata remains visible below."
+          detail="Aethra does not make the page unusable when the daemon package index is unavailable."
+        />
+      ) : null}
+
+      {dataMode === "live-local" && liveState.status === "loading" ? (
+        <EmptyState
+          title="Loading evidence package index"
+          message="Aethra is loading read-only local evidence package metadata from the configured daemon."
+          nextAction="No polling is used; the request runs only because manual refresh was selected."
+          detail="Fixture fallback package metadata remains available while loading."
+        />
+      ) : null}
+
+      <div className="metric-grid" aria-label="Evidence package index metrics">
+        <MetricCard
+          label="Packages"
+          value={index.aggregate_summary.total_packages}
+          detail={`${index.root_summary.evidence_root_label} root`}
+        />
+        <MetricCard
+          label="With manifests"
+          value={index.aggregate_summary.packages_with_manifests}
+          detail="Filename metadata only"
+        />
+        <MetricCard
+          label="With reports"
+          value={index.aggregate_summary.packages_with_reports}
+          detail="Report-like filenames only"
+        />
+        <MetricCard
+          label="Scan partial"
+          value={index.aggregate_summary.scan_was_partial ? "Yes" : "No"}
+          detail="Bounded local traversal"
+        />
+      </div>
+
+      {packageTypes.length > 0 ? (
+        <p className="muted">Package types: {packageTypes.join(", ")}.</p>
+      ) : (
+        <EmptyState
+          title="No evidence packages indexed"
+          message="No local evidence package folders were reported by the current package index data."
+          nextAction="Generated evidence remains optional and ignored; missing packages do not block local preview."
+          detail="The index does not create packages or validate packages as certified."
+        />
+      )}
+
+      {index.packages.length > 0 ? (
+        <div className="capability-list" aria-label="Evidence package list">
+          {index.packages.slice(0, 8).map((item) => (
+            <article className="capability-card" key={item.package_id}>
+              <div className="panel-heading">
+                <div>
+                  <h4>{item.display_name}</h4>
+                  <p className="muted">{item.relative_path}</p>
+                </div>
+                <StatusBadge tone={item.warnings.length > 0 ? "warning" : "neutral"}>
+                  {item.package_type}
+                </StatusBadge>
+              </div>
+              <dl className="definition-grid">
+                <div>
+                  <dt>Files</dt>
+                  <dd>{item.file_count}</dd>
+                </div>
+                <div>
+                  <dt>Total size</dt>
+                  <dd>{formatBytes(item.total_size_bytes)}</dd>
+                </div>
+                <div>
+                  <dt>Manifest</dt>
+                  <dd>{item.has_manifest ? "yes" : "no"}</dd>
+                </div>
+                <div>
+                  <dt>Validation-like</dt>
+                  <dd>{item.has_validation_report ? "yes" : "no"}</dd>
+                </div>
+              </dl>
+              <p className="muted">
+                Artifacts:{" "}
+                {item.known_artifacts.length > 0
+                  ? item.known_artifacts.join(", ")
+                  : "none listed"}
+              </p>
+              {item.warnings.length > 0 ? (
+                <ul className="warning-list">
+                  {item.warnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      ) : null}
+
+      <p className="muted diagnostics-note">
+        Read-only metadata only. Aethra does not show file contents, generate
+        packages, validate packages as certified, upload, download, delete,
+        mutate files, execute routes or models, submit prompts, call cloud
+        services, send telemetry, expose raw prompts, raw request bodies, audit
+        event bodies, secrets, private credentials, or claim attestation,
+        compliance, legal correctness, or production readiness.
+      </p>
+    </section>
+  );
+}
+
+function formatBytes(sizeBytes: number): string {
+  if (sizeBytes >= 1_073_741_824) {
+    return `${(sizeBytes / 1_073_741_824).toFixed(2)} GB`;
+  }
+  if (sizeBytes >= 1_048_576) {
+    return `${(sizeBytes / 1_048_576).toFixed(2)} MB`;
+  }
+  if (sizeBytes >= 1024) {
+    return `${(sizeBytes / 1024).toFixed(2)} KB`;
+  }
+  return `${sizeBytes} B`;
+}
+
 function renderCommandSnippets() {
   return (
     <section className="panel" aria-label="Evidence bundle CLI snippets">
@@ -625,9 +793,22 @@ function renderCommandSnippets() {
   );
 }
 
-export function EvidenceBundleViewer({ preview }: EvidenceBundleViewerProps) {
+export function EvidenceBundleViewer({
+  preview,
+  dataMode = "fixture",
+  liveEvidencePackagesState = { status: "not-loaded" },
+}: EvidenceBundleViewerProps) {
   const source = preview === undefined ? evidenceBundleFixture : preview;
   const [copyStatus, setCopyStatus] = useState<ReportCopyStatus>();
+  const liveEvidencePackageIndex =
+    dataMode === "live-local" && liveEvidencePackagesState.status === "loaded"
+      ? liveEvidencePackagesState.index
+      : undefined;
+  const evidencePackageIndex =
+    liveEvidencePackageIndex ?? evidencePackageIndexFixture;
+  const evidencePackageSourceLabel = formatLiveLocalDisplaySource(
+    getLiveLocalDisplaySource(dataMode, liveEvidencePackagesState),
+  );
   const manifestState = buildManifestState(source);
   const validationState = buildValidationState(source);
   const archiveState = buildArchiveState(source);
@@ -692,10 +873,18 @@ export function EvidenceBundleViewer({ preview }: EvidenceBundleViewerProps) {
         collapsible
         items={[
           "Inspect safe manifest and summary fields from the fixture bundle sample.",
+          "Review a read-only local evidence package index when live-local metadata has been manually refreshed.",
           "Review what is generated locally under ignored local-evidence paths and what git should continue to ignore.",
           "Validation remains structural and local only; it does not imply signing, certification, or tamper evidence.",
           "Archive metadata preview is read-only and does not extract archives or load arbitrary local paths.",
         ]}
+      />
+
+      <EvidencePackageIndexSection
+        index={evidencePackageIndex}
+        sourceLabel={evidencePackageSourceLabel}
+        dataMode={dataMode}
+        liveState={liveEvidencePackagesState}
       />
 
       {renderCommandSnippets()}

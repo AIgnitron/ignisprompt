@@ -12,6 +12,7 @@ import type {
   AethraDataMode,
   LiveAuditEventsState,
   LiveCapabilitiesState,
+  LiveEvidencePackageIndexState,
   LiveHealthState,
   LiveLocalRefreshState,
   LiveLocalSurfaceId,
@@ -77,6 +78,10 @@ export default function App() {
     });
   const [liveRoutingPolicyState, setLiveRoutingPolicyState] =
     useState<LiveRoutingPolicySummaryState>({
+      status: "not-loaded",
+    });
+  const [liveEvidencePackagesState, setLiveEvidencePackagesState] =
+    useState<LiveEvidencePackageIndexState>({
       status: "not-loaded",
     });
   const [liveModelStatusState, setLiveModelStatusState] =
@@ -360,6 +365,7 @@ export default function App() {
       setLiveModelInventoryState(blocked);
       setLiveModelReadinessState(blocked);
       setLiveRoutingPolicyState(blocked);
+      setLiveEvidencePackagesState(blocked);
       setLiveModelStatusState(blocked);
       setLiveCapabilitiesState(blocked);
       setLiveAuditEventsState(blocked);
@@ -379,6 +385,7 @@ export default function App() {
           "model-inventory",
           "model-readiness",
           "routing-policy",
+          "evidence-packages",
           "model-status",
           "capabilities",
           "audit-events",
@@ -402,6 +409,7 @@ export default function App() {
     setLiveModelInventoryState({ status: "loading" });
     setLiveModelReadinessState({ status: "loading" });
     setLiveRoutingPolicyState({ status: "loading" });
+    setLiveEvidencePackagesState({ status: "loading" });
     setLiveModelStatusState({ status: "loading" });
     setLiveCapabilitiesState({ status: "loading" });
     setLiveAuditEventsState({ status: "loading" });
@@ -422,6 +430,7 @@ export default function App() {
     setLiveModelInventoryState(snapshot.modelInventory);
     setLiveModelReadinessState(snapshot.modelReadiness);
     setLiveRoutingPolicyState(snapshot.routingPolicy);
+    setLiveEvidencePackagesState(snapshot.evidencePackages);
     setLiveModelStatusState(snapshot.modelStatus);
     setLiveCapabilitiesState(snapshot.capabilities);
     setLiveAuditEventsState(snapshot.auditEvents);
@@ -562,7 +571,7 @@ export default function App() {
               <p>
                 {dataMode === "fixture"
                   ? "Use Refresh local daemon data when ignispromptd is running. Aethra observes IgnisPrompt state without changing routing, runners, models, or audit policy."
-                  : "Live local metadata loading is manual and read-only for health, daemon version status, models, local model inventory, model readiness, routing policy summary, capabilities, model and runner status hints, audit events, operations summary, and sustainability metrics."}
+                  : "Live local metadata loading is manual and read-only for health, daemon version status, models, local model inventory, model readiness, routing policy summary, evidence package index, capabilities, model and runner status hints, audit events, operations summary, and sustainability metrics."}
               </p>
             </div>
             <div className="mode-badges" aria-label="Aethra mode guarantees">
@@ -608,6 +617,7 @@ export default function App() {
             liveModelInventoryState={liveModelInventoryState}
             liveModelReadinessState={liveModelReadinessState}
             liveRoutingPolicyState={liveRoutingPolicyState}
+            liveEvidencePackagesState={liveEvidencePackagesState}
             liveModelStatusState={liveModelStatusState}
             liveCapabilitiesState={liveCapabilitiesState}
             liveVersionStatusState={liveVersionStatusState}
@@ -652,7 +662,10 @@ export default function App() {
           />
         ) : null}
         {activeRoute === "evidence-bundle-viewer" ? (
-          <EvidenceBundleViewer />
+          <EvidenceBundleViewer
+            dataMode={dataMode}
+            liveEvidencePackagesState={liveEvidencePackagesState}
+          />
         ) : null}
         {activeRoute === "model-runner-status" ? (
           <ModelRunnerStatus
@@ -865,7 +878,8 @@ function DataSourceControl({
             </button>
             <p className="muted refresh-card-note">
               Loads health, version, models, local model inventory,
-              model readiness, routing policy summary, capabilities, status
+              model readiness, routing policy summary, evidence package index,
+              capabilities, status
               hints, audit events, operations summary, and 30d sustainability
               metrics from read-only GET endpoints. Route execution and model
               execution are not included.

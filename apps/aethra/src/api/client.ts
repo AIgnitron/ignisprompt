@@ -1,6 +1,7 @@
 import {
   AuditEvent,
   CapabilitiesResponse,
+  EvidencePackageIndexResponse,
   HealthResponse,
   ModelInventoryResponse,
   ModelReadinessResponse,
@@ -14,6 +15,7 @@ import {
   VersionStatusResponse,
   isAuditEventList,
   isCapabilitiesResponse,
+  isEvidencePackageIndexResponse,
   isHealthResponse,
   isModelInventoryResponse,
   isModelReadinessResponse,
@@ -87,6 +89,10 @@ export class IgnisPromptClient {
       "/v1/routing/policy-summary",
       isRoutingPolicySummaryResponse,
     );
+  }
+
+  evidencePackages(): Promise<EvidencePackageIndexResponse> {
+    return this.request("/v1/evidence/packages", isEvidencePackageIndexResponse);
   }
 
   versionStatus(): Promise<VersionStatusResponse> {

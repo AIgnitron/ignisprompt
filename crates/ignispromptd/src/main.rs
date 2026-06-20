@@ -54,8 +54,13 @@ const SUSTAINABILITY_METRICS_MAX_PERIOD_DAYS: i64 = 3650;
 const MODEL_INVENTORY_SCHEMA_VERSION: &str = "ignisprompt-model-inventory-v0.1";
 const MODEL_READINESS_SCHEMA_VERSION: &str = "ignisprompt-model-readiness-v0.1";
 const ROUTING_POLICY_SCHEMA_VERSION: &str = "ignisprompt-routing-policy-v0.1";
+const EVIDENCE_PACKAGE_INDEX_SCHEMA_VERSION: &str = "ignisprompt-evidence-package-index-v0.1";
 const MODEL_INVENTORY_MAX_FILES: usize = 200;
 const MODEL_INVENTORY_MAX_DEPTH: usize = 4;
+const EVIDENCE_PACKAGE_ROOT: &str = "local-evidence";
+const EVIDENCE_PACKAGE_MAX_PACKAGES: usize = 120;
+const EVIDENCE_PACKAGE_MAX_DEPTH: usize = 3;
+const EVIDENCE_PACKAGE_MAX_FILES_PER_PACKAGE: usize = 80;
 const OPERATIONS_SUMMARY_SCHEMA_VERSION: &str = "ignisprompt-operations-summary-v0.1";
 const OPERATIONS_SUMMARY_RECENT_EVENT_LIMIT: usize = 20;
 
@@ -623,6 +628,7 @@ async fn run_http_daemon(state: AppState, bind: SocketAddr) -> Result<()> {
         .route("/v1/models/inventory", get(model_inventory))
         .route("/v1/models/readiness", get(model_readiness))
         .route("/v1/routing/policy-summary", get(routing_policy_summary))
+        .route("/v1/evidence/packages", get(evidence_packages))
         .route("/v1/capabilities", get(capabilities))
         .route("/v1/status/models", get(model_status))
         .route("/v1/status/version", get(version_status))
@@ -772,6 +778,10 @@ async fn routing_policy_summary(
 ) -> Json<RoutingPolicySummaryResponse> {
     let registry = state.model_registry.read().await.clone();
     Json(routing_policy_summary_response(&state.config, &registry))
+}
+
+async fn evidence_packages() -> Json<EvidencePackageIndexResponse> {
+    Json(evidence_package_index_response().await)
 }
 
 async fn version_status(State(state): State<AppState>) -> Json<VersionStatusResponse> {
@@ -982,6 +992,76 @@ struct RoutingPolicySafetyBoundaries {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+struct EvidencePackageIndexResponse {
+    schema_version: String,
+    generated_at: DateTime<Utc>,
+    root_summary: EvidencePackageRootSummary,
+    packages: Vec<EvidencePackageMetadata>,
+    aggregate_summary: EvidencePackageAggregateSummary,
+    warnings: Vec<String>,
+    boundary_notes: Vec<String>,
+    next_steps: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct EvidencePackageRootSummary {
+    evidence_root_label: String,
+    root_exists: bool,
+    package_count: usize,
+    scan_limit_reached: bool,
+    ignored_paths_summary: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct EvidencePackageMetadata {
+    package_id: String,
+    package_type: EvidencePackageType,
+    display_name: String,
+    relative_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    observed_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    modified_at: Option<DateTime<Utc>>,
+    file_count: usize,
+    total_size_bytes: u64,
+    has_manifest: bool,
+    has_summary: bool,
+    has_report: bool,
+    has_validation_report: bool,
+    has_attestation_like_files: bool,
+    known_artifacts: Vec<String>,
+    warnings: Vec<String>,
+    boundary_notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct EvidencePackageAggregateSummary {
+    total_packages: usize,
+    packages_by_type: HashMap<String, usize>,
+    packages_with_manifests: usize,
+    packages_with_reports: usize,
+    packages_with_validation_like_files: usize,
+    packages_with_attestation_like_names: usize,
+    packages_with_warnings: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    latest_observed_package: Option<String>,
+    scan_was_partial: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum EvidencePackageType {
+    ReadinessPackage,
+    LegalBakeoff,
+    GoldenLegal,
+    DemoEvidenceWorkflow,
+    LocalLegalReview,
+    AttestationLikePreview,
+    Archive,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct OperationsSummaryResponse {
     schema_version: String,
     generated_at: DateTime<Utc>,
@@ -1009,6 +1089,7 @@ struct OperationsEndpointSummary {
     model_inventory_available: bool,
     model_readiness_available: bool,
     routing_policy_available: bool,
+    evidence_packages_available: bool,
     capabilities_available: bool,
     status_models_available: bool,
     status_version_available: bool,
@@ -1453,6 +1534,7 @@ async fn operations_summary_response(state: &AppState) -> OperationsSummaryRespo
             model_inventory_available: true,
             model_readiness_available: true,
             routing_policy_available: true,
+            evidence_packages_available: true,
             capabilities_available: true,
             status_models_available: true,
             status_version_available: true,
@@ -1693,6 +1775,418 @@ fn model_declares_legal_domain(model: &ModelManifest) -> bool {
         .iter()
         .any(|domain| domain.eq_ignore_ascii_case("legal"))
         || model.model_id.to_ascii_lowercase().contains("legal")
+}
+
+async fn evidence_package_index_response() -> EvidencePackageIndexResponse {
+    evidence_package_index_response_for_root(
+        PathBuf::from(EVIDENCE_PACKAGE_ROOT),
+        EVIDENCE_PACKAGE_ROOT.to_string(),
+    )
+    .await
+}
+
+async fn evidence_package_index_response_for_root(
+    root: PathBuf,
+    root_label: String,
+) -> EvidencePackageIndexResponse {
+    let generated_at = Utc::now();
+    let root_exists = fs::try_exists(&root).await.unwrap_or(false);
+    let mut warnings = vec![
+        "Evidence package index is read-only local-preview metadata only.".to_string(),
+        "Package presence, validation-like filenames, or attestation-like names are not certification, compliance, legal accuracy, production readiness, signed attestation, or tamper-evident evidence claims.".to_string(),
+    ];
+
+    if !root_exists {
+        warnings.push(
+            "No local-evidence root was found; this is informational and does not block local preview.".to_string(),
+        );
+    }
+
+    let scan = if root_exists {
+        scan_evidence_package_root(&root, &root_label).await
+    } else {
+        EvidencePackageScan::default()
+    };
+
+    let aggregate_summary = evidence_package_aggregate_summary(&scan.packages, scan.scan_limited);
+    EvidencePackageIndexResponse {
+        schema_version: EVIDENCE_PACKAGE_INDEX_SCHEMA_VERSION.to_string(),
+        generated_at,
+        root_summary: EvidencePackageRootSummary {
+            evidence_root_label: root_label.clone(),
+            root_exists,
+            package_count: scan.packages.len(),
+            scan_limit_reached: scan.scan_limited,
+            ignored_paths_summary: scan.ignored_paths_summary,
+        },
+        packages: scan.packages,
+        aggregate_summary,
+        warnings,
+        boundary_notes: vec![
+            "Only the repository local-evidence root is scanned.".to_string(),
+            "The index uses bounded traversal and does not follow symlinks.".to_string(),
+            "File names, relative package paths, sizes, timestamps, and artifact indicators are returned; full evidence file contents are not read or exposed.".to_string(),
+            "The endpoint does not generate, validate, upload, download, delete, or mutate packages.".to_string(),
+            "The endpoint does not execute routes or models, submit prompts, call cloud services, send telemetry, expose secrets, raw prompts, raw request bodies, audit event bodies, or private credentials.".to_string(),
+        ],
+        next_steps: vec![
+            "Use existing local package list or validate CLI commands explicitly when structural package inspection is needed.".to_string(),
+            "Keep generated evidence under ignored local-evidence paths and out of commits.".to_string(),
+        ],
+    }
+}
+
+#[derive(Debug, Default)]
+struct EvidencePackageScan {
+    packages: Vec<EvidencePackageMetadata>,
+    ignored_paths_summary: Vec<String>,
+    scan_limited: bool,
+}
+
+async fn scan_evidence_package_root(root: &Path, root_label: &str) -> EvidencePackageScan {
+    let mut scan = EvidencePackageScan::default();
+    let mut queue = VecDeque::from([(root.to_path_buf(), String::new(), 0usize)]);
+
+    while let Some((dir, relative_prefix, depth)) = queue.pop_front() {
+        if depth > EVIDENCE_PACKAGE_MAX_DEPTH {
+            scan.scan_limited = true;
+            continue;
+        }
+
+        let Ok(mut entries) = fs::read_dir(&dir).await else {
+            continue;
+        };
+
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let file_name = entry.file_name().to_string_lossy().to_string();
+            if file_name.starts_with('.') {
+                continue;
+            }
+
+            let relative_path = join_safe_relative(&relative_prefix, &file_name);
+            let Ok(file_type) = entry.file_type().await else {
+                continue;
+            };
+
+            if file_type.is_symlink() {
+                scan.ignored_paths_summary
+                    .push(format!("{relative_path}: symlink ignored"));
+                continue;
+            }
+
+            if file_type.is_dir() {
+                if scan.packages.len() >= EVIDENCE_PACKAGE_MAX_PACKAGES {
+                    scan.scan_limited = true;
+                    continue;
+                }
+                let package =
+                    scan_evidence_package(entry.path(), root_label, relative_path.clone()).await;
+                scan.packages.push(package);
+                queue.push_back((entry.path(), relative_path, depth + 1));
+            } else if evidence_archive_filename(&file_name) {
+                if scan.packages.len() >= EVIDENCE_PACKAGE_MAX_PACKAGES {
+                    scan.scan_limited = true;
+                    continue;
+                }
+                scan.packages
+                    .push(evidence_archive_package(entry.path(), root_label, relative_path).await);
+            }
+        }
+    }
+
+    scan.packages.sort_by(|left, right| {
+        right
+            .modified_at
+            .cmp(&left.modified_at)
+            .then_with(|| left.relative_path.cmp(&right.relative_path))
+    });
+    scan
+}
+
+async fn scan_evidence_package(
+    path: PathBuf,
+    root_label: &str,
+    relative_path: String,
+) -> EvidencePackageMetadata {
+    let package_type = guess_evidence_package_type(&relative_path);
+    let package_id = evidence_package_id(&relative_path);
+    let mut file_count = 0usize;
+    let mut total_size_bytes = 0u64;
+    let mut modified_at = fs_modified_at(&path).await;
+    let mut known_artifacts = Vec::new();
+    let mut warnings = Vec::new();
+    let mut has_manifest = false;
+    let mut has_summary = false;
+    let mut has_report = false;
+    let mut has_validation_report = false;
+    let mut has_attestation_like_files = relative_path.to_ascii_lowercase().contains("attestation");
+    let mut queue = VecDeque::from([(path, 0usize)]);
+    let mut scan_limited = false;
+
+    while let Some((dir, depth)) = queue.pop_front() {
+        if depth > 2 {
+            scan_limited = true;
+            continue;
+        }
+        let Ok(mut entries) = fs::read_dir(&dir).await else {
+            continue;
+        };
+
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let file_name = entry.file_name().to_string_lossy().to_string();
+            if file_name.starts_with('.') {
+                continue;
+            }
+            let Ok(file_type) = entry.file_type().await else {
+                continue;
+            };
+            if file_type.is_symlink() {
+                warnings.push("Symlinked package entry was ignored.".to_string());
+                continue;
+            }
+            if file_type.is_dir() {
+                queue.push_back((entry.path(), depth + 1));
+                continue;
+            }
+            if !file_type.is_file() {
+                continue;
+            }
+
+            file_count += 1;
+            if file_count > EVIDENCE_PACKAGE_MAX_FILES_PER_PACKAGE {
+                scan_limited = true;
+                break;
+            }
+
+            if let Ok(metadata) = entry.metadata().await {
+                total_size_bytes = total_size_bytes.saturating_add(metadata.len());
+                if let Ok(modified) = metadata.modified() {
+                    let modified: DateTime<Utc> = modified.into();
+                    modified_at =
+                        Some(modified_at.map_or(modified, |current| current.max(modified)));
+                }
+            }
+
+            let artifact = safe_artifact_name(&file_name);
+            let artifact_lower = artifact.to_ascii_lowercase();
+            has_manifest |= artifact_lower.contains("manifest");
+            has_summary |= artifact_lower.contains("summary");
+            has_report |= artifact_lower.contains("report");
+            has_validation_report |= artifact_lower.contains("validation")
+                || artifact_lower.contains("validate")
+                || artifact_lower.contains("verified");
+            has_attestation_like_files |= artifact_lower.contains("attestation");
+
+            if known_artifacts.len() < 12 {
+                known_artifacts.push(artifact);
+            }
+        }
+    }
+
+    if scan_limited {
+        warnings.push("Package scan was limited; additional files may exist.".to_string());
+    }
+    if has_attestation_like_files {
+        warnings.push(
+            "Attestation-like names were observed, but this is not an attestation, signing, certification, or tamper-evidence claim.".to_string(),
+        );
+    }
+
+    EvidencePackageMetadata {
+        package_id,
+        package_type,
+        display_name: evidence_package_display_name(&relative_path),
+        relative_path: format!("{root_label}/{relative_path}"),
+        observed_at: Some(Utc::now()),
+        modified_at,
+        file_count,
+        total_size_bytes,
+        has_manifest,
+        has_summary,
+        has_report,
+        has_validation_report,
+        has_attestation_like_files,
+        known_artifacts,
+        warnings,
+        boundary_notes: evidence_package_boundary_notes(),
+    }
+}
+
+async fn evidence_archive_package(
+    path: PathBuf,
+    root_label: &str,
+    relative_path: String,
+) -> EvidencePackageMetadata {
+    let metadata = fs::metadata(&path).await.ok();
+    let modified_at = metadata
+        .as_ref()
+        .and_then(|metadata| metadata.modified().ok())
+        .map(Into::into);
+    let file_name = path
+        .file_name()
+        .and_then(|part| part.to_str())
+        .map(safe_artifact_name)
+        .unwrap_or_else(|| "archive".to_string());
+
+    EvidencePackageMetadata {
+        package_id: evidence_package_id(&relative_path),
+        package_type: EvidencePackageType::Archive,
+        display_name: evidence_package_display_name(&relative_path),
+        relative_path: format!("{root_label}/{relative_path}"),
+        observed_at: Some(Utc::now()),
+        modified_at,
+        file_count: 1,
+        total_size_bytes: metadata.map(|metadata| metadata.len()).unwrap_or(0),
+        has_manifest: false,
+        has_summary: false,
+        has_report: false,
+        has_validation_report: relative_path.to_ascii_lowercase().contains("verified"),
+        has_attestation_like_files: relative_path
+            .to_ascii_lowercase()
+            .contains("attestation"),
+        known_artifacts: vec![file_name],
+        warnings: vec![
+            "Archive metadata is filename and size only; archive contents are not extracted or validated.".to_string(),
+        ],
+        boundary_notes: evidence_package_boundary_notes(),
+    }
+}
+
+fn evidence_package_aggregate_summary(
+    packages: &[EvidencePackageMetadata],
+    scan_was_partial: bool,
+) -> EvidencePackageAggregateSummary {
+    let mut packages_by_type = HashMap::new();
+    for package in packages {
+        *packages_by_type
+            .entry(evidence_package_type_label(package.package_type).to_string())
+            .or_insert(0) += 1;
+    }
+
+    EvidencePackageAggregateSummary {
+        total_packages: packages.len(),
+        packages_by_type,
+        packages_with_manifests: packages
+            .iter()
+            .filter(|package| package.has_manifest)
+            .count(),
+        packages_with_reports: packages.iter().filter(|package| package.has_report).count(),
+        packages_with_validation_like_files: packages
+            .iter()
+            .filter(|package| package.has_validation_report)
+            .count(),
+        packages_with_attestation_like_names: packages
+            .iter()
+            .filter(|package| package.has_attestation_like_files)
+            .count(),
+        packages_with_warnings: packages
+            .iter()
+            .filter(|package| !package.warnings.is_empty())
+            .count(),
+        latest_observed_package: packages
+            .iter()
+            .filter_map(|package| {
+                package
+                    .modified_at
+                    .map(|modified_at| (modified_at, package.package_id.clone()))
+            })
+            .max_by_key(|(modified_at, _)| *modified_at)
+            .map(|(_, package_id)| package_id),
+        scan_was_partial,
+    }
+}
+
+fn guess_evidence_package_type(relative_path: &str) -> EvidencePackageType {
+    let lower = relative_path.to_ascii_lowercase();
+    if lower.contains("archives") || evidence_archive_filename(relative_path) {
+        EvidencePackageType::Archive
+    } else if lower.contains("attestation") {
+        EvidencePackageType::AttestationLikePreview
+    } else if lower.contains("golden-legal") {
+        EvidencePackageType::GoldenLegal
+    } else if lower.contains("alpha-legal-bakeoff") || lower.contains("bakeoff") {
+        EvidencePackageType::LegalBakeoff
+    } else if lower.contains("demo-local-evidence-workflow") {
+        EvidencePackageType::DemoEvidenceWorkflow
+    } else if lower.contains("demo-local-legal-review") {
+        EvidencePackageType::LocalLegalReview
+    } else if lower.contains("readiness") {
+        EvidencePackageType::ReadinessPackage
+    } else {
+        EvidencePackageType::Unknown
+    }
+}
+
+fn evidence_package_type_label(package_type: EvidencePackageType) -> &'static str {
+    match package_type {
+        EvidencePackageType::ReadinessPackage => "readiness_package",
+        EvidencePackageType::LegalBakeoff => "legal_bakeoff",
+        EvidencePackageType::GoldenLegal => "golden_legal",
+        EvidencePackageType::DemoEvidenceWorkflow => "demo_evidence_workflow",
+        EvidencePackageType::LocalLegalReview => "local_legal_review",
+        EvidencePackageType::AttestationLikePreview => "attestation_like_preview",
+        EvidencePackageType::Archive => "archive",
+        EvidencePackageType::Unknown => "unknown",
+    }
+}
+
+fn evidence_archive_filename(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    lower.ends_with(".tar.gz") || lower.ends_with(".tgz") || lower.ends_with(".zip")
+}
+
+fn join_safe_relative(prefix: &str, name: &str) -> String {
+    if prefix.is_empty() {
+        name.to_string()
+    } else {
+        format!("{prefix}/{name}")
+    }
+}
+
+fn evidence_package_id(relative_path: &str) -> String {
+    relative_path
+        .split('/')
+        .filter(|part| !part.is_empty())
+        .map(safe_artifact_name)
+        .collect::<Vec<_>>()
+        .join("__")
+}
+
+fn evidence_package_display_name(relative_path: &str) -> String {
+    relative_path
+        .rsplit('/')
+        .next()
+        .map(safe_artifact_name)
+        .unwrap_or_else(|| "local evidence package".to_string())
+}
+
+fn safe_artifact_name(name: &str) -> String {
+    name.chars()
+        .map(|ch| match ch {
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '.' | '_' | '-' => ch,
+            _ => '-',
+        })
+        .collect::<String>()
+        .trim_matches('-')
+        .chars()
+        .take(120)
+        .collect()
+}
+
+async fn fs_modified_at(path: &Path) -> Option<DateTime<Utc>> {
+    fs::metadata(path)
+        .await
+        .ok()
+        .and_then(|metadata| metadata.modified().ok())
+        .map(Into::into)
+}
+
+fn evidence_package_boundary_notes() -> Vec<String> {
+    vec![
+        "Read-only metadata only; evidence file contents are not returned.".to_string(),
+        "This index does not validate, certify, sign, upload, download, delete, or mutate packages.".to_string(),
+        "Observed package names and files do not prove attestation, compliance, legal accuracy, production readiness, or tamper-evident evidence.".to_string(),
+    ]
 }
 
 #[derive(Debug, Clone)]
@@ -3977,6 +4471,11 @@ mod tests {
         routing_policy_summary(State(state.clone())).await.0
     }
 
+    async fn call_evidence_package_index(root: &Path) -> EvidencePackageIndexResponse {
+        evidence_package_index_response_for_root(root.to_path_buf(), "local-evidence".to_string())
+            .await
+    }
+
     async fn call_operations_summary(state: &AppState) -> OperationsSummaryResponse {
         operations_summary(State(state.clone())).await.0
     }
@@ -4287,6 +4786,7 @@ mod tests {
         assert!(response.endpoints.model_inventory_available);
         assert!(response.endpoints.model_readiness_available);
         assert!(response.endpoints.routing_policy_available);
+        assert!(response.endpoints.evidence_packages_available);
         assert!(response.endpoints.capabilities_available);
         assert!(response.endpoints.audit_events_available);
         assert!(response.endpoints.sustainability_available);
@@ -4461,6 +4961,133 @@ mod tests {
         assert!(!serialized.contains("prompt_body"));
         assert!(!serialized.contains("ghp_"));
         assert!(!serialized.contains("sk-"));
+    }
+
+    #[tokio::test]
+    async fn evidence_package_index_handles_missing_root_safely() {
+        let root =
+            std::env::temp_dir().join(format!("ignisprompt-evidence-missing-{}", Uuid::new_v4()));
+        let response = call_evidence_package_index(&root).await;
+
+        assert_eq!(
+            response.schema_version,
+            EVIDENCE_PACKAGE_INDEX_SCHEMA_VERSION
+        );
+        assert!(!response.root_summary.root_exists);
+        assert_eq!(response.root_summary.package_count, 0);
+        assert!(response.packages.is_empty());
+        assert_eq!(response.aggregate_summary.total_packages, 0);
+        assert!(response
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("No local-evidence root")));
+        assert!(response
+            .boundary_notes
+            .iter()
+            .any(|note| note.contains("does not generate, validate, upload")));
+    }
+
+    #[tokio::test]
+    async fn evidence_package_index_classifies_known_package_folders_safely() {
+        let root =
+            std::env::temp_dir().join(format!("ignisprompt-evidence-known-{}", Uuid::new_v4()));
+        let readiness = root.join("readiness/demo-readiness");
+        let golden = root.join("golden-legal-v0.3");
+        let archive_dir = root.join("archives");
+        fs::create_dir_all(&readiness).await.unwrap();
+        fs::create_dir_all(&golden).await.unwrap();
+        fs::create_dir_all(&archive_dir).await.unwrap();
+        fs::write(
+            readiness.join("manifest.json"),
+            br#"{"secret":"PRIVATE_PROMPT"}"#,
+        )
+        .await
+        .unwrap();
+        fs::write(readiness.join("readiness-report.md"), b"report")
+            .await
+            .unwrap();
+        fs::write(golden.join("summary.json"), b"{}").await.unwrap();
+        fs::write(archive_dir.join("demo-bundle.tar.gz"), b"archive")
+            .await
+            .unwrap();
+
+        let response = call_evidence_package_index(&root).await;
+        let encoded = serde_json::to_string(&response).unwrap();
+
+        assert!(response.root_summary.root_exists);
+        assert!(response.aggregate_summary.total_packages >= 3);
+        assert!(response.packages.iter().any(|package| package.package_type
+            == EvidencePackageType::ReadinessPackage
+            && package.has_manifest
+            && package.has_report));
+        assert!(response
+            .packages
+            .iter()
+            .any(|package| package.package_type == EvidencePackageType::GoldenLegal));
+        assert!(response
+            .packages
+            .iter()
+            .any(|package| package.package_type == EvidencePackageType::Archive));
+        assert!(!encoded.contains(root.to_string_lossy().as_ref()));
+        assert!(!encoded.contains("PRIVATE_PROMPT"));
+        assert!(!encoded.contains("/Users/"));
+        assert!(!encoded.contains("certified"));
+        assert!(!encoded.contains("legal correctness proof"));
+
+        let _ = fs::remove_dir_all(root).await;
+    }
+
+    #[tokio::test]
+    async fn evidence_package_index_reports_scan_limit_without_reading_contents() {
+        let root =
+            std::env::temp_dir().join(format!("ignisprompt-evidence-limit-{}", Uuid::new_v4()));
+        fs::create_dir_all(&root).await.unwrap();
+        for index in 0..(EVIDENCE_PACKAGE_MAX_PACKAGES + 5) {
+            let package = root.join(format!("readiness/package-{index}"));
+            fs::create_dir_all(&package).await.unwrap();
+            fs::write(package.join("manifest.json"), b"PRIVATE_REQUEST_BODY")
+                .await
+                .unwrap();
+        }
+
+        let response = call_evidence_package_index(&root).await;
+        let encoded = serde_json::to_string(&response).unwrap();
+
+        assert!(response.root_summary.scan_limit_reached);
+        assert!(response.aggregate_summary.scan_was_partial);
+        assert!(response.packages.len() <= EVIDENCE_PACKAGE_MAX_PACKAGES);
+        assert!(!encoded.contains("PRIVATE_REQUEST_BODY"));
+
+        let _ = fs::remove_dir_all(root).await;
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn evidence_package_index_ignores_symlinks() {
+        use std::os::unix::fs as unix_fs;
+
+        let root =
+            std::env::temp_dir().join(format!("ignisprompt-evidence-symlink-{}", Uuid::new_v4()));
+        let outside =
+            std::env::temp_dir().join(format!("ignisprompt-evidence-outside-{}", Uuid::new_v4()));
+        fs::create_dir_all(&root).await.unwrap();
+        fs::create_dir_all(&outside).await.unwrap();
+        std::fs::write(outside.join("manifest.json"), "PRIVATE_OUTSIDE").unwrap();
+        unix_fs::symlink(&outside, root.join("linked-outside")).unwrap();
+
+        let response = call_evidence_package_index(&root).await;
+        let encoded = serde_json::to_string(&response).unwrap();
+
+        assert!(response
+            .root_summary
+            .ignored_paths_summary
+            .iter()
+            .any(|entry| entry.contains("symlink ignored")));
+        assert!(!encoded.contains("PRIVATE_OUTSIDE"));
+        assert!(!encoded.contains(outside.to_string_lossy().as_ref()));
+
+        let _ = fs::remove_dir_all(root).await;
+        let _ = fs::remove_dir_all(outside).await;
     }
 
     #[tokio::test]

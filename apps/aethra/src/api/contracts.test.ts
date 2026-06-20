@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isAuditEventList,
   isCapabilitiesResponse,
+  isEvidencePackageIndexResponse,
   isHealthResponse,
   isModelInventoryResponse,
   isModelReadinessResponse,
@@ -15,6 +16,7 @@ import {
 import {
   auditEventFixtures,
   capabilitiesFixture,
+  evidencePackageIndexFixture,
   evidenceBundleFixture,
   healthFixture,
   modelFixtures,
@@ -42,6 +44,7 @@ describe("Aethra fixture contract shapes", () => {
     expect(isCapabilitiesResponse(capabilitiesFixture)).toBe(true);
     expect(isOperationsSummaryResponse(operationsSummaryFixture)).toBe(true);
     expect(isRoutingPolicySummaryResponse(routingPolicySummaryFixture)).toBe(true);
+    expect(isEvidencePackageIndexResponse(evidencePackageIndexFixture)).toBe(true);
     expect(isAuditEventList(auditEventFixtures)).toBe(true);
     expect(isSustainabilityMetricsResponse(sustainabilityMetricsFixture)).toBe(
       true,
@@ -121,6 +124,16 @@ describe("Aethra fixture contract shapes", () => {
       "summary",
       "warnings",
     ]);
+    expect(keysOf(evidencePackageIndexFixture)).toEqual([
+      "aggregate_summary",
+      "boundary_notes",
+      "generated_at",
+      "next_steps",
+      "packages",
+      "root_summary",
+      "schema_version",
+      "warnings",
+    ]);
     expect(keysOf(sustainabilityMetricsFixture)).toEqual([
       "baseline_model",
       "baseline_provider",
@@ -135,6 +148,62 @@ describe("Aethra fixture contract shapes", () => {
       "requests_total",
       "tier_breakdown",
     ]);
+  });
+
+  it("locks local evidence package index fields as read-only metadata", () => {
+    expect(keysOf(evidencePackageIndexFixture.root_summary)).toEqual([
+      "evidence_root_label",
+      "ignored_paths_summary",
+      "package_count",
+      "root_exists",
+      "scan_limit_reached",
+    ]);
+    expect(keysOf(evidencePackageIndexFixture.packages[0])).toEqual([
+      "boundary_notes",
+      "display_name",
+      "file_count",
+      "has_attestation_like_files",
+      "has_manifest",
+      "has_report",
+      "has_summary",
+      "has_validation_report",
+      "known_artifacts",
+      "modified_at",
+      "observed_at",
+      "package_id",
+      "package_type",
+      "relative_path",
+      "total_size_bytes",
+      "warnings",
+    ]);
+    expect(keysOf(evidencePackageIndexFixture.aggregate_summary)).toEqual([
+      "latest_observed_package",
+      "packages_by_type",
+      "packages_with_attestation_like_names",
+      "packages_with_manifests",
+      "packages_with_reports",
+      "packages_with_validation_like_files",
+      "packages_with_warnings",
+      "scan_was_partial",
+      "total_packages",
+    ]);
+    expect(evidencePackageIndexFixture.boundary_notes.join(" ")).toContain(
+      "Read-only metadata only",
+    );
+    expect(evidencePackageIndexFixture.boundary_notes.join(" ")).toContain(
+      "No package generation",
+    );
+    expect(
+      isEvidencePackageIndexResponse({
+        ...evidencePackageIndexFixture,
+        packages: [
+          {
+            ...evidencePackageIndexFixture.packages[0],
+            relative_path: "/Users/alice/local-evidence/readiness/demo",
+          },
+        ],
+      }),
+    ).toBe(false);
   });
 
   it("locks model and runner status hint fields as read-only status hints", () => {
@@ -276,6 +345,7 @@ describe("Aethra fixture contract shapes", () => {
     expect(keysOf(operationsSummaryFixture.endpoints)).toEqual([
       "audit_events_available",
       "capabilities_available",
+      "evidence_packages_available",
       "health_available",
       "model_inventory_available",
       "model_readiness_available",

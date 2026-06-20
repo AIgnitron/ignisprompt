@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   auditEventFixtures,
   capabilitiesFixture,
+  evidencePackageIndexFixture,
   healthFixture,
   modelFixtures,
   modelInventoryFixture,
@@ -22,6 +23,7 @@ import {
   resolveAethraBaseUrlInput,
   describeAuditEventsLoadError,
   describeCapabilitiesLoadError,
+  describeEvidencePackagesLoadError,
   describeHealthLoadError,
   describeModelInventoryLoadError,
   describeModelReadinessLoadError,
@@ -223,6 +225,27 @@ describe("Aethra data source helpers", () => {
       label: "Unsupported schema",
       message:
         "The local daemon returned JSON that did not match the expected local routing policy summary schema. Fixture fallback remains available; confirm the daemon is from the current local-preview build before retrying manual refresh.",
+      diagnosticKind: "invalid-response-shape",
+    });
+  });
+
+  it("describes invalid JSON and unsupported evidence package schema failures", () => {
+    expect(
+      describeEvidencePackagesLoadError(
+        new AethraApiError("invalid-json", "bad json"),
+      ),
+    ).toMatchObject({
+      label: "Invalid JSON",
+      message: expect.stringContaining("current local-preview daemon"),
+    });
+    expect(
+      describeEvidencePackagesLoadError(
+        new AethraApiError("unexpected-shape", "bad schema"),
+      ),
+    ).toEqual({
+      label: "Unsupported schema",
+      message:
+        "The local daemon returned JSON that did not match the expected local evidence package index schema. Fixture fallback remains available; confirm the daemon is from the current local-preview build before retrying manual refresh.",
       diagnosticKind: "invalid-response-shape",
     });
   });
@@ -631,6 +654,10 @@ describe("Aethra data source helpers", () => {
           calls.push("routing-policy");
           return routingPolicySummaryFixture;
         },
+        evidencePackages: async () => {
+          calls.push("evidence-packages");
+          return evidencePackageIndexFixture;
+        },
         modelStatus: async () => {
           calls.push("model-status");
           return modelStatusFixture;
@@ -657,6 +684,7 @@ describe("Aethra data source helpers", () => {
     expect(calls.sort()).toEqual([
       "audit-events",
       "capabilities",
+      "evidence-packages",
       "health",
       "model-inventory",
       "model-readiness",
@@ -673,6 +701,7 @@ describe("Aethra data source helpers", () => {
     expect(snapshot.modelInventory.status).toBe("loaded");
     expect(snapshot.modelReadiness.status).toBe("loaded");
     expect(snapshot.routingPolicy.status).toBe("loaded");
+    expect(snapshot.evidencePackages.status).toBe("loaded");
     expect(snapshot.modelStatus.status).toBe("loaded");
     expect(snapshot.capabilities.status).toBe("loaded");
     expect(snapshot.auditEvents.status).toBe("loaded");
@@ -697,6 +726,9 @@ describe("Aethra data source helpers", () => {
           throw new AethraApiError("http-error", "missing", { status: 404 });
         },
         routingPolicySummary: async () => {
+          throw new AethraApiError("http-error", "missing", { status: 404 });
+        },
+        evidencePackages: async () => {
           throw new AethraApiError("http-error", "missing", { status: 404 });
         },
         modelStatus: async () => modelStatusFixture,
@@ -743,6 +775,18 @@ describe("Aethra data source helpers", () => {
       surface: "routing-policy",
       status: "failed",
       label: "Routing policy",
+      message: "The local daemon returned HTTP 404.",
+      diagnosticKind: "endpoint-unavailable",
+    });
+    expect(snapshot.evidencePackages).toMatchObject({
+      status: "error",
+      label: "Endpoint unavailable",
+      diagnosticKind: "endpoint-unavailable",
+    });
+    expect(snapshot.results).toContainEqual({
+      surface: "evidence-packages",
+      status: "failed",
+      label: "Evidence packages",
       message: "The local daemon returned HTTP 404.",
       diagnosticKind: "endpoint-unavailable",
     });
