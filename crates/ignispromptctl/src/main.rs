@@ -129,6 +129,11 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// Inspect read-only local runner process status metadata
+    Runners {
+        #[command(subcommand)]
+        sub: RunnersCommands,
+    },
     /// Print read-only local model inventory metadata
     ModelInventory {
         /// Print raw JSON response instead of a terminal summary
@@ -244,6 +249,16 @@ enum AuditCommands {
     Tail,
 }
 
+#[derive(Subcommand)]
+enum RunnersCommands {
+    /// Print read-only local runner process status metadata
+    Status {
+        /// Print raw JSON response instead of a terminal summary
+        #[arg(long)]
+        json: bool,
+    },
+}
+
 fn parse_response(resp: ureq::Response) -> Value {
     let text = resp.into_string().unwrap_or_default();
     serde_json::from_str(&text).unwrap_or(Value::Null)
@@ -302,6 +317,9 @@ fn main() {
         Commands::Health => cmd_health(&cli.daemon_url),
         Commands::StatusVersion => cmd_status_version(&cli.daemon_url),
         Commands::Capabilities { json } => cmd_capabilities(&cli.daemon_url, *json),
+        Commands::Runners { sub } => match sub {
+            RunnersCommands::Status { json } => cmd_runners_status(&cli.daemon_url, *json),
+        },
         Commands::ModelInventory { json } => cmd_model_inventory(&cli.daemon_url, *json),
         Commands::ModelReadiness { json } => cmd_model_readiness(&cli.daemon_url, *json),
         Commands::RoutingPolicy { json } => cmd_routing_policy(&cli.daemon_url, *json),
@@ -5695,6 +5713,31 @@ fn cmd_capabilities(base_url: &str, json_output: bool) {
     }
 }
 
+fn runner_process_status_url(base_url: &str) -> String {
+    format!("{}/v1/runners/status", base_url.trim_end_matches('/'))
+}
+
+fn cmd_runners_status(base_url: &str, json_output: bool) {
+    let url = runner_process_status_url(base_url);
+    match ureq::get(&url).call() {
+        Ok(resp) => {
+            let body = parse_response(resp);
+            if json_output {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&body).unwrap_or_default()
+                );
+            } else {
+                println!("{}", format_runner_process_status_summary(&body));
+            }
+        }
+        Err(e) => {
+            eprintln!("error: {}", e);
+            process::exit(1);
+        }
+    }
+}
+
 fn format_capabilities_summary(body: &Value) -> String {
     let mut lines = vec![
         "IgnisPrompt Capabilities".to_string(),
@@ -5737,6 +5780,121 @@ fn format_capabilities_summary(body: &Value) -> String {
     lines.push("".to_string());
     lines.push("Boundaries: status metadata only; no cloud calls; no telemetry; no runner execution; no secrets returned.".to_string());
     lines.join("\n")
+}
+
+fn format_runner_process_status_summary(body: &Value) -> String {
+    let mut lines = vec![
+        "Runner process status".to_string(),
+        format!(
+            "schema_version: {}",
+            body.get("schema_version")
+                .and_then(|v| v.as_str())
+                .unwrap_or("-")
+        ),
+        format!(
+            "generated_at:    {}",
+            body.get("generated_at")
+                .and_then(|v| v.as_str())
+                .unwrap_or("-")
+        ),
+        "".to_string(),
+        "Summary:".to_string(),
+    ];
+
+    if let Some(summary) = body.get("summary").and_then(|v| v.as_object()) {
+        for key in [
+            "total",
+            "configured",
+            "running",
+            "failed",
+            "actions_available",
+        ] {
+            let value = summary
+                .get(key)
+                .and_then(|v| v.as_u64())
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "-".to_string());
+            lines.push(format!("- {key}: {value}"));
+        }
+    } else {
+        lines.push("- invalid response shape".to_string());
+    }
+
+    lines.push("".to_string());
+    lines.push("Runners:".to_string());
+    if let Some(runners) = body.get("runners").and_then(|v| v.as_array()) {
+        if runners.is_empty() {
+            lines.push("- none reported".to_string());
+        } else {
+            for runner in runners {
+                lines.extend(format_runner_process_status_block(runner));
+            }
+        }
+    } else {
+        lines.push("- invalid response shape".to_string());
+    }
+
+    lines.push("".to_string());
+    lines.push("Boundaries:".to_string());
+    if let Some(boundaries) = body.get("boundaries").and_then(|v| v.as_array()) {
+        for boundary in boundaries {
+            if let Some(message) = boundary.as_str() {
+                lines.push(format!("- {message}"));
+            }
+        }
+    } else {
+        lines.push("- Read-only status only.".to_string());
+    }
+
+    lines.push("- No start/stop/restart controls are available in this command.".to_string());
+    lines.join("\n")
+}
+
+fn format_runner_process_status_block(runner: &Value) -> Vec<String> {
+    let runner_id = runner
+        .get("runner_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("-");
+    let runner_kind = runner
+        .get("runner_kind")
+        .and_then(|v| v.as_str())
+        .unwrap_or("-");
+    let process_state = runner
+        .get("process_state")
+        .and_then(|v| v.as_str())
+        .unwrap_or("-");
+    let configured = yes_no_field(runner, "configured");
+    let executable_exists = yes_no_field(runner, "executable_exists");
+    let managed_by_ignisprompt = yes_no_field(runner, "managed_by_ignisprompt");
+    let actions_allowed = runner
+        .get("actions_allowed")
+        .and_then(|v| v.as_array())
+        .map(|actions| {
+            actions
+                .iter()
+                .filter_map(|action| action.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .filter(|actions| !actions.is_empty())
+        .unwrap_or_else(|| "none".to_string());
+
+    vec![
+        format!("- {runner_id}"),
+        format!("  kind: {runner_kind}"),
+        format!("  process_state: {process_state}"),
+        format!("  configured: {configured}"),
+        format!("  executable_exists: {executable_exists}"),
+        format!("  managed_by_ignisprompt: {managed_by_ignisprompt}"),
+        format!("  actions_allowed: {actions_allowed}"),
+    ]
+}
+
+fn yes_no_field(body: &Value, key: &str) -> &'static str {
+    body.get(key)
+        .and_then(|v| v.as_bool())
+        .map(|value| if value { "yes" } else { "no" })
+        .unwrap_or("-")
 }
 
 fn format_capability_line(capability: &Value) -> String {
@@ -9290,13 +9448,14 @@ mod tests {
         format_readiness_package_list_summary, format_readiness_package_summary,
         format_readiness_package_summary_json, format_readiness_package_validation_json,
         format_readiness_package_validation_summary, format_readiness_summary,
-        format_route_explain_summary, format_routing_policy_summary, format_sustainability_summary,
+        format_route_explain_summary, format_routing_policy_summary,
+        format_runner_process_status_summary, format_sustainability_summary,
         format_unreachable_error, is_audit_event_list, is_route_explain_response,
         is_sustainability_metrics_response, policy_scenario_groups_by_category,
         policy_scenario_groups_by_expected_tier, policy_scenarios_expected_fail_closed,
         policy_scenarios_expected_local_only, policy_scenarios_with_boundary_note,
-        readiness_report_next_steps, route_explain_url, string_field, sustainability_url,
-        validate_demo_package_output_dir, validate_doctor_capabilities,
+        readiness_report_next_steps, route_explain_url, runner_process_status_url, string_field,
+        sustainability_url, validate_demo_package_output_dir, validate_doctor_capabilities,
         validate_doctor_evidence_packages, validate_doctor_health, validate_doctor_model_inventory,
         validate_doctor_model_readiness, validate_doctor_model_status_hints,
         validate_doctor_models, validate_doctor_operations_summary, validate_doctor_routing_policy,
@@ -9433,6 +9592,12 @@ mod tests {
     fn capabilities_url_format() {
         let url = format!("{}/v1/capabilities", "http://127.0.0.1:8765");
         assert_eq!(url, "http://127.0.0.1:8765/v1/capabilities");
+    }
+
+    #[test]
+    fn runner_process_status_url_format() {
+        let url = runner_process_status_url("http://127.0.0.1:8765/");
+        assert_eq!(url, "http://127.0.0.1:8765/v1/runners/status");
     }
 
     #[test]
@@ -11275,6 +11440,65 @@ mod tests {
         assert!(summary.contains("no telemetry"));
         assert!(summary.contains("no runner execution"));
         assert!(summary.contains("no secrets returned"));
+    }
+
+    #[test]
+    fn runner_process_status_summary_is_read_only_metadata_only() {
+        let response = json!({
+            "schema_version": "ignisprompt-runner-process-status-v0.1",
+            "generated_at": "2026-06-20T00:00:00Z",
+            "summary": {
+                "total": 1,
+                "configured": 1,
+                "running": 0,
+                "failed": 0,
+                "actions_available": 0
+            },
+            "runners": [
+                {
+                    "runner_id": "stub-legal-runner",
+                    "runner_kind": "stub-legal-runner",
+                    "model_id": null,
+                    "configured": true,
+                    "executable_exists": true,
+                    "process_state": "unknown",
+                    "pid": null,
+                    "local_endpoint": null,
+                    "started_at": null,
+                    "stopped_at": null,
+                    "last_checked_at": "2026-06-20T00:00:00Z",
+                    "last_error_summary": null,
+                    "managed_by_ignisprompt": false,
+                    "operator_mode_required": true,
+                    "actions_allowed": ["none"],
+                    "warnings": [
+                        "Read-only status only; no runner lifecycle action is available from this endpoint."
+                    ]
+                }
+            ],
+            "boundaries": [
+                "This endpoint is read-only.",
+                "It does not start, stop, restart, or mutate runner processes."
+            ],
+            "next_steps": [
+                "Use this endpoint to inspect runner process status metadata only."
+            ]
+        });
+
+        let summary = format_runner_process_status_summary(&response);
+        assert!(summary.contains("Runner process status"));
+        assert!(summary.contains("schema_version: ignisprompt-runner-process-status-v0.1"));
+        assert!(summary.contains("- total: 1"));
+        assert!(summary.contains("- actions_available: 0"));
+        assert!(summary.contains("- stub-legal-runner"));
+        assert!(summary.contains("kind: stub-legal-runner"));
+        assert!(summary.contains("process_state: unknown"));
+        assert!(summary.contains("configured: yes"));
+        assert!(summary.contains("executable_exists: yes"));
+        assert!(summary.contains("managed_by_ignisprompt: no"));
+        assert!(summary.contains("actions_allowed: none"));
+        assert!(summary.contains("This endpoint is read-only."));
+        assert!(summary.contains("No start/stop/restart controls are available in this command."));
     }
 
     #[test]

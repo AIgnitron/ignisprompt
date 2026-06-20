@@ -63,6 +63,7 @@ const EVIDENCE_PACKAGE_MAX_DEPTH: usize = 3;
 const EVIDENCE_PACKAGE_MAX_FILES_PER_PACKAGE: usize = 80;
 const OPERATIONS_SUMMARY_SCHEMA_VERSION: &str = "ignisprompt-operations-summary-v0.1";
 const OPERATIONS_SUMMARY_RECENT_EVENT_LIMIT: usize = 20;
+const RUNNER_PROCESS_STATUS_SCHEMA_VERSION: &str = "ignisprompt-runner-process-status-v0.1";
 
 #[derive(Debug, Parser, Clone)]
 #[command(
@@ -630,6 +631,7 @@ async fn run_http_daemon(state: AppState, bind: SocketAddr) -> Result<()> {
         .route("/v1/routing/policy-summary", get(routing_policy_summary))
         .route("/v1/evidence/packages", get(evidence_packages))
         .route("/v1/capabilities", get(capabilities))
+        .route("/v1/runners/status", get(runner_process_status))
         .route("/v1/status/models", get(model_status))
         .route("/v1/status/version", get(version_status))
         .route("/v1/operations/summary", get(operations_summary))
@@ -767,6 +769,11 @@ async fn model_readiness(State(state): State<AppState>) -> Json<ModelReadinessRe
 
 async fn capabilities(State(state): State<AppState>) -> Json<CapabilitiesResponse> {
     Json(capabilities_response(&state))
+}
+
+async fn runner_process_status(State(state): State<AppState>) -> Json<RunnerProcessStatusResponse> {
+    let registry = state.model_registry.read().await.clone();
+    Json(runner_process_status_response(&state.config, &registry).await)
 }
 
 async fn operations_summary(State(state): State<AppState>) -> Json<OperationsSummaryResponse> {
@@ -1161,6 +1168,54 @@ struct CapabilityStatus {
     warnings: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     last_checked: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RunnerProcessStatusResponse {
+    schema_version: String,
+    generated_at: DateTime<Utc>,
+    runners: Vec<RunnerProcessStatus>,
+    summary: RunnerProcessStatusSummary,
+    boundaries: Vec<String>,
+    next_steps: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RunnerProcessStatus {
+    runner_id: String,
+    runner_kind: String,
+    model_id: Option<String>,
+    configured: bool,
+    executable_exists: bool,
+    process_state: RunnerProcessState,
+    pid: Option<u32>,
+    local_endpoint: Option<String>,
+    started_at: Option<DateTime<Utc>>,
+    stopped_at: Option<DateTime<Utc>>,
+    last_checked_at: DateTime<Utc>,
+    last_error_summary: Option<String>,
+    managed_by_ignisprompt: bool,
+    operator_mode_required: bool,
+    actions_allowed: Vec<String>,
+    warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RunnerProcessStatusSummary {
+    total: usize,
+    configured: usize,
+    running: usize,
+    failed: usize,
+    actions_available: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum RunnerProcessState {
+    Unknown,
+    Stopped,
+    Running,
+    Failed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -2569,6 +2624,119 @@ fn capabilities_response(state: &AppState) -> CapabilitiesResponse {
                 last_checked: Some(checked_at),
             },
         ],
+    }
+}
+
+async fn runner_process_status_response(
+    config: &Args,
+    registry: &ModelRegistry,
+) -> RunnerProcessStatusResponse {
+    let generated_at = Utc::now();
+    let mut runners = vec![runner_process_status_from_hint(
+        "stub-legal-runner".to_string(),
+        "stub-legal-runner".to_string(),
+        None,
+        RunnerStatusHint {
+            configured: true,
+            kind: "stub-legal-runner".to_string(),
+            executable_exists: true,
+            warning: Some(
+                "Default in-process StubLegalRunner fallback is available; no lifecycle control is implemented."
+                    .to_string(),
+            ),
+        },
+        generated_at,
+    )];
+
+    for model in &registry.models {
+        let hint = runner_status_hint(config, model).await;
+        if hint.kind == "stub-legal-runner" {
+            continue;
+        }
+
+        let runner_id = hint.kind.clone();
+        if runners.iter().any(|runner| runner.runner_id == runner_id) {
+            continue;
+        }
+
+        runners.push(runner_process_status_from_hint(
+            runner_id,
+            hint.kind.clone(),
+            Some(model.model_id.clone()),
+            hint,
+            generated_at,
+        ));
+    }
+
+    let summary = RunnerProcessStatusSummary {
+        total: runners.len(),
+        configured: runners.iter().filter(|runner| runner.configured).count(),
+        running: runners
+            .iter()
+            .filter(|runner| runner.process_state == RunnerProcessState::Running)
+            .count(),
+        failed: runners
+            .iter()
+            .filter(|runner| runner.process_state == RunnerProcessState::Failed)
+            .count(),
+        actions_available: runners
+            .iter()
+            .filter(|runner| runner.actions_allowed.iter().any(|action| action != "none"))
+            .count(),
+    };
+
+    RunnerProcessStatusResponse {
+        schema_version: RUNNER_PROCESS_STATUS_SCHEMA_VERSION.to_string(),
+        generated_at,
+        runners,
+        summary,
+        boundaries: vec![
+            "This endpoint is read-only.".to_string(),
+            "It does not start, stop, restart, or mutate runner processes.".to_string(),
+            "It does not execute models or routes.".to_string(),
+            "It does not download models or call cloud services.".to_string(),
+            "It does not prove model quality, readiness, legal accuracy, compliance, security, or production status.".to_string(),
+        ],
+        next_steps: vec![
+            "Use this endpoint to inspect runner process status metadata only.".to_string(),
+            "Future guarded lifecycle controls must be implemented separately.".to_string(),
+        ],
+    }
+}
+
+fn runner_process_status_from_hint(
+    runner_id: String,
+    runner_kind: String,
+    model_id: Option<String>,
+    hint: RunnerStatusHint,
+    checked_at: DateTime<Utc>,
+) -> RunnerProcessStatus {
+    let mut warnings = vec![
+        "Read-only status only; no runner lifecycle action is available from this endpoint."
+            .to_string(),
+        "No process manager is implemented, so process_state remains unknown unless future guarded lifecycle support is added.".to_string(),
+    ];
+    if let Some(warning) = hint.warning {
+        warnings.push(warning);
+    }
+
+    RunnerProcessStatus {
+        runner_id,
+        runner_kind,
+        model_id,
+        configured: hint.configured,
+        executable_exists: hint.executable_exists,
+        process_state: RunnerProcessState::Unknown,
+        pid: None,
+        local_endpoint: None,
+        started_at: None,
+        stopped_at: None,
+        last_checked_at: checked_at,
+        last_error_summary: None,
+        managed_by_ignisprompt: false,
+        operator_mode_required: true,
+        actions_allowed: vec!["none".to_string()],
+        warnings,
     }
 }
 
@@ -4484,6 +4652,10 @@ mod tests {
         capabilities(State(state.clone())).await.0
     }
 
+    async fn call_runner_process_status(state: &AppState) -> RunnerProcessStatusResponse {
+        runner_process_status(State(state.clone())).await.0
+    }
+
     async fn call_version_status(state: &AppState) -> VersionStatusResponse {
         version_status(State(state.clone())).await.0
     }
@@ -5466,6 +5638,141 @@ mod tests {
             assert!(
                 !normalized.contains(forbidden),
                 "capabilities response should not expose forbidden content '{forbidden}': {encoded}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn runner_process_status_endpoint_response_schema_is_locked() {
+        let state = state_with_models(vec![legal_model()]);
+        let response = call_runner_process_status(&state).await;
+
+        assert_eq!(
+            response.schema_version,
+            RUNNER_PROCESS_STATUS_SCHEMA_VERSION
+        );
+        assert_eq!(response.summary.total, 1);
+        assert_eq!(response.summary.configured, 1);
+        assert_eq!(response.summary.running, 0);
+        assert_eq!(response.summary.failed, 0);
+        assert_eq!(response.summary.actions_available, 0);
+        assert_eq!(response.runners.len(), 1);
+
+        let encoded = serde_json::to_value(&response).unwrap();
+        assert_json_keys(
+            &encoded,
+            &[
+                "schema_version",
+                "generated_at",
+                "runners",
+                "summary",
+                "boundaries",
+                "next_steps",
+            ],
+        );
+        assert_eq!(
+            encoded["schema_version"],
+            "ignisprompt-runner-process-status-v0.1"
+        );
+
+        let runner = encoded["runners"]
+            .as_array()
+            .expect("runners")
+            .first()
+            .expect("runner");
+        assert_json_keys(
+            runner,
+            &[
+                "runner_id",
+                "runner_kind",
+                "model_id",
+                "configured",
+                "executable_exists",
+                "process_state",
+                "pid",
+                "local_endpoint",
+                "started_at",
+                "stopped_at",
+                "last_checked_at",
+                "last_error_summary",
+                "managed_by_ignisprompt",
+                "operator_mode_required",
+                "actions_allowed",
+                "warnings",
+            ],
+        );
+        assert_eq!(runner["runner_id"], "stub-legal-runner");
+        assert_eq!(runner["runner_kind"], "stub-legal-runner");
+        assert!(runner["model_id"].is_null());
+        assert_eq!(runner["configured"], true);
+        assert_eq!(runner["executable_exists"], true);
+        assert_eq!(runner["process_state"], "unknown");
+        assert!(runner["pid"].is_null());
+        assert!(runner["local_endpoint"].is_null());
+        assert!(runner["started_at"].is_null());
+        assert!(runner["stopped_at"].is_null());
+        assert!(runner["last_checked_at"].is_string());
+        assert!(runner["last_error_summary"].is_null());
+        assert_eq!(runner["managed_by_ignisprompt"], false);
+        assert_eq!(runner["operator_mode_required"], true);
+        assert_eq!(runner["actions_allowed"], json!(["none"]));
+        assert!(runner["warnings"]
+            .as_array()
+            .expect("warnings")
+            .iter()
+            .any(|warning| warning
+                .as_str()
+                .unwrap_or_default()
+                .contains("Read-only status only")));
+    }
+
+    #[tokio::test]
+    async fn runner_process_status_endpoint_is_read_only_and_sanitized() {
+        let state = state_with_models(vec![legal_model()]);
+        let response = call_runner_process_status(&state).await;
+        let encoded = serde_json::to_string(&response).unwrap();
+        let normalized = encoded.to_ascii_lowercase();
+
+        assert!(response
+            .boundaries
+            .iter()
+            .any(|boundary| boundary.contains("does not start, stop, restart")));
+        assert!(response
+            .boundaries
+            .iter()
+            .any(|boundary| boundary.contains("does not execute models or routes")));
+        assert!(response.runners.iter().all(|runner| {
+            runner.actions_allowed == vec!["none".to_string()]
+                && runner.process_state == RunnerProcessState::Unknown
+                && runner.pid.is_none()
+                && runner.local_endpoint.is_none()
+                && !runner.managed_by_ignisprompt
+        }));
+
+        for forbidden in [
+            "api_key",
+            "api key",
+            "authorization",
+            "bearer",
+            "token",
+            "secret",
+            "sk-",
+            "ghp_",
+            "https://",
+            "http://",
+            "/users/",
+            "/home/",
+            "/private/",
+            "request body",
+            "raw prompt",
+            "production ready",
+            "production-ready",
+            "legal accuracy is solved",
+            "compliance certification",
+        ] {
+            assert!(
+                !normalized.contains(forbidden),
+                "runner process status response should not expose forbidden content '{forbidden}': {encoded}"
             );
         }
     }

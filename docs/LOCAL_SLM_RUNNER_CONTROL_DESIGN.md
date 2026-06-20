@@ -1,6 +1,8 @@
 # Local SLM Runner Control Design
 
-Status: design only. This document does not implement runner lifecycle control.
+Status: design plus read-only status foundation. PR #217 added read-only
+runner process status metadata only; it did not implement runner lifecycle
+control.
 
 ## Purpose
 
@@ -29,6 +31,11 @@ What does not exist today:
 - No Aethra runner start or stop button.
 - No automatic runner startup.
 - No runner mutation through observability endpoints.
+
+PR #217 adds `GET /v1/runners/status` and
+`ignispromptctl runners status` as read-only status metadata surfaces. They
+report conservative runner process state and `actions_allowed: ["none"]`.
+They do not start, stop, restart, or manage runner processes.
 
 ## Product Distinction
 
@@ -64,7 +71,7 @@ These surfaces answer: "Should IgnisPrompt start or stop a specifically configur
 
 Future work should land in this order:
 
-1. `#217`: Daemon/CLI: add read-only runner process status contract
+1. `#217`: Daemon/CLI: add read-only runner process status contract - implemented as read-only status metadata only.
 2. `#218`: Daemon/CLI: add guarded local runner start/stop commands
 3. `#219`: Aethra: add local runner control panel behind explicit operator mode
 
@@ -106,12 +113,13 @@ Field requirements:
 
 ## Proposed Future Daemon Endpoints
 
-Design only. These endpoints are planned candidates and are not present in this PR.
+`GET /v1/runners/status` exists after #217 as a read-only status endpoint.
+The start and stop endpoints remain planned candidates and are not present.
 
 ```text
 GET /v1/runners/status
-POST /v1/runners/{runner_id}/start
-POST /v1/runners/{runner_id}/stop
+POST /v1/runners/{runner_id}/start  # future, not implemented
+POST /v1/runners/{runner_id}/stop   # future, not implemented
 ```
 
 Future endpoint requirements:
@@ -124,12 +132,13 @@ Future endpoint requirements:
 
 ## Proposed Future CLI Commands
 
-Design only. These commands are planned candidates and are not present in this PR.
+`ignispromptctl runners status` exists after #217 as a read-only CLI command.
+The start and stop commands remain planned candidates and are not present.
 
 ```text
 ignispromptctl runners status
-ignispromptctl runners start <runner_id>
-ignispromptctl runners stop <runner_id>
+ignispromptctl runners start <runner_id>  # future, not implemented
+ignispromptctl runners stop <runner_id>   # future, not implemented
 ```
 
 Future CLI requirements:
@@ -184,12 +193,12 @@ The default Aethra Model / Runner Status page should remain an observational sur
 
 ## Non-Goals For This PR
 
-This PR does not:
+PR #217 does not:
 
 - implement start or stop
 - implement a process manager
-- implement new daemon endpoints
-- implement CLI commands
+- implement lifecycle daemon endpoints
+- implement lifecycle CLI commands
 - add Aethra controls
 - execute models
 - download models
@@ -204,13 +213,14 @@ This PR does not:
 
 ### `#217`: Read-Only Runner Process Status
 
-- Adds a read-only runner process status contract.
-- Adds daemon and CLI status access only.
+- Added a read-only runner process status contract.
+- Added daemon and CLI status access only.
 - Does not start, stop, restart, or mutate runner processes.
 - Does not execute models or routes.
 - Reports local process state conservatively.
 - Keeps loopback/local-only behavior.
-- Adds tests for not-configured, configured-but-stopped, running, failed, and ambiguous states where practical.
+- Added tests for the locked response shape, read-only boundary language,
+  sanitized output, `actions_allowed: ["none"]`, and CLI formatting.
 - Keeps Aethra controls out of scope except optional read-only display after the contract exists.
 
 ### `#218`: Guarded Local Runner Start/Stop

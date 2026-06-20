@@ -36,6 +36,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Read-only local operations summary foundation with `GET /v1/operations/summary`, `ignispromptctl operations-summary`, and Aethra manual live-local display for aggregate daemon activity and endpoint availability.
 - Read-only local routing policy summary foundation with `GET /v1/routing/policy-summary`, `ignispromptctl routing-policy`, and Aethra manual live-local display for descriptive route categories, decision inputs, model selection hints, connector policy hints, audit policy hints, and safety boundaries.
 - Read-only local evidence package index foundation with `GET /v1/evidence/packages`, `ignispromptctl evidence-packages`, and Aethra manual live-local display for safe package metadata, package type guesses, artifact indicators, and scan warnings.
+- Read-only local runner process status foundation with `GET /v1/runners/status` and `ignispromptctl runners status`, reporting conservative local runner status metadata only with no start/stop/restart controls.
 - Local evidence demo workflow automation script for route-explain, audit-events, evidence-bundle generation, listing, validation, archiving, archive verification, and manifest inspection.
 - Adversarial document-instruction detection for known instruction strings.
 - OpenAI-compatible chat completion request shape, including a `stream: true` compatibility scaffold that frames an already-produced local completion as SSE chunks.
@@ -60,7 +61,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Keep Aethra product surfaces clean: Overview owns the full live-local dashboard, detail pages do not duplicate it, and long local-preview/status/safety explanations belong in Help rather than large repeated product-page boxes.
 - Keep Aethra demo-readiness polish UI-only: grouped cards, review flow, and copy cleanup must not add endpoints, route execution, prompt submission, model execution, mutation, upload/download/delete controls, telemetry, cloud calls, or production/compliance/certification claims.
 - Keep Aethra review-readiness checks lightweight: tests and manual checklist only unless browser automation is explicitly scoped; do not commit generated screenshots.
-- Use `docs/LOCAL_SLM_RUNNER_CONTROL_DESIGN.md` as the design source for future local SLM runner process status and guarded operator controls. Runner lifecycle work must remain phased: read-only status first, guarded daemon/CLI lifecycle commands second, and Aethra operator UI last.
+- Use `docs/LOCAL_SLM_RUNNER_CONTROL_DESIGN.md` as the design source for future local SLM runner guarded operator controls. Runner lifecycle work remains phased: read-only status is implemented, guarded daemon/CLI lifecycle commands remain future work, and Aethra operator UI comes last.
 - Keep local evidence package indexing read-only and metadata-only: package names, validation-like filenames, reports, and attestation-like filenames do not imply package correctness, signed attestation, certification, compliance, legal accuracy, or production readiness.
 - Keep the Golden Legal adversarial fixture matrix small, synthetic, deterministic, and local-only.
 - Keep local evidence validation strict while avoiding signed attestation or tamper-evident storage claims until those features are explicitly implemented.
