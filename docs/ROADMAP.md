@@ -32,6 +32,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Read-only local model inventory foundation with `GET /v1/models/inventory`, `ignispromptctl model-inventory`, and Aethra manual live-local display with fixture fallback.
 - Read-only local model readiness foundation with `GET /v1/models/readiness`, `ignispromptctl model-readiness`, and Aethra manual live-local display with fixture fallback.
 - Read-only local operations summary foundation with `GET /v1/operations/summary`, `ignispromptctl operations-summary`, and Aethra manual live-local display for aggregate daemon activity and endpoint availability with fixture fallback.
+- Read-only local routing policy summary foundation with `GET /v1/routing/policy-summary`, `ignispromptctl routing-policy`, and Aethra manual live-local display for descriptive route categories, decision inputs, model selection hints, connector policy hints, audit policy hints, and safety boundaries with fixture fallback.
 - Local evidence demo workflow automation script for route-explain, audit-events, evidence-bundle generation, listing, validation, archiving, archive verification, and manifest inspection.
 - Adversarial document-instruction detection for known instruction strings.
 - OpenAI-compatible chat completion request shape, including a `stream: true` compatibility scaffold that frames an already-produced local completion as SSE chunks.
@@ -51,6 +52,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Keep local model inventory observational: filename/path metadata does not imply model execution, quality, readiness, compliance, or legal accuracy.
 - Keep local model readiness advisory: manifest/inventory/runner hints do not imply executable inference, model quality, production readiness, compliance, certification, or legal accuracy.
 - Keep local operations metadata aggregate and read-only: endpoint availability, audit counts, and recent event type names do not imply telemetry, production monitoring, certification, signed evidence, or access to raw prompts/request bodies.
+- Keep local routing policy summary descriptive and read-only: route categories, decision inputs, and policy hints do not imply route execution, prompt submission, model execution, policy mutation, production readiness, legal accuracy, compliance, certification, or attestation.
 - Keep the Golden Legal adversarial fixture matrix small, synthetic, deterministic, and local-only.
 - Keep local evidence validation strict while avoiding signed attestation or tamper-evident storage claims until those features are explicitly implemented.
 - Keep dependency advisory and SBOM review helpers optional unless CI installs their tools deterministically.

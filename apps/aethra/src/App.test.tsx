@@ -29,6 +29,7 @@ describe("Aethra app navigation and demo guidance", () => {
     expect(markup).toContain("Guided Demo Path");
     expect(markup).toContain("Recommended safe walkthrough");
     expect(markup).toContain("Local operations summary");
+    expect(markup).toContain("Local routing policy summary");
     expect(markup).toContain("Operations endpoints");
     expect(markup).toContain("Recent local activity");
     expect(markup).toContain("Ready model hints");
@@ -70,6 +71,7 @@ describe("Aethra app navigation and demo guidance", () => {
     expect(markup).toContain("Refresh local daemon data");
     expect(markup).toContain("operations summary");
     expect(markup).toContain("model readiness");
+    expect(markup).toContain("routing policy summary");
     expect(markup).toContain("Health-only check");
     expect(markup).toContain("No model or runner controls");
     expect(markup).toContain("No command execution");
@@ -96,6 +98,8 @@ describe("Aethra app navigation and demo guidance", () => {
     expect(markup).not.toContain("Delete model");
     expect(markup).not.toContain("Edit connector");
     expect(markup).not.toContain("Disable connector");
+    expect(markup).not.toContain("Edit policy");
+    expect(markup).not.toContain("Mutate policy");
     expect(markup).not.toContain("Mutate routing");
   });
 

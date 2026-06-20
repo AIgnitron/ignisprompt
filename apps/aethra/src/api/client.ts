@@ -7,6 +7,7 @@ import {
   ModelRegistry,
   ModelStatusResponse,
   OperationsSummaryResponse,
+  RoutingPolicySummaryResponse,
   RouteExplainRequest,
   RouteExplainResponse,
   SustainabilityMetricsResponse,
@@ -19,6 +20,7 @@ import {
   isModelRegistry,
   isModelStatusResponse,
   isOperationsSummaryResponse,
+  isRoutingPolicySummaryResponse,
   isRouteExplainResponse,
   isSustainabilityMetricsResponse,
   isVersionStatusResponse,
@@ -77,6 +79,13 @@ export class IgnisPromptClient {
     return this.request(
       "/v1/operations/summary",
       isOperationsSummaryResponse,
+    );
+  }
+
+  routingPolicySummary(): Promise<RoutingPolicySummaryResponse> {
+    return this.request(
+      "/v1/routing/policy-summary",
+      isRoutingPolicySummaryResponse,
     );
   }
 

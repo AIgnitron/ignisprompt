@@ -2,6 +2,7 @@ import { useState } from "react";
 import type {
   OperationsEndpointSummary,
   OperationsSummaryResponse,
+  RoutingPolicySummaryResponse,
 } from "../api/contracts";
 import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
@@ -18,6 +19,7 @@ import type {
   LiveModelStatusState,
   LiveModelsState,
   LiveOperationsSummaryState,
+  LiveRoutingPolicySummaryState,
   LiveSustainabilityMetricsState,
   LiveVersionStatusState,
 } from "../dataSource";
@@ -33,6 +35,7 @@ import {
   modelInventoryFixture,
   modelReadinessFixture,
   operationsSummaryFixture,
+  routingPolicySummaryFixture,
   versionStatusFixture,
 } from "../fixtures/aethraFixture";
 import {
@@ -100,6 +103,7 @@ type OverviewProps = {
   liveModelsState: LiveModelsState;
   liveModelInventoryState: LiveModelInventoryState;
   liveModelReadinessState: LiveModelReadinessState;
+  liveRoutingPolicyState: LiveRoutingPolicySummaryState;
   liveModelStatusState: LiveModelStatusState;
   liveCapabilitiesState: LiveCapabilitiesState;
   liveVersionStatusState: LiveVersionStatusState;
@@ -118,6 +122,7 @@ export function Overview({
   liveModelsState,
   liveModelInventoryState,
   liveModelReadinessState,
+  liveRoutingPolicyState,
   liveModelStatusState,
   liveCapabilitiesState,
   liveVersionStatusState,
@@ -151,12 +156,18 @@ export function Overview({
     dataMode === "live-local" && liveOperationsSummaryState.status === "loaded"
       ? liveOperationsSummaryState.summary
       : undefined;
+  const liveRoutingPolicy =
+    dataMode === "live-local" && liveRoutingPolicyState.status === "loaded"
+      ? liveRoutingPolicyState.summary
+      : undefined;
   const healthForStatus = liveHealth ?? healthFixture;
   const modelInventoryForSummary = liveModelInventory ?? modelInventoryFixture;
   const modelReadinessForSummary =
     liveModelReadiness ?? modelReadinessFixture;
   const operationsSummaryForDisplay =
     liveOperationsSummary ?? operationsSummaryFixture;
+  const routingPolicyForDisplay =
+    liveRoutingPolicy ?? routingPolicySummaryFixture;
   const modelsForSummary = liveModels ?? modelFixtures;
   const auditEventsForSummary = liveAuditEvents ?? auditEventFixtures;
   const summary = buildOverviewSummary(
@@ -183,6 +194,9 @@ export function Overview({
   const operationsSourceLabel = formatLiveLocalDisplaySource(
     getLiveLocalDisplaySource(dataMode, liveOperationsSummaryState),
   );
+  const routingPolicySourceLabel = formatLiveLocalDisplaySource(
+    getLiveLocalDisplaySource(dataMode, liveRoutingPolicyState),
+  );
   const endpointsAvailableCount = countAvailableOperationEndpoints(
     operationsSummaryForDisplay.endpoints,
   );
@@ -196,6 +210,7 @@ export function Overview({
       liveModelsState,
       liveModelInventoryState,
       liveModelReadinessState,
+      liveRoutingPolicyState,
       liveModelStatusState,
       liveCapabilitiesState,
       liveAuditEventsState,
@@ -234,7 +249,7 @@ export function Overview({
         collapsible
         items={[
           "Review local preview status, local daemon metadata, fixture fallback data, diagnostics, and copyable local commands.",
-          "Use Refresh local daemon data to load read-only health, version, model, local model inventory, model readiness, capability, audit, and sustainability metadata from loopback endpoints.",
+          "Use Refresh local daemon data to load read-only health, version, model, local model inventory, model readiness, routing policy, capability, audit, and sustainability metadata from loopback endpoints.",
           "Read displayed route, warning, and local-only summaries before moving to detailed pages.",
         ]}
       />
@@ -281,6 +296,10 @@ export function Overview({
           <OperationsSummaryPanel
             summary={operationsSummaryForDisplay}
             sourceLabel={operationsSourceLabel}
+          />
+          <RoutingPolicySummaryPanel
+            summary={routingPolicyForDisplay}
+            sourceLabel={routingPolicySourceLabel}
           />
           <LocalCommandsPanel />
         </div>
@@ -335,6 +354,11 @@ export function Overview({
           label="Operations endpoints"
           value={endpointsAvailableCount}
           detail={`Available read-only surfaces from ${operationsSourceLabel}`}
+        />
+        <MetricCard
+          label="Policy categories"
+          value={routingPolicyForDisplay.route_categories.length}
+          detail={`Routing policy metadata from ${routingPolicySourceLabel}`}
         />
         <MetricCard
           label="Recent local activity"
@@ -539,7 +563,7 @@ function OperationsSummaryPanel({
         </div>
         <div>
           <dt>Endpoints available</dt>
-          <dd>{availableEndpoints} / 10</dd>
+          <dd>{availableEndpoints} / 11</dd>
         </div>
         <div>
           <dt>Audit events</dt>
@@ -570,6 +594,58 @@ function OperationsSummaryPanel({
         Operations metadata is aggregate and read-only. Aethra does not show raw
         prompts, raw request bodies, secrets, telemetry, cloud activity, route
         execution, model execution, or connector mutation.
+      </p>
+    </section>
+  );
+}
+
+type RoutingPolicySummaryPanelProps = {
+  summary: RoutingPolicySummaryResponse;
+  sourceLabel: string;
+};
+
+function RoutingPolicySummaryPanel({
+  summary,
+  sourceLabel,
+}: RoutingPolicySummaryPanelProps) {
+  return (
+    <section className="panel" aria-label="Local routing policy summary">
+      <div className="panel-heading">
+        <div>
+          <h3>Local routing policy summary</h3>
+          <p className="muted">
+            Read-only policy metadata for route categories, decision inputs, and
+            local-preview boundaries.
+          </p>
+        </div>
+        <StatusBadge tone={sourceLabel === "Local daemon data" ? "ok" : "neutral"}>
+          {sourceLabel}
+        </StatusBadge>
+      </div>
+
+      <dl className="definition-grid diagnostics-grid">
+        <div>
+          <dt>Policy mode</dt>
+          <dd>{summary.policy_mode.release_channel}</dd>
+        </div>
+        <div>
+          <dt>Route categories</dt>
+          <dd>{summary.route_categories.length}</dd>
+        </div>
+        <div>
+          <dt>Legal models</dt>
+          <dd>{summary.summary.installed_legal_model_count}</dd>
+        </div>
+        <div>
+          <dt>Cloud enabled</dt>
+          <dd>{String(summary.summary.cloud_enabled)}</dd>
+        </div>
+      </dl>
+
+      <p className="muted diagnostics-note">
+        Routing policy metadata is read-only. Aethra does not execute routes,
+        submit prompts, execute models, mutate policy, mutate manifests, mutate
+        connectors, call cloud services, or send telemetry.
       </p>
     </section>
   );

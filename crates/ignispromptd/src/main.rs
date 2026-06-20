@@ -53,6 +53,7 @@ const MCP_AUDIT_EVENTS_MAX_LIMIT: usize = 100;
 const SUSTAINABILITY_METRICS_MAX_PERIOD_DAYS: i64 = 3650;
 const MODEL_INVENTORY_SCHEMA_VERSION: &str = "ignisprompt-model-inventory-v0.1";
 const MODEL_READINESS_SCHEMA_VERSION: &str = "ignisprompt-model-readiness-v0.1";
+const ROUTING_POLICY_SCHEMA_VERSION: &str = "ignisprompt-routing-policy-v0.1";
 const MODEL_INVENTORY_MAX_FILES: usize = 200;
 const MODEL_INVENTORY_MAX_DEPTH: usize = 4;
 const OPERATIONS_SUMMARY_SCHEMA_VERSION: &str = "ignisprompt-operations-summary-v0.1";
@@ -621,6 +622,7 @@ async fn run_http_daemon(state: AppState, bind: SocketAddr) -> Result<()> {
         .route("/v1/models", get(list_models))
         .route("/v1/models/inventory", get(model_inventory))
         .route("/v1/models/readiness", get(model_readiness))
+        .route("/v1/routing/policy-summary", get(routing_policy_summary))
         .route("/v1/capabilities", get(capabilities))
         .route("/v1/status/models", get(model_status))
         .route("/v1/status/version", get(version_status))
@@ -765,6 +767,13 @@ async fn operations_summary(State(state): State<AppState>) -> Json<OperationsSum
     Json(operations_summary_response(&state).await)
 }
 
+async fn routing_policy_summary(
+    State(state): State<AppState>,
+) -> Json<RoutingPolicySummaryResponse> {
+    let registry = state.model_registry.read().await.clone();
+    Json(routing_policy_summary_response(&state.config, &registry))
+}
+
 async fn version_status(State(state): State<AppState>) -> Json<VersionStatusResponse> {
     Json(version_status_response(&state))
 }
@@ -901,6 +910,78 @@ enum ModelReadinessLevel {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+struct RoutingPolicySummaryResponse {
+    schema_version: String,
+    generated_at: DateTime<Utc>,
+    summary: RoutingPolicySummary,
+    policy_mode: RoutingPolicyMode,
+    route_categories: Vec<RoutingPolicyCategory>,
+    decision_inputs: Vec<RoutingPolicyHint>,
+    model_selection_hints: Vec<RoutingPolicyHint>,
+    connector_policy_hints: Vec<RoutingPolicyHint>,
+    audit_policy_hints: Vec<RoutingPolicyHint>,
+    safety_boundaries: RoutingPolicySafetyBoundaries,
+    warnings: Vec<String>,
+    next_steps: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RoutingPolicySummary {
+    local_only: bool,
+    route_execution_required: bool,
+    prompt_submission_required: bool,
+    cloud_enabled: bool,
+    configured_model_count: usize,
+    legal_model_count: usize,
+    installed_legal_model_count: usize,
+    default_fallback_runner: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RoutingPolicyMode {
+    release_channel: String,
+    local_preview: bool,
+    local_only_default: bool,
+    cloud_disabled_by_default: bool,
+    route_execution_in_summary: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RoutingPolicyCategory {
+    id: String,
+    label: String,
+    tier: String,
+    status: String,
+    behavior: String,
+    data_boundary: String,
+    notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RoutingPolicyHint {
+    id: String,
+    label: String,
+    detail: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RoutingPolicySafetyBoundaries {
+    read_only: bool,
+    no_route_execution: bool,
+    no_model_execution: bool,
+    no_prompt_submission: bool,
+    no_policy_mutation: bool,
+    no_manifest_mutation: bool,
+    no_connector_mutation: bool,
+    no_runner_mutation: bool,
+    no_cloud_calls: bool,
+    no_telemetry: bool,
+    no_secrets: bool,
+    no_raw_prompts: bool,
+    notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct OperationsSummaryResponse {
     schema_version: String,
     generated_at: DateTime<Utc>,
@@ -927,6 +1008,7 @@ struct OperationsEndpointSummary {
     models_available: bool,
     model_inventory_available: bool,
     model_readiness_available: bool,
+    routing_policy_available: bool,
     capabilities_available: bool,
     status_models_available: bool,
     status_version_available: bool,
@@ -1370,6 +1452,7 @@ async fn operations_summary_response(state: &AppState) -> OperationsSummaryRespo
             models_available: true,
             model_inventory_available: true,
             model_readiness_available: true,
+            routing_policy_available: true,
             capabilities_available: true,
             status_models_available: true,
             status_version_available: true,
@@ -1413,6 +1496,203 @@ async fn operations_summary_response(state: &AppState) -> OperationsSummaryRespo
             ],
         },
     }
+}
+
+fn routing_policy_summary_response(
+    config: &Args,
+    registry: &ModelRegistry,
+) -> RoutingPolicySummaryResponse {
+    let legal_model_count = registry
+        .models
+        .iter()
+        .filter(|model| model_declares_legal_domain(model))
+        .count();
+    let installed_legal_model_count = registry
+        .models
+        .iter()
+        .filter(|model| model.installed && model_declares_legal_domain(model))
+        .count();
+
+    RoutingPolicySummaryResponse {
+        schema_version: ROUTING_POLICY_SCHEMA_VERSION.to_string(),
+        generated_at: Utc::now(),
+        summary: RoutingPolicySummary {
+            local_only: config.local_only,
+            route_execution_required: false,
+            prompt_submission_required: false,
+            cloud_enabled: false,
+            configured_model_count: registry.models.len(),
+            legal_model_count,
+            installed_legal_model_count,
+            default_fallback_runner: "StubLegalRunner".to_string(),
+        },
+        policy_mode: RoutingPolicyMode {
+            release_channel: "local-preview".to_string(),
+            local_preview: true,
+            local_only_default: true,
+            cloud_disabled_by_default: true,
+            route_execution_in_summary: false,
+        },
+        route_categories: vec![
+            RoutingPolicyCategory {
+                id: "legal-tiered".to_string(),
+                label: "Legal specialized routing".to_string(),
+                tier: "tier_3".to_string(),
+                status: if installed_legal_model_count > 0 {
+                    "eligible_manifest_present".to_string()
+                } else {
+                    "fail_closed_without_installed_manifest".to_string()
+                },
+                behavior: "Legal requests prefer an installed Tier 3 legal manifest when one is route-eligible; unavailable local legal capacity fails closed instead of falling back to cloud.".to_string(),
+                data_boundary: "local_process".to_string(),
+                notes: vec![
+                    "Legal detection uses declared metadata and lightweight legal-language hints in the route path.".to_string(),
+                    "This summary does not classify or submit any prompt text.".to_string(),
+                ],
+            },
+            RoutingPolicyCategory {
+                id: "general-local".to_string(),
+                label: "General local routing".to_string(),
+                tier: "tier_2".to_string(),
+                status: "os_native_bridge_scaffold".to_string(),
+                behavior: "General requests use the local OS-native route scaffold in the current preview.".to_string(),
+                data_boundary: "on_device".to_string(),
+                notes: vec![
+                    "The OS-native bridge is a local-preview route state, not a completed production adapter.".to_string(),
+                    "No route execution is performed by this summary endpoint.".to_string(),
+                ],
+            },
+            RoutingPolicyCategory {
+                id: "local-readiness".to_string(),
+                label: "Local readiness guidance".to_string(),
+                tier: "status_only".to_string(),
+                status: "advisory_metadata".to_string(),
+                behavior: "Inventory, readiness, capabilities, and status endpoints explain local prerequisites without changing routing.".to_string(),
+                data_boundary: "local_process".to_string(),
+                notes: vec![
+                    "Readiness hints do not prove executable inference, model quality, legal accuracy, compliance, or production readiness.".to_string(),
+                ],
+            },
+            RoutingPolicyCategory {
+                id: "unknown-fallback".to_string(),
+                label: "Unknown or unavailable routes".to_string(),
+                tier: "fail_closed".to_string(),
+                status: "local_only_boundary".to_string(),
+                behavior: "When a required local route is unavailable, local-only policy keeps cloud disabled by default and reports the unavailable state.".to_string(),
+                data_boundary: "local_process".to_string(),
+                notes: vec![
+                    "Cloud BYOK, Tier 4 edge routing, and Tier 5 cloud routing are not implemented by default.".to_string(),
+                ],
+            },
+        ],
+        decision_inputs: vec![
+            routing_policy_hint(
+                "model_hint",
+                "Model hint",
+                "Route execution can consider the requested model name, such as a legal model hint, when a request is explicitly submitted to route-explain or chat completions.",
+            ),
+            routing_policy_hint(
+                "metadata_domain",
+                "Metadata domain",
+                "Route execution can consider caller-provided metadata such as domain=legal when present.",
+            ),
+            routing_policy_hint(
+                "legal_language",
+                "Legal-language hints",
+                "Route execution can infer legal intent from terms such as contract, clause, indemnification, governing law, NDA, or termination.",
+            ),
+            routing_policy_hint(
+                "document_instruction_boundary",
+                "Document-contained instructions",
+                "Known attempts to disable routing, audit, or local-only policy are treated as untrusted document content.",
+            ),
+        ],
+        model_selection_hints: vec![
+            routing_policy_hint(
+                "manifest_eligibility",
+                "Manifest eligibility",
+                "Installed Tier 3 legal manifests are route-eligible; file and runner availability are reported separately as local status/readiness hints.",
+            ),
+            routing_policy_hint(
+                "stub_legal_runner",
+                "Default fallback runner",
+                "StubLegalRunner remains the default local fallback path for the no-model preview build.",
+            ),
+            routing_policy_hint(
+                "gguf_feature_gate",
+                "GGUF runner feature gate",
+                "The optional GGUF subprocess path is local-only and feature-gated; it is not required for default smoke tests.",
+            ),
+        ],
+        connector_policy_hints: vec![
+            routing_policy_hint(
+                "capabilities_status",
+                "Capabilities are status metadata",
+                "Connector and capability entries describe local-preview availability; they do not enable, disable, start, stop, or mutate connectors.",
+            ),
+            routing_policy_hint(
+                "cloud_disabled",
+                "Cloud disabled by default",
+                "Cloud provider routing remains disabled by default and this summary performs no cloud provider checks.",
+            ),
+        ],
+        audit_policy_hints: vec![
+            routing_policy_hint(
+                "audit_on_execution",
+                "Audit on route execution",
+                "Route-explain and chat-completion execution append local audit events; this summary endpoint does not append audit events.",
+            ),
+            routing_policy_hint(
+                "no_prompt_bodies",
+                "No prompt bodies returned",
+                "Policy summary metadata does not include raw prompts, raw request bodies, or stored prompt text.",
+            ),
+        ],
+        safety_boundaries: RoutingPolicySafetyBoundaries {
+            read_only: true,
+            no_route_execution: true,
+            no_model_execution: true,
+            no_prompt_submission: true,
+            no_policy_mutation: true,
+            no_manifest_mutation: true,
+            no_connector_mutation: true,
+            no_runner_mutation: true,
+            no_cloud_calls: true,
+            no_telemetry: true,
+            no_secrets: true,
+            no_raw_prompts: true,
+            notes: vec![
+                "This endpoint describes current local-preview routing policy without evaluating a request.".to_string(),
+                "It does not certify policy correctness, compliance, legal accuracy, or production readiness.".to_string(),
+            ],
+        },
+        warnings: vec![
+            "Routing policy summary is descriptive local-preview metadata only.".to_string(),
+            "Use POST /v1/route/explain with synthetic or non-sensitive text only when an explicit route inspection is needed.".to_string(),
+            "Cloud routing, production policy certification, compliance certification, and legal accuracy guarantees are not implemented.".to_string(),
+        ],
+        next_steps: vec![
+            "Use GET /v1/capabilities for connector and route-ladder status metadata.".to_string(),
+            "Use GET /v1/models/readiness for model file and runner readiness hints.".to_string(),
+            "Use POST /v1/route/explain only for explicit local route inspection with synthetic or non-sensitive text.".to_string(),
+        ],
+    }
+}
+
+fn routing_policy_hint(id: &str, label: &str, detail: &str) -> RoutingPolicyHint {
+    RoutingPolicyHint {
+        id: id.to_string(),
+        label: label.to_string(),
+        detail: detail.to_string(),
+    }
+}
+
+fn model_declares_legal_domain(model: &ModelManifest) -> bool {
+    model
+        .domains
+        .iter()
+        .any(|domain| domain.eq_ignore_ascii_case("legal"))
+        || model.model_id.to_ascii_lowercase().contains("legal")
 }
 
 #[derive(Debug, Clone)]
@@ -3693,6 +3973,10 @@ mod tests {
         model_readiness(State(state.clone())).await.0
     }
 
+    async fn call_routing_policy_summary(state: &AppState) -> RoutingPolicySummaryResponse {
+        routing_policy_summary(State(state.clone())).await.0
+    }
+
     async fn call_operations_summary(state: &AppState) -> OperationsSummaryResponse {
         operations_summary(State(state.clone())).await.0
     }
@@ -4001,6 +4285,8 @@ mod tests {
         assert!(response.endpoints.health_available);
         assert!(response.endpoints.models_available);
         assert!(response.endpoints.model_inventory_available);
+        assert!(response.endpoints.model_readiness_available);
+        assert!(response.endpoints.routing_policy_available);
         assert!(response.endpoints.capabilities_available);
         assert!(response.endpoints.audit_events_available);
         assert!(response.endpoints.sustainability_available);
@@ -4066,6 +4352,115 @@ mod tests {
         assert!(!encoded_text.contains("request_id"));
         assert!(!encoded_text.contains("/Users/"));
         assert!(!encoded_text.contains("data/audit"));
+    }
+
+    #[tokio::test]
+    async fn routing_policy_summary_endpoint_returns_safe_local_preview_metadata() {
+        let state = state_with_models(vec![legal_model()]);
+        let response = call_routing_policy_summary(&state).await;
+
+        assert_eq!(response.schema_version, ROUTING_POLICY_SCHEMA_VERSION);
+        assert_eq!(response.policy_mode.release_channel, "local-preview");
+        assert!(response.policy_mode.local_preview);
+        assert!(response.policy_mode.local_only_default);
+        assert!(response.policy_mode.cloud_disabled_by_default);
+        assert!(!response.policy_mode.route_execution_in_summary);
+        assert_eq!(response.summary.configured_model_count, 1);
+        assert_eq!(response.summary.legal_model_count, 1);
+        assert_eq!(response.summary.installed_legal_model_count, 1);
+        assert!(!response.summary.route_execution_required);
+        assert!(!response.summary.prompt_submission_required);
+        assert!(!response.summary.cloud_enabled);
+        assert_eq!(response.summary.default_fallback_runner, "StubLegalRunner");
+        assert!(response
+            .route_categories
+            .iter()
+            .any(|category| category.id == "legal-tiered"));
+        assert!(response
+            .decision_inputs
+            .iter()
+            .any(|hint| hint.id == "document_instruction_boundary"));
+        assert!(response
+            .connector_policy_hints
+            .iter()
+            .any(|hint| hint.id == "cloud_disabled"));
+        assert!(response
+            .audit_policy_hints
+            .iter()
+            .any(|hint| hint.id == "audit_on_execution"));
+        assert!(response.safety_boundaries.read_only);
+        assert!(response.safety_boundaries.no_route_execution);
+        assert!(response.safety_boundaries.no_model_execution);
+        assert!(response.safety_boundaries.no_prompt_submission);
+        assert!(response.safety_boundaries.no_policy_mutation);
+        assert!(response.safety_boundaries.no_manifest_mutation);
+        assert!(response.safety_boundaries.no_connector_mutation);
+        assert!(response.safety_boundaries.no_runner_mutation);
+        assert!(response.safety_boundaries.no_cloud_calls);
+        assert!(response.safety_boundaries.no_telemetry);
+        assert!(response.safety_boundaries.no_secrets);
+        assert!(response.safety_boundaries.no_raw_prompts);
+        assert!(response
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("descriptive local-preview metadata")));
+    }
+
+    #[tokio::test]
+    async fn routing_policy_summary_does_not_execute_routes_or_expose_prompts() {
+        let state = state_with_models(vec![legal_model()]);
+
+        let before_events = call_audit_events(&state).await;
+        assert!(before_events.is_empty());
+
+        let response = call_routing_policy_summary(&state).await;
+        let after_events = call_audit_events(&state).await;
+        assert!(after_events.is_empty());
+
+        let encoded = serde_json::to_value(&response).unwrap();
+        assert_json_keys(
+            &encoded,
+            &[
+                "audit_policy_hints",
+                "connector_policy_hints",
+                "decision_inputs",
+                "generated_at",
+                "model_selection_hints",
+                "next_steps",
+                "policy_mode",
+                "route_categories",
+                "safety_boundaries",
+                "schema_version",
+                "summary",
+                "warnings",
+            ],
+        );
+        assert_json_keys(
+            &encoded["safety_boundaries"],
+            &[
+                "no_cloud_calls",
+                "no_connector_mutation",
+                "no_manifest_mutation",
+                "no_model_execution",
+                "no_policy_mutation",
+                "no_prompt_submission",
+                "no_raw_prompts",
+                "no_route_execution",
+                "no_runner_mutation",
+                "no_secrets",
+                "no_telemetry",
+                "notes",
+                "read_only",
+            ],
+        );
+
+        let serialized = serde_json::to_string(&response).unwrap();
+        assert!(!serialized.contains("PRIVATE_PROMPT"));
+        assert!(!serialized.contains("Review this synthetic"));
+        assert!(!serialized.contains("request_body"));
+        assert!(!serialized.contains("prompt_body"));
+        assert!(!serialized.contains("ghp_"));
+        assert!(!serialized.contains("sk-"));
     }
 
     #[tokio::test]

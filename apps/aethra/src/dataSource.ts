@@ -7,6 +7,7 @@ import type {
   ModelReadinessResponse,
   ModelStatusHint,
   OperationsSummaryResponse,
+  RoutingPolicySummaryResponse,
   SustainabilityMetricsResponse,
   VersionStatusResponse,
 } from "./api/contracts";
@@ -110,6 +111,26 @@ export type LiveModelReadinessState =
   | {
       status: "loaded";
       readiness: ModelReadinessResponse;
+      loadedAt: string;
+    }
+  | {
+      status: "error";
+      label: string;
+      message: string;
+      diagnosticKind: LiveEndpointErrorKind;
+      checkedAt?: string;
+    };
+
+export type LiveRoutingPolicySummaryState =
+  | {
+      status: "not-loaded";
+    }
+  | {
+      status: "loading";
+    }
+  | {
+      status: "loaded";
+      summary: RoutingPolicySummaryResponse;
       loadedAt: string;
     }
   | {
@@ -250,6 +271,7 @@ export type LiveEndpointState =
   | LiveModelsState
   | LiveModelInventoryState
   | LiveModelReadinessState
+  | LiveRoutingPolicySummaryState
   | LiveModelStatusState
   | LiveCapabilitiesState
   | LiveVersionStatusState
@@ -263,6 +285,7 @@ export type LiveLocalSurfaceId =
   | "models"
   | "model-inventory"
   | "model-readiness"
+  | "routing-policy"
   | "model-status"
   | "capabilities"
   | "audit-events"
@@ -304,6 +327,7 @@ export type LiveLocalDaemonClient = {
   models: () => Promise<{ models: ModelManifest[] }>;
   modelInventory: () => Promise<ModelInventoryResponse>;
   modelReadiness: () => Promise<ModelReadinessResponse>;
+  routingPolicySummary: () => Promise<RoutingPolicySummaryResponse>;
   modelStatus: () => Promise<{
     schemaVersion: string;
     generatedAt: string;
@@ -322,6 +346,7 @@ export type LiveLocalDaemonSnapshot = {
   models: LiveModelsState;
   modelInventory: LiveModelInventoryState;
   modelReadiness: LiveModelReadinessState;
+  routingPolicy: LiveRoutingPolicySummaryState;
   modelStatus: LiveModelStatusState;
   capabilities: LiveCapabilitiesState;
   auditEvents: LiveAuditEventsState;
@@ -460,6 +485,7 @@ export async function loadLiveLocalDaemonSnapshot(input: {
     models,
     modelInventory,
     modelReadiness,
+    routingPolicy,
     modelStatus,
     capabilities,
     auditEvents,
@@ -485,6 +511,12 @@ export async function loadLiveLocalDaemonSnapshot(input: {
       "Model readiness",
       () => input.client.modelReadiness(),
       describeModelReadinessLoadError,
+    ),
+    loadSurface(
+      "routing-policy",
+      "Routing policy",
+      () => input.client.routingPolicySummary(),
+      describeRoutingPolicyLoadError,
     ),
     loadSurface(
       "model-status",
@@ -555,6 +587,14 @@ export async function loadLiveLocalDaemonSnapshot(input: {
             loadedAt: input.loadedAt,
           }
         : endpointErrorState(modelReadiness.error, input.loadedAt),
+    routingPolicy:
+      routingPolicy.status === "loaded"
+        ? {
+            status: "loaded",
+            summary: routingPolicy.value,
+            loadedAt: input.loadedAt,
+          }
+        : endpointErrorState(routingPolicy.error, input.loadedAt),
     modelStatus:
       modelStatus.status === "loaded"
         ? {
@@ -609,6 +649,7 @@ export async function loadLiveLocalDaemonSnapshot(input: {
       models.result,
       modelInventory.result,
       modelReadiness.result,
+      routingPolicy.result,
       modelStatus.result,
       capabilities.result,
       auditEvents.result,
@@ -718,6 +759,12 @@ export function describeModelReadinessLoadError(
   return describeEndpointLoadError(error, "model-readiness");
 }
 
+export function describeRoutingPolicyLoadError(
+  error: unknown,
+): LiveEndpointErrorDescription {
+  return describeEndpointLoadError(error, "routing-policy");
+}
+
 export function describeModelStatusLoadError(
   error: unknown,
 ): LiveEndpointErrorDescription {
@@ -761,6 +808,7 @@ function describeEndpointLoadError(
     | "models"
     | "model-inventory"
     | "model-readiness"
+    | "routing-policy"
     | "model-status"
     | "capabilities"
     | "version-status"
@@ -777,17 +825,19 @@ function describeEndpointLoadError(
           ? "local model inventory"
           : endpoint === "model-readiness"
             ? "local model readiness"
-            : endpoint === "model-status"
-              ? "model and runner status hint"
-              : endpoint === "capabilities"
-                ? "connector and capability status"
-                : endpoint === "version-status"
-                  ? "daemon version status"
-                  : endpoint === "audit-events"
-                    ? "audit event"
-                    : endpoint === "sustainability-metrics"
-                      ? "sustainability metrics"
-                      : "local operations summary";
+            : endpoint === "routing-policy"
+              ? "local routing policy summary"
+              : endpoint === "model-status"
+                ? "model and runner status hint"
+                : endpoint === "capabilities"
+                  ? "connector and capability status"
+                  : endpoint === "version-status"
+                    ? "daemon version status"
+                    : endpoint === "audit-events"
+                      ? "audit event"
+                      : endpoint === "sustainability-metrics"
+                        ? "sustainability metrics"
+                        : "local operations summary";
 
   if (error instanceof AethraApiError) {
     switch (error.kind) {
@@ -838,17 +888,19 @@ function describeEndpointLoadError(
             ? "Model inventory load failed"
             : endpoint === "model-readiness"
               ? "Model readiness load failed"
-              : endpoint === "model-status"
-                ? "Model status load failed"
-                : endpoint === "capabilities"
-                  ? "Capabilities load failed"
-                  : endpoint === "version-status"
-                    ? "Version status load failed"
-                    : endpoint === "audit-events"
-                      ? "Audit events load failed"
-                      : endpoint === "sustainability-metrics"
-                        ? "Sustainability metrics load failed"
-                        : "Operations summary load failed",
+              : endpoint === "routing-policy"
+                ? "Routing policy load failed"
+                : endpoint === "model-status"
+                  ? "Model status load failed"
+                  : endpoint === "capabilities"
+                    ? "Capabilities load failed"
+                    : endpoint === "version-status"
+                      ? "Version status load failed"
+                      : endpoint === "audit-events"
+                        ? "Audit events load failed"
+                        : endpoint === "sustainability-metrics"
+                          ? "Sustainability metrics load failed"
+                          : "Operations summary load failed",
     message: `Aethra could not load live local ${noun} metadata.`,
     diagnosticKind: "unknown",
   };

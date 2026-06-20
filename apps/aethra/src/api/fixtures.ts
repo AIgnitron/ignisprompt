@@ -8,6 +8,7 @@ import {
   ModelReadinessResponse,
   ModelStatusResponse,
   OperationsSummaryResponse,
+  RoutingPolicySummaryResponse,
   RouteExplainResponse,
   SustainabilityMetricsResponse,
   VersionStatusResponse,
@@ -167,6 +168,137 @@ export const modelReadinessFixture: ModelReadinessResponse = {
   ],
 };
 
+export const routingPolicySummaryFixture: RoutingPolicySummaryResponse = {
+  schema_version: "ignisprompt-routing-policy-v0.1",
+  generated_at: "2026-05-15T00:00:00Z",
+  summary: {
+    local_only: true,
+    route_execution_required: false,
+    prompt_submission_required: false,
+    cloud_enabled: false,
+    configured_model_count: 1,
+    legal_model_count: 1,
+    installed_legal_model_count: 1,
+    default_fallback_runner: "StubLegalRunner",
+  },
+  policy_mode: {
+    release_channel: "local-preview",
+    local_preview: true,
+    local_only_default: true,
+    cloud_disabled_by_default: true,
+    route_execution_in_summary: false,
+  },
+  route_categories: [
+    {
+      id: "legal-tiered",
+      label: "Legal specialized routing",
+      tier: "tier_3",
+      status: "eligible_manifest_present",
+      behavior:
+        "Legal requests prefer an installed Tier 3 legal manifest when one is route-eligible; unavailable local legal capacity fails closed instead of falling back to cloud.",
+      data_boundary: "local_process",
+      notes: [
+        "Fixture fallback policy metadata only; no prompt text is submitted.",
+      ],
+    },
+    {
+      id: "general-local",
+      label: "General local routing",
+      tier: "tier_2",
+      status: "os_native_bridge_scaffold",
+      behavior:
+        "General requests use the local OS-native route scaffold in the current preview.",
+      data_boundary: "on_device",
+      notes: ["No route execution is performed by the policy summary."],
+    },
+    {
+      id: "unknown-fallback",
+      label: "Unknown or unavailable routes",
+      tier: "fail_closed",
+      status: "local_only_boundary",
+      behavior:
+        "When a required local route is unavailable, local-only policy keeps cloud disabled by default.",
+      data_boundary: "local_process",
+      notes: ["Tier 4 edge and Tier 5 cloud routing are not implemented by default."],
+    },
+  ],
+  decision_inputs: [
+    {
+      id: "model_hint",
+      label: "Model hint",
+      detail:
+        "Route execution can consider the requested model name only when a request is explicitly submitted.",
+    },
+    {
+      id: "document_instruction_boundary",
+      label: "Document-contained instructions",
+      detail:
+        "Known attempts to disable routing, audit, or local-only policy are treated as untrusted document content.",
+    },
+  ],
+  model_selection_hints: [
+    {
+      id: "manifest_eligibility",
+      label: "Manifest eligibility",
+      detail:
+        "Installed Tier 3 legal manifests are route-eligible; file and runner availability are separate hints.",
+    },
+    {
+      id: "stub_legal_runner",
+      label: "Default fallback runner",
+      detail: "StubLegalRunner remains the default local fallback path.",
+    },
+  ],
+  connector_policy_hints: [
+    {
+      id: "capabilities_status",
+      label: "Capabilities are status metadata",
+      detail:
+        "Connector and capability entries describe local-preview availability; they do not mutate connectors.",
+    },
+    {
+      id: "cloud_disabled",
+      label: "Cloud disabled by default",
+      detail:
+        "Cloud provider routing remains disabled by default and no cloud provider checks are made.",
+    },
+  ],
+  audit_policy_hints: [
+    {
+      id: "audit_on_execution",
+      label: "Audit on route execution",
+      detail:
+        "Route-explain and chat-completion execution append local audit events; this summary does not.",
+    },
+  ],
+  safety_boundaries: {
+    read_only: true,
+    no_route_execution: true,
+    no_model_execution: true,
+    no_prompt_submission: true,
+    no_policy_mutation: true,
+    no_manifest_mutation: true,
+    no_connector_mutation: true,
+    no_runner_mutation: true,
+    no_cloud_calls: true,
+    no_telemetry: true,
+    no_secrets: true,
+    no_raw_prompts: true,
+    notes: [
+      "Routing policy summary is descriptive local-preview metadata only.",
+      "It does not certify policy correctness, compliance, legal accuracy, or production readiness.",
+    ],
+  },
+  warnings: [
+    "Routing policy summary is descriptive local-preview metadata only.",
+    "Use route-explain with synthetic or non-sensitive text only when explicit route inspection is needed.",
+  ],
+  next_steps: [
+    "Review capabilities for connector and route-ladder status metadata.",
+    "Use route-explain only for explicit local route inspection with synthetic or non-sensitive text.",
+  ],
+};
+
 export const capabilitiesFixture: CapabilitiesResponse = {
   release_channel: "local-preview",
   local_only: true,
@@ -289,6 +421,7 @@ export const operationsSummaryFixture: OperationsSummaryResponse = {
     models_available: true,
     model_inventory_available: true,
     model_readiness_available: true,
+    routing_policy_available: true,
     capabilities_available: true,
     status_models_available: true,
     status_version_available: true,

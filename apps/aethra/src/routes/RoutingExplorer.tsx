@@ -1,10 +1,24 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createIgnisPromptClient } from "../api/client";
-import { RouteExplainResponse } from "../api/contracts";
-import { routeExplainFixture } from "../fixtures/aethraFixture";
+import {
+  RouteExplainResponse,
+  RoutingPolicySummaryResponse,
+} from "../api/contracts";
+import {
+  routeExplainFixture,
+  routingPolicySummaryFixture,
+} from "../fixtures/aethraFixture";
 import { EmptyState } from "../components/EmptyState";
 import { PageHelp } from "../components/PageHelp";
 import { StatusBadge } from "../components/StatusBadge";
+import type {
+  AethraDataMode,
+  LiveRoutingPolicySummaryState,
+} from "../dataSource";
+import {
+  formatLiveLocalDisplaySource,
+  getLiveLocalDisplaySource,
+} from "../dataSource";
 import {
   buildRouteLadder,
   buildRouteDecisionCopyText,
@@ -28,13 +42,17 @@ type RouteResultState =
   };
 
 type RoutingExplorerProps = {
+  dataMode: AethraDataMode;
   localBaseUrl: string;
   localBaseUrlError?: string;
+  liveRoutingPolicyState: LiveRoutingPolicySummaryState;
 };
 
 export function RoutingExplorer({
+  dataMode,
   localBaseUrl,
   localBaseUrlError,
+  liveRoutingPolicyState,
 }: RoutingExplorerProps) {
   const fixtureScenarios = useMemo(
     () => buildRouteFixtureScenarios(routeExplainFixture),
@@ -53,6 +71,14 @@ export function RoutingExplorer({
   });
   const [isLiveRequestConfirmed, setIsLiveRequestConfirmed] = useState(false);
   const [isLiveRequestRunning, setIsLiveRequestRunning] = useState(false);
+  const liveRoutingPolicy =
+    dataMode === "live-local" && liveRoutingPolicyState.status === "loaded"
+      ? liveRoutingPolicyState.summary
+      : undefined;
+  const routingPolicy = liveRoutingPolicy ?? routingPolicySummaryFixture;
+  const routingPolicySourceLabel = formatLiveLocalDisplaySource(
+    getLiveLocalDisplaySource(dataMode, liveRoutingPolicyState),
+  );
 
   function updatePrompt(nextPrompt: string) {
     setPrompt(nextPrompt);
@@ -169,6 +195,13 @@ export function RoutingExplorer({
         ]}
       />
 
+      <RoutingPolicySummaryPanel
+        dataMode={dataMode}
+        liveRoutingPolicyState={liveRoutingPolicyState}
+        summary={routingPolicy}
+        sourceLabel={routingPolicySourceLabel}
+      />
+
       <div className="routing-layout">
         <RouteExplainForm
           prompt={prompt}
@@ -190,6 +223,141 @@ export function RoutingExplorer({
         />
         <RouteExplainResult result={result} />
       </div>
+    </section>
+  );
+}
+
+type RoutingPolicySummaryPanelProps = {
+  dataMode: AethraDataMode;
+  liveRoutingPolicyState: LiveRoutingPolicySummaryState;
+  summary: RoutingPolicySummaryResponse;
+  sourceLabel: string;
+};
+
+function RoutingPolicySummaryPanel({
+  dataMode,
+  liveRoutingPolicyState,
+  summary,
+  sourceLabel,
+}: RoutingPolicySummaryPanelProps) {
+  const isLiveMode = dataMode === "live-local";
+  const isLoaded = isLiveMode && liveRoutingPolicyState.status === "loaded";
+
+  return (
+    <section className="panel" aria-label="Local routing policy summary">
+      <div className="panel-heading">
+        <div>
+          <h3>Local routing policy summary</h3>
+          <p className="muted">
+            {isLiveMode
+              ? "Manual read-only GET /v1/routing/policy-summary from the configured local daemon."
+              : "Fixture mode uses offline preview routing policy metadata."}
+          </p>
+        </div>
+        <StatusBadge
+          tone={
+            liveRoutingPolicyState.status === "error"
+              ? "warning"
+              : isLoaded
+                ? "ok"
+                : "neutral"
+          }
+        >
+          {sourceLabel}
+        </StatusBadge>
+      </div>
+
+      <p className="explanation">
+        This summary explains current local-preview routing policy without
+        submitting prompts, executing a route, running models, mutating policy,
+        changing manifests, changing connectors, calling cloud services, or
+        sending telemetry.
+      </p>
+
+      {isLiveMode && liveRoutingPolicyState.status === "not-loaded" ? (
+        <EmptyState
+          title="Routing policy summary has not been loaded"
+          message="Fixture fallback policy metadata remains visible until you manually refresh local daemon data."
+          nextAction="Start the daemon if needed, then use Refresh local daemon data."
+        />
+      ) : null}
+
+      {isLiveMode && liveRoutingPolicyState.status === "loading" ? (
+        <p className="explanation">
+          Loading read-only routing policy metadata from the configured local
+          daemon.
+        </p>
+      ) : null}
+
+      {isLiveMode && liveRoutingPolicyState.status === "error" ? (
+        <EmptyState
+          title={liveRoutingPolicyState.label}
+          message={liveRoutingPolicyState.message}
+          nextAction="Fixture routing policy metadata remains clearly labeled below."
+        />
+      ) : null}
+
+      <dl className="definition-grid route-result-grid">
+        <div>
+          <dt>Source</dt>
+          <dd>{sourceLabel}</dd>
+        </div>
+        <div>
+          <dt>Endpoint</dt>
+          <dd>
+            {isLiveMode
+              ? "GET /v1/routing/policy-summary"
+              : "fixture routing policy"}
+          </dd>
+        </div>
+        <div>
+          <dt>Local only</dt>
+          <dd>{String(summary.summary.local_only)}</dd>
+        </div>
+        <div>
+          <dt>Cloud enabled</dt>
+          <dd>{String(summary.summary.cloud_enabled)}</dd>
+        </div>
+        <div>
+          <dt>Route execution</dt>
+          <dd>{String(summary.summary.route_execution_required)}</dd>
+        </div>
+        <div>
+          <dt>Prompt submission</dt>
+          <dd>{String(summary.summary.prompt_submission_required)}</dd>
+        </div>
+      </dl>
+
+      <div className="route-state-grid">
+        {summary.route_categories.map((category) => (
+          <article key={category.id} className="route-state-card">
+            <div className="route-ladder-heading">
+              <div>
+                <p className="metric-label">{category.tier}</p>
+                <strong>{category.label}</strong>
+              </div>
+              <StatusBadge tone="neutral">{category.status}</StatusBadge>
+            </div>
+            <p>{category.behavior}</p>
+          </article>
+        ))}
+      </div>
+
+      <div className="detail-section">
+        <h4>Decision inputs</h4>
+        <ul className="status-hint-list">
+          {summary.decision_inputs.map((hint) => (
+            <li key={hint.id}>
+              <strong>{hint.label}:</strong> {hint.detail}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <p className="muted">
+        Policy metadata is not production policy certification, compliance
+        evidence, legal advice, or legal accuracy validation.
+      </p>
     </section>
   );
 }

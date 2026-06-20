@@ -141,6 +141,12 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// Print read-only local routing policy summary metadata
+    RoutingPolicy {
+        /// Print raw JSON response instead of a terminal summary
+        #[arg(long)]
+        json: bool,
+    },
     /// Print read-only local operations summary metadata
     OperationsSummary {
         /// Print raw JSON response instead of a terminal summary
@@ -292,6 +298,7 @@ fn main() {
         Commands::Capabilities { json } => cmd_capabilities(&cli.daemon_url, *json),
         Commands::ModelInventory { json } => cmd_model_inventory(&cli.daemon_url, *json),
         Commands::ModelReadiness { json } => cmd_model_readiness(&cli.daemon_url, *json),
+        Commands::RoutingPolicy { json } => cmd_routing_policy(&cli.daemon_url, *json),
         Commands::OperationsSummary { json } => cmd_operations_summary(&cli.daemon_url, *json),
         Commands::Sustainability { period, json } => {
             cmd_sustainability(&cli.daemon_url, period, *json)
@@ -961,6 +968,13 @@ const DOCTOR_CHECKS: &[DoctorCheckSpec] = &[
         path: "/v1/models/readiness",
         level: DoctorCheckLevel::Informational,
         validate: validate_doctor_model_readiness,
+    },
+    DoctorCheckSpec {
+        id: "routing_policy",
+        label: "local routing policy summary",
+        path: "/v1/routing/policy-summary",
+        level: DoctorCheckLevel::Informational,
+        validate: validate_doctor_routing_policy,
     },
     DoctorCheckSpec {
         id: "operations_summary",
@@ -4981,6 +4995,90 @@ fn validate_doctor_model_readiness(body: &Value) -> Result<String, String> {
     ))
 }
 
+fn validate_doctor_routing_policy(body: &Value) -> Result<String, String> {
+    required_string(body, "schema_version")?;
+    required_string(body, "generated_at")?;
+    let summary = body
+        .get("summary")
+        .ok_or_else(|| "missing required object field 'summary'".to_string())?;
+    let policy_mode = body
+        .get("policy_mode")
+        .ok_or_else(|| "missing required object field 'policy_mode'".to_string())?;
+    let safety_boundaries = body
+        .get("safety_boundaries")
+        .ok_or_else(|| "missing required object field 'safety_boundaries'".to_string())?;
+
+    required_bool(summary, "local_only")?;
+    required_bool(summary, "route_execution_required")?;
+    required_bool(summary, "prompt_submission_required")?;
+    required_bool(summary, "cloud_enabled")?;
+    let configured_model_count = summary
+        .get("configured_model_count")
+        .and_then(|value| value.as_u64())
+        .ok_or_else(|| {
+            "missing required integer field 'summary.configured_model_count'".to_string()
+        })?;
+    summary
+        .get("legal_model_count")
+        .and_then(|value| value.as_u64())
+        .ok_or_else(|| "missing required integer field 'summary.legal_model_count'".to_string())?;
+    summary
+        .get("installed_legal_model_count")
+        .and_then(|value| value.as_u64())
+        .ok_or_else(|| {
+            "missing required integer field 'summary.installed_legal_model_count'".to_string()
+        })?;
+    required_string(summary, "default_fallback_runner")?;
+
+    required_string(policy_mode, "release_channel")?;
+    required_bool(policy_mode, "local_preview")?;
+    required_bool(policy_mode, "local_only_default")?;
+    required_bool(policy_mode, "cloud_disabled_by_default")?;
+    required_bool(policy_mode, "route_execution_in_summary")?;
+
+    let route_categories = required_array(body, "route_categories")?;
+    required_array(body, "decision_inputs")?;
+    required_array(body, "model_selection_hints")?;
+    required_array(body, "connector_policy_hints")?;
+    required_array(body, "audit_policy_hints")?;
+    required_array(body, "warnings")?;
+    required_array(body, "next_steps")?;
+
+    for category in route_categories {
+        required_string(category, "id")?;
+        required_string(category, "label")?;
+        required_string(category, "tier")?;
+        required_string(category, "status")?;
+        required_string(category, "behavior")?;
+        required_string(category, "data_boundary")?;
+        required_array(category, "notes")?;
+    }
+
+    for field in [
+        "read_only",
+        "no_route_execution",
+        "no_model_execution",
+        "no_prompt_submission",
+        "no_policy_mutation",
+        "no_manifest_mutation",
+        "no_connector_mutation",
+        "no_runner_mutation",
+        "no_cloud_calls",
+        "no_telemetry",
+        "no_secrets",
+        "no_raw_prompts",
+    ] {
+        required_bool(safety_boundaries, field)?;
+    }
+    required_array(safety_boundaries, "notes")?;
+
+    Ok(format!(
+        "{} route categories ({} configured models)",
+        route_categories.len(),
+        configured_model_count
+    ))
+}
+
 fn validate_doctor_operations_summary(body: &Value) -> Result<String, String> {
     required_string(body, "schema_version")?;
     required_string(body, "generated_at")?;
@@ -5014,6 +5112,7 @@ fn validate_doctor_operations_summary(body: &Value) -> Result<String, String> {
         "models_available",
         "model_inventory_available",
         "model_readiness_available",
+        "routing_policy_available",
         "capabilities_available",
         "status_models_available",
         "status_version_available",
@@ -5862,6 +5961,136 @@ fn format_model_readiness_line(model: &Value) -> String {
     )
 }
 
+fn cmd_routing_policy(base_url: &str, json_output: bool) {
+    let url = format!("{}/v1/routing/policy-summary", base_url);
+    match ureq::get(&url).call() {
+        Ok(resp) => {
+            let body = parse_response(resp);
+            if json_output {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&body).unwrap_or_default()
+                );
+            } else {
+                println!("{}", format_routing_policy_summary(&body));
+            }
+        }
+        Err(e) => {
+            eprintln!("error: {}", e);
+            process::exit(1);
+        }
+    }
+}
+
+fn format_routing_policy_summary(body: &Value) -> String {
+    let summary = body.get("summary").unwrap_or(&Value::Null);
+    let policy_mode = body.get("policy_mode").unwrap_or(&Value::Null);
+    let route_categories = body
+        .get("route_categories")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let mut lines = vec![
+        "IgnisPrompt Local Routing Policy Summary".to_string(),
+        format!(
+            "schema_version:          {}",
+            body.get("schema_version")
+                .and_then(|value| value.as_str())
+                .unwrap_or("-")
+        ),
+        format!(
+            "release_channel:         {}",
+            policy_mode
+                .get("release_channel")
+                .and_then(|value| value.as_str())
+                .unwrap_or("-")
+        ),
+        format!(
+            "local_only:              {}",
+            summary
+                .get("local_only")
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false)
+        ),
+        format!(
+            "cloud_enabled:           {}",
+            summary
+                .get("cloud_enabled")
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false)
+        ),
+        format!(
+            "configured_models:       {}",
+            summary
+                .get("configured_model_count")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0)
+        ),
+        format!(
+            "installed_legal_models:  {}",
+            summary
+                .get("installed_legal_model_count")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0)
+        ),
+        format!(
+            "default_fallback_runner: {}",
+            summary
+                .get("default_fallback_runner")
+                .and_then(|value| value.as_str())
+                .unwrap_or("-")
+        ),
+        "".to_string(),
+        "Route categories:".to_string(),
+    ];
+
+    if route_categories.is_empty() {
+        lines.push("- none reported".to_string());
+    } else {
+        for category in route_categories.iter().take(12) {
+            lines.push(format_routing_policy_category_line(category));
+        }
+    }
+
+    if let Some(warnings) = body.get("warnings").and_then(|value| value.as_array()) {
+        if !warnings.is_empty() {
+            lines.push("".to_string());
+            lines.push("Warnings:".to_string());
+            for warning in warnings {
+                if let Some(warning) = warning.as_str() {
+                    lines.push(format!("- {}", warning));
+                }
+            }
+        }
+    }
+
+    lines.push("".to_string());
+    lines.push("Boundaries: read-only routing policy metadata only; no route execution; no model execution; no prompt submission; no policy, manifest, connector, or runner mutation; no cloud calls; no telemetry; no raw prompts or secrets returned.".to_string());
+    lines.join("\n")
+}
+
+fn format_routing_policy_category_line(category: &Value) -> String {
+    let id = category
+        .get("id")
+        .and_then(|value| value.as_str())
+        .unwrap_or("-");
+    let tier = category
+        .get("tier")
+        .and_then(|value| value.as_str())
+        .unwrap_or("-");
+    let status = category
+        .get("status")
+        .and_then(|value| value.as_str())
+        .unwrap_or("-");
+    let label = category
+        .get("label")
+        .and_then(|value| value.as_str())
+        .unwrap_or("-");
+
+    format!("- {}: {} / {} / {}", id, label, tier, status)
+}
+
 fn cmd_operations_summary(base_url: &str, json_output: bool) {
     let url = format!("{}/v1/operations/summary", base_url);
     match ureq::get(&url).call() {
@@ -5893,6 +6122,7 @@ fn format_operations_summary(body: &Value) -> String {
         "models_available",
         "model_inventory_available",
         "model_readiness_available",
+        "routing_policy_available",
         "capabilities_available",
         "status_models_available",
         "status_version_available",
@@ -5908,7 +6138,7 @@ fn format_operations_summary(body: &Value) -> String {
             .unwrap_or(false)
     })
     .count();
-    let total_endpoints = 10usize;
+    let total_endpoints = 11usize;
 
     let mut lines = vec![
         "IgnisPrompt Local Operations Summary".to_string(),
@@ -8804,15 +9034,16 @@ mod tests {
         format_readiness_package_list_summary, format_readiness_package_summary,
         format_readiness_package_summary_json, format_readiness_package_validation_json,
         format_readiness_package_validation_summary, format_readiness_summary,
-        format_route_explain_summary, format_sustainability_summary, format_unreachable_error,
-        is_audit_event_list, is_route_explain_response, is_sustainability_metrics_response,
-        policy_scenario_groups_by_category, policy_scenario_groups_by_expected_tier,
-        policy_scenarios_expected_fail_closed, policy_scenarios_expected_local_only,
-        policy_scenarios_with_boundary_note, readiness_report_next_steps, route_explain_url,
-        string_field, sustainability_url, validate_demo_package_output_dir,
-        validate_doctor_capabilities, validate_doctor_health, validate_doctor_model_inventory,
-        validate_doctor_model_readiness, validate_doctor_model_status_hints,
-        validate_doctor_models, validate_doctor_operations_summary,
+        format_route_explain_summary, format_routing_policy_summary, format_sustainability_summary,
+        format_unreachable_error, is_audit_event_list, is_route_explain_response,
+        is_sustainability_metrics_response, policy_scenario_groups_by_category,
+        policy_scenario_groups_by_expected_tier, policy_scenarios_expected_fail_closed,
+        policy_scenarios_expected_local_only, policy_scenarios_with_boundary_note,
+        readiness_report_next_steps, route_explain_url, string_field, sustainability_url,
+        validate_demo_package_output_dir, validate_doctor_capabilities, validate_doctor_health,
+        validate_doctor_model_inventory, validate_doctor_model_readiness,
+        validate_doctor_model_status_hints, validate_doctor_models,
+        validate_doctor_operations_summary, validate_doctor_routing_policy,
         validate_doctor_sustainability_metrics, validate_doctor_version_status,
         validate_evidence_bundle_archive_output_path, validate_evidence_bundle_output_dir,
         validate_no_placeholder_string_values, validate_operator_package_output_dir,
@@ -8892,6 +9123,10 @@ mod tests {
         assert!(endpoints.contains(&("/v1/models", DoctorCheckLevel::Required)));
         assert!(endpoints.contains(&("/v1/models/inventory", DoctorCheckLevel::Informational)));
         assert!(endpoints.contains(&("/v1/models/readiness", DoctorCheckLevel::Informational)));
+        assert!(endpoints.contains(&(
+            "/v1/routing/policy-summary",
+            DoctorCheckLevel::Informational
+        )));
         assert!(endpoints.contains(&("/v1/capabilities", DoctorCheckLevel::Required)));
         assert!(endpoints.contains(&("/v1/status/models", DoctorCheckLevel::Required)));
         assert!(endpoints.contains(&("/v1/operations/summary", DoctorCheckLevel::Informational)));
@@ -8917,6 +9152,12 @@ mod tests {
     fn model_readiness_url_format() {
         let url = format!("{}/v1/models/readiness", "http://127.0.0.1:8765");
         assert_eq!(url, "http://127.0.0.1:8765/v1/models/readiness");
+    }
+
+    #[test]
+    fn routing_policy_url_format() {
+        let url = format!("{}/v1/routing/policy-summary", "http://127.0.0.1:8765");
+        assert_eq!(url, "http://127.0.0.1:8765/v1/routing/policy-summary");
     }
 
     #[test]
@@ -9081,6 +9322,65 @@ mod tests {
             "1 models (1 ready hints)"
         );
         assert_eq!(
+            validate_doctor_routing_policy(&json!({
+                "schema_version": "ignisprompt-routing-policy-v0.1",
+                "generated_at": "2026-06-19T00:00:00Z",
+                "summary": {
+                    "local_only": true,
+                    "route_execution_required": false,
+                    "prompt_submission_required": false,
+                    "cloud_enabled": false,
+                    "configured_model_count": 1,
+                    "legal_model_count": 1,
+                    "installed_legal_model_count": 1,
+                    "default_fallback_runner": "StubLegalRunner"
+                },
+                "policy_mode": {
+                    "release_channel": "local-preview",
+                    "local_preview": true,
+                    "local_only_default": true,
+                    "cloud_disabled_by_default": true,
+                    "route_execution_in_summary": false
+                },
+                "route_categories": [{
+                    "id": "legal-tiered",
+                    "label": "Legal specialized routing",
+                    "tier": "tier_3",
+                    "status": "eligible_manifest_present",
+                    "behavior": "Legal requests prefer an installed Tier 3 legal manifest.",
+                    "data_boundary": "local_process",
+                    "notes": ["No prompt text submitted."]
+                }],
+                "decision_inputs": [{
+                    "id": "model_hint",
+                    "label": "Model hint",
+                    "detail": "Used only by explicit route execution."
+                }],
+                "model_selection_hints": [],
+                "connector_policy_hints": [],
+                "audit_policy_hints": [],
+                "safety_boundaries": {
+                    "read_only": true,
+                    "no_route_execution": true,
+                    "no_model_execution": true,
+                    "no_prompt_submission": true,
+                    "no_policy_mutation": true,
+                    "no_manifest_mutation": true,
+                    "no_connector_mutation": true,
+                    "no_runner_mutation": true,
+                    "no_cloud_calls": true,
+                    "no_telemetry": true,
+                    "no_secrets": true,
+                    "no_raw_prompts": true,
+                    "notes": ["Read-only routing policy metadata."]
+                },
+                "warnings": ["Descriptive metadata only."],
+                "next_steps": ["Use route-explain only for explicit inspection."]
+            }))
+            .unwrap(),
+            "1 route categories (1 configured models)"
+        );
+        assert_eq!(
             validate_doctor_operations_summary(&json!({
                 "schema_version": "ignisprompt-operations-summary-v0.1",
                 "generated_at": "2026-06-19T00:00:00Z",
@@ -9097,6 +9397,7 @@ mod tests {
                     "models_available": true,
                     "model_inventory_available": true,
                     "model_readiness_available": true,
+                    "routing_policy_available": true,
                     "capabilities_available": true,
                     "status_models_available": true,
                     "status_version_available": true,
@@ -9283,6 +9584,7 @@ mod tests {
                 "models_available": true,
                 "model_inventory_available": true,
                 "model_readiness_available": true,
+                "routing_policy_available": true,
                 "capabilities_available": true,
                 "status_models_available": true,
                 "status_version_available": true,
@@ -9322,6 +9624,7 @@ mod tests {
                 "models_available": true,
                 "model_inventory_available": true,
                 "model_readiness_available": true,
+                "routing_policy_available": true,
                 "capabilities_available": true,
                 "status_models_available": true,
                 "status_version_available": true,
@@ -10794,6 +11097,111 @@ mod tests {
     }
 
     #[test]
+    fn routing_policy_summary_is_read_only_and_safe() {
+        let response = json!({
+            "schema_version": "ignisprompt-routing-policy-v0.1",
+            "generated_at": "2026-06-19T00:00:00Z",
+            "summary": {
+                "local_only": true,
+                "route_execution_required": false,
+                "prompt_submission_required": false,
+                "cloud_enabled": false,
+                "configured_model_count": 1,
+                "installed_legal_model_count": 1,
+                "default_fallback_runner": "StubLegalRunner"
+            },
+            "policy_mode": {
+                "release_channel": "local-preview",
+                "policy_source": "compiled-local-preview-policy",
+                "mutation_supported": false,
+                "cloud_routing_default": "disabled"
+            },
+            "route_categories": [
+                {
+                    "id": "legal-tiered",
+                    "label": "Legal specialized routing",
+                    "tier": "tier_3",
+                    "status": "eligible_manifest_present",
+                    "description": "Legal requests prefer local specialized manifests when installed.",
+                    "decision_basis": ["model hint"],
+                    "fallback_behavior": "StubLegalRunner",
+                    "warnings": ["Policy summary does not execute routes."]
+                }
+            ],
+            "decision_inputs": [
+                {
+                    "id": "model_hint",
+                    "label": "Model hint",
+                    "detail": "Requested model names can provide routing hints."
+                }
+            ],
+            "model_selection_hints": [
+                {
+                    "id": "stub_legal_runner",
+                    "label": "Stub Legal Runner",
+                    "detail": "The default fallback remains local and deterministic."
+                }
+            ],
+            "connector_policy_hints": [
+                {
+                    "id": "cloud_disabled",
+                    "label": "Cloud disabled",
+                    "detail": "Cloud providers are disabled by default."
+                }
+            ],
+            "audit_policy_hints": [
+                {
+                    "id": "no_prompt_bodies",
+                    "label": "No prompt bodies",
+                    "detail": "This summary does not expose raw prompts."
+                }
+            ],
+            "safety_boundaries": {
+                "read_only": true,
+                "no_route_execution": true,
+                "no_model_execution": true,
+                "no_prompt_submission": true,
+                "no_policy_mutation": true,
+                "no_manifest_mutation": true,
+                "no_connector_mutation": true,
+                "no_runner_mutation": true,
+                "no_cloud_calls": true,
+                "no_telemetry": true,
+                "no_secrets": true,
+                "no_raw_prompts": true
+            },
+            "warnings": ["Policy summary is descriptive metadata only."],
+            "next_steps": ["Use route-explain with synthetic text only when explicit route inspection is needed."],
+            "raw_prompt": "PRIVATE_PROMPT_SENTINEL",
+            "api_key": "sk-local-sentinel"
+        });
+
+        let summary = format_routing_policy_summary(&response);
+        assert!(summary.contains("IgnisPrompt Local Routing Policy Summary"));
+        assert!(summary.contains("schema_version:          ignisprompt-routing-policy-v0.1"));
+        assert!(summary.contains("release_channel:         local-preview"));
+        assert!(summary.contains("local_only:              true"));
+        assert!(summary.contains("cloud_enabled:           false"));
+        assert!(summary.contains("configured_models:       1"));
+        assert!(summary.contains("installed_legal_models:  1"));
+        assert!(summary.contains(
+            "- legal-tiered: Legal specialized routing / tier_3 / eligible_manifest_present"
+        ));
+        assert!(summary.contains("read-only routing policy metadata only"));
+        assert!(summary.contains("no route execution"));
+        assert!(summary.contains("no model execution"));
+        assert!(summary.contains("no prompt submission"));
+        assert!(summary.contains("no policy, manifest, connector, or runner mutation"));
+        assert!(summary.contains("no cloud calls"));
+        assert!(summary.contains("no telemetry"));
+        assert!(summary.contains("no raw prompts or secrets returned"));
+        assert!(!summary.contains("PRIVATE_PROMPT_SENTINEL"));
+        assert!(!summary.contains("raw_prompt"));
+        assert!(!summary.contains("sk-local-sentinel"));
+        assert!(!summary.contains("api_key"));
+    }
+
+    #[test]
     fn operations_summary_is_aggregate_and_safe() {
         let response = json!({
             "schema_version": "ignisprompt-operations-summary-v0.1",
@@ -10811,6 +11219,7 @@ mod tests {
                 "models_available": true,
                 "model_inventory_available": true,
                 "model_readiness_available": true,
+                "routing_policy_available": true,
                 "capabilities_available": true,
                 "status_models_available": true,
                 "status_version_available": true,
@@ -10848,7 +11257,7 @@ mod tests {
         assert!(summary.contains("schema_version:       ignisprompt-operations-summary-v0.1"));
         assert!(summary.contains("daemon_status:        ok"));
         assert!(summary.contains("daemon_version:       0.1.0"));
-        assert!(summary.contains("endpoints_available: 10 / 10"));
+        assert!(summary.contains("endpoints_available: 11 / 11"));
         assert!(summary.contains("audit_events:         3 total / 2 recent"));
         assert!(summary
             .contains("recent_activity:      2 requests / 1 routes / 0 warning-or-error records"));
