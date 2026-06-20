@@ -58,8 +58,8 @@ describe("RoutingExplorer route", () => {
     expect(markup).toContain("Local daemon data");
     expect(markup).toContain("Live legal specialized routing");
     expect(markup).toContain("live_policy_metadata");
-    expect(markup).toContain("sending telemetry");
     expect(markup).toContain("Read-only policy metadata");
+    expect(markup).not.toContain("sending telemetry");
     expect(markup).not.toContain("Live local route-explain");
     expect(markup).not.toContain("Run live route");
     expect(markup).not.toContain("Submit prompt");

@@ -8,11 +8,10 @@ import {
 } from "./EvidenceBundleViewer";
 
 describe("EvidenceBundleViewer", () => {
-  it("renders fixture-backed bundle metadata and CLI snippets", () => {
+  it("renders fixture-backed bundle metadata without CLI generation snippets", () => {
     const markup = renderToStaticMarkup(<EvidenceBundleViewer />);
 
     expect(markup).toContain("Local evidence bundle workflow");
-    expect(markup).toContain("CLI command snippets");
     expect(markup).toContain("Clipboard report copy");
     expect(markup).toContain("Local evidence packages");
     expect(markup).toContain("Offline preview");
@@ -23,11 +22,9 @@ describe("EvidenceBundleViewer", () => {
     expect(markup).toContain("Clipboard only");
     expect(markup).not.toContain("Report export");
     expect(markup).not.toContain("Clipboard export");
-    expect(markup).toContain(
+    expect(markup).not.toContain("CLI command snippets");
+    expect(markup).not.toContain(
       "ignispromptctl evidence-bundle --output local-evidence/demo-bundle",
-    );
-    expect(markup).toContain(
-      "Archive verification is structural local validation only",
     );
     expect(markup).toContain("Bundle schema version");
     expect(markup).toContain("local validation helper");
@@ -92,7 +89,7 @@ describe("EvidenceBundleViewer", () => {
     expect(markup).toContain("Local daemon data");
     expect(markup).toContain("live-readiness");
     expect(markup).toContain("local-evidence/readiness/live-readiness");
-    expect(markup).toContain("Read-only metadata only");
+    expect(markup).toContain("Read-only package metadata");
   });
 
   it("renders evidence package empty state when no packages are returned", () => {
@@ -125,7 +122,7 @@ describe("EvidenceBundleViewer", () => {
     );
 
     expect(markup).toContain("No evidence packages indexed");
-    expect(markup).toContain("does not create packages");
+    expect(markup).toContain("The index reports metadata only");
   });
 
   it("shows conservative empty states when metadata is missing", () => {
@@ -134,7 +131,7 @@ describe("EvidenceBundleViewer", () => {
     expect(markup).toContain("No manifest metadata available");
     expect(markup).toContain("No validation summary available");
     expect(markup).toContain("No archive metadata preview");
-    expect(markup).toContain("CLI command snippets");
+    expect(markup).not.toContain("CLI command snippets");
   });
 
   it("shows invalid metadata states without rendering raw values", () => {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AuditEvents } from "./routes/AuditEvents";
 import { EvidenceBundleViewer } from "./routes/EvidenceBundleViewer";
+import { Help } from "./routes/Help";
 import { LocalCommandCenter } from "./routes/LocalCommandCenter";
 import { LocalDemoStudio } from "./routes/LocalDemoStudio";
 import { LocalOperatorConsole } from "./routes/LocalOperatorConsole";
@@ -55,7 +56,8 @@ type AethraRoute =
   | "audit-events"
   | "model-runner-status"
   | "evidence-bundle-viewer"
-  | "sustainability-preview";
+  | "sustainability-preview"
+  | "help";
 
 export default function App() {
   const [activeRoute, setActiveRoute] = useState<AethraRoute>("overview");
@@ -456,7 +458,7 @@ export default function App() {
           </p>
         </div>
         <nav className="nav-list">
-          <span className="nav-group-label">Front door</span>
+          <span className="nav-group-label">Aethra</span>
           <button
             type="button"
             aria-current={activeRoute === "overview" ? "page" : undefined}
@@ -467,27 +469,18 @@ export default function App() {
           <button
             type="button"
             aria-current={
-              activeRoute === "local-demo-studio" ? "page" : undefined
-            }
-            onClick={() => setActiveRoute("local-demo-studio")}
-          >
-            Local demo studio
-          </button>
-          <button
-            type="button"
-            aria-current={
               activeRoute === "routing-explorer" ? "page" : undefined
             }
             onClick={() => setActiveRoute("routing-explorer")}
           >
-            Route explorer
+            Routing
           </button>
           <button
             type="button"
             aria-current={activeRoute === "audit-events" ? "page" : undefined}
             onClick={() => setActiveRoute("audit-events")}
           >
-            Audit events
+            Audit
           </button>
           <button
             type="button"
@@ -496,7 +489,7 @@ export default function App() {
             }
             onClick={() => setActiveRoute("model-runner-status")}
           >
-            Model and runner status
+            Models
           </button>
           <button
             type="button"
@@ -505,7 +498,7 @@ export default function App() {
             }
             onClick={() => setActiveRoute("evidence-bundle-viewer")}
           >
-            Evidence bundle
+            Evidence
           </button>
           <button
             type="button"
@@ -514,9 +507,25 @@ export default function App() {
             }
             onClick={() => setActiveRoute("sustainability-preview")}
           >
-            Sustainability preview
+            Sustainability
+          </button>
+          <button
+            type="button"
+            aria-current={activeRoute === "help" ? "page" : undefined}
+            onClick={() => setActiveRoute("help")}
+          >
+            Help
           </button>
           <span className="nav-group-label">Supporting workflows</span>
+          <button
+            type="button"
+            aria-current={
+              activeRoute === "local-demo-studio" ? "page" : undefined
+            }
+            onClick={() => setActiveRoute("local-demo-studio")}
+          >
+            Local demo studio
+          </button>
           <button
             type="button"
             aria-current={
@@ -557,21 +566,19 @@ export default function App() {
       </aside>
 
       <main className="workspace">
-        {activeRoute === "overview" ? <LocalPreviewBanner /> : null}
-
         {activeRoute === "overview" ? (
-          <section className="mode-strip" aria-label="Aethra data mode boundaries">
+          <section className="mode-strip" aria-label="Aethra data mode">
             <div className="mode-copy">
-              <p className="eyebrow">Data mode</p>
+              <p className="eyebrow">Data source</p>
               <h2>
                 {dataMode === "fixture"
                   ? "offline preview fixture selected"
-                  : "live local dashboard"}
+                  : "live local selected"}
               </h2>
               <p>
                 {dataMode === "fixture"
-                  ? "Offline preview fixtures are clearly labeled and are not product state. Use them only for local demos or tests when the daemon is unavailable."
-                  : "Refresh local daemon data to load read-only health, daemon version status, models, local model inventory, model readiness, routing policy summary, evidence package index, capabilities, model and runner status hints, audit events, operations summary, and sustainability metrics."}
+                  ? "Offline preview fixtures are labeled separately from live-local product state."
+                  : "Refresh local daemon data to load the read-only dashboard surfaces."}
               </p>
             </div>
             <div className="mode-badges" aria-label="Aethra mode guarantees">
@@ -580,32 +587,36 @@ export default function App() {
               </StatusBadge>
               <StatusBadge tone="neutral">read-only</StatusBadge>
               <StatusBadge tone="neutral">manual refresh only</StatusBadge>
-              <StatusBadge tone="neutral">manual live-local refresh</StatusBadge>
-              <StatusBadge tone="neutral">no telemetry</StatusBadge>
-              <StatusBadge tone="neutral">no cloud calls by default</StatusBadge>
-              <StatusBadge tone="warning">no model or runner controls</StatusBadge>
-              <StatusBadge tone="warning">
-                proxy-only sustainability indicators
-              </StatusBadge>
             </div>
           </section>
         ) : null}
 
-        <DataSourceControl
-          activeRoute={activeRoute}
-          dataMode={dataMode}
-          baseUrlInput={baseUrlInput}
-          baseUrl={localBaseUrl}
-          baseUrlError={baseUrlError}
-          liveHealthState={liveHealthState}
-          liveLocalRefreshState={liveLocalRefreshState}
-          isExpanded={isDataSourceExpanded}
-          onDataModeChange={setDataMode}
-          onBaseUrlInputChange={setBaseUrlInput}
-          onLoadLiveHealth={loadLiveHealth}
-          onRefreshLiveLocalData={refreshLiveLocalDaemonData}
-          onExpandedChange={setIsDataSourceExpanded}
-        />
+        {activeRoute === "overview" ? (
+          <DataSourceControl
+            activeRoute={activeRoute}
+            dataMode={dataMode}
+            baseUrlInput={baseUrlInput}
+            baseUrl={localBaseUrl}
+            baseUrlError={baseUrlError}
+            liveHealthState={liveHealthState}
+            liveLocalRefreshState={liveLocalRefreshState}
+            isExpanded={isDataSourceExpanded}
+            onDataModeChange={setDataMode}
+            onBaseUrlInputChange={setBaseUrlInput}
+            onLoadLiveHealth={loadLiveHealth}
+            onRefreshLiveLocalData={refreshLiveLocalDaemonData}
+            onExpandedChange={setIsDataSourceExpanded}
+          />
+        ) : activeRoute === "help" ? null : (
+          <CompactDataSourceStatus
+            dataMode={dataMode}
+            baseUrl={localBaseUrl}
+            baseUrlError={baseUrlError}
+            liveLocalRefreshState={liveLocalRefreshState}
+            onNavigateToOverview={() => setActiveRoute("overview")}
+            onNavigateToHelp={() => setActiveRoute("help")}
+          />
+        )}
 
         {activeRoute === "overview" ? (
           <Overview
@@ -689,39 +700,9 @@ export default function App() {
             onLoadLiveSustainabilityMetrics={loadLiveSustainabilityMetrics}
           />
         ) : null}
+        {activeRoute === "help" ? <Help /> : null}
       </main>
     </div>
-  );
-}
-
-function LocalPreviewBanner() {
-  return (
-    <section className="preview-banner" aria-label="Local preview boundary">
-      <div>
-        <p className="eyebrow">Local Preview</p>
-        <h2>Live-local dashboard for the IgnisPrompt control plane</h2>
-        <p>
-          Refresh local daemon data when <code>ignispromptd</code> is running.
-          If the daemon is unavailable, Aethra shows not connected or failed
-          states instead of silently replacing product state with fixtures.
-          Offline preview fixtures are opt-in and clearly labeled.
-        </p>
-      </div>
-      <div className="preview-banner-badges" aria-label="Local preview guardrails">
-        <StatusBadge tone="neutral">Local daemon data</StatusBadge>
-        <StatusBadge tone="neutral">Offline preview fixture opt-in</StatusBadge>
-        <StatusBadge tone="neutral">Manual refresh</StatusBadge>
-        <StatusBadge tone="neutral">Read-only dashboard</StatusBadge>
-        <StatusBadge tone="neutral">No telemetry</StatusBadge>
-        <StatusBadge tone="neutral">No cloud calls by default</StatusBadge>
-        <StatusBadge tone="warning">No model or runner controls</StatusBadge>
-      </div>
-      <div className="preview-banner-boundaries">
-        <p>Not legal advice.</p>
-        <p>Not compliance claims, not security assurance, and not ESG reporting evidence.</p>
-        <p>Not signed attestation or tamper-evident audit evidence.</p>
-      </div>
-    </section>
   );
 }
 
@@ -786,9 +767,7 @@ function DataSourceControl({
             {dataMode === "fixture" ? "Offline preview fixture" : "Live-local selected"}
           </StatusBadge>
           <StatusBadge tone="neutral">Read-only</StatusBadge>
-          <StatusBadge tone="neutral">No telemetry</StatusBadge>
-          <StatusBadge tone="neutral">No cloud calls by default</StatusBadge>
-        </div>
+            </div>
       </div>
 
       <details
@@ -816,11 +795,7 @@ function DataSourceControl({
             <ul className="data-source-boundary-list">
               <li>Local daemon data when manually refreshed</li>
               <li>Offline preview fixtures are opt-in and labeled</li>
-              <li>No polling</li>
-              <li>No persistence of live-local state</li>
-              <li>No command execution</li>
-              <li>No routing changes</li>
-              <li>No model or runner controls</li>
+              <li>Details are available in Help</li>
             </ul>
           </div>
 
@@ -862,7 +837,7 @@ function DataSourceControl({
             </StatusBadge>
             <p className="muted">
               {baseUrlError ??
-                "Refresh uses the daemon base URL above for read-only local metadata and never polls or persists state."}
+                "Refresh uses the daemon base URL above for read-only local metadata."}
             </p>
           </div>
 
@@ -879,11 +854,7 @@ function DataSourceControl({
                 : "Refresh local daemon data"}
             </button>
             <p className="muted refresh-card-note">
-              Loads health, version, models, local model inventory, model
-              readiness, routing policy summary, evidence package index,
-              capabilities, status hints, audit events, operations summary, and
-              30d sustainability metrics from read-only GET endpoints. Route
-              execution and model execution are not included.
+              Loads the supported read-only local daemon surfaces.
             </p>
           </div>
 
@@ -897,8 +868,7 @@ function DataSourceControl({
               </StatusBadge>
               <p className="muted">
                 Last local daemon refresh completed at{" "}
-                {formatTimestamp(refreshSummary.completedAt)}. Live-local data
-                is not persisted.
+                {formatTimestamp(refreshSummary.completedAt)}.
               </p>
               <p className="muted">
                 Attempted {refreshSummary.attempted} endpoints:{" "}
@@ -943,6 +913,59 @@ function DataSourceControl({
           </div>
         </div>
       </details>
+    </section>
+  );
+}
+
+type CompactDataSourceStatusProps = {
+  dataMode: AethraDataMode;
+  baseUrl: string;
+  baseUrlError?: string;
+  liveLocalRefreshState: LiveLocalRefreshState;
+  onNavigateToOverview: () => void;
+  onNavigateToHelp: () => void;
+};
+
+function CompactDataSourceStatus({
+  dataMode,
+  baseUrl,
+  baseUrlError,
+  liveLocalRefreshState,
+  onNavigateToOverview,
+  onNavigateToHelp,
+}: CompactDataSourceStatusProps) {
+  const refreshSummary =
+    liveLocalRefreshState.status === "complete"
+      ? summarizeLiveLocalRefresh(liveLocalRefreshState)
+      : undefined;
+
+  return (
+    <section className="compact-source-strip" aria-label="Aethra data source status">
+      <div className="compact-source-copy">
+        <StatusBadge tone={dataMode === "fixture" ? "neutral" : "warning"}>
+          {dataMode === "fixture" ? "offline preview fixture" : "live local"}
+        </StatusBadge>
+        <StatusBadge tone={baseUrlError ? "warning" : "neutral"}>
+          {baseUrlError ? "failed" : baseUrl}
+        </StatusBadge>
+        {refreshSummary ? (
+          <StatusBadge
+            tone={refreshSummary.failed > 0 || refreshSummary.unavailable > 0 ? "warning" : "ok"}
+          >
+            {refreshSummary.loaded} loaded
+          </StatusBadge>
+        ) : (
+          <StatusBadge tone="neutral">not loaded</StatusBadge>
+        )}
+      </div>
+      <div className="compact-source-actions">
+        <button type="button" className="secondary-button" onClick={onNavigateToOverview}>
+          Overview
+        </button>
+        <button type="button" className="secondary-button" onClick={onNavigateToHelp}>
+          Help
+        </button>
+      </div>
     </section>
   );
 }

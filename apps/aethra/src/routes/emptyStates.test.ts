@@ -5,12 +5,9 @@ import {
 } from "./emptyStates";
 
 describe("local preview empty state copy", () => {
-  it("keeps fixture mode explicitly demo-safe", () => {
+  it("keeps fixture mode concise", () => {
     expect(localPreviewEmptyStates.fixtureModeActive.message).toContain(
-      "demo-safe",
-    );
-    expect(localPreviewEmptyStates.fixtureModeActive.message).toContain(
-      "does not require a daemon",
+      "Fixture data is available",
     );
     expect(localPreviewEmptyStates.fixtureModeActive.nextAction).toContain(
       "suggested review flow",
@@ -46,7 +43,7 @@ describe("local preview empty state copy", () => {
       "refresh sustainability metrics",
     );
     expect(localPreviewEmptyStates.sustainabilityNotLoaded.detail).toContain(
-      "not telemetry",
+      "Help",
     );
     expect(localPreviewEmptyStates.sustainabilityNotLoaded.nextAction).toContain(
       "suggested review flow",

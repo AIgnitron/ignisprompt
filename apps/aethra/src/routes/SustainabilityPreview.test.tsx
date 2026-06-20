@@ -13,8 +13,10 @@ describe("SustainabilityPreview route", () => {
     );
 
     expect(markup).toContain("Live local sustainability metrics");
-    expect(markup).toContain("Read-only dashboard boundary");
-    expect(markup).toContain("does not generate downloadable reports");
+    expect(markup).toContain("Data source");
+    expect(markup).toContain("About this data");
+    expect(markup).not.toContain("Read-only dashboard boundary");
+    expect(markup).not.toContain("does not generate downloadable reports");
     expect(markup).not.toContain("Export Markdown");
     expect(markup).not.toContain("Export JSON");
     expect(markup).not.toContain("Download report");

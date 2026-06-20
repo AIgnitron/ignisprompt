@@ -8,7 +8,7 @@ import {
 import { ModelRunnerStatus } from "./ModelRunnerStatus";
 
 describe("ModelRunnerStatus route", () => {
-  it("renders the fixture-backed capability matrix with conservative boundaries", () => {
+  it("renders the fixture-backed capability matrix with concise product copy", () => {
     const markup = renderToStaticMarkup(
       <ModelRunnerStatus
         dataMode="fixture"
@@ -28,14 +28,14 @@ describe("ModelRunnerStatus route", () => {
     expect(markup).toContain("Local model inventory");
     expect(markup).toContain("Local model readiness");
     expect(markup).toContain("offline preview readiness metadata");
-    expect(markup).toContain("Readiness compares manifest declarations");
     expect(markup).toContain("offline preview inventory metadata");
-    expect(markup).toContain("Inventory observes local file metadata only");
     expect(markup).toContain("Offline preview fixture capabilities");
     expect(markup).toContain("Stub Legal Runner");
     expect(markup).toContain("cloud with consent");
-    expect(markup).toContain("Cloud capability remains disabled by default");
     expect(markup).toContain("No model or runner controls");
+    expect(markup).not.toContain("Readiness compares manifest declarations");
+    expect(markup).not.toContain("Inventory observes local file metadata only");
+    expect(markup).not.toContain("Cloud capability remains disabled by default");
     expect(markup).not.toContain("Enable cloud");
     expect(markup).not.toContain("Run model");
     expect(markup).not.toContain("Edit connector");
@@ -120,8 +120,8 @@ describe("ModelRunnerStatus route", () => {
     expect(markup).toContain("Local daemon data");
     expect(markup).toContain("GET /v1/models/inventory");
     expect(markup).toContain("live-legal-model-q4_k_m.gguf");
-    expect(markup).toContain("Inventory observes local file metadata only");
     expect(markup).toContain("Refresh model inventory");
+    expect(markup).not.toContain("Inventory observes local file metadata only");
   });
 
   it("renders manually loaded live-local model readiness", () => {

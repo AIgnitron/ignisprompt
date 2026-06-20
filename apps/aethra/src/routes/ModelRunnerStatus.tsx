@@ -209,11 +209,7 @@ export function ModelRunnerStatus({
 
       <PageHelp
         collapsible
-        items={[
-          "Review model manifests and capability-style model and runner status hints from manual live-local refresh or explicit offline preview fixture mode.",
-          "Status values are configuration, path, runner, and availability hints only.",
-          "Aethra observes local status; it does not execute, install, download, delete, start, stop, or change models or runners.",
-        ]}
+        items={["See Help for model data source details and product limits."]}
       />
 
       <ModelMetadataPanel
@@ -481,13 +477,6 @@ function ModelInventoryPanel({
         </StatusBadge>
       </div>
 
-      <p className="explanation">
-        Inventory observes local file metadata only. It does not execute models,
-        download or delete files, read model contents, hash model files, prove
-        model quality, prove readiness, prove compliance, or establish legal
-        accuracy.
-      </p>
-
       {isLiveMode && liveModelInventoryState.status === "not-loaded" ? (
         <EmptyState
           title="Local model inventory has not been loaded"
@@ -622,7 +611,7 @@ function ModelInventoryTable({ inventory }: ModelInventoryTableProps) {
             <th>Size</th>
             <th>Family</th>
             <th>Quantization</th>
-            <th>Boundary</th>
+            <th>Details</th>
           </tr>
         </thead>
         <tbody>
@@ -681,14 +670,6 @@ function ModelReadinessPanel({
           {getModelReadinessStateLabel(dataMode, liveModelReadinessState)}
         </StatusBadge>
       </div>
-
-      <p className="explanation">
-        Readiness compares manifest declarations, observed inventory metadata,
-        file format hints, shard filename hints, and runner status hints. It
-        does not execute models, route requests, download or delete files, read
-        model contents, hash model files, mutate manifests, call cloud services,
-        or prove quality, compliance, legal accuracy, or production readiness.
-      </p>
 
       {isLiveMode && liveModelReadinessState.status === "not-loaded" ? (
         <EmptyState
@@ -782,9 +763,7 @@ function ModelReadinessPanel({
         </ul>
       ) : null}
 
-      <p className="muted diagnostics-note">
-        {readiness.boundary_notes.join(" ")}
-      </p>
+      <p className="muted diagnostics-note">Readiness metadata is advisory.</p>
     </section>
   );
 }
@@ -887,13 +866,6 @@ function ModelStatusPanel({
           {getModelStatusStateLabel(dataMode, liveModelStatusState)}
         </StatusBadge>
       </div>
-
-      <p className="explanation">
-        Capability values are status metadata only. Availability does not prove
-        production readiness, model quality, legal accuracy, compliance,
-        attestation, or runner execution. Cloud capability remains disabled by
-        default.
-      </p>
 
       {isLiveMode && liveModelStatusState.status === "not-loaded" ? (
         <EmptyState {...localPreviewEmptyStates.modelStatusNotLoaded} />
@@ -1044,7 +1016,7 @@ function CapabilityMatrixTable({ rows }: CapabilityMatrixTableProps) {
             <th>Status</th>
             <th>Available</th>
             <th>Configured</th>
-            <th>Data boundary</th>
+            <th>Data source</th>
             <th>Reason</th>
             <th>Warnings</th>
           </tr>
@@ -1196,9 +1168,7 @@ function ModelManifestDetail({
       <p className="model-name">{model.displayName}</p>
       <p className="explanation">
         These are manifest-derived hints from{" "}
-        {isLiveModel ? "live local metadata" : "synthetic fixtures"}. Aethra
-        does not verify model files, duplicate runner logic, or prove model
-        quality, legal accuracy, production readiness, or compliance status.
+        {isLiveModel ? "live local metadata" : "synthetic fixtures"}.
       </p>
 
       <section className="detail-section">

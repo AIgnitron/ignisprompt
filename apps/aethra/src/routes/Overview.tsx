@@ -7,7 +7,6 @@ import type {
 } from "../api/contracts";
 import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
-import { PageHelp } from "../components/PageHelp";
 import { StatusBadge } from "../components/StatusBadge";
 import type {
   AethraDataMode,
@@ -80,7 +79,7 @@ const suggestedReviewFlow = [
   },
   {
     title: "Review evidence packages",
-    detail: "Inspect safe package index metadata and boundaries.",
+    detail: "Inspect safe package index metadata.",
   },
   {
     title: "Review audit/operations",
@@ -95,17 +94,7 @@ const suggestedReviewFlow = [
 const dashboardProves = [
   "local daemon connectivity",
   "local metadata visibility",
-  "read-only governance surface",
   "fixture/demo data clearly separated from live-local state",
-] as const;
-
-const dashboardDoesNotDo = [
-  "no route execution",
-  "no prompt submission",
-  "no model execution",
-  "no mutation",
-  "no upload/download/delete",
-  "no compliance/certification claims",
 ] as const;
 
 type OverviewDetailRoute =
@@ -294,10 +283,10 @@ export function Overview({
       <header className="page-header">
         <div>
           <p className="eyebrow">Overview</p>
-          <h2>IgnisPrompt overview</h2>
+          <h2>Aethra overview</h2>
           <p className="page-subtitle">
-            Live Local Dashboard for IgnisPrompt daemon metadata, endpoint
-            state, local commands, and read-only operational boundaries.
+            Live-local daemon status, endpoint state, local commands, and
+            review flow.
           </p>
         </div>
         <div className="status-strip" aria-label="Overview health status">
@@ -310,15 +299,6 @@ export function Overview({
           </StatusBadge>
         </div>
       </header>
-
-      <PageHelp
-        collapsible
-        items={[
-          "Use Refresh local daemon data to load read-only health, version, model, routing, evidence, audit, operations, and sustainability metadata from loopback endpoints.",
-          "If the daemon is unavailable, Aethra shows not loaded, unavailable, or failed states instead of substituting fixture data into product status.",
-          "Offline preview fixtures remain explicit and separate from live-local product state.",
-        ]}
-      />
 
       <section className="dashboard-front-door" aria-label="Live local dashboard summary">
         <div className="dashboard-status-card">
@@ -333,13 +313,11 @@ export function Overview({
           </div>
           <p className="muted">
             Primary state is local daemon metadata loaded by manual refresh.
-            Aethra does not auto-load, poll, persist daemon responses, or blend
-            fixture data into failed live surfaces.
           </p>
         </div>
         <div className="dashboard-proof-grid">
           <FactListPanel title="What this dashboard proves" items={dashboardProves} />
-          <FactListPanel title="What this dashboard does not do" items={dashboardDoesNotDo} />
+          <FactListPanel title="Help" items={["Data source details", "Product limits", "Troubleshooting"]} />
         </div>
       </section>
 
@@ -348,11 +326,8 @@ export function Overview({
           <p className="eyebrow">Status surfaces</p>
           <h3>Read-only local daemon metadata</h3>
           <p className="muted">
-            Aethra is a read-only local-first dashboard. Start{" "}
-            <code>ignispromptd</code>, keep the daemon at{" "}
-            <code>http://127.0.0.1:8765</code> by default, then use the primary
-            refresh action above. Aethra itself usually runs at{" "}
-            <code>http://127.0.0.1:5173</code> during development.
+            Live-local status appears after refresh. Detail pages show focused
+            views for each surface.
           </p>
         </div>
         {baseUrlError ? (
@@ -391,7 +366,7 @@ export function Overview({
           <h3>Demo-ready path through live-local state</h3>
           <p className="muted">
             This sequence keeps reviewers focused on local connectivity,
-            metadata visibility, and read-only boundaries.
+            metadata visibility, and review order.
           </p>
         </div>
         <div className="panel" aria-label="Suggested review flow steps">
@@ -430,7 +405,7 @@ export function Overview({
           <h3>Read-only local daemon surfaces</h3>
           <p className="muted">
             Each row maps a dashboard surface to a local daemon endpoint and a
-            boundary. No route, model, package, or mutation action is exposed.
+            data source. No route, model, package, or mutation action is exposed.
           </p>
         </div>
         <div className="panel table-panel endpoint-matrix-panel">
@@ -442,7 +417,7 @@ export function Overview({
                 <th>Status</th>
                 <th>Last loaded</th>
                 <th>Detail page</th>
-                <th>Boundary</th>
+                <th>Details</th>
               </tr>
             </thead>
             <tbody>
@@ -470,8 +445,7 @@ export function Overview({
           <p className="eyebrow">Start Local Daemon</p>
           <h3>Local commands</h3>
           <p className="muted">
-            Aethra does not execute commands. Run these in your terminal when
-            you want live-local data.
+            Copy these commands when you want live-local data.
           </p>
         </div>
         <div className="overview-operations-grid">
@@ -530,10 +504,7 @@ export function Overview({
         <div className="section-heading">
           <p className="eyebrow">Manual refresh</p>
           <h3>Live-local metadata actions</h3>
-          <p className="muted">
-            These actions load individual loopback endpoints on demand. Aethra
-            does not poll or persist live-local state.
-          </p>
+          <p className="muted">Load individual loopback endpoints on demand.</p>
         </div>
         <div className="overview-metadata-grid">
           <HealthMetadataPanel
@@ -681,9 +652,7 @@ export function Overview({
             </div>
           </div>
           <p className="muted">
-            These are displayed local-preview records, not signed audit evidence,
-            certified sustainability metrics, compliance evidence, or legal
-            advice.
+            These facts summarize displayed records only.
           </p>
         </section>
 
@@ -826,7 +795,7 @@ function LiveSurfaceCardView({
           <dd>{surface.lastLoaded}</dd>
         </div>
         <div>
-          <dt>Boundary</dt>
+          <dt>Details</dt>
           <dd>{surface.boundary}</dd>
         </div>
       </dl>
@@ -887,7 +856,7 @@ function buildOverviewLiveSurfaces(input: {
         input.health.status === "loaded"
           ? `${input.health.health.service} ${input.health.health.version}; ${input.health.health.model_count} models reported.`
           : stateSummary(input.health),
-      boundary: "Daemon status only; no route, model, or mutation action.",
+      boundary: "Daemon status only.",
       detailLabel: "Overview",
     },
     {
@@ -903,7 +872,7 @@ function buildOverviewLiveSurfaces(input: {
         input.versionStatus.status === "loaded"
           ? `${input.versionStatus.versionStatus.service} ${input.versionStatus.versionStatus.version}.`
           : stateSummary(input.versionStatus),
-      boundary: "Release metadata only; no update check or external lookup.",
+      boundary: "Release metadata only.",
       detailLabel: "Overview",
     },
     {
@@ -916,7 +885,7 @@ function buildOverviewLiveSurfaces(input: {
         input.models.status === "loaded"
           ? "Configured model manifest entries loaded from the daemon."
           : stateSummary(input.models),
-      boundary: "Manifest metadata only; no model execution or downloads.",
+      boundary: "Manifest metadata only.",
       detailRoute: "model-runner-status",
       detailLabel: "Model / Runner Status",
     },
@@ -933,7 +902,7 @@ function buildOverviewLiveSurfaces(input: {
         input.modelInventory.status === "loaded"
           ? `${formatBytes(input.modelInventory.inventory.summary.total_size_bytes)} observed as safe local file metadata.`
           : stateSummary(input.modelInventory),
-      boundary: "Read-only file metadata; no contents, hashing, downloads, or deletes.",
+      boundary: "Read-only file metadata.",
       detailRoute: "model-runner-status",
       detailLabel: "Model / Runner Status",
     },
@@ -950,7 +919,7 @@ function buildOverviewLiveSurfaces(input: {
         input.modelReadiness.status === "loaded"
           ? `${input.modelReadiness.readiness.summary.missing_file_count} missing-file hints.`
           : stateSummary(input.modelReadiness),
-      boundary: "Readiness hints only; no inference, quality, or legal claim.",
+      boundary: "Readiness hints only.",
       detailRoute: "model-runner-status",
       detailLabel: "Model / Runner Status",
     },
@@ -967,7 +936,7 @@ function buildOverviewLiveSurfaces(input: {
         input.modelStatus.status === "loaded"
           ? "Runner and local path hints loaded from the daemon."
           : stateSummary(input.modelStatus),
-      boundary: "Status hints only; no runner start/stop controls.",
+      boundary: "Status hints only.",
       detailRoute: "model-runner-status",
       detailLabel: "Model / Runner Status",
     },
@@ -984,7 +953,7 @@ function buildOverviewLiveSurfaces(input: {
         input.capabilities.status === "loaded"
           ? `Cloud enabled: ${String(input.capabilities.capabilities.cloud_enabled)}.`
           : stateSummary(input.capabilities),
-      boundary: "Status metadata only; no connector enablement or cloud calls.",
+      boundary: "Status metadata only.",
       detailRoute: "model-runner-status",
       detailLabel: "Model / Runner Status",
     },
@@ -1001,7 +970,7 @@ function buildOverviewLiveSurfaces(input: {
         input.operationsSummary.status === "loaded"
           ? `${countAvailableOperationEndpoints(input.operationsSummary.summary.endpoints)} endpoints available.`
           : stateSummary(input.operationsSummary),
-      boundary: "Aggregate metadata only; no raw prompts or request bodies.",
+      boundary: "Aggregate metadata only.",
       detailRoute: "audit-events",
       detailLabel: "Audit Events",
     },
@@ -1018,7 +987,7 @@ function buildOverviewLiveSurfaces(input: {
         input.routingPolicy.status === "loaded"
           ? "Read-only route categories and decision inputs loaded."
           : stateSummary(input.routingPolicy),
-      boundary: "Policy metadata only; no route execution or prompt submission.",
+      boundary: "Policy metadata only.",
       detailRoute: "routing-explorer",
       detailLabel: "Routing Explorer",
     },
@@ -1035,7 +1004,7 @@ function buildOverviewLiveSurfaces(input: {
         input.evidencePackages.status === "loaded"
           ? `${input.evidencePackages.index.aggregate_summary.packages_with_reports} packages include report-like names.`
           : stateSummary(input.evidencePackages),
-      boundary: "Metadata only; no generation, validation claim, upload, or delete.",
+      boundary: "Metadata only.",
       detailRoute: "evidence-bundle-viewer",
       detailLabel: "Evidence Bundle Viewer",
     },
@@ -1050,7 +1019,7 @@ function buildOverviewLiveSurfaces(input: {
         input.auditEvents.status === "loaded"
           ? "Local process audit event records loaded."
           : stateSummary(input.auditEvents),
-      boundary: "Displayed records only; no raw prompt bodies or external redaction.",
+      boundary: "Displayed records only.",
       detailRoute: "audit-events",
       detailLabel: "Audit Events",
     },
@@ -1067,7 +1036,7 @@ function buildOverviewLiveSurfaces(input: {
         input.sustainabilityMetrics.status === "loaded"
           ? "Counterfactual proxy estimates loaded from daemon audit metadata."
           : stateSummary(input.sustainabilityMetrics),
-      boundary: "Proxy estimates only; not measured energy or compliance evidence.",
+      boundary: "Proxy estimates only.",
       detailRoute: "sustainability-preview",
       detailLabel: "Sustainability Preview",
     },
@@ -1264,9 +1233,7 @@ function OperationsSummaryPanel({
       </dl>
 
       <p className="muted diagnostics-note">
-        Operations metadata is aggregate and read-only. Aethra does not show raw
-        prompts, raw request bodies, secrets, telemetry, cloud activity, route
-        execution, model execution, or connector mutation.
+        Operations metadata is aggregate and read-only. Details are in Help.
       </p>
     </section>
   );
@@ -1288,7 +1255,7 @@ function RoutingPolicySummaryPanel({
           <h3>Local routing policy summary</h3>
           <p className="muted">
             Read-only policy metadata for route categories, decision inputs, and
-            local-preview boundaries.
+            status details.
           </p>
         </div>
         <StatusBadge tone={sourceLabel === "Local daemon data" ? "ok" : "neutral"}>
@@ -1316,9 +1283,7 @@ function RoutingPolicySummaryPanel({
       </dl>
 
       <p className="muted diagnostics-note">
-        Routing policy metadata is read-only. Aethra does not execute routes,
-        submit prompts, execute models, mutate policy, mutate manifests, mutate
-        connectors, call cloud services, or send telemetry.
+        Routing policy metadata is read-only. Details are in Help.
       </p>
     </section>
   );
@@ -1379,10 +1344,7 @@ function EvidencePackageIndexPanel({
       </dl>
 
       <p className="muted diagnostics-note">
-        Evidence package metadata is read-only. Aethra does not show file
-        contents, generate packages, validate packages as certified, upload
-        files, delete files, or claim attestation, compliance, legal accuracy,
-        or deployment readiness.
+        Evidence package metadata is read-only.
       </p>
     </section>
   );
@@ -1457,9 +1419,7 @@ function LocalCommandsPanel() {
       </div>
 
       <p className="muted local-commands-note">
-        Aethra only copies text to your clipboard. It does not execute commands,
-        call telemetry, contact cloud services, call GitHub, check for updates,
-        poll endpoints, or persist command state.
+        Clipboard copy only. Details are in Help.
       </p>
     </section>
   );
@@ -1538,8 +1498,7 @@ function LiveLocalDiagnosticsPanel({
       <p className="explanation">{diagnostics.detail}</p>
       <p className="muted diagnostics-note">
         Offline preview fixture mode remains available without a daemon, but it
-        is separate from live product state. Diagnostics are local-only,
-        manual, non-persistent, and not telemetry.
+        is separate from live product state. Details are in Help.
       </p>
     </section>
   );
@@ -1694,9 +1653,7 @@ function VersionStatusPanel({
       ) : null}
 
       <p className="muted version-status-note">
-        Daemon version status is local preview support/debugging metadata. Aethra
-        does not use it for telemetry, update checks, external release lookups,
-        or GitHub API calls.
+        Daemon version status is support metadata. Details are in Help.
       </p>
 
       {isLiveMode ? (
