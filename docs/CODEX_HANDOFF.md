@@ -136,7 +136,7 @@ This file records the current IgnisPrompt and Aethra state so future prompts can
 - Aethra groups live-local endpoint buttons as manual refresh actions. This is UI copy/layout only; it does not add polling, storage persistence, telemetry, cloud calls, GitHub calls, update checks, command execution, or backend behavior.
 - Aethra main pages now include lightweight "What this page shows" guidance panels and more consistent subtitles. This is UI guidance only and does not change data loading, routing, audit behavior, or endpoint shapes.
 - Aethra empty states now provide clearer local preview guidance for fixture mode, missing live-local data, unavailable daemon responses, valid empty endpoint responses, and panels that need manual refresh.
-- Aethra now includes a guided demo path and clearer sidebar labels so reviewers can move from route inspection to audit records, model and runner hints, the evidence workflow, and sustainability preview in a safe order.
+- Aethra now includes a suggested review flow and clearer sidebar labels so reviewers can move from daemon status to models/readiness, routing policy, evidence packages, audit/operations, and sustainability preview in a safe order.
 
 ## Aethra Status
 
@@ -152,7 +152,7 @@ Current Aethra boundaries:
 - model and runner status hints
 - proxy-only sustainability indicators
 
-Aethra currently provides local-preview screens for Overview, Routing Explorer, Audit Events, Model / Runner Status, Evidence Bundle Viewer, and Sustainability Preview. Aethra is now live-local first on the main dashboard: it shows not-loaded, unavailable, failed, or live local state per daemon surface and does not silently replace unavailable live data with fixtures. Offline preview fixtures remain available only where explicitly labeled for tests/demo review. Live local mode is manual, with read-only local metadata loading for:
+Aethra currently provides local-preview screens for Overview, Routing Explorer, Audit Events, Model / Runner Status, Evidence Bundle Viewer, and Sustainability Preview. Aethra is now live-local first on the main dashboard: it shows not-loaded, unavailable, failed, or live local state per daemon surface and does not silently replace unavailable live data with fixtures. The Overview front door groups surfaces into core daemon status, models/readiness, routing/operations, evidence/audit, and sustainability; it also includes a suggested review flow and concise "proves / does not do" demo-readiness copy. Offline preview fixtures remain available only where explicitly labeled for tests/demo review. Live local mode is manual, with read-only local metadata loading for:
 
 - `GET /health`
 - `GET /v1/models`
@@ -173,7 +173,7 @@ Aethra also includes a fixture-backed evidence bundle viewer for manifest, valid
 
 The evidence bundle viewer shows conservative empty states when metadata is missing or invalid. Missing fields do not imply signing, certification, attestation, cryptographic verification, or production readiness.
 
-`POST /v1/route/explain` remains local and inspection-oriented, but it appends a local audit event. Aethra now requires explicit confirmation before sending a live local route-explain request, resets that confirmation when the target daemon URL or request inputs change, and continues to recommend synthetic or non-sensitive text.
+`POST /v1/route/explain` remains local and inspection-oriented, but it appends a local audit event. Aethra does not submit live route-explain requests from the dashboard. Routing Explorer shows read-only routing policy metadata and clearly labeled offline preview fixture route examples only.
 
 IgnisPrompt now exposes `GET /v1/status/models` for local model and runner status hints. This endpoint is read-only, local-only, and conservative: it reports configuration/path/runner hints and warning language, not production readiness, model quality, legal accuracy, or compliance status.
 
@@ -195,9 +195,9 @@ Aethra can manually load `GET /v1/status/version` on the Overview screen in live
 
 Aethra Overview live-local diagnostics explain next local steps such as starting `./scripts/start-dev.sh`, checking the loopback `/health` endpoint, confirming endpoint availability, or using fixture mode while debugging. Diagnostics are local-only, manual, non-persistent, and not telemetry.
 
-Aethra Overview includes a Local Commands panel with copyable local preview helper commands. The commands are for the operator to run in a terminal. The panel does not add remote execution, telemetry, cloud calls, GitHub calls, update checks, polling, or local/session storage persistence.
+Aethra Overview includes copyable local preview helper commands for starting the daemon/Aethra and inspecting local metadata with `ignispromptctl --json` commands. The commands are for the operator to run in a terminal. The panel does not add remote execution, telemetry, cloud calls, GitHub calls, update checks, polling, or local/session storage persistence.
 
-Aethra includes a local preview banner and grouped manual live-local refresh controls. Aethra prefers manually refreshed local daemon metadata and keeps failed/unavailable sections marked as failed or unavailable rather than replacing them with fixtures. Live local loading remains explicit/manual, and no polling, local/session storage persistence, telemetry, cloud calls, GitHub calls, update checks, command execution, backend changes, route execution, model execution, connector mutation, or API shape changes are added by this UI polish.
+Aethra includes a local preview banner, grouped manual live-local refresh controls, grouped status cards, a cleaner endpoint matrix, and a suggested review flow. Aethra prefers manually refreshed local daemon metadata and keeps failed/unavailable sections marked as failed or unavailable rather than replacing them with fixtures. Live local loading remains explicit/manual, and no polling, local/session storage persistence, telemetry, cloud calls, GitHub calls, update checks, command execution, backend changes, route execution, model execution, connector mutation, upload/download/delete controls, or API shape changes are added by this UI polish.
 
 Aethra includes a Local Readiness page that summarizes daemon health, version/status, configured models, model and runner status hints, evidence workflow availability, and local helper checks. The page is fixture-backed by default, uses already-loaded live-local data only after manual refreshes elsewhere, provides copy-only snippets for `./scripts/start-dev.sh`, `cargo run -p ignispromptctl -- health`, `cargo run -p ignispromptctl -- doctor`, `cargo run -p ignispromptctl -- readiness`, `cargo run -p ignispromptctl -- readiness --markdown`, readiness package generation/list/validate commands, `make dev-check`, and `make evidence-check`, offers a browser-local copy-only readiness report snippet, shows a read-only readiness package preview, and shows read-only diagnostic drilldown hints for category, status, severity, local next step, and boundary note.
 
@@ -225,9 +225,7 @@ Aethra can manually load `GET /v1/models/inventory`, `GET /v1/models/readiness`,
 
 Aethra's visual capability/status matrix uses manually loaded `GET /v1/capabilities` rows in live-local mode and otherwise stays not loaded, failed, unavailable, or empty. Offline preview fixture capability metadata is separate and clearly labeled. This adds no polling, no telemetry, no cloud calls, no connector controls, and no model or runner controls.
 
-Sustainability Preview can export a structured local Markdown report and a deterministic schema-versioned JSON report from the currently displayed sustainability metrics, whether those metrics are explicitly labeled offline preview fixture data or manually loaded live-local data. The JSON report uses `report_schema_version: "aethra-sustainability-report-0.1"` and includes summary, estimates, tier breakdown, baseline, methodology, confidence, disclaimer, limitations, and `local_only: true`. Export is client-side only. It does not persist report data, send report data to a backend, add telemetry, call cloud services, call GitHub, check for updates, poll endpoints, look up external coefficients, or include request content, prompts, raw audit event bodies, PII, machine identifiers, hostnames, usernames, filesystem paths, secrets, or API keys.
-
-Sustainability Preview now repeats concise report export guidance beside the Markdown/JSON actions: reports are generated in the browser from displayed aggregate metrics, exclude prompts/raw audit text/PII/machine identifiers, and are for local preview review/debugging. Methodology version copy uses the browser Clipboard API only and does not persist state, execute commands, add telemetry, call cloud services, call GitHub, or perform update checks.
+Sustainability Preview displays read-only live-local or explicitly labeled offline preview fixture metrics and does not expose file report export or download controls in the dashboard. The page is display/copy-only: methodology version copy uses the browser Clipboard API only. Report-formatting helpers may remain covered by tests as local utility code, but they are not exposed as dashboard export or download actions. Sustainability Preview does not persist report data, send report data to a backend, add telemetry, call cloud services, call GitHub, check for updates, poll endpoints, look up external coefficients, or include request content, prompts, raw audit event bodies, PII, machine identifiers, hostnames, usernames, filesystem paths, secrets, or API keys.
 
 Aethra observes IgnisPrompt state. IgnisPrompt still owns routing decisions, route explanations, audit events, local-only behavior, model manifests, runner/provider selection, and fail-closed behavior.
 

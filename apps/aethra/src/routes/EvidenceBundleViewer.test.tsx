@@ -13,7 +13,7 @@ describe("EvidenceBundleViewer", () => {
 
     expect(markup).toContain("Local evidence bundle workflow");
     expect(markup).toContain("CLI command snippets");
-    expect(markup).toContain("Report export");
+    expect(markup).toContain("Clipboard report copy");
     expect(markup).toContain("Local evidence packages");
     expect(markup).toContain("Offline preview");
     expect(markup).toContain("readiness_package");
@@ -21,6 +21,8 @@ describe("EvidenceBundleViewer", () => {
     expect(markup).toContain("Copy Markdown report");
     expect(markup).toContain("Copy JSON report");
     expect(markup).toContain("Clipboard only");
+    expect(markup).not.toContain("Report export");
+    expect(markup).not.toContain("Clipboard export");
     expect(markup).toContain(
       "ignispromptctl evidence-bundle --output local-evidence/demo-bundle",
     );

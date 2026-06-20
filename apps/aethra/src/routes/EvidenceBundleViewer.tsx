@@ -915,10 +915,10 @@ export function EvidenceBundleViewer({
 
       {renderCommandSnippets()}
 
-      <section className="panel" aria-label="Evidence bundle report export">
+      <section className="panel" aria-label="Evidence bundle report copy">
         <div className="panel-heading">
           <div>
-            <h3>Report export</h3>
+            <h3>Clipboard report copy</h3>
             <p className="muted">
               Copy local-preview Markdown or JSON reports from the currently
               displayed bundle metadata.
@@ -929,7 +929,7 @@ export function EvidenceBundleViewer({
 
         <PageHelp
           items={[
-            "Reports are generated locally from the displayed evidence metadata.",
+            "Report text is assembled in the browser from displayed evidence metadata and copied only when requested.",
             "Raw audit events stay omitted by default.",
             "The report text is local-preview only and is not signed, certified, or cryptographically verified.",
           ]}
@@ -939,7 +939,7 @@ export function EvidenceBundleViewer({
           <div className="command-row">
             <div className="command-copy">
               <strong>Markdown report</strong>
-              <code>Clipboard export</code>
+              <code>Clipboard copy</code>
               <span>Copies a local-only Markdown report snapshot.</span>
               {copyStatus?.kind === "markdown" ? (
                 <span className={`copy-feedback copy-feedback-${copyStatus.tone}`}>
@@ -958,7 +958,7 @@ export function EvidenceBundleViewer({
           <div className="command-row">
             <div className="command-copy">
               <strong>JSON report</strong>
-              <code>Clipboard export</code>
+              <code>Clipboard copy</code>
               <span>Copies a local-only JSON report snapshot.</span>
               {copyStatus?.kind === "json" ? (
                 <span className={`copy-feedback copy-feedback-${copyStatus.tone}`}>

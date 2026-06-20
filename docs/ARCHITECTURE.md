@@ -150,6 +150,8 @@ The endpoint is deliberately observational. It does not enable cloud routing, ca
 
 Aethra is the browser dashboard for local IgnisPrompt metadata. The main dashboard is live-local first: it starts with not-loaded endpoint states, uses one manual **Refresh local daemon data** action, and reports each supported read-only surface as live local, not loaded, unavailable, or failed. It does not auto-load on startup, poll, persist live daemon responses, submit prompts, execute routes, execute models, generate packages, validate packages as certified, upload/download/delete files, mutate connectors/models/runners/policy/manifests, call cloud services, or send telemetry.
 
+The dashboard front door groups local surfaces into core daemon status, models/readiness, routing/operations, evidence/audit, and sustainability. It includes a suggested review flow for local demos and reviewer walkthroughs plus concise "proves / does not do" sections. This is UI organization only; it does not add endpoints, automatic loading, background refresh, command execution, or live data persistence.
+
 Offline preview fixtures remain in the app for tests, local demos, and explicitly labeled fixture views. They are not mixed into the main product state when the daemon is unavailable or a live endpoint fails.
 
 ## Local model inventory
