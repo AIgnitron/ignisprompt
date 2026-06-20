@@ -56,11 +56,6 @@ type BundleIssueState = {
   detail: string;
 };
 
-type EvidenceBundleCommandSnippet = {
-  command: string;
-  note: string;
-};
-
 type ReportCopyKind = "markdown" | "json";
 
 type ReportCopyStatus = {
@@ -69,37 +64,6 @@ type ReportCopyStatus = {
   message: string;
 };
 
-const evidenceBundleCommandSnippets: EvidenceBundleCommandSnippet[] = [
-  {
-    command: "ignispromptctl evidence-bundle --output local-evidence/demo-bundle",
-    note:
-      "Generate a local-preview bundle under ignored local-evidence/ paths.",
-  },
-  {
-    command: "ignispromptctl evidence-bundle --list local-evidence/demo-bundle",
-    note: "Inspect the bundle contents without calling the daemon.",
-  },
-  {
-    command: "ignispromptctl evidence-bundle --validate local-evidence/demo-bundle",
-    note:
-      "Check required files and summary metadata with local validation only.",
-  },
-  {
-    command: "ignispromptctl evidence-bundle --archive local-evidence/demo-bundle",
-    note:
-      "Create a local archive after validation; the archive is not signed.",
-  },
-  {
-    command:
-      "ignispromptctl evidence-bundle --verify-archive local-evidence/archives/demo-bundle.tar.gz",
-    note:
-      "Structural local validation only; this is not cryptographic verification.",
-  },
-  {
-    command: "ignispromptctl evidence-bundle --print-manifest local-evidence/demo-bundle",
-    note: "Print the manifest without upload, extraction, or persistence.",
-  },
-];
 const emptyEvidencePackageIndex: EvidencePackageIndexResponse = {
   ...evidencePackageIndexFixture,
   root_summary: {
@@ -182,8 +146,8 @@ function buildManifestState(
   if (!isRecord(manifest)) {
     return missingState(
       "No manifest metadata available",
-      "This sample does not include bundle manifest data.",
-      "Aethra stays read-only and does not infer signing, certification, or production readiness from missing metadata.",
+      "Bundle manifest data is unavailable for this sample.",
+      "Aethra keeps this view read-only when metadata is missing.",
     );
   }
 
@@ -245,7 +209,7 @@ function buildManifestState(
   return invalidState(
     "Bundle manifest metadata is incomplete",
     "This sample includes a manifest object, but one or more required fields are missing or invalid.",
-    `Missing or invalid fields: ${missingFields.join(", ")}. Aethra keeps this view read-only and does not infer signing, certification, or production readiness from incomplete metadata.`,
+    `Missing or invalid fields: ${missingFields.join(", ")}.`,
   );
 }
 
@@ -257,8 +221,8 @@ function buildValidationState(
   if (!isRecord(validation)) {
     return missingState(
       "No validation summary available",
-      "This sample does not include validation summary data.",
-      "Aethra stays read-only and does not infer signed attestation, tamper-evident storage, or certification from missing validation fields.",
+      "Validation summary data is unavailable for this sample.",
+      "Aethra keeps this view read-only when validation fields are missing.",
     );
   }
 
@@ -322,7 +286,7 @@ function buildValidationState(
   return invalidState(
     "Validation summary is incomplete",
     "This sample includes validation data, but one or more required fields are missing or invalid.",
-    `Missing or invalid fields: ${missingFields.join(", ")}. Aethra keeps the view read-only and does not infer signing, certification, or production readiness from incomplete validation data.`,
+    `Missing or invalid fields: ${missingFields.join(", ")}.`,
   );
 }
 
@@ -334,8 +298,8 @@ function buildArchiveState(
   if (archivePreview === undefined || archivePreview === null) {
     return missingState(
       "No archive metadata preview",
-      "This sample does not include archive metadata.",
-      "Archive inspection remains a separate local-only step outside the browser and does not imply upload, signing, or cryptographic verification.",
+      "Archive metadata is unavailable for this sample.",
+      "Archive inspection remains a separate local-only step outside the browser.",
     );
   }
 
@@ -343,7 +307,7 @@ function buildArchiveState(
     return invalidState(
       "Archive metadata is invalid",
       "This sample includes archive metadata, but the shape is not valid.",
-      "Aethra keeps the archive preview read-only and does not infer signing, certification, or cryptographic verification from malformed metadata.",
+      "Aethra keeps the archive preview read-only.",
     );
   }
 
@@ -419,7 +383,7 @@ function buildArchiveState(
   return invalidState(
     "Archive metadata is incomplete",
     "This sample includes archive metadata, but one or more required fields are missing or invalid.",
-    `Missing or invalid fields: ${missingFields.join(", ")}. Aethra keeps the archive preview read-only and does not infer signing, certification, or cryptographic verification from incomplete metadata.`,
+    `Missing or invalid fields: ${missingFields.join(", ")}.`,
   );
 }
 
@@ -454,7 +418,7 @@ function renderManifestState(
           <dd>{sanitizeEvidenceBundleText(manifest.generated_at)}</dd>
         </div>
         <div>
-          <dt>Local preview boundary</dt>
+          <dt>Data source</dt>
           <dd>{sanitizeEvidenceBundleText(manifest.local_preview_boundary)}</dd>
         </div>
       </dl>
@@ -474,18 +438,6 @@ function renderManifestState(
             {sanitizeEvidenceBundleTextList(manifest.included_endpoints).map((endpoint) => (
               <li key={endpoint}>{endpoint}</li>
             ))}
-          </ul>
-        </section>
-        <section>
-          <h4>Boundary statements</h4>
-          <ul>
-            <li>{sanitizeEvidenceBundleText(manifest.non_certified_boundary)}</li>
-            <li>{sanitizeEvidenceBundleText(manifest.not_signed_boundary)}</li>
-            <li>
-              {sanitizeEvidenceBundleText(
-                manifest.not_production_attestation_boundary,
-              )}
-            </li>
           </ul>
         </section>
       </div>
@@ -609,16 +561,14 @@ function renderArchiveState(
             <li>
               Symlinks followed: {archivePreview.symlinks_followed ? "yes" : "no"}
             </li>
-            <li>Signed: {archivePreview.signed ? "yes" : "no"}</li>
-            <li>Certified: {archivePreview.certified ? "yes" : "no"}</li>
-            <li>
-              Tamper evident: {archivePreview.tamper_evident ? "yes" : "no"}
-            </li>
+            <li>Signature flag: {archivePreview.signed ? "yes" : "no"}</li>
+            <li>Review flag: {archivePreview.certified ? "yes" : "no"}</li>
+            <li>Integrity flag: {archivePreview.tamper_evident ? "yes" : "no"}</li>
           </ul>
         </section>
       </div>
 
-      <p className="explanation">{sanitizeEvidenceBundleText(archivePreview.note)}</p>
+      <p className="explanation">Archive metadata preview is available.</p>
     </>
   );
 }
@@ -667,8 +617,8 @@ function EvidencePackageIndexSection({
         <EmptyState
           title="Loading evidence package index"
           message="Aethra is loading read-only local evidence package metadata from the configured daemon."
-          nextAction="No polling is used; the request runs only because manual refresh was selected."
-          detail="Offline preview fixtures are shown only in explicit fixture mode."
+          nextAction="Manual refresh in progress."
+          detail="Details are in Help."
         />
       ) : null}
 
@@ -702,7 +652,7 @@ function EvidencePackageIndexSection({
           title="No evidence packages indexed"
           message="No local evidence package folders were reported by the current package index data."
           nextAction="Generated evidence remains optional and ignored; missing packages do not block local preview."
-          detail="The index does not create packages or validate packages as certified."
+          detail="The index reports metadata only."
         />
       )}
 
@@ -755,14 +705,7 @@ function EvidencePackageIndexSection({
         </div>
       ) : null}
 
-      <p className="muted diagnostics-note">
-        Read-only metadata only. Aethra does not show file contents, generate
-        packages, validate packages as certified, upload, download, delete,
-        mutate files, execute routes or models, submit prompts, call cloud
-        services, send telemetry, expose raw prompts, raw request bodies, audit
-        event bodies, secrets, private credentials, or claim attestation,
-        compliance, legal correctness, or production readiness.
-      </p>
+      <p className="muted diagnostics-note">Read-only package metadata.</p>
     </section>
   );
 }
@@ -778,42 +721,6 @@ function formatBytes(sizeBytes: number): string {
     return `${(sizeBytes / 1024).toFixed(2)} KB`;
   }
   return `${sizeBytes} B`;
-}
-
-function renderCommandSnippets() {
-  return (
-    <section className="panel" aria-label="Evidence bundle CLI snippets">
-      <div className="panel-heading">
-        <div>
-          <h3>CLI command snippets</h3>
-          <p className="muted">
-            Local-preview examples for generating, listing, validating,
-            archiving, verifying, and printing the bundle manifest.
-          </p>
-        </div>
-        <StatusBadge tone="neutral">Local preview examples</StatusBadge>
-      </div>
-
-      <PageHelp
-        items={[
-          "Use these commands with local-preview data only.",
-          "Keep generated output under ignored local-evidence/ paths.",
-          "Archive verification is structural local validation only; it is not cryptographic verification.",
-        ]}
-      />
-
-      <div className="warning-list">
-        {evidenceBundleCommandSnippets.map((snippet) => (
-          <section key={snippet.command}>
-            <p>
-              <code>{snippet.command}</code>
-            </p>
-            <p className="muted">{snippet.note}</p>
-          </section>
-        ))}
-      </div>
-    </section>
-  );
 }
 
 export function EvidenceBundleViewer({
@@ -884,8 +791,7 @@ export function EvidenceBundleViewer({
           <h2>Local evidence bundle workflow</h2>
           <p className="page-subtitle">
             Review fixture-backed bundle metadata, validation summary, and
-            archive metadata preview without extraction, upload, telemetry, or
-            external calls.
+            archive metadata preview.
           </p>
         </div>
         <div className="status-strip" aria-label="Evidence bundle status">
@@ -897,13 +803,7 @@ export function EvidenceBundleViewer({
 
       <PageHelp
         collapsible
-        items={[
-          "Inspect safe manifest and summary fields from the fixture bundle sample.",
-          "Review a read-only local evidence package index when live-local metadata has been manually refreshed.",
-          "Review what is generated locally under ignored local-evidence paths and what git should continue to ignore.",
-          "Validation remains structural and local only; it does not imply signing, certification, or tamper evidence.",
-          "Archive metadata preview is read-only and does not extract archives or load arbitrary local paths.",
-        ]}
+        items={["See Help for evidence data source details and product limits."]}
       />
 
       <EvidencePackageIndexSection
@@ -912,8 +812,6 @@ export function EvidenceBundleViewer({
         dataMode={dataMode}
         liveState={liveEvidencePackagesState}
       />
-
-      {renderCommandSnippets()}
 
       <section className="panel" aria-label="Evidence bundle report copy">
         <div className="panel-heading">
@@ -928,11 +826,7 @@ export function EvidenceBundleViewer({
         </div>
 
         <PageHelp
-          items={[
-            "Report text is assembled in the browser from displayed evidence metadata and copied only when requested.",
-            "Raw audit events stay omitted by default.",
-            "The report text is local-preview only and is not signed, certified, or cryptographically verified.",
-          ]}
+          items={["Clipboard copy uses displayed metadata only."]}
         />
 
         <div className="command-list">
@@ -1085,13 +979,13 @@ export function EvidenceBundleViewer({
             message={
               archiveState.kind === "invalid"
                 ? archiveState.message
-                : "This sample does not include archive metadata."
+                : "Archive metadata is unavailable for this sample."
             }
             nextAction="Archive inspection remains a separate local-only step outside the browser."
             detail={
               archiveState.kind === "invalid"
                 ? archiveState.detail
-                : "No archive extraction, upload, signed attestation, tamper-evident storage, or cryptographic verification is performed here."
+              : "Archive inspection remains separate from this page."
             }
           />
         )}

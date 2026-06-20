@@ -131,12 +131,7 @@ export function AuditEvents({
       </header>
 
       <PageHelp
-        items={[
-          "Review local process route history from a manual live-local refresh or explicit offline preview fixture mode.",
-          "Search request IDs, routes, tiers, domains, and models; filter for warnings or cache-hit records.",
-          "Inspect route explanations, warnings, cache hints, and sustainability estimate fields.",
-          "Audit events are local records for observability, not signed evidence or production deployment proof.",
-        ]}
+        items={["See Help for audit data source details and product limits."]}
       />
 
       <AuditMetadataPanel
@@ -369,11 +364,6 @@ function AuditOperationsSummaryPanel({
         </div>
       </dl>
 
-      <p className="muted">
-        This summary is read-only operational metadata, not production
-        monitoring, compliance status, certification, signed evidence, or legal
-        accuracy proof.
-      </p>
     </section>
   );
 }
@@ -644,8 +634,6 @@ function AuditEventDetail({ event, isLiveEvent }: AuditEventDetailProps) {
 
       <p className="muted">
         This is {isLiveEvent ? "a local daemon record" : "offline preview fixture data"}.
-        It is not signed, immutable, tamper-evident, encrypted, replicated,
-        certified, or compliance evidence.
       </p>
     </aside>
   );

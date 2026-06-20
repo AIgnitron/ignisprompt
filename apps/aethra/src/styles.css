@@ -229,6 +229,33 @@ textarea:focus {
   max-width: 460px;
 }
 
+.compact-source-strip {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1160px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid #d9e1e3;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.compact-source-copy,
+.compact-source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.help-section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
 .data-source-control {
   display: grid;
   gap: 12px;

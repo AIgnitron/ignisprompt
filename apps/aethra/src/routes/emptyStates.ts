@@ -8,11 +8,10 @@ export type EmptyStateCopy = {
 export const localPreviewEmptyStates = {
   fixtureModeActive: {
     title: "Fixture mode is active",
-    message: "This is demo-safe and does not require a daemon.",
+    message: "Fixture data is available for local review.",
     nextAction:
       "Use the suggested review flow to move through daemon status, models, routing policy, evidence packages, audit records, and sustainability preview.",
-    detail:
-      "Aethra does not auto-load, poll, persist, or send telemetry for fixture data.",
+    detail: "Details are in Help.",
   },
   liveHealthNotLoaded: {
     title: "No live health loaded",
@@ -29,8 +28,7 @@ export const localPreviewEmptyStates = {
       "Aethra is not showing live daemon version status until you manually refresh.",
     nextAction:
       "Start the daemon with ./scripts/start-dev.sh, then refresh daemon version status from the suggested review flow.",
-    detail:
-      "Daemon version status is support/debugging metadata, not telemetry or an update checker.",
+    detail: "Daemon version status is support metadata. Details are in Help.",
   },
   auditEventsNotLoaded: {
     title: "No live audit events loaded",
@@ -38,8 +36,7 @@ export const localPreviewEmptyStates = {
       "Aethra is not showing live audit records until audit events are manually refreshed.",
     nextAction:
       "Run ./scripts/smoke.sh if you need local audit records, then refresh audit events from the suggested review flow.",
-    detail:
-      "Live-local audit loading requires the local daemon and does not poll automatically.",
+    detail: "Details are in Help.",
   },
   auditEventsEmpty: {
     title: "No audit events yet",
@@ -75,8 +72,7 @@ export const localPreviewEmptyStates = {
       "Aethra is not showing live sustainability metrics until they are manually refreshed.",
     nextAction:
       "Start the daemon, run smoke checks if needed, then refresh sustainability metrics from the suggested review flow.",
-    detail:
-      "These are methodology-dependent proxy estimates and are not telemetry.",
+    detail: "Methodology details are in Help.",
   },
   sustainabilityTierBreakdownEmpty: {
     title: "No route tier breakdown available",

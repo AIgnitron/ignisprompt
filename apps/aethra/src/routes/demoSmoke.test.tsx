@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import App from "../App";
 import { AuditEvents } from "./AuditEvents";
 import { EvidenceBundleViewer } from "./EvidenceBundleViewer";
+import { Help } from "./Help";
 import { ModelRunnerStatus } from "./ModelRunnerStatus";
 import { Overview } from "./Overview";
 import { RoutingExplorer } from "./RoutingExplorer";
@@ -139,12 +140,15 @@ describe("Aethra demo smoke and review readiness", () => {
     expect(combined).toContain("Local evidence bundle workflow");
     expect(combined).toContain("Live local sustainability metrics");
     expect(combined).toContain("Capability and status matrix");
-    expect(combined).toContain("Read-only dashboard boundary");
+    expect(combined).toContain("Data source");
 
     for (const markup of markups) {
       expect(markup).toContain("Read-only");
       expectNoUnsafeActions(markup);
       expectNoPositiveClaims(markup);
+      expect(markup).not.toContain("Boundaries");
+      expect(markup).not.toContain("Local demo boundary reminders");
+      expect(markup).not.toContain("Local preview boundary reminders");
     }
   });
 
@@ -154,7 +158,8 @@ describe("Aethra demo smoke and review readiness", () => {
     expect(markup).toContain("What is happening now?");
     expect(markup).toContain("Suggested Review Flow");
     expect(markup).toContain("What this dashboard proves");
-    expect(markup).toContain("What this dashboard does not do");
+    expect(markup).toContain("Data source details");
+    expect(markup).toContain("Product limits");
     expect(markup).toContain("Core daemon status");
     expect(markup).toContain("Models and readiness");
     expect(markup).toContain("Routing and operations");
@@ -163,6 +168,9 @@ describe("Aethra demo smoke and review readiness", () => {
     expect(markup).toContain("Endpoint Matrix");
     expect(markup).toContain("not loaded");
     expect(markup).toContain("live local");
+    expect(markup).not.toContain("Not legal advice");
+    expect(markup).not.toContain("Not compliance claims");
+    expect(markup).not.toContain("Not ESG reporting evidence");
   });
 
   it("keeps live-local default not-loaded without startup fetches or fixture substitution", () => {
@@ -253,5 +261,14 @@ describe("Aethra demo smoke and review readiness", () => {
     expect(appSource).not.toContain("localStorage");
     expect(appSource).not.toContain("sessionStorage");
     expect(appSource).not.toContain("routeExplain(");
+  });
+
+  it("keeps long explanatory guidance on Help", () => {
+    const markup = renderToStaticMarkup(<Help />);
+
+    expect(markup).toContain("Safety / Product Limits");
+    expect(markup).toContain("Aethra is not legal advice");
+    expect(markup).toContain("No telemetry or cloud calls are made by default");
+    expect(markup).toContain("Manual refresh means Aethra does not poll");
   });
 });

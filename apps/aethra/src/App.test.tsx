@@ -1,18 +1,20 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import App from "./App";
+import { Help } from "./routes/Help";
 
 describe("Aethra app navigation and demo guidance", () => {
   it("keeps the safe sidebar order and guided path copy visible", () => {
     const markup = renderToStaticMarkup(<App />);
     const labels = [
       "Overview",
+      "Routing",
+      "Audit",
+      "Models",
+      "Evidence",
+      "Sustainability",
+      "Help",
       "Local demo studio",
-      "Route explorer",
-      "Audit events",
-      "Model and runner status",
-      "Evidence bundle",
-      "Sustainability preview",
       "Local readiness",
       "Local operator console",
       "Local policy workbench",
@@ -21,7 +23,7 @@ describe("Aethra app navigation and demo guidance", () => {
 
     let previousIndex = -1;
     for (const label of labels) {
-      const currentIndex = markup.indexOf(label);
+      const currentIndex = markup.indexOf(`>${label}</button>`);
       expect(currentIndex).toBeGreaterThan(previousIndex);
       previousIndex = currentIndex;
     }
@@ -40,12 +42,9 @@ describe("Aethra app navigation and demo guidance", () => {
     expect(markup).toContain("What this dashboard proves");
     expect(markup).toContain("local daemon connectivity");
     expect(markup).toContain("local metadata visibility");
-    expect(markup).toContain("read-only governance surface");
-    expect(markup).toContain("What this dashboard does not do");
-    expect(markup).toContain("no route execution");
-    expect(markup).toContain("no prompt submission");
-    expect(markup).toContain("no model execution");
-    expect(markup).toContain("no mutation");
+    expect(markup).toContain("Help");
+    expect(markup).toContain("Data source details");
+    expect(markup).toContain("Product limits");
     expect(markup).toContain("Endpoint Matrix");
     expect(markup).toContain("Core daemon status");
     expect(markup).toContain("Models and readiness");
@@ -62,16 +61,14 @@ describe("Aethra app navigation and demo guidance", () => {
     expect(markup).toContain("cargo run -p ignispromptctl -- doctor --json");
   });
 
-  it("keeps explicit boundary language while avoiding unsafe positive claims", () => {
+  it("moves long safety explanations out of the default product surface", () => {
     const markup = renderToStaticMarkup(<App />);
 
-    expect(markup).toContain("Not legal advice.");
-    expect(markup).toContain(
-      "Not compliance claims, not security assurance, and not ESG reporting evidence.",
-    );
-    expect(markup).toContain(
-      "Not signed attestation or tamper-evident audit evidence.",
-    );
+    expect(markup).not.toContain("Not legal advice.");
+    expect(markup).not.toContain("Not compliance claims");
+    expect(markup).not.toContain("Not ESG reporting evidence");
+    expect(markup).not.toContain("Local demo boundary reminders");
+    expect(markup).not.toContain("Local preview boundary reminders");
     expect(markup).not.toContain("production attestation");
     expect(markup).not.toContain("production readiness");
     expect(markup).not.toContain("raw audit text");
@@ -85,20 +82,16 @@ describe("Aethra app navigation and demo guidance", () => {
 
     expect(markup).toContain("Offline preview fixture");
     expect(markup).toContain("Read-only");
-    expect(markup).toContain("No telemetry");
-    expect(markup).toContain("No cloud calls by default");
     expect(markup).toContain("Local preview and live-local setup");
     expect(markup).toContain("http://127.0.0.1:8765");
     expect(markup).toContain("http://127.0.0.1:5173");
     expect(markup).toContain("This field is not the Aethra dev server URL");
     expect(markup).toContain("Refresh local daemon data");
-    expect(markup).toContain("operations summary");
+    expect(markup).toContain("Operations summary");
     expect(markup).toContain("model readiness");
-    expect(markup).toContain("routing policy summary");
-    expect(markup).toContain("evidence package index");
+    expect(markup).toContain("Routing policy summary");
+    expect(markup).toContain("Evidence package index");
     expect(markup).toContain("Health-only check");
-    expect(markup).toContain("No model or runner controls");
-    expect(markup).toContain("No command execution");
     expect(markup).toContain("<details");
     expect(markup).not.toContain("<details class=\"data-source-details\" open");
   });
@@ -110,6 +103,19 @@ describe("Aethra app navigation and demo guidance", () => {
 
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
+  });
+
+  it("renders Help with local-preview and safety guidance", () => {
+    const markup = renderToStaticMarkup(<Help />);
+
+    expect(markup).toContain("Aethra help");
+    expect(markup).toContain("Local Preview");
+    expect(markup).toContain("Data Sources");
+    expect(markup).toContain("Safety / Product Limits");
+    expect(markup).toContain("Troubleshooting");
+    expect(markup).toContain("Review Checklist");
+    expect(markup).toContain("Aethra is not legal advice");
+    expect(markup).toContain("No telemetry or cloud calls are made by default");
   });
 
   it("does not render mutation or execution controls in the local daemon refresh path", () => {

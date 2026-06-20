@@ -8,7 +8,7 @@ type PageHelpProps = {
 export function PageHelp({
   title = "What this page shows",
   items,
-  collapsible = false,
+  collapsible = true,
   defaultOpen = false,
 }: PageHelpProps) {
   if (collapsible) {

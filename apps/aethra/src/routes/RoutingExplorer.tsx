@@ -109,25 +109,19 @@ export function RoutingExplorer({
           <h2>Route inspection only</h2>
           <p className="page-subtitle">
             Inspect read-only routing policy metadata and clearly labeled
-            offline preview route examples without submitting prompts from
-            Aethra.
+            offline preview route examples.
           </p>
         </div>
         <div className="status-strip" aria-label="Routing Explorer status">
           <StatusBadge tone="neutral">Read-only policy metadata</StatusBadge>
-          <StatusBadge tone="warning">No route execution</StatusBadge>
+          <StatusBadge tone="neutral">Fixture-backed route example</StatusBadge>
           <StatusBadge tone="neutral">Read-only</StatusBadge>
         </div>
       </header>
 
       <PageHelp
         collapsible
-        items={[
-          "Compare clearly labeled offline preview routing examples with read-only live-local routing policy metadata.",
-          "Route tiers, route codes, warnings, and explanations are policy metadata or fixture examples only in this dashboard.",
-          "No cloud route is used by default; route explanations are local-preview policy signals, not production policy certification.",
-          "Aethra does not submit prompts or execute route-explain requests in this dashboard.",
-        ]}
+        items={["See Help for routing data source details and product limits."]}
       />
 
       <RoutingPolicySummaryPanel
@@ -197,13 +191,6 @@ function RoutingPolicySummaryPanel({
           {sourceLabel}
         </StatusBadge>
       </div>
-
-      <p className="explanation">
-        This summary explains current local-preview routing policy without
-        submitting prompts, executing a route, running models, mutating policy,
-        changing manifests, changing connectors, calling cloud services, or
-        sending telemetry.
-      </p>
 
       {isLiveMode && liveRoutingPolicyState.status === "not-loaded" ? (
         <EmptyState
@@ -289,10 +276,6 @@ function RoutingPolicySummaryPanel({
       </>
       ) : null}
 
-      <p className="muted">
-        Policy metadata is not production policy certification, compliance
-        evidence, legal advice, or legal accuracy validation.
-      </p>
     </section>
   );
 }
@@ -334,10 +317,7 @@ function RouteExplainForm({
       <div className="panel-heading">
         <div>
           <h3>Offline preview route example</h3>
-          <p className="muted">
-            These examples are bundled offline preview fixtures. Aethra does
-            not submit prompts, execute route-explain, or append audit events.
-          </p>
+          <p className="muted">Fixture-backed route example. Details in Help.</p>
         </div>
       </div>
 
@@ -399,11 +379,7 @@ function RouteExplainForm({
         </button>
       </div>
 
-      <p className="muted">
-        Route decisions explain why IgnisPrompt selected a tier and whether
-        cloud was considered or allowed. This panel is fixture-only; live
-        routing policy metadata is loaded through GET /v1/routing/policy-summary.
-      </p>
+      <p className="muted">Fixture examples are separate from live policy metadata.</p>
     </section>
   );
 }
@@ -455,10 +431,7 @@ function RouteExplainResult({ result }: RouteExplainResultProps) {
       <div className="panel-heading">
         <div>
           <h3>Offline preview routing example</h3>
-          <p className="muted">
-            Fixture-backed route example only. Aethra does not submit prompts
-            or execute route-explain.
-          </p>
+          <p className="muted">Fixture-backed route example. Details in Help.</p>
         </div>
         <StatusBadge tone={tone}>{result.label}</StatusBadge>
       </div>
@@ -641,11 +614,7 @@ function RouteExplainResult({ result }: RouteExplainResultProps) {
         </>
       )}
 
-      <p className="muted">
-        Route decisions are returned by IgnisPrompt. This screen does not
-        classify prompts, execute model inference, validate legal accuracy, or
-        certify production policy.
-      </p>
+      <p className="muted">Route decisions are returned by IgnisPrompt.</p>
     </aside>
   );
 }

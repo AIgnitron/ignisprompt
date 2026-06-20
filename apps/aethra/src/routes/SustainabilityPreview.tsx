@@ -36,8 +36,7 @@ const emptySustainabilityMetrics: SustainabilityMetricsResponse = {
   estimated_cloud_cost_avoided_usd: 0,
   estimated_carbon_avoided_kgco2e: 0,
   estimated_data_kept_local_gb: 0,
-  disclaimer:
-    "Live local sustainability metrics have not been loaded. Aethra does not substitute offline preview fixtures into live product state.",
+  disclaimer: "Live local sustainability metrics have not been loaded.",
 };
 
 const periodOptions = ["7d", "30d", "90d"] as const;
@@ -120,11 +119,7 @@ export function SustainabilityPreview({
 
       <PageHelp
         collapsible
-        items={[
-          "Review estimated, methodology-dependent proxy indicators from manual live-local metrics or explicit offline preview fixture mode.",
-          "Aethra does not expose file save actions from this live-local dashboard.",
-          "These values are not measured energy use, not actual carbon accounting, and not formal sustainability reporting.",
-        ]}
+        items={["See Help for sustainability data source details and product limits."]}
       />
 
       <SustainabilityLiveControl
@@ -245,19 +240,24 @@ export function SustainabilityPreview({
           )}
         </section>
 
-        <section className="panel" aria-label="Methodology disclaimer">
+        <details
+          className="panel page-help-collapsible"
+          aria-label="Methodology details"
+        >
+          <summary>
+            <span>About this data</span>
+            <span className="page-help-summary-note">Collapsed by default</span>
+          </summary>
           <div className="panel-heading">
-            <h3>Disclaimer</h3>
-            <StatusBadge tone="warning">Always visible</StatusBadge>
+            <h3>Methodology details</h3>
+            <StatusBadge tone="neutral">Details</StatusBadge>
           </div>
           <p className="explanation">{metrics.disclaimer}</p>
           <p className="explanation">
             Aethra presents these values as estimated, proxy, counterfactual,
-            and methodology-dependent indicators. They are not measured energy
-            use, measured carbon output, sustainability certification, or
-            compliance evidence.
+            and methodology-dependent indicators.
           </p>
-        </section>
+        </details>
 
         {dataMode === "fixture" ? (
         <section className="panel" aria-label="Offline preview fixture proxy inputs">
@@ -408,15 +408,9 @@ function SustainabilityLiveControl({
         </div>
 
         <div className="sustainability-boundary-card">
-          <span>Read-only dashboard boundary</span>
+          <span>Data source</span>
           <p>
-            This dashboard displays aggregate sustainability metadata only. It
-            does not generate downloadable reports, upload metrics, or expose
-            raw prompts, raw audit text, PII, or machine identifiers.
-          </p>
-          <p>
-            Estimates are methodology-dependent proxy/counterfactual indicators,
-            not certified sustainability reporting and not ESG certification.
+            This page displays aggregate sustainability metadata only.
           </p>
         </div>
       </div>
