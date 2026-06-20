@@ -12,6 +12,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Audit integrity regression coverage for route-explain and chat-completion audit event shape, local route signals, timestamps, warnings, and optional proxy estimate fields.
 - Aethra v0.1 local-only sustainability metrics endpoint with counterfactual proxy estimates derived from local audit events.
 - Aethra live-local dashboard for observing manually refreshed local daemon metadata, grouped endpoint state, suggested review flow, explicit non-goals, and proxy sustainability indicators. It is not a production dashboard.
+- Aethra demo smoke and review-readiness coverage for the main dashboard route set, unsafe-control regressions, live-local/offline-fixture separation, and manual screenshot/reviewer checklist.
 - Aethra fixture-backed evidence bundle viewer with validation summary and archive metadata preview for local preview review.
 - Aethra suggested review flow and clearer navigation labels for the safe local preview walkthrough.
 - Aethra local readiness surface with fixture-backed status hints, copy-only daemon guidance, and a local-preview checklist.
@@ -56,6 +57,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Keep local routing policy summary descriptive and read-only: route categories, decision inputs, and policy hints do not imply route execution, prompt submission, model execution, policy mutation, production readiness, legal accuracy, compliance, certification, or attestation.
 - Keep Aethra live-local dashboard behavior explicit: no startup auto-loading, no polling, no live response persistence, and no silent fixture fallback for failed or unavailable daemon surfaces.
 - Keep Aethra demo-readiness polish UI-only: grouped cards, review flow, and copy cleanup must not add endpoints, route execution, prompt submission, model execution, mutation, upload/download/delete controls, telemetry, cloud calls, or production/compliance/certification claims.
+- Keep Aethra review-readiness checks lightweight: tests and manual checklist only unless browser automation is explicitly scoped; do not commit generated screenshots.
 - Keep local evidence package indexing read-only and metadata-only: package names, validation-like filenames, reports, and attestation-like filenames do not imply package correctness, signed attestation, certification, compliance, legal accuracy, or production readiness.
 - Keep the Golden Legal adversarial fixture matrix small, synthetic, deterministic, and local-only.
 - Keep local evidence validation strict while avoiding signed attestation or tamper-evident storage claims until those features are explicitly implemented.

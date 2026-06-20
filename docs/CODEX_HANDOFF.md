@@ -199,6 +199,8 @@ Aethra Overview includes copyable local preview helper commands for starting the
 
 Aethra includes a local preview banner, grouped manual live-local refresh controls, grouped status cards, a cleaner endpoint matrix, and a suggested review flow. Aethra prefers manually refreshed local daemon metadata and keeps failed/unavailable sections marked as failed or unavailable rather than replacing them with fixtures. Live local loading remains explicit/manual, and no polling, local/session storage persistence, telemetry, cloud calls, GitHub calls, update checks, command execution, backend changes, route execution, model execution, connector mutation, upload/download/delete controls, or API shape changes are added by this UI polish.
 
+Aethra now has demo smoke and review-readiness coverage for the main route set, the suggested review flow, grouped dashboard sections, live-local/offline-fixture separation, unsafe-control regressions, no startup fetch, no polling, and no live-local storage persistence. `docs/AETHRA_REVIEW_CHECKLIST.md` is the manual screenshot/reviewer checklist. It does not generate screenshots and does not add browser automation, backend endpoints, route execution, prompt submission, model execution, mutations, uploads, downloads, deletes, telemetry, cloud calls, or production/compliance/legal claims.
+
 Aethra includes a Local Readiness page that summarizes daemon health, version/status, configured models, model and runner status hints, evidence workflow availability, and local helper checks. The page is fixture-backed by default, uses already-loaded live-local data only after manual refreshes elsewhere, provides copy-only snippets for `./scripts/start-dev.sh`, `cargo run -p ignispromptctl -- health`, `cargo run -p ignispromptctl -- doctor`, `cargo run -p ignispromptctl -- readiness`, `cargo run -p ignispromptctl -- readiness --markdown`, readiness package generation/list/validate commands, `make dev-check`, and `make evidence-check`, offers a browser-local copy-only readiness report snippet, shows a read-only readiness package preview, and shows read-only diagnostic drilldown hints for category, status, severity, local next step, and boundary note.
 
 Aethra includes a Local Operator Console that combines fixture-backed local preview readiness, readiness package status, operator package preview, evidence workflow status, demo next steps, local safety boundaries, and copy-only command recipes. It is read-only and does not execute commands, upload files, extract archives, poll endpoints, persist operator data, add telemetry, add cloud calls, add backend endpoints, or add model or runner controls.
@@ -261,6 +263,8 @@ npm run build
 ```
 
 Public CI also runs these Aethra checks in a separate job. This is local-preview test/build coverage only, not production certification.
+
+For manual Aethra screenshot/reviewer passes, use `docs/AETHRA_REVIEW_CHECKLIST.md`. The checklist is manual and should not result in committed generated screenshots.
 
 For opt-in Aethra local API smoke, run from `apps/aethra/`:
 
