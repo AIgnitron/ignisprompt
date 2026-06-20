@@ -60,7 +60,7 @@ type AethraRoute =
 export default function App() {
   const [activeRoute, setActiveRoute] = useState<AethraRoute>("overview");
   const [isDataSourceExpanded, setIsDataSourceExpanded] = useState(false);
-  const [dataMode, setDataMode] = useState<AethraDataMode>("fixture");
+  const [dataMode, setDataMode] = useState<AethraDataMode>("live-local");
   const [baseUrlInput, setBaseUrlInput] = useState("");
   const [liveHealthState, setLiveHealthState] = useState<LiveHealthState>({
     status: "not-loaded",
@@ -565,21 +565,21 @@ export default function App() {
               <p className="eyebrow">Data mode</p>
               <h2>
                 {dataMode === "fixture"
-                  ? "offline preview ready"
-                  : "live local selected"}
+                  ? "offline preview fixture selected"
+                  : "live local dashboard"}
               </h2>
               <p>
                 {dataMode === "fixture"
-                  ? "Use Refresh local daemon data when ignispromptd is running. Aethra observes IgnisPrompt state without changing routing, runners, models, or audit policy."
-                  : "Live local metadata loading is manual and read-only for health, daemon version status, models, local model inventory, model readiness, routing policy summary, evidence package index, capabilities, model and runner status hints, audit events, operations summary, and sustainability metrics."}
+                  ? "Offline preview fixtures are clearly labeled and are not product state. Use them only for local demos or tests when the daemon is unavailable."
+                  : "Refresh local daemon data to load read-only health, daemon version status, models, local model inventory, model readiness, routing policy summary, evidence package index, capabilities, model and runner status hints, audit events, operations summary, and sustainability metrics."}
               </p>
             </div>
             <div className="mode-badges" aria-label="Aethra mode guarantees">
               <StatusBadge tone={dataMode === "fixture" ? "neutral" : "warning"}>
-                {dataMode === "fixture" ? "Offline preview" : "Live local mode"}
+                {dataMode === "fixture" ? "Offline preview fixture" : "Live local mode"}
               </StatusBadge>
               <StatusBadge tone="neutral">read-only</StatusBadge>
-              <StatusBadge tone="neutral">fixture fallback</StatusBadge>
+              <StatusBadge tone="neutral">manual refresh only</StatusBadge>
               <StatusBadge tone="neutral">manual live-local refresh</StatusBadge>
               <StatusBadge tone="neutral">no telemetry</StatusBadge>
               <StatusBadge tone="neutral">no cloud calls by default</StatusBadge>
@@ -626,6 +626,7 @@ export default function App() {
             liveOperationsSummaryState={liveOperationsSummaryState}
             onLoadLiveHealth={loadLiveHealth}
             onLoadLiveVersionStatus={loadLiveVersionStatus}
+            onNavigateToRoute={setActiveRoute}
           />
         ) : null}
         {activeRoute === "local-readiness" ? (
@@ -698,17 +699,17 @@ function LocalPreviewBanner() {
     <section className="preview-banner" aria-label="Local preview boundary">
       <div>
         <p className="eyebrow">Local Preview</p>
-        <h2>Local daemon observability with offline preview fallback</h2>
+        <h2>Live-local dashboard for the IgnisPrompt control plane</h2>
         <p>
           Refresh local daemon data when <code>ignispromptd</code> is running.
-          Offline preview fixtures remain available. Aethra is read-only, sends
-          no telemetry, makes no cloud calls by default, and exists for
-          local-preview observability only.
+          If the daemon is unavailable, Aethra shows not connected or failed
+          states instead of silently replacing product state with fixtures.
+          Offline preview fixtures are opt-in and clearly labeled.
         </p>
       </div>
       <div className="preview-banner-badges" aria-label="Local preview guardrails">
         <StatusBadge tone="neutral">Local daemon data</StatusBadge>
-        <StatusBadge tone="neutral">Fixture fallback</StatusBadge>
+        <StatusBadge tone="neutral">Offline preview fixture opt-in</StatusBadge>
         <StatusBadge tone="neutral">Manual refresh</StatusBadge>
         <StatusBadge tone="neutral">Read-only dashboard</StatusBadge>
         <StatusBadge tone="neutral">No telemetry</StatusBadge>
@@ -772,16 +773,17 @@ function DataSourceControl({
       <div className="data-source-compact-row">
         <div className="data-source-intro">
           <p className="eyebrow">Local preview</p>
-          <h3>Prefer local daemon data with fixture fallback</h3>
+          <h3>Live local daemon dashboard</h3>
           <p className="muted">
             Refresh local daemon metadata when <code>ignispromptd</code> is
-            running; offline preview fixtures remain available when it is not.
+            running. Missing or failed endpoints stay visible as unavailable
+            product states.
           </p>
         </div>
         <div className="data-source-compact-badges" aria-label="Aethra compact boundaries">
           <StatusBadge tone="neutral">Local preview</StatusBadge>
           <StatusBadge tone={dataMode === "fixture" ? "neutral" : "warning"}>
-            {dataMode === "fixture" ? "Offline preview" : "Live-local selected"}
+            {dataMode === "fixture" ? "Offline preview fixture" : "Live-local selected"}
           </StatusBadge>
           <StatusBadge tone="neutral">Read-only</StatusBadge>
           <StatusBadge tone="neutral">No telemetry</StatusBadge>
@@ -806,14 +808,14 @@ function DataSourceControl({
         <div className="data-source-details-grid">
           <div className="data-source-explainer">
             <p className="muted">
-              Aethra can load real local-preview metadata from a running
-              IgnisPrompt daemon and falls back to bundled offline preview data
-              for unavailable sections. Aethra does not poll, persist live-local
-              state, execute commands, or change routing.
+              Aethra loads real local-preview metadata from a running
+              IgnisPrompt daemon only when you manually refresh. Failed or
+              unavailable surfaces remain marked as failed or not loaded; they
+              are not silently replaced with fixtures.
             </p>
             <ul className="data-source-boundary-list">
               <li>Local daemon data when manually refreshed</li>
-              <li>Fixture fallback for offline preview</li>
+              <li>Offline preview fixtures are opt-in and labeled</li>
               <li>No polling</li>
               <li>No persistence of live-local state</li>
               <li>No command execution</li>
@@ -828,7 +830,7 @@ function DataSourceControl({
               aria-pressed={dataMode === "fixture"}
               onClick={() => onDataModeChange("fixture")}
             >
-              Fixture
+              Offline preview fixture
             </button>
             <button
               type="button"
@@ -877,12 +879,11 @@ function DataSourceControl({
                 : "Refresh local daemon data"}
             </button>
             <p className="muted refresh-card-note">
-              Loads health, version, models, local model inventory,
-              model readiness, routing policy summary, evidence package index,
-              capabilities, status
-              hints, audit events, operations summary, and 30d sustainability
-              metrics from read-only GET endpoints. Route execution and model
-              execution are not included.
+              Loads health, version, models, local model inventory, model
+              readiness, routing policy summary, evidence package index,
+              capabilities, status hints, audit events, operations summary, and
+              30d sustainability metrics from read-only GET endpoints. Route
+              execution and model execution are not included.
             </p>
           </div>
 
@@ -891,20 +892,39 @@ function DataSourceControl({
               className="refresh-receipt"
               aria-label="Local daemon refresh receipt"
             >
-              <StatusBadge tone={refreshSummary.failed > 0 ? "warning" : "ok"}>
-                {refreshSummary.loaded} loaded / {refreshSummary.failed} failed
+              <StatusBadge tone={refreshSummary.failed > 0 || refreshSummary.unavailable > 0 ? "warning" : "ok"}>
+                {refreshSummary.loaded} loaded / {refreshSummary.failed + refreshSummary.unavailable} failed
               </StatusBadge>
               <p className="muted">
                 Last local daemon refresh completed at{" "}
-                {formatTimestamp(refreshSummary.completedAt)}. Failed
-                sections keep fixture fallback visible.
+                {formatTimestamp(refreshSummary.completedAt)}. Live-local data
+                is not persisted.
               </p>
-              {refreshSummary.failedLabels.length > 0 ? (
+              <p className="muted">
+                Attempted {refreshSummary.attempted} endpoints:{" "}
+                {refreshSummary.loaded} loaded, {refreshSummary.unavailable} unavailable,{" "}
+                {refreshSummary.failed} failed, {refreshSummary.notLoaded} not loaded.
+              </p>
+              {refreshSummary.failedResults.length > 0 ? (
                 <p className="muted">
-                  Fixture fallback still shown for:{" "}
-                  {refreshSummary.failedLabels.join(", ")}.
+                  Failed surfaces:{" "}
+                  {refreshSummary.failedResults
+                    .map((result) => `${result.label}: ${result.message}`)
+                    .join("; ")}
                 </p>
               ) : null}
+              <ul className="refresh-result-list" aria-label="Per-endpoint refresh status">
+                {refreshSummary.results.map((result) => (
+                  <li key={result.surface}>
+                    <strong>{result.label}</strong>:{" "}
+                    {result.status === "loaded"
+                      ? "live local"
+                      : result.diagnosticKind === "endpoint-unavailable"
+                        ? "unavailable"
+                        : "failed"}
+                  </li>
+                ))}
+              </ul>
             </div>
           ) : null}
 
@@ -931,17 +951,29 @@ function summarizeLiveLocalRefresh(refreshState: Extract<
   LiveLocalRefreshState,
   { status: "complete" }
 >) {
+  const totalSurfaces = 12;
   const loaded = refreshState.results.filter(
     (result) => result.status === "loaded",
   );
-  const failed = refreshState.results.filter(
-    (result) => result.status === "failed",
+  const failedResults = refreshState.results.filter(
+    (result): result is Extract<typeof result, { status: "failed" }> =>
+      result.status === "failed",
+  );
+  const unavailable = failedResults.filter(
+    (result) => result.diagnosticKind === "endpoint-unavailable",
+  );
+  const failed = failedResults.filter(
+    (result) => result.diagnosticKind !== "endpoint-unavailable",
   );
 
   return {
+    attempted: refreshState.results.length,
     loaded: loaded.length,
     failed: failed.length,
-    failedLabels: failed.map((result) => result.label),
+    unavailable: unavailable.length,
+    notLoaded: Math.max(totalSurfaces - refreshState.results.length, 0),
+    failedResults,
+    results: refreshState.results,
     completedAt: refreshState.completedAt,
   };
 }

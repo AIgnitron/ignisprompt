@@ -23,6 +23,23 @@ import {
 
 const initialSelectedRequestId = toAuditEventRows(auditEventFixtures)[0]
   ?.requestId;
+const emptyOperationsSummary: OperationsSummaryResponse = {
+  ...operationsSummaryFixture,
+  audit_summary: {
+    ...operationsSummaryFixture.audit_summary,
+    total_events: 0,
+    recent_event_count: 0,
+    recent_event_types: [],
+    latest_event_at: undefined,
+  },
+  activity_summary: {
+    ...operationsSummaryFixture.activity_summary,
+    recent_requests_observed: 0,
+    recent_routes_observed: 0,
+    recent_errors_observed: 0,
+    last_activity_at: undefined,
+  },
+};
 
 type AuditFilter = "all" | "warnings" | "cache-hit";
 
@@ -50,7 +67,9 @@ export function AuditEvents({
     dataMode === "live-local" && liveAuditEventsState.status === "loaded";
   const events = isLiveAuditLoaded
     ? liveAuditEventsState.events
-    : auditEventFixtures;
+    : dataMode === "fixture"
+      ? auditEventFixtures
+      : [];
   const rows = useMemo(() => toAuditEventRows(events), [events]);
   const visibleRows = useMemo(
     () => filterAuditRows(rows, searchQuery, auditFilter),
@@ -63,18 +82,20 @@ export function AuditEvents({
   const sourceLabel = isLiveAuditLoaded
     ? "Local daemon data"
     : dataMode === "live-local"
-      ? "Fixture fallback"
-      : "Offline preview";
+      ? "Live local not loaded"
+      : "Offline preview fixture";
   const operationsSummary =
     dataMode === "live-local" && liveOperationsSummaryState.status === "loaded"
       ? liveOperationsSummaryState.summary
-      : operationsSummaryFixture;
+      : dataMode === "fixture"
+        ? operationsSummaryFixture
+        : emptyOperationsSummary;
   const operationsSourceLabel =
     dataMode === "live-local" && liveOperationsSummaryState.status === "loaded"
       ? "Local daemon data"
       : dataMode === "live-local"
-        ? "Fixture fallback"
-        : "Offline preview";
+        ? "Live local not loaded"
+        : "Offline preview fixture";
 
   useEffect(() => {
     if (visibleRows.length === 0) {
@@ -97,8 +118,8 @@ export function AuditEvents({
           <p className="eyebrow">Audit Events</p>
           <h2>Local audit records</h2>
           <p className="page-subtitle">
-            Inspect fixture or manually loaded route history, warnings, and
-            local estimate fields.
+            Inspect manually loaded local route history, warnings, and local
+            estimate fields. Offline preview fixtures are explicit.
           </p>
         </div>
         <div className="status-strip" aria-label="Audit metadata status">
@@ -111,7 +132,7 @@ export function AuditEvents({
 
       <PageHelp
         items={[
-          "Review local process route history from fixture data or a manual live-local refresh.",
+          "Review local process route history from a manual live-local refresh or explicit offline preview fixture mode.",
           "Search request IDs, routes, tiers, domains, and models; filter for warnings or cache-hit records.",
           "Inspect route explanations, warnings, cache hints, and sustainability estimate fields.",
           "Audit events are local records for observability, not signed evidence or production deployment proof.",
@@ -242,20 +263,22 @@ function AuditMetadataPanel({
             {isLiveMode && liveAuditEventsState.status === "loaded"
               ? "Live local metadata"
               : isLiveMode
-                ? "Fixture fallback"
-                : "Offline preview metadata"}
+                ? "Live local not loaded"
+                : "Offline preview fixture metadata"}
           </dd>
         </div>
         <div>
           <dt>Endpoint</dt>
-          <dd>{isLiveMode ? "GET /v1/audit/events" : "fixture records"}</dd>
+          <dd>{isLiveMode ? "GET /v1/audit/events" : "offline preview fixture records"}</dd>
         </div>
         <div>
           <dt>Event records</dt>
           <dd>
             {liveAuditEventsState.status === "loaded" && isLiveMode
               ? liveAuditEventsState.events.length
-              : auditEventFixtures.length}
+              : dataMode === "fixture"
+                ? auditEventFixtures.length
+                : 0}
           </dd>
         </div>
         <div>
@@ -388,7 +411,9 @@ function AuditEventTable({
           nextAction={
             sourceLabel === "Local daemon data"
               ? localPreviewEmptyStates.auditEventsEmpty.nextAction
-              : "Fixture mode remains available; live-local audit events require a manual refresh."
+              : sourceLabel === "Live local not loaded"
+                ? "Run Refresh local daemon data to load GET /v1/audit/events."
+                : "Offline preview fixture mode shows synthetic audit records only."
           }
         />
       </section>
@@ -618,7 +643,7 @@ function AuditEventDetail({ event, isLiveEvent }: AuditEventDetailProps) {
       </section>
 
       <p className="muted">
-        This is {isLiveEvent ? "a local daemon record" : "synthetic fixture data"}.
+        This is {isLiveEvent ? "a local daemon record" : "offline preview fixture data"}.
         It is not signed, immutable, tamper-evident, encrypted, replicated,
         certified, or compliance evidence.
       </p>
@@ -631,7 +656,7 @@ function getAuditEventsStateLabel(
   liveAuditEventsState: LiveAuditEventsState,
 ): string {
   if (dataMode === "fixture") {
-    return "Fixture audit events";
+    return "Offline preview fixture audit events";
   }
 
   switch (liveAuditEventsState.status) {

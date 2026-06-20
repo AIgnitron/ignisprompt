@@ -28,13 +28,12 @@ describe("Aethra app navigation and demo guidance", () => {
 
     expect(markup).toContain("Guided Demo Path");
     expect(markup).toContain("Recommended safe walkthrough");
-    expect(markup).toContain("Local operations summary");
-    expect(markup).toContain("Local routing policy summary");
-    expect(markup).toContain("Local evidence packages");
-    expect(markup).toContain("Operations endpoints");
-    expect(markup).toContain("Evidence packages");
-    expect(markup).toContain("Recent local activity");
-    expect(markup).toContain("Ready model hints");
+    expect(markup).toContain("Live Local Dashboard");
+    expect(markup).toContain("Endpoint Matrix");
+    expect(markup).toContain("Operations summary");
+    expect(markup).toContain("Routing policy summary");
+    expect(markup).toContain("Evidence package index");
+    expect(markup).toContain("Not loaded yet");
     expect(markup).toContain("model readiness");
     expect(markup).toContain("Local Demo Studio");
     expect(markup).toContain("Evidence bundle");
@@ -62,7 +61,7 @@ describe("Aethra app navigation and demo guidance", () => {
   it("renders a compact collapsed local-preview panel with daemon-url guidance", () => {
     const markup = renderToStaticMarkup(<App />);
 
-    expect(markup).toContain("Offline preview");
+    expect(markup).toContain("Offline preview fixture");
     expect(markup).toContain("Read-only");
     expect(markup).toContain("No telemetry");
     expect(markup).toContain("No cloud calls by default");

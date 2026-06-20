@@ -15,12 +15,6 @@ import { EmptyState } from "../components/EmptyState";
 import { MetricCard } from "../components/MetricCard";
 import { PageHelp } from "../components/PageHelp";
 import { StatusBadge } from "../components/StatusBadge";
-import {
-  buildSustainabilityJsonReportText,
-  buildSustainabilityMarkdownReport,
-  downloadTextFile,
-  SustainabilityReportDataSource,
-} from "./sustainabilityReport";
 import { buildSustainabilitySummary } from "./sustainabilitySummary";
 import {
   buildLiveErrorEmptyState,
@@ -33,6 +27,18 @@ const fixtureSummary = buildSustainabilitySummary(
   [routeExplainFixture],
   modelFixtures,
 );
+const emptySustainabilityMetrics: SustainabilityMetricsResponse = {
+  ...sustainabilityMetricsFixture,
+  period: "30d",
+  requests_total: 0,
+  local_request_rate: 0,
+  tier_breakdown: {},
+  estimated_cloud_cost_avoided_usd: 0,
+  estimated_carbon_avoided_kgco2e: 0,
+  estimated_data_kept_local_gb: 0,
+  disclaimer:
+    "Live local sustainability metrics have not been loaded. Aethra does not substitute offline preview fixtures into live product state.",
+};
 
 const periodOptions = ["7d", "30d", "90d"] as const;
 
@@ -53,15 +59,14 @@ export function SustainabilityPreview({
     isLiveMode && liveSustainabilityMetricsState.status === "loaded";
   const metrics = isLiveLoaded
     ? liveSustainabilityMetricsState.metrics
-    : sustainabilityMetricsFixture;
+    : isLiveMode
+      ? emptySustainabilityMetrics
+      : sustainabilityMetricsFixture;
   const sourceLabel = isLiveLoaded
     ? "Local daemon metrics"
     : isLiveMode
-      ? "Fixture fallback metrics"
-      : "Offline preview metrics";
-  const reportDataSource: SustainabilityReportDataSource = isLiveLoaded
-    ? "live-local"
-    : "fixture";
+      ? "Live local metrics not loaded"
+      : "Offline preview fixture metrics";
   const [methodologyCopyStatus, setMethodologyCopyStatus] = useState<
     "idle" | "copied" | "error"
   >("idle");
@@ -86,32 +91,6 @@ export function SustainabilityPreview({
     }
   }
 
-  function exportMarkdownReport() {
-    const generatedAt = new Date().toISOString();
-    downloadTextFile(
-      buildReportFilename("md", metrics.period, reportDataSource),
-      buildSustainabilityMarkdownReport({
-        generatedAt,
-        dataSource: reportDataSource,
-        metrics,
-      }),
-      "text/markdown;charset=utf-8",
-    );
-  }
-
-  function exportJsonReport() {
-    const generatedAt = new Date().toISOString();
-    downloadTextFile(
-      buildReportFilename("json", metrics.period, reportDataSource),
-      buildSustainabilityJsonReportText({
-        generatedAt,
-        dataSource: reportDataSource,
-        metrics,
-      }),
-      "application/json;charset=utf-8",
-    );
-  }
-
   return (
     <section id="sustainability-preview" className="page-section">
       <header className="page-header">
@@ -123,8 +102,8 @@ export function SustainabilityPreview({
               : "Preview only: proxy indicators"}
           </h2>
           <p className="page-subtitle">
-            Review methodology-dependent estimates and export local reports from
-            the currently displayed metrics.
+            Review methodology-dependent estimates from read-only live-local
+            metrics or explicitly labeled offline preview fixtures.
           </p>
         </div>
         <div
@@ -142,8 +121,8 @@ export function SustainabilityPreview({
       <PageHelp
         collapsible
         items={[
-          "Review estimated, methodology-dependent proxy indicators from fixture data or manual live-local metrics.",
-          "Exports are generated locally from the currently displayed metrics and do not upload report data.",
+          "Review estimated, methodology-dependent proxy indicators from manual live-local metrics or explicit offline preview fixture mode.",
+          "Aethra does not expose file download or report export actions from this live-local dashboard.",
           "These values are not measured energy use, not actual carbon accounting, and not formal sustainability reporting.",
         ]}
       />
@@ -154,8 +133,6 @@ export function SustainabilityPreview({
         liveSustainabilityMetricsState={liveSustainabilityMetricsState}
         onPeriodChange={setPeriod}
         onLoadLiveSustainabilityMetrics={onLoadLiveSustainabilityMetrics}
-        onExportMarkdown={exportMarkdownReport}
-        onExportJson={exportJsonReport}
       />
 
       <div className="metric-grid" aria-label="Sustainability proxy metrics">
@@ -194,7 +171,9 @@ export function SustainabilityPreview({
               <p className="muted">
                 {isLiveLoaded
                   ? "Loaded manually from the configured local daemon"
-                  : "Showing bundled fixture fallback data"}
+                  : isLiveMode
+                    ? "No live local metrics loaded"
+                    : "Showing bundled offline preview fixture data"}
               </p>
             </div>
             <StatusBadge tone="warning">Proxy only</StatusBadge>
@@ -280,9 +259,10 @@ export function SustainabilityPreview({
           </p>
         </section>
 
-        <section className="panel" aria-label="Fixture proxy inputs">
+        {dataMode === "fixture" ? (
+        <section className="panel" aria-label="Offline preview fixture proxy inputs">
           <div className="panel-heading">
-            <h3>Fixture fallback inputs</h3>
+            <h3>Offline preview fixture inputs</h3>
             <StatusBadge tone="neutral">Demo-safe</StatusBadge>
           </div>
           <dl className="state-list">
@@ -304,6 +284,7 @@ export function SustainabilityPreview({
             </div>
           </dl>
         </section>
+        ) : null}
       </div>
     </section>
   );
@@ -315,8 +296,6 @@ type SustainabilityLiveControlProps = {
   liveSustainabilityMetricsState: LiveSustainabilityMetricsState;
   onPeriodChange: (period: string) => void;
   onLoadLiveSustainabilityMetrics: (period: string) => void;
-  onExportMarkdown: () => void;
-  onExportJson: () => void;
 };
 
 function SustainabilityLiveControl({
@@ -325,8 +304,6 @@ function SustainabilityLiveControl({
   liveSustainabilityMetricsState,
   onPeriodChange,
   onLoadLiveSustainabilityMetrics,
-  onExportMarkdown,
-  onExportJson,
 }: SustainabilityLiveControlProps) {
   const isLiveMode = dataMode === "live-local";
   const canLoad =
@@ -377,7 +354,7 @@ function SustainabilityLiveControl({
           {...buildLiveErrorEmptyState(
             liveSustainabilityMetricsState.label,
             liveSustainabilityMetricsState.message,
-            "Fixture fallback estimates remain visible.",
+            "Sustainability metrics remain unavailable until a successful manual refresh.",
           )}
         />
       ) : null}
@@ -388,7 +365,7 @@ function SustainabilityLiveControl({
           <dd>
             {isLiveMode
               ? "GET /v1/metrics/sustainability"
-              : "fixture sustainability metrics"}
+              : "offline preview fixture sustainability metrics"}
           </dd>
         </div>
         <div>
@@ -431,31 +408,16 @@ function SustainabilityLiveControl({
         </div>
 
         <div className="report-export-card">
-          <span>Local report export</span>
+          <span>Read-only dashboard boundary</span>
           <p>
-            Markdown and JSON reports are generated in this browser from the
-            displayed aggregate metrics. They exclude prompts, raw audit text,
-            PII, and machine identifiers.
+            This dashboard displays aggregate sustainability metadata only. It
+            does not generate downloadable reports, upload metrics, or expose
+            raw prompts, raw audit text, PII, or machine identifiers.
           </p>
           <p>
-            Use exports for local preview review and debugging. Estimates are
-            methodology-dependent proxy/counterfactual indicators, not certified
-            sustainability reporting and not ESG certification.
+            Estimates are methodology-dependent proxy/counterfactual indicators,
+            not certified sustainability reporting and not ESG certification.
           </p>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={onExportMarkdown}
-          >
-            Export Markdown
-          </button>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={onExportJson}
-          >
-            Export JSON
-          </button>
         </div>
       </div>
     </section>
@@ -503,12 +465,4 @@ function formatTimestamp(value: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
-}
-
-function buildReportFilename(
-  extension: "md" | "json",
-  period: string,
-  dataSource: SustainabilityReportDataSource,
-): string {
-  return `aethra-sustainability-report-${dataSource}-${period}.${extension}`;
 }

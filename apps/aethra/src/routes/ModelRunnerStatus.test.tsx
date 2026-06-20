@@ -31,7 +31,7 @@ describe("ModelRunnerStatus route", () => {
     expect(markup).toContain("Readiness compares manifest declarations");
     expect(markup).toContain("offline preview inventory metadata");
     expect(markup).toContain("Inventory observes local file metadata only");
-    expect(markup).toContain("Offline preview capabilities");
+    expect(markup).toContain("Offline preview fixture capabilities");
     expect(markup).toContain("Stub Legal Runner");
     expect(markup).toContain("cloud with consent");
     expect(markup).toContain("Cloud capability remains disabled by default");
@@ -169,7 +169,7 @@ describe("ModelRunnerStatus route", () => {
     expect(markup).toContain("Missing model files");
   });
 
-  it("shows a safe warning and preserves fixture capabilities after live load failure", () => {
+  it("shows a safe warning without substituting fixture capabilities after live load failure", () => {
     const markup = renderToStaticMarkup(
       <ModelRunnerStatus
         dataMode="live-local"
@@ -193,9 +193,9 @@ describe("ModelRunnerStatus route", () => {
     );
 
     expect(markup).toContain("Daemon unreachable");
-    expect(markup).toContain("Fixture capability metadata remains clearly labeled below");
-    expect(markup).toContain("Fixture fallback capabilities");
-    expect(markup).toContain("Stub Legal Runner");
+    expect(markup).toContain("Capability metadata remains unavailable until a successful manual refresh");
+    expect(markup).toContain("Live local capabilities not loaded");
+    expect(markup).not.toContain("Stub Legal Runner");
     expect(markup).toContain("Refresh capabilities");
   });
 

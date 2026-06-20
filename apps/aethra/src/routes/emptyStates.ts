@@ -72,7 +72,7 @@ export const localPreviewEmptyStates = {
   sustainabilityNotLoaded: {
     title: "No live sustainability metrics loaded",
     message:
-      "Aethra is showing fixture fallback estimates until metrics are manually refreshed.",
+      "Aethra is not showing live sustainability metrics until they are manually refreshed.",
     nextAction:
       "Start the daemon, run smoke checks, then refresh sustainability metrics from the guided demo path.",
     detail:

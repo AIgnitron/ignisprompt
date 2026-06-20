@@ -46,6 +46,46 @@ import {
 } from "./emptyStates";
 
 const initialSelectedModelId = toModelManifestRows(modelFixtures)[0]?.modelId;
+const emptyModelInventory: ModelInventoryResponse = {
+  ...modelInventoryFixture,
+  files: [],
+  summary: {
+    ...modelInventoryFixture.summary,
+    total_files: 0,
+    total_size_bytes: 0,
+    gguf_files: 0,
+    safetensors_files: 0,
+    present_count: 0,
+    unsupported_count: 0,
+    largest_file_mb: 0,
+    scanned_directory_count: 0,
+    notes: ["Live local model inventory has not been loaded."],
+  },
+  boundary_notes: [
+    "Live local model inventory is not loaded. Offline preview fixtures are not used as product state.",
+  ],
+};
+const emptyModelReadiness: ModelReadinessResponse = {
+  ...modelReadinessFixture,
+  models: [],
+  summary: {
+    ...modelReadinessFixture.summary,
+    manifest_declared_count: 0,
+    inventory_file_count: 0,
+    ready_hint_count: 0,
+    missing_file_count: 0,
+    unsupported_format_count: 0,
+    unknown_count: 0,
+  },
+  warnings: [],
+  boundary_notes: [
+    "Live local model readiness is not loaded. Offline preview fixtures are not used as product state.",
+  ],
+};
+const emptyCapabilities: CapabilitiesResponse = {
+  ...capabilitiesFixture,
+  capabilities: [],
+};
 
 type ModelRunnerStatusProps = {
   dataMode: AethraDataMode;
@@ -85,20 +125,32 @@ export function ModelRunnerStatus({
     dataMode === "live-local" && liveModelReadinessState.status === "loaded";
   const isLiveCapabilitiesLoaded =
     dataMode === "live-local" && liveCapabilitiesState.status === "loaded";
-  const models = isLiveModelsLoaded ? liveModelsState.models : modelFixtures;
+  const models = isLiveModelsLoaded
+    ? liveModelsState.models
+    : dataMode === "fixture"
+      ? modelFixtures
+      : [];
   const inventory = isLiveInventoryLoaded
     ? liveModelInventoryState.inventory
-    : modelInventoryFixture;
+    : dataMode === "fixture"
+      ? modelInventoryFixture
+      : emptyModelInventory;
   const readiness = isLiveReadinessLoaded
     ? liveModelReadinessState.readiness
-    : modelReadinessFixture;
+    : dataMode === "fixture"
+      ? modelReadinessFixture
+      : emptyModelReadiness;
   const rows = useMemo(() => toModelManifestRows(models), [models]);
   const effectiveStatusHints = isLiveStatusLoaded
     ? liveModelStatusState.statusHints
-    : modelStatusFixture.statusHints;
+    : dataMode === "fixture"
+      ? modelStatusFixture.statusHints
+      : [];
   const effectiveCapabilities = isLiveCapabilitiesLoaded
     ? liveCapabilitiesState.capabilities
-    : capabilitiesFixture;
+    : dataMode === "fixture"
+      ? capabilitiesFixture
+      : emptyCapabilities;
   const capabilityRows = useMemo(
     () =>
       buildCapabilityMatrixRowsFromCapabilities(effectiveCapabilities.capabilities),
@@ -117,8 +169,8 @@ export function ModelRunnerStatus({
   const sourceLabel = isLiveModelsLoaded
     ? "Local daemon data"
     : dataMode === "live-local"
-      ? "Fixture fallback"
-      : "Offline preview";
+      ? "Live local not loaded"
+      : "Offline preview fixture";
 
   useEffect(() => {
     if (rows.length === 0) {
@@ -200,7 +252,9 @@ export function ModelRunnerStatus({
           detail={
             isLiveModelsLoaded
               ? "Local daemon model registry entries"
-              : "Offline preview model registry fixtures"
+              : dataMode === "fixture"
+                ? "Offline preview fixture model registry entries"
+                : "No live local model registry loaded"
           }
         />
         <MetricCard
@@ -219,7 +273,9 @@ export function ModelRunnerStatus({
           detail={
             isLiveInventoryLoaded
               ? "Observed local daemon file metadata"
-              : "Fixture fallback inventory metadata"
+              : dataMode === "fixture"
+                ? "Offline preview fixture inventory metadata"
+                : "No live local inventory loaded"
           }
         />
         <MetricCard
@@ -228,7 +284,9 @@ export function ModelRunnerStatus({
           detail={
             isLiveReadinessLoaded
               ? "Local daemon readiness hints"
-              : "Fixture fallback readiness hints"
+              : dataMode === "fixture"
+                ? "Offline preview fixture readiness hints"
+                : "No live local readiness loaded"
           }
         />
         <MetricCard
@@ -247,7 +305,9 @@ export function ModelRunnerStatus({
           detail={
             isLiveStatusLoaded
               ? "Local daemon status hints"
-              : "Fixture-backed status hints"
+              : dataMode === "fixture"
+                ? "Offline preview fixture status hints"
+                : "No live local status hints loaded"
           }
         />
       </div>
@@ -322,7 +382,7 @@ function ModelMetadataPanel({
           {...buildLiveErrorEmptyState(
             liveModelsState.label,
             liveModelsState.message,
-            "Fixture model manifest hints remain clearly labeled below.",
+            "Model manifest metadata remains unavailable until a successful manual refresh.",
           )}
         />
       ) : null}
@@ -334,8 +394,8 @@ function ModelMetadataPanel({
             {isLiveMode && liveModelsState.status === "loaded"
               ? "Live local metadata"
               : isLiveMode
-                ? "Fixture fallback"
-                : "Offline preview metadata"}
+                ? "Live local not loaded"
+                : "Offline preview fixture metadata"}
           </dd>
         </div>
         <div>
@@ -347,7 +407,9 @@ function ModelMetadataPanel({
           <dd>
             {liveModelsState.status === "loaded" && isLiveMode
               ? liveModelsState.models.length
-              : modelFixtures.length}
+              : dataMode === "fixture"
+                ? modelFixtures.length
+                : 0}
           </dd>
         </div>
         <div>
@@ -429,7 +491,7 @@ function ModelInventoryPanel({
       {isLiveMode && liveModelInventoryState.status === "not-loaded" ? (
         <EmptyState
           title="Local model inventory has not been loaded"
-          message="Fixture fallback inventory metadata remains visible until you manually refresh GET /v1/models/inventory from the local daemon."
+          message="No live local inventory metadata is displayed until GET /v1/models/inventory loads successfully."
           nextAction="Start the daemon if needed, then use Refresh model inventory."
         />
       ) : null}
@@ -446,7 +508,7 @@ function ModelInventoryPanel({
           {...buildLiveErrorEmptyState(
             liveModelInventoryState.label,
             liveModelInventoryState.message,
-            "Fixture inventory metadata remains clearly labeled below.",
+            "Local model inventory remains unavailable until a successful manual refresh.",
           )}
         />
       ) : null}
@@ -466,8 +528,8 @@ function ModelInventoryPanel({
             {isLoaded
               ? "Local daemon data"
               : isLiveMode
-                ? "Fixture fallback"
-                : "Offline preview"}
+                ? "Live local not loaded"
+                : "Offline preview fixture"}
           </dd>
         </div>
         <div>
@@ -505,7 +567,7 @@ function ModelInventoryPanel({
           <dd>
             {isLoaded
               ? formatTimestamp(liveModelInventoryState.loadedAt)
-              : "fixture sample"}
+              : "not loaded"}
           </dd>
         </div>
       </dl>
@@ -631,7 +693,7 @@ function ModelReadinessPanel({
       {isLiveMode && liveModelReadinessState.status === "not-loaded" ? (
         <EmptyState
           title="Local model readiness has not been loaded"
-          message="Fixture fallback readiness metadata remains visible until you manually refresh local daemon data."
+          message="No live local readiness metadata is displayed until GET /v1/models/readiness loads successfully."
           nextAction="Start the daemon if needed, then use Refresh local daemon data."
         />
       ) : null}
@@ -648,7 +710,7 @@ function ModelReadinessPanel({
           {...buildLiveErrorEmptyState(
             liveModelReadinessState.label,
             liveModelReadinessState.message,
-            "Fixture readiness metadata remains clearly labeled below.",
+            "Local model readiness remains unavailable until a successful manual refresh.",
           )}
         />
       ) : null}
@@ -668,8 +730,8 @@ function ModelReadinessPanel({
             {isLoaded
               ? "Local daemon data"
               : isLiveMode
-                ? "Fixture fallback"
-                : "Offline preview"}
+                ? "Live local not loaded"
+                : "Offline preview fixture"}
           </dd>
         </div>
         <div>
@@ -705,7 +767,7 @@ function ModelReadinessPanel({
           <dd>
             {isLoaded
               ? formatTimestamp(liveModelReadinessState.loadedAt)
-              : "fixture sample"}
+              : "not loaded"}
           </dd>
         </div>
       </dl>
@@ -849,7 +911,7 @@ function ModelStatusPanel({
           {...buildLiveErrorEmptyState(
             liveModelStatusState.label,
             liveModelStatusState.message,
-            "Fixture manifest hints remain clearly labeled below.",
+            "Model and runner status hints remain unavailable until a successful manual refresh.",
           )}
         />
       ) : null}
@@ -857,7 +919,7 @@ function ModelStatusPanel({
       {isLiveMode && liveCapabilitiesState.status === "not-loaded" ? (
         <EmptyState
           title="Live capabilities have not been loaded"
-          message="Fixture capability metadata remains visible until you manually refresh GET /v1/capabilities from the local daemon."
+          message="No live local capability metadata is displayed until GET /v1/capabilities loads successfully."
           nextAction="Start the daemon if needed, then use Refresh capabilities."
         />
       ) : null}
@@ -874,7 +936,7 @@ function ModelStatusPanel({
           {...buildLiveErrorEmptyState(
             liveCapabilitiesState.label,
             liveCapabilitiesState.message,
-            "Fixture capability metadata remains clearly labeled below.",
+            "Capability metadata remains unavailable until a successful manual refresh.",
           )}
         />
       ) : null}
@@ -884,7 +946,7 @@ function ModelStatusPanel({
       liveCapabilitiesState.capabilities.capabilities.length === 0 ? (
         <EmptyState
           title="No capabilities returned"
-          message="The local daemon returned an empty capabilities list. Fixture capability metadata remains available for review."
+          message="The local daemon returned an empty capabilities list."
           nextAction="Confirm the daemon is the current local-preview build and retry manual refresh."
         />
       ) : null}
@@ -902,8 +964,8 @@ function ModelStatusPanel({
             {isCapabilitiesLoaded
               ? "Local daemon capabilities"
               : isLiveMode
-                ? "Fixture fallback capabilities"
-                : "Offline preview capabilities"}
+                ? "Live local capabilities not loaded"
+                : "Offline preview fixture capabilities"}
           </dd>
         </div>
         <div>
@@ -919,7 +981,7 @@ function ModelStatusPanel({
           <dd>
             {isCapabilitiesLoaded
               ? formatTimestamp(liveCapabilitiesState.loadedAt)
-              : "fixture sample"}
+              : "not loaded"}
           </dd>
         </div>
         <div>
@@ -1244,7 +1306,7 @@ function getModelStatusStateLabel(
   liveModelStatusState: LiveModelStatusState,
 ): string {
   if (dataMode === "fixture") {
-    return "Fixture mode";
+    return "Offline preview fixture";
   }
 
   switch (liveModelStatusState.status) {
@@ -1266,7 +1328,7 @@ function getModelsStateLabel(
   liveModelsState: LiveModelsState,
 ): string {
   if (dataMode === "fixture") {
-    return "Fixture models";
+    return "Offline preview fixture models";
   }
 
   switch (liveModelsState.status) {
@@ -1286,7 +1348,7 @@ function getModelInventoryStateLabel(
   liveModelInventoryState: LiveModelInventoryState,
 ): string {
   if (dataMode === "fixture") {
-    return "Fixture inventory";
+    return "Offline preview fixture inventory";
   }
 
   switch (liveModelInventoryState.status) {
@@ -1308,7 +1370,7 @@ function getModelReadinessStateLabel(
   liveModelReadinessState: LiveModelReadinessState,
 ): string {
   if (dataMode === "fixture") {
-    return "Fixture readiness";
+    return "Offline preview fixture readiness";
   }
 
   switch (liveModelReadinessState.status) {

@@ -11,7 +11,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Local audit events for route explanations and chat completions.
 - Audit integrity regression coverage for route-explain and chat-completion audit event shape, local route signals, timestamps, warnings, and optional proxy estimate fields.
 - Aethra v0.1 local-only sustainability metrics endpoint with counterfactual proxy estimates derived from local audit events.
-- Aethra fixture-backed, local-first MVP scaffold for observing local preview metadata and proxy sustainability indicators. It is not a production dashboard.
+- Aethra live-local dashboard for observing manually refreshed local daemon metadata, endpoint state, and proxy sustainability indicators. It is not a production dashboard.
 - Aethra fixture-backed evidence bundle viewer with validation summary and archive metadata preview for local preview review.
 - Aethra guided demo path and clearer navigation labels for the safe local preview walkthrough.
 - Aethra local readiness surface with fixture-backed status hints, copy-only daemon guidance, and a local-preview checklist.
@@ -29,11 +29,11 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Local Demo Studio workflow with Aethra Local Demo Studio, `ignispromptctl demo-summary`, copy-safe demo reports, demo packages under ignored `local-evidence/demo-studio/`, stricter shared package path/list/validate behavior, `make demo-check`, demo workflow integration, and `make preview-release-check`.
 - v0.1.8 local preview release record for the Local Demo Studio arc and PR #188 hardening work.
 - Local-preview connector and capability status foundation with `GET /v1/capabilities` and `ignispromptctl capabilities`, reporting sanitized status metadata only with cloud disabled by default.
-- Read-only local model inventory foundation with `GET /v1/models/inventory`, `ignispromptctl model-inventory`, and Aethra manual live-local display with fixture fallback.
-- Read-only local model readiness foundation with `GET /v1/models/readiness`, `ignispromptctl model-readiness`, and Aethra manual live-local display with fixture fallback.
-- Read-only local operations summary foundation with `GET /v1/operations/summary`, `ignispromptctl operations-summary`, and Aethra manual live-local display for aggregate daemon activity and endpoint availability with fixture fallback.
-- Read-only local routing policy summary foundation with `GET /v1/routing/policy-summary`, `ignispromptctl routing-policy`, and Aethra manual live-local display for descriptive route categories, decision inputs, model selection hints, connector policy hints, audit policy hints, and safety boundaries with fixture fallback.
-- Read-only local evidence package index foundation with `GET /v1/evidence/packages`, `ignispromptctl evidence-packages`, and Aethra manual live-local display for safe package metadata, package type guesses, artifact indicators, and scan warnings with fixture fallback.
+- Read-only local model inventory foundation with `GET /v1/models/inventory`, `ignispromptctl model-inventory`, and Aethra manual live-local display.
+- Read-only local model readiness foundation with `GET /v1/models/readiness`, `ignispromptctl model-readiness`, and Aethra manual live-local display.
+- Read-only local operations summary foundation with `GET /v1/operations/summary`, `ignispromptctl operations-summary`, and Aethra manual live-local display for aggregate daemon activity and endpoint availability.
+- Read-only local routing policy summary foundation with `GET /v1/routing/policy-summary`, `ignispromptctl routing-policy`, and Aethra manual live-local display for descriptive route categories, decision inputs, model selection hints, connector policy hints, audit policy hints, and safety boundaries.
+- Read-only local evidence package index foundation with `GET /v1/evidence/packages`, `ignispromptctl evidence-packages`, and Aethra manual live-local display for safe package metadata, package type guesses, artifact indicators, and scan warnings.
 - Local evidence demo workflow automation script for route-explain, audit-events, evidence-bundle generation, listing, validation, archiving, archive verification, and manifest inspection.
 - Adversarial document-instruction detection for known instruction strings.
 - OpenAI-compatible chat completion request shape, including a `stream: true` compatibility scaffold that frames an already-produced local completion as SSE chunks.
@@ -54,6 +54,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Keep local model readiness advisory: manifest/inventory/runner hints do not imply executable inference, model quality, production readiness, compliance, certification, or legal accuracy.
 - Keep local operations metadata aggregate and read-only: endpoint availability, audit counts, and recent event type names do not imply telemetry, production monitoring, certification, signed evidence, or access to raw prompts/request bodies.
 - Keep local routing policy summary descriptive and read-only: route categories, decision inputs, and policy hints do not imply route execution, prompt submission, model execution, policy mutation, production readiness, legal accuracy, compliance, certification, or attestation.
+- Keep Aethra live-local dashboard behavior explicit: no startup auto-loading, no polling, no live response persistence, and no silent fixture fallback for failed or unavailable daemon surfaces.
 - Keep local evidence package indexing read-only and metadata-only: package names, validation-like filenames, reports, and attestation-like filenames do not imply package correctness, signed attestation, certification, compliance, legal accuracy, or production readiness.
 - Keep the Golden Legal adversarial fixture matrix small, synthetic, deterministic, and local-only.
 - Keep local evidence validation strict while avoiding signed attestation or tamper-evident storage claims until those features are explicitly implemented.

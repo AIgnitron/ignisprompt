@@ -144,7 +144,13 @@ Cloud BYOK, Tier 5, and enterprise provider routing are not implemented.
 
 `GET /v1/capabilities` is a local-preview foundation for exposing sanitized route-ladder metadata to CLIs and Aethra. It currently reports static/default-backed status for local policy guard, Tier 1 exact-match cache, OS-native local bridge, Stub Legal Runner, edge providers, and cloud providers.
 
-The endpoint is deliberately observational. It does not enable cloud routing, call external endpoints, inspect cloud credentials, read secrets, execute model runners, start or stop connectors, or claim production readiness. Cloud providers are reported as disabled by default, and Aethra remains read-only and fixture-backed unless a user explicitly performs manual live-local loads.
+The endpoint is deliberately observational. It does not enable cloud routing, call external endpoints, inspect cloud credentials, read secrets, execute model runners, start or stop connectors, or claim production readiness. Cloud providers are reported as disabled by default, and Aethra remains read-only with manual live-local loading only. Offline preview fixtures are separate, clearly labeled, and not used to silently replace failed live-local product state.
+
+## Aethra live-local dashboard
+
+Aethra is the browser dashboard for local IgnisPrompt metadata. The main dashboard is live-local first: it starts with not-loaded endpoint states, uses one manual **Refresh local daemon data** action, and reports each supported read-only surface as live local, not loaded, unavailable, or failed. It does not auto-load on startup, poll, persist live daemon responses, submit prompts, execute routes, execute models, generate packages, validate packages as certified, upload/download/delete files, mutate connectors/models/runners/policy/manifests, call cloud services, or send telemetry.
+
+Offline preview fixtures remain in the app for tests, local demos, and explicitly labeled fixture views. They are not mixed into the main product state when the daemon is unavailable or a live endpoint fails.
 
 ## Local model inventory
 

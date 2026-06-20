@@ -22,6 +22,11 @@ describe("RoutingExplorer route", () => {
     expect(markup).toContain("Local legal candidate");
     expect(markup).toContain("Route state legend");
     expect(markup).toContain("not implemented");
+    expect(markup).toContain("Offline preview route example");
+    expect(markup).toContain("Fixture-backed route example");
+    expect(markup).not.toContain("Live local route-explain");
+    expect(markup).not.toContain("Run live route");
+    expect(markup).not.toContain("Submit prompt");
     expect(markup).not.toContain("Edit policy");
     expect(markup).not.toContain("Enable cloud");
     expect(markup).not.toContain("Run model");
@@ -54,5 +59,9 @@ describe("RoutingExplorer route", () => {
     expect(markup).toContain("Live legal specialized routing");
     expect(markup).toContain("live_policy_metadata");
     expect(markup).toContain("sending telemetry");
+    expect(markup).toContain("Read-only policy metadata");
+    expect(markup).not.toContain("Live local route-explain");
+    expect(markup).not.toContain("Run live route");
+    expect(markup).not.toContain("Submit prompt");
   });
 });
