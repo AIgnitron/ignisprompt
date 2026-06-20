@@ -11,6 +11,7 @@ import {
   modelStatusFixture,
   operationsSummaryFixture,
   routeExplainFixture,
+  routingPolicySummaryFixture,
   sustainabilityMetricsFixture,
   versionStatusFixture,
 } from "./fixtures";
@@ -106,6 +107,21 @@ describe("IgnisPromptClient", () => {
     );
     expect(fetchImpl).toHaveBeenCalledWith(
       "http://127.0.0.1:8765/v1/operations/summary",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("reads local routing policy summary metadata with the current response shape", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(routingPolicySummaryFixture),
+    );
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.routingPolicySummary()).resolves.toEqual(
+      routingPolicySummaryFixture,
+    );
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "http://127.0.0.1:8765/v1/routing/policy-summary",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
@@ -258,6 +274,23 @@ describe("IgnisPromptClient", () => {
     const client = new IgnisPromptClient({ fetchImpl });
 
     await expect(client.operationsSummary()).rejects.toMatchObject({
+      kind: "unexpected-shape",
+    });
+  });
+
+  it("rejects unsupported routing policy summary response shapes", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
+        ...routingPolicySummaryFixture,
+        safety_boundaries: {
+          ...routingPolicySummaryFixture.safety_boundaries,
+          no_route_execution: "true",
+        },
+      }),
+    );
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.routingPolicySummary()).rejects.toMatchObject({
       kind: "unexpected-shape",
     });
   });

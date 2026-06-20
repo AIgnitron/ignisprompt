@@ -8,6 +8,7 @@ export {
   modelReadinessFixture,
   modelStatusFixture,
   operationsSummaryFixture,
+  routingPolicySummaryFixture,
   routeExplainFixture,
   versionStatusFixture,
 } from "../api/fixtures";

@@ -36,7 +36,7 @@ For details, see the [demo flows](docs/DEMO.md), [testing notes](docs/TESTING.md
 
 `./scripts/dev-check.sh` is the recommended one-command developer path. `./scripts/start-dev.sh` plus `./scripts/smoke.sh` remains available as the lower-level manual debugging path when you want to inspect a running daemon directly.
 
-- `/health`, `/v1/models`, `/v1/models/inventory`, `/v1/models/readiness`, `/v1/capabilities`, `/v1/status/models`, `/v1/operations/summary`, `/v1/route/explain`, `/v1/chat/completions`, `/v1/audit/events`, and `/v1/metrics/sustainability?period=30d` respond locally
+- `/health`, `/v1/models`, `/v1/models/inventory`, `/v1/models/readiness`, `/v1/capabilities`, `/v1/status/models`, `/v1/operations/summary`, `/v1/routing/policy-summary`, `/v1/route/explain`, `/v1/chat/completions`, `/v1/audit/events`, and `/v1/metrics/sustainability?period=30d` respond locally
 - legal requests route to Tier 3 with a human-readable explanation
 - adversarial document instructions are detected and treated as untrusted content
 - audit events are written locally
@@ -109,6 +109,7 @@ Contributor entry points:
 - `GET /v1/capabilities` for local-preview connector and capability status metadata
 - `GET /v1/status/models` for model and runner status hints
 - `GET /v1/operations/summary` for read-only local daemon operations metadata
+- `GET /v1/routing/policy-summary` for read-only local routing policy metadata
 - `GET /v1/metrics/sustainability?period=30d` for local-only Aethra counterfactual estimate summaries
 - `POST /v1/route/explain`
 - `POST /v1/chat/completions` using an OpenAI-compatible request shape
@@ -235,6 +236,8 @@ cargo run -p ignispromptctl -- model-readiness
 cargo run -p ignispromptctl -- model-readiness --json
 cargo run -p ignispromptctl -- operations-summary
 cargo run -p ignispromptctl -- operations-summary --json
+cargo run -p ignispromptctl -- routing-policy
+cargo run -p ignispromptctl -- routing-policy --json
 cargo run -p ignispromptctl -- sustainability --period 30d
 cargo run -p ignispromptctl -- sustainability --period 30d --json
 cargo run -p ignispromptctl -- audit-events
@@ -255,7 +258,7 @@ cargo run -p ignispromptctl -- route-explain --input ./tests/golden-legal/smoke-
 cargo run -p ignispromptctl -- audit tail
 ```
 
-`doctor` checks the local daemon health, version status, model manifest, connector/capability status, and model and runner status hint endpoints, then reports local next steps for common failures. Its model inventory, model readiness, operations summary, and sustainability metrics checks are informational. The command is local-only and does not perform telemetry, cloud calls, GitHub calls, update checks, external lookup, persistence, uploads, connector controls, model controls, or runner controls.
+`doctor` checks the local daemon health, version status, model manifest, connector/capability status, and model and runner status hint endpoints, then reports local next steps for common failures. Its model inventory, model readiness, operations summary, routing policy summary, and sustainability metrics checks are informational. The command is local-only and does not perform telemetry, cloud calls, GitHub calls, update checks, external lookup, persistence, uploads, connector controls, model controls, runner controls, or routing controls.
 
 `capabilities` reads `GET /v1/capabilities` and prints sanitized local-preview connector and capability status metadata. The endpoint reports route-ladder status hints such as the default Stub Legal Runner fallback and cloud-disabled-by-default policy state. It does not execute runners, check cloud providers, read secrets, perform telemetry, poll, mutate configuration, enable connectors, or imply production readiness.
 
@@ -265,7 +268,9 @@ cargo run -p ignispromptctl -- audit tail
 
 `operations-summary` reads `GET /v1/operations/summary` and prints aggregate local daemon operations metadata such as daemon status, endpoint availability, audit counts, recent event types, and recent local activity counts. It does not expose raw prompts, raw request bodies, secrets, machine identifiers, telemetry, cloud activity, route execution, model execution, connector mutation, certification status, or signed evidence.
 
-Aethra can manually load the same `/v1/capabilities`, `/v1/models/inventory`, `/v1/models/readiness`, and `/v1/operations/summary` metadata in live-local mode. It also has a top-level **Refresh local daemon data** action that reads the supported local daemon metadata surfaces (`/health`, `/v1/status/version`, `/v1/models`, `/v1/models/inventory`, `/v1/models/readiness`, `/v1/status/models`, `/v1/capabilities`, `/v1/operations/summary`, `/v1/audit/events`, and `/v1/metrics/sustainability?period=30d`) and prefers those local daemon responses where available. Offline preview fixtures remain the fallback for unavailable sections, and the dashboard stays read-only with no polling, telemetry, cloud calls, connector mutation, route execution, or model/runner controls.
+`routing-policy` reads `GET /v1/routing/policy-summary` and prints descriptive local routing policy metadata such as route categories, decision inputs, model selection hints, connector policy hints, audit policy hints, and safety boundaries. It does not execute routes, submit prompts, execute models, mutate policy or manifests, mutate connectors or runners, call cloud services, send telemetry, return secrets, or expose raw prompts.
+
+Aethra can manually load the same `/v1/capabilities`, `/v1/models/inventory`, `/v1/models/readiness`, `/v1/operations/summary`, and `/v1/routing/policy-summary` metadata in live-local mode. It also has a top-level **Refresh local daemon data** action that reads the supported local daemon metadata surfaces (`/health`, `/v1/status/version`, `/v1/models`, `/v1/models/inventory`, `/v1/models/readiness`, `/v1/status/models`, `/v1/capabilities`, `/v1/operations/summary`, `/v1/routing/policy-summary`, `/v1/audit/events`, and `/v1/metrics/sustainability?period=30d`) and prefers those local daemon responses where available. Offline preview fixtures remain the fallback for unavailable sections, and the dashboard stays read-only with no polling, telemetry, cloud calls, connector mutation, route execution, policy mutation, or model/runner controls.
 
 `readiness` reuses the same local endpoint checks as `doctor` and presents them as local preview readiness only. It keeps status hints framed as hints, not controls; local helper checks as checks, not certification; and Aethra live-local loading as manual. `--json` prints safe diagnostic fields for category, severity, result, local next step, and boundary note without daemon URLs or local machine details. `--markdown` prints a copy-safe local helper report for issue or demo notes without generated evidence contents or local machine details. `--package-output local-evidence/readiness/<name>` writes a local readiness package with README, manifest, JSON summaries, and Markdown report output under an ignored readiness path. `--package-list` and `--package-validate` inspect that package locally without calling the daemon. It does not add telemetry, cloud calls, persistence, uploads, model controls, or runner controls.
 

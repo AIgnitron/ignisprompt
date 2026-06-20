@@ -20,6 +20,7 @@ import type {
   LiveModelStatusState,
   LiveModelsState,
   LiveOperationsSummaryState,
+  LiveRoutingPolicySummaryState,
   LiveSustainabilityMetricsState,
   LiveVersionStatusState,
 } from "./dataSource";
@@ -72,6 +73,10 @@ export default function App() {
     });
   const [liveModelReadinessState, setLiveModelReadinessState] =
     useState<LiveModelReadinessState>({
+      status: "not-loaded",
+    });
+  const [liveRoutingPolicyState, setLiveRoutingPolicyState] =
+    useState<LiveRoutingPolicySummaryState>({
       status: "not-loaded",
     });
   const [liveModelStatusState, setLiveModelStatusState] =
@@ -354,6 +359,7 @@ export default function App() {
       setLiveModelsState(blocked);
       setLiveModelInventoryState(blocked);
       setLiveModelReadinessState(blocked);
+      setLiveRoutingPolicyState(blocked);
       setLiveModelStatusState(blocked);
       setLiveCapabilitiesState(blocked);
       setLiveAuditEventsState(blocked);
@@ -372,6 +378,7 @@ export default function App() {
           "models",
           "model-inventory",
           "model-readiness",
+          "routing-policy",
           "model-status",
           "capabilities",
           "audit-events",
@@ -394,6 +401,7 @@ export default function App() {
     setLiveModelsState({ status: "loading" });
     setLiveModelInventoryState({ status: "loading" });
     setLiveModelReadinessState({ status: "loading" });
+    setLiveRoutingPolicyState({ status: "loading" });
     setLiveModelStatusState({ status: "loading" });
     setLiveCapabilitiesState({ status: "loading" });
     setLiveAuditEventsState({ status: "loading" });
@@ -413,6 +421,7 @@ export default function App() {
     setLiveModelsState(snapshot.models);
     setLiveModelInventoryState(snapshot.modelInventory);
     setLiveModelReadinessState(snapshot.modelReadiness);
+    setLiveRoutingPolicyState(snapshot.routingPolicy);
     setLiveModelStatusState(snapshot.modelStatus);
     setLiveCapabilitiesState(snapshot.capabilities);
     setLiveAuditEventsState(snapshot.auditEvents);
@@ -553,7 +562,7 @@ export default function App() {
               <p>
                 {dataMode === "fixture"
                   ? "Use Refresh local daemon data when ignispromptd is running. Aethra observes IgnisPrompt state without changing routing, runners, models, or audit policy."
-                  : "Live local metadata loading is manual and read-only for health, daemon version status, models, local model inventory, model readiness, capabilities, model and runner status hints, audit events, operations summary, and sustainability metrics."}
+                  : "Live local metadata loading is manual and read-only for health, daemon version status, models, local model inventory, model readiness, routing policy summary, capabilities, model and runner status hints, audit events, operations summary, and sustainability metrics."}
               </p>
             </div>
             <div className="mode-badges" aria-label="Aethra mode guarantees">
@@ -598,6 +607,7 @@ export default function App() {
             liveModelsState={liveModelsState}
             liveModelInventoryState={liveModelInventoryState}
             liveModelReadinessState={liveModelReadinessState}
+            liveRoutingPolicyState={liveRoutingPolicyState}
             liveModelStatusState={liveModelStatusState}
             liveCapabilitiesState={liveCapabilitiesState}
             liveVersionStatusState={liveVersionStatusState}
@@ -627,8 +637,10 @@ export default function App() {
         ) : null}
         {activeRoute === "routing-explorer" ? (
           <RoutingExplorer
+            dataMode={dataMode}
             localBaseUrl={localBaseUrl}
             localBaseUrlError={baseUrlError}
+            liveRoutingPolicyState={liveRoutingPolicyState}
           />
         ) : null}
         {activeRoute === "audit-events" ? (
@@ -853,10 +865,10 @@ function DataSourceControl({
             </button>
             <p className="muted refresh-card-note">
               Loads health, version, models, local model inventory,
-              model readiness, capabilities, status hints, audit events,
-              operations summary, and 30d sustainability metrics from read-only
-              GET endpoints. Route execution and model execution are not
-              included.
+              model readiness, routing policy summary, capabilities, status
+              hints, audit events, operations summary, and 30d sustainability
+              metrics from read-only GET endpoints. Route execution and model
+              execution are not included.
             </p>
           </div>
 

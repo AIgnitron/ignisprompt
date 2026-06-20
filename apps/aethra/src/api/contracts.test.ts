@@ -8,6 +8,7 @@ import {
   isModelRegistry,
   isModelStatusResponse,
   isOperationsSummaryResponse,
+  isRoutingPolicySummaryResponse,
   isSustainabilityMetricsResponse,
   isVersionStatusResponse,
 } from "./contracts";
@@ -21,6 +22,7 @@ import {
   modelReadinessFixture,
   modelStatusFixture,
   operationsSummaryFixture,
+  routingPolicySummaryFixture,
   sustainabilityMetricsFixture,
   versionStatusFixture,
 } from "./fixtures";
@@ -39,6 +41,7 @@ describe("Aethra fixture contract shapes", () => {
     expect(isModelStatusResponse(modelStatusFixture)).toBe(true);
     expect(isCapabilitiesResponse(capabilitiesFixture)).toBe(true);
     expect(isOperationsSummaryResponse(operationsSummaryFixture)).toBe(true);
+    expect(isRoutingPolicySummaryResponse(routingPolicySummaryFixture)).toBe(true);
     expect(isAuditEventList(auditEventFixtures)).toBe(true);
     expect(isSustainabilityMetricsResponse(sustainabilityMetricsFixture)).toBe(
       true,
@@ -103,6 +106,20 @@ describe("Aethra fixture contract shapes", () => {
       "endpoints",
       "generated_at",
       "schema_version",
+    ]);
+    expect(keysOf(routingPolicySummaryFixture)).toEqual([
+      "audit_policy_hints",
+      "connector_policy_hints",
+      "decision_inputs",
+      "generated_at",
+      "model_selection_hints",
+      "next_steps",
+      "policy_mode",
+      "route_categories",
+      "safety_boundaries",
+      "schema_version",
+      "summary",
+      "warnings",
     ]);
     expect(keysOf(sustainabilityMetricsFixture)).toEqual([
       "baseline_model",
@@ -264,6 +281,7 @@ describe("Aethra fixture contract shapes", () => {
       "model_readiness_available",
       "models_available",
       "operations_summary_available",
+      "routing_policy_available",
       "status_models_available",
       "status_version_available",
       "sustainability_available",
@@ -293,6 +311,63 @@ describe("Aethra fixture contract shapes", () => {
     expect(operationsSummaryFixture.boundaries.no_raw_request_text).toBe(true);
     expect(operationsSummaryFixture.boundaries.no_telemetry).toBe(true);
     expect(operationsSummaryFixture.boundaries.no_cloud_calls).toBe(true);
+  });
+
+  it("locks routing policy summary fields as read-only metadata", () => {
+    expect(keysOf(routingPolicySummaryFixture.summary)).toEqual([
+      "cloud_enabled",
+      "configured_model_count",
+      "default_fallback_runner",
+      "installed_legal_model_count",
+      "legal_model_count",
+      "local_only",
+      "prompt_submission_required",
+      "route_execution_required",
+    ]);
+    expect(keysOf(routingPolicySummaryFixture.policy_mode)).toEqual([
+      "cloud_disabled_by_default",
+      "local_only_default",
+      "local_preview",
+      "release_channel",
+      "route_execution_in_summary",
+    ]);
+    expect(keysOf(routingPolicySummaryFixture.route_categories[0])).toEqual([
+      "behavior",
+      "data_boundary",
+      "id",
+      "label",
+      "notes",
+      "status",
+      "tier",
+    ]);
+    expect(keysOf(routingPolicySummaryFixture.safety_boundaries)).toEqual([
+      "no_cloud_calls",
+      "no_connector_mutation",
+      "no_manifest_mutation",
+      "no_model_execution",
+      "no_policy_mutation",
+      "no_prompt_submission",
+      "no_raw_prompts",
+      "no_route_execution",
+      "no_runner_mutation",
+      "no_secrets",
+      "no_telemetry",
+      "notes",
+      "read_only",
+    ]);
+    expect(routingPolicySummaryFixture.summary.cloud_enabled).toBe(false);
+    expect(routingPolicySummaryFixture.safety_boundaries.no_route_execution).toBe(
+      true,
+    );
+    expect(
+      isRoutingPolicySummaryResponse({
+        ...routingPolicySummaryFixture,
+        safety_boundaries: {
+          ...routingPolicySummaryFixture.safety_boundaries,
+          no_route_execution: "true",
+        },
+      }),
+    ).toBe(false);
   });
 
   it("locks audit fixture fields including optional Aethra proxy estimate fields", () => {

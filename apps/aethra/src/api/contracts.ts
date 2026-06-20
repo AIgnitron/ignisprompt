@@ -220,6 +220,7 @@ export type OperationsEndpointSummary = {
   models_available: boolean;
   model_inventory_available: boolean;
   model_readiness_available: boolean;
+  routing_policy_available: boolean;
   capabilities_available: boolean;
   status_models_available: boolean;
   status_version_available: boolean;
@@ -261,6 +262,72 @@ export type OperationsSummaryResponse = {
   audit_summary: OperationsAuditSummary;
   activity_summary: OperationsActivitySummary;
   boundaries: OperationsBoundarySummary;
+};
+
+export type RoutingPolicySummary = {
+  local_only: boolean;
+  route_execution_required: boolean;
+  prompt_submission_required: boolean;
+  cloud_enabled: boolean;
+  configured_model_count: number;
+  legal_model_count: number;
+  installed_legal_model_count: number;
+  default_fallback_runner: string;
+};
+
+export type RoutingPolicyMode = {
+  release_channel: string;
+  local_preview: boolean;
+  local_only_default: boolean;
+  cloud_disabled_by_default: boolean;
+  route_execution_in_summary: boolean;
+};
+
+export type RoutingPolicyCategory = {
+  id: string;
+  label: string;
+  tier: string;
+  status: string;
+  behavior: string;
+  data_boundary: string;
+  notes: string[];
+};
+
+export type RoutingPolicyHint = {
+  id: string;
+  label: string;
+  detail: string;
+};
+
+export type RoutingPolicySafetyBoundaries = {
+  read_only: boolean;
+  no_route_execution: boolean;
+  no_model_execution: boolean;
+  no_prompt_submission: boolean;
+  no_policy_mutation: boolean;
+  no_manifest_mutation: boolean;
+  no_connector_mutation: boolean;
+  no_runner_mutation: boolean;
+  no_cloud_calls: boolean;
+  no_telemetry: boolean;
+  no_secrets: boolean;
+  no_raw_prompts: boolean;
+  notes: string[];
+};
+
+export type RoutingPolicySummaryResponse = {
+  schema_version: string;
+  generated_at: string;
+  summary: RoutingPolicySummary;
+  policy_mode: RoutingPolicyMode;
+  route_categories: RoutingPolicyCategory[];
+  decision_inputs: RoutingPolicyHint[];
+  model_selection_hints: RoutingPolicyHint[];
+  connector_policy_hints: RoutingPolicyHint[];
+  audit_policy_hints: RoutingPolicyHint[];
+  safety_boundaries: RoutingPolicySafetyBoundaries;
+  warnings: string[];
+  next_steps: string[];
 };
 
 export type ChatMessage = {
@@ -770,12 +837,110 @@ export function isOperationsEndpointSummary(
     isBoolean(value.models_available) &&
     isBoolean(value.model_inventory_available) &&
     isBoolean(value.model_readiness_available) &&
+    isBoolean(value.routing_policy_available) &&
     isBoolean(value.capabilities_available) &&
     isBoolean(value.status_models_available) &&
     isBoolean(value.status_version_available) &&
     isBoolean(value.audit_events_available) &&
     isBoolean(value.sustainability_available) &&
     isBoolean(value.operations_summary_available)
+  );
+}
+
+export function isRoutingPolicySummary(
+  value: unknown,
+): value is RoutingPolicySummary {
+  return (
+    isRecord(value) &&
+    isBoolean(value.local_only) &&
+    isBoolean(value.route_execution_required) &&
+    isBoolean(value.prompt_submission_required) &&
+    isBoolean(value.cloud_enabled) &&
+    isNumber(value.configured_model_count) &&
+    isNumber(value.legal_model_count) &&
+    isNumber(value.installed_legal_model_count) &&
+    isString(value.default_fallback_runner)
+  );
+}
+
+export function isRoutingPolicyMode(value: unknown): value is RoutingPolicyMode {
+  return (
+    isRecord(value) &&
+    isString(value.release_channel) &&
+    isBoolean(value.local_preview) &&
+    isBoolean(value.local_only_default) &&
+    isBoolean(value.cloud_disabled_by_default) &&
+    isBoolean(value.route_execution_in_summary)
+  );
+}
+
+export function isRoutingPolicyCategory(
+  value: unknown,
+): value is RoutingPolicyCategory {
+  return (
+    isRecord(value) &&
+    isString(value.id) &&
+    isString(value.label) &&
+    isString(value.tier) &&
+    isString(value.status) &&
+    isString(value.behavior) &&
+    isString(value.data_boundary) &&
+    isStringArray(value.notes)
+  );
+}
+
+export function isRoutingPolicyHint(value: unknown): value is RoutingPolicyHint {
+  return (
+    isRecord(value) &&
+    isString(value.id) &&
+    isString(value.label) &&
+    isString(value.detail)
+  );
+}
+
+export function isRoutingPolicySafetyBoundaries(
+  value: unknown,
+): value is RoutingPolicySafetyBoundaries {
+  return (
+    isRecord(value) &&
+    isBoolean(value.read_only) &&
+    isBoolean(value.no_route_execution) &&
+    isBoolean(value.no_model_execution) &&
+    isBoolean(value.no_prompt_submission) &&
+    isBoolean(value.no_policy_mutation) &&
+    isBoolean(value.no_manifest_mutation) &&
+    isBoolean(value.no_connector_mutation) &&
+    isBoolean(value.no_runner_mutation) &&
+    isBoolean(value.no_cloud_calls) &&
+    isBoolean(value.no_telemetry) &&
+    isBoolean(value.no_secrets) &&
+    isBoolean(value.no_raw_prompts) &&
+    isStringArray(value.notes)
+  );
+}
+
+export function isRoutingPolicySummaryResponse(
+  value: unknown,
+): value is RoutingPolicySummaryResponse {
+  return (
+    isRecord(value) &&
+    isString(value.schema_version) &&
+    isString(value.generated_at) &&
+    isRoutingPolicySummary(value.summary) &&
+    isRoutingPolicyMode(value.policy_mode) &&
+    Array.isArray(value.route_categories) &&
+    value.route_categories.every(isRoutingPolicyCategory) &&
+    Array.isArray(value.decision_inputs) &&
+    value.decision_inputs.every(isRoutingPolicyHint) &&
+    Array.isArray(value.model_selection_hints) &&
+    value.model_selection_hints.every(isRoutingPolicyHint) &&
+    Array.isArray(value.connector_policy_hints) &&
+    value.connector_policy_hints.every(isRoutingPolicyHint) &&
+    Array.isArray(value.audit_policy_hints) &&
+    value.audit_policy_hints.every(isRoutingPolicyHint) &&
+    isRoutingPolicySafetyBoundaries(value.safety_boundaries) &&
+    isStringArray(value.warnings) &&
+    isStringArray(value.next_steps)
   );
 }
 
