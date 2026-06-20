@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type {
+  EvidencePackageIndexResponse,
   OperationsEndpointSummary,
   OperationsSummaryResponse,
   RoutingPolicySummaryResponse,
@@ -12,6 +13,7 @@ import type {
   AethraDataMode,
   LiveAuditEventsState,
   LiveCapabilitiesState,
+  LiveEvidencePackageIndexState,
   LiveHealthState,
   LiveLocalDiagnostics,
   LiveModelInventoryState,
@@ -36,6 +38,7 @@ import {
   modelReadinessFixture,
   operationsSummaryFixture,
   routingPolicySummaryFixture,
+  evidencePackageIndexFixture,
   versionStatusFixture,
 } from "../fixtures/aethraFixture";
 import {
@@ -104,6 +107,7 @@ type OverviewProps = {
   liveModelInventoryState: LiveModelInventoryState;
   liveModelReadinessState: LiveModelReadinessState;
   liveRoutingPolicyState: LiveRoutingPolicySummaryState;
+  liveEvidencePackagesState: LiveEvidencePackageIndexState;
   liveModelStatusState: LiveModelStatusState;
   liveCapabilitiesState: LiveCapabilitiesState;
   liveVersionStatusState: LiveVersionStatusState;
@@ -123,6 +127,7 @@ export function Overview({
   liveModelInventoryState,
   liveModelReadinessState,
   liveRoutingPolicyState,
+  liveEvidencePackagesState,
   liveModelStatusState,
   liveCapabilitiesState,
   liveVersionStatusState,
@@ -160,6 +165,10 @@ export function Overview({
     dataMode === "live-local" && liveRoutingPolicyState.status === "loaded"
       ? liveRoutingPolicyState.summary
       : undefined;
+  const liveEvidencePackages =
+    dataMode === "live-local" && liveEvidencePackagesState.status === "loaded"
+      ? liveEvidencePackagesState.index
+      : undefined;
   const healthForStatus = liveHealth ?? healthFixture;
   const modelInventoryForSummary = liveModelInventory ?? modelInventoryFixture;
   const modelReadinessForSummary =
@@ -168,6 +177,8 @@ export function Overview({
     liveOperationsSummary ?? operationsSummaryFixture;
   const routingPolicyForDisplay =
     liveRoutingPolicy ?? routingPolicySummaryFixture;
+  const evidencePackagesForDisplay =
+    liveEvidencePackages ?? evidencePackageIndexFixture;
   const modelsForSummary = liveModels ?? modelFixtures;
   const auditEventsForSummary = liveAuditEvents ?? auditEventFixtures;
   const summary = buildOverviewSummary(
@@ -197,6 +208,9 @@ export function Overview({
   const routingPolicySourceLabel = formatLiveLocalDisplaySource(
     getLiveLocalDisplaySource(dataMode, liveRoutingPolicyState),
   );
+  const evidencePackagesSourceLabel = formatLiveLocalDisplaySource(
+    getLiveLocalDisplaySource(dataMode, liveEvidencePackagesState),
+  );
   const endpointsAvailableCount = countAvailableOperationEndpoints(
     operationsSummaryForDisplay.endpoints,
   );
@@ -211,6 +225,7 @@ export function Overview({
       liveModelInventoryState,
       liveModelReadinessState,
       liveRoutingPolicyState,
+      liveEvidencePackagesState,
       liveModelStatusState,
       liveCapabilitiesState,
       liveAuditEventsState,
@@ -249,7 +264,7 @@ export function Overview({
         collapsible
         items={[
           "Review local preview status, local daemon metadata, fixture fallback data, diagnostics, and copyable local commands.",
-          "Use Refresh local daemon data to load read-only health, version, model, local model inventory, model readiness, routing policy, capability, audit, and sustainability metadata from loopback endpoints.",
+          "Use Refresh local daemon data to load read-only health, version, model, local model inventory, model readiness, routing policy, evidence package index, capability, audit, and sustainability metadata from loopback endpoints.",
           "Read displayed route, warning, and local-only summaries before moving to detailed pages.",
         ]}
       />
@@ -300,6 +315,10 @@ export function Overview({
           <RoutingPolicySummaryPanel
             summary={routingPolicyForDisplay}
             sourceLabel={routingPolicySourceLabel}
+          />
+          <EvidencePackageIndexPanel
+            index={evidencePackagesForDisplay}
+            sourceLabel={evidencePackagesSourceLabel}
           />
           <LocalCommandsPanel />
         </div>
@@ -359,6 +378,11 @@ export function Overview({
           label="Policy categories"
           value={routingPolicyForDisplay.route_categories.length}
           detail={`Routing policy metadata from ${routingPolicySourceLabel}`}
+        />
+        <MetricCard
+          label="Evidence packages"
+          value={evidencePackagesForDisplay.aggregate_summary.total_packages}
+          detail={`Read-only package index from ${evidencePackagesSourceLabel}`}
         />
         <MetricCard
           label="Recent local activity"
@@ -563,7 +587,7 @@ function OperationsSummaryPanel({
         </div>
         <div>
           <dt>Endpoints available</dt>
-          <dd>{availableEndpoints} / 11</dd>
+          <dd>{availableEndpoints} / 12</dd>
         </div>
         <div>
           <dt>Audit events</dt>
@@ -646,6 +670,70 @@ function RoutingPolicySummaryPanel({
         Routing policy metadata is read-only. Aethra does not execute routes,
         submit prompts, execute models, mutate policy, mutate manifests, mutate
         connectors, call cloud services, or send telemetry.
+      </p>
+    </section>
+  );
+}
+
+type EvidencePackageIndexPanelProps = {
+  index: EvidencePackageIndexResponse;
+  sourceLabel: string;
+};
+
+function EvidencePackageIndexPanel({
+  index,
+  sourceLabel,
+}: EvidencePackageIndexPanelProps) {
+  const packageTypes = Object.keys(index.aggregate_summary.packages_by_type);
+  const latestPackage =
+    index.aggregate_summary.latest_observed_package ?? "none observed";
+
+  return (
+    <section className="panel" aria-label="Local evidence package index">
+      <div className="panel-heading">
+        <div>
+          <h3>Local evidence packages</h3>
+          <p className="muted">
+            Read-only index metadata for local evidence folders and archives.
+          </p>
+        </div>
+        <StatusBadge tone={sourceLabel === "Local daemon data" ? "ok" : "neutral"}>
+          {sourceLabel}
+        </StatusBadge>
+      </div>
+
+      <dl className="definition-grid diagnostics-grid">
+        <div>
+          <dt>Root</dt>
+          <dd>{index.root_summary.evidence_root_label}</dd>
+        </div>
+        <div>
+          <dt>Root exists</dt>
+          <dd>{String(index.root_summary.root_exists)}</dd>
+        </div>
+        <div>
+          <dt>Packages</dt>
+          <dd>{index.aggregate_summary.total_packages}</dd>
+        </div>
+        <div>
+          <dt>Types</dt>
+          <dd>{packageTypes.length}</dd>
+        </div>
+        <div>
+          <dt>With reports</dt>
+          <dd>{index.aggregate_summary.packages_with_reports}</dd>
+        </div>
+        <div>
+          <dt>Latest package</dt>
+          <dd>{latestPackage}</dd>
+        </div>
+      </dl>
+
+      <p className="muted diagnostics-note">
+        Evidence package metadata is read-only. Aethra does not show file
+        contents, generate packages, validate packages as certified, upload
+        files, delete files, or claim attestation, compliance, legal accuracy,
+        or deployment readiness.
       </p>
     </section>
   );

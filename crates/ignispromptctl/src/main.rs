@@ -147,6 +147,12 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// Print read-only local evidence package index metadata
+    EvidencePackages {
+        /// Print raw JSON response instead of a terminal summary
+        #[arg(long)]
+        json: bool,
+    },
     /// Print read-only local operations summary metadata
     OperationsSummary {
         /// Print raw JSON response instead of a terminal summary
@@ -299,6 +305,7 @@ fn main() {
         Commands::ModelInventory { json } => cmd_model_inventory(&cli.daemon_url, *json),
         Commands::ModelReadiness { json } => cmd_model_readiness(&cli.daemon_url, *json),
         Commands::RoutingPolicy { json } => cmd_routing_policy(&cli.daemon_url, *json),
+        Commands::EvidencePackages { json } => cmd_evidence_packages(&cli.daemon_url, *json),
         Commands::OperationsSummary { json } => cmd_operations_summary(&cli.daemon_url, *json),
         Commands::Sustainability { period, json } => {
             cmd_sustainability(&cli.daemon_url, period, *json)
@@ -975,6 +982,13 @@ const DOCTOR_CHECKS: &[DoctorCheckSpec] = &[
         path: "/v1/routing/policy-summary",
         level: DoctorCheckLevel::Informational,
         validate: validate_doctor_routing_policy,
+    },
+    DoctorCheckSpec {
+        id: "evidence_packages",
+        label: "local evidence package index",
+        path: "/v1/evidence/packages",
+        level: DoctorCheckLevel::Informational,
+        validate: validate_doctor_evidence_packages,
     },
     DoctorCheckSpec {
         id: "operations_summary",
@@ -5079,6 +5093,85 @@ fn validate_doctor_routing_policy(body: &Value) -> Result<String, String> {
     ))
 }
 
+fn validate_doctor_evidence_packages(body: &Value) -> Result<String, String> {
+    required_string(body, "schema_version")?;
+    required_string(body, "generated_at")?;
+    let root_summary = body
+        .get("root_summary")
+        .ok_or_else(|| "missing required object field 'root_summary'".to_string())?;
+    let aggregate_summary = body
+        .get("aggregate_summary")
+        .ok_or_else(|| "missing required object field 'aggregate_summary'".to_string())?;
+    let packages = required_array(body, "packages")?;
+    required_array(body, "warnings")?;
+    let boundary_notes = required_array(body, "boundary_notes")?;
+    required_array(body, "next_steps")?;
+
+    required_string(root_summary, "evidence_root_label")?;
+    required_bool(root_summary, "root_exists")?;
+    let package_count = root_summary
+        .get("package_count")
+        .and_then(|value| value.as_u64())
+        .ok_or_else(|| "missing required integer field 'root_summary.package_count'".to_string())?;
+    required_bool(root_summary, "scan_limit_reached")?;
+    required_array(root_summary, "ignored_paths_summary")?;
+
+    for field in [
+        "total_packages",
+        "packages_with_manifests",
+        "packages_with_reports",
+        "packages_with_validation_like_files",
+        "packages_with_attestation_like_names",
+        "packages_with_warnings",
+    ] {
+        aggregate_summary
+            .get(field)
+            .and_then(|value| value.as_u64())
+            .ok_or_else(|| format!("missing required integer field 'aggregate_summary.{field}'"))?;
+    }
+    aggregate_summary
+        .get("packages_by_type")
+        .and_then(|value| value.as_object())
+        .ok_or_else(|| {
+            "missing required object field 'aggregate_summary.packages_by_type'".to_string()
+        })?;
+    required_bool(aggregate_summary, "scan_was_partial")?;
+
+    for package in packages {
+        required_string(package, "package_id")?;
+        required_string(package, "package_type")?;
+        required_string(package, "display_name")?;
+        let relative_path = required_string(package, "relative_path")?;
+        if relative_path.starts_with('/') || relative_path.contains("..") {
+            return Err("package relative_path is not safe".to_string());
+        }
+        package
+            .get("file_count")
+            .and_then(|value| value.as_u64())
+            .ok_or_else(|| "missing required integer field 'package.file_count'".to_string())?;
+        package
+            .get("total_size_bytes")
+            .and_then(|value| value.as_u64())
+            .ok_or_else(|| {
+                "missing required integer field 'package.total_size_bytes'".to_string()
+            })?;
+        required_bool(package, "has_manifest")?;
+        required_bool(package, "has_summary")?;
+        required_bool(package, "has_report")?;
+        required_bool(package, "has_validation_report")?;
+        required_bool(package, "has_attestation_like_files")?;
+        required_array(package, "known_artifacts")?;
+        required_array(package, "warnings")?;
+        required_array(package, "boundary_notes")?;
+    }
+
+    if boundary_notes.is_empty() {
+        return Err("boundary_notes is empty".to_string());
+    }
+
+    Ok(format!("{} packages indexed", package_count))
+}
+
 fn validate_doctor_operations_summary(body: &Value) -> Result<String, String> {
     required_string(body, "schema_version")?;
     required_string(body, "generated_at")?;
@@ -5113,6 +5206,7 @@ fn validate_doctor_operations_summary(body: &Value) -> Result<String, String> {
         "model_inventory_available",
         "model_readiness_available",
         "routing_policy_available",
+        "evidence_packages_available",
         "capabilities_available",
         "status_models_available",
         "status_version_available",
@@ -6091,6 +6185,167 @@ fn format_routing_policy_category_line(category: &Value) -> String {
     format!("- {}: {} / {} / {}", id, label, tier, status)
 }
 
+fn cmd_evidence_packages(base_url: &str, json_output: bool) {
+    let url = format!("{}/v1/evidence/packages", base_url);
+    match ureq::get(&url).call() {
+        Ok(resp) => {
+            let body = parse_response(resp);
+            if json_output {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&body).unwrap_or_default()
+                );
+            } else {
+                println!("{}", format_evidence_packages_summary(&body));
+            }
+        }
+        Err(e) => {
+            eprintln!("error: {}", e);
+            process::exit(1);
+        }
+    }
+}
+
+fn format_evidence_packages_summary(body: &Value) -> String {
+    let root = body.get("root_summary").unwrap_or(&Value::Null);
+    let aggregate = body.get("aggregate_summary").unwrap_or(&Value::Null);
+    let packages = body
+        .get("packages")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let mut lines = vec![
+        "IgnisPrompt Local Evidence Package Index".to_string(),
+        format!(
+            "schema_version:        {}",
+            body.get("schema_version")
+                .and_then(|value| value.as_str())
+                .unwrap_or("-")
+        ),
+        format!(
+            "evidence_root:         {}",
+            root.get("evidence_root_label")
+                .and_then(|value| value.as_str())
+                .unwrap_or("-")
+        ),
+        format!(
+            "root_exists:           {}",
+            root.get("root_exists")
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false)
+        ),
+        format!(
+            "packages:              {}",
+            aggregate
+                .get("total_packages")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0)
+        ),
+        format!(
+            "packages_with_reports: {}",
+            aggregate
+                .get("packages_with_reports")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(0)
+        ),
+        format!(
+            "scan_partial:          {}",
+            aggregate
+                .get("scan_was_partial")
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false)
+        ),
+        "".to_string(),
+        "Package types:".to_string(),
+    ];
+
+    if let Some(types) = aggregate
+        .get("packages_by_type")
+        .and_then(|value| value.as_object())
+    {
+        if types.is_empty() {
+            lines.push("- none".to_string());
+        } else {
+            let mut type_rows = types.iter().collect::<Vec<_>>();
+            type_rows.sort_by(|left, right| left.0.cmp(right.0));
+            for (package_type, count) in type_rows {
+                lines.push(format!(
+                    "- {}: {}",
+                    package_type,
+                    count.as_u64().unwrap_or(0)
+                ));
+            }
+        }
+    } else {
+        lines.push("- none".to_string());
+    }
+
+    lines.push("".to_string());
+    lines.push("Packages:".to_string());
+    if packages.is_empty() {
+        lines.push("- none observed".to_string());
+    } else {
+        for package in packages.iter().take(20) {
+            lines.push(format_evidence_package_line(package));
+        }
+        if packages.len() > 20 {
+            lines.push(format!(
+                "- ... {} additional packages omitted",
+                packages.len() - 20
+            ));
+        }
+    }
+
+    if let Some(warnings) = body.get("warnings").and_then(|value| value.as_array()) {
+        if !warnings.is_empty() {
+            lines.push("".to_string());
+            lines.push("Warnings:".to_string());
+            for warning in warnings {
+                if let Some(warning) = warning.as_str() {
+                    lines.push(format!("- {}", warning));
+                }
+            }
+        }
+    }
+
+    lines.push("".to_string());
+    lines.push("Boundaries: read-only evidence package metadata only; no package generation; no package validation claim; no attestation, certification, compliance, legal correctness, or production readiness claim; no uploads, downloads, deletes, file mutation, route execution, model execution, prompt submission, cloud calls, telemetry, raw prompts, raw request bodies, audit event bodies, secrets, private credentials, or full evidence file contents returned.".to_string());
+    lines.join("\n")
+}
+
+fn format_evidence_package_line(package: &Value) -> String {
+    let package_type = package
+        .get("package_type")
+        .and_then(|value| value.as_str())
+        .unwrap_or("-");
+    let relative_path = package
+        .get("relative_path")
+        .and_then(|value| value.as_str())
+        .unwrap_or("-");
+    let file_count = package
+        .get("file_count")
+        .and_then(|value| value.as_u64())
+        .unwrap_or(0);
+    let has_manifest = package
+        .get("has_manifest")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    let has_report = package
+        .get("has_report")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    let has_validation = package
+        .get("has_validation_report")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+
+    format!(
+        "- {}: {} / files={} / manifest={} / report={} / validation-like={}",
+        package_type, relative_path, file_count, has_manifest, has_report, has_validation
+    )
+}
+
 fn cmd_operations_summary(base_url: &str, json_output: bool) {
     let url = format!("{}/v1/operations/summary", base_url);
     match ureq::get(&url).call() {
@@ -6123,6 +6378,7 @@ fn format_operations_summary(body: &Value) -> String {
         "model_inventory_available",
         "model_readiness_available",
         "routing_policy_available",
+        "evidence_packages_available",
         "capabilities_available",
         "status_models_available",
         "status_version_available",
@@ -6138,7 +6394,7 @@ fn format_operations_summary(body: &Value) -> String {
             .unwrap_or(false)
     })
     .count();
-    let total_endpoints = 11usize;
+    let total_endpoints = 12usize;
 
     let mut lines = vec![
         "IgnisPrompt Local Operations Summary".to_string(),
@@ -9019,9 +9275,9 @@ mod tests {
         format_evidence_bundle_list_summary, format_evidence_bundle_manifest_json,
         format_evidence_bundle_manifest_summary, format_evidence_bundle_summary,
         format_evidence_bundle_unreachable_error, format_evidence_bundle_validation_json,
-        format_evidence_bundle_validation_summary, format_http_error,
-        format_invalid_response_error, format_model_inventory_summary, format_model_manifest_line,
-        format_model_readiness_summary, format_operations_summary,
+        format_evidence_bundle_validation_summary, format_evidence_packages_summary,
+        format_http_error, format_invalid_response_error, format_model_inventory_summary,
+        format_model_manifest_line, format_model_readiness_summary, format_operations_summary,
         format_operator_package_list_json, format_operator_package_list_summary,
         format_operator_package_summary, format_operator_package_summary_json,
         format_operator_package_validation_json, format_operator_package_validation_summary,
@@ -9040,10 +9296,10 @@ mod tests {
         policy_scenario_groups_by_expected_tier, policy_scenarios_expected_fail_closed,
         policy_scenarios_expected_local_only, policy_scenarios_with_boundary_note,
         readiness_report_next_steps, route_explain_url, string_field, sustainability_url,
-        validate_demo_package_output_dir, validate_doctor_capabilities, validate_doctor_health,
-        validate_doctor_model_inventory, validate_doctor_model_readiness,
-        validate_doctor_model_status_hints, validate_doctor_models,
-        validate_doctor_operations_summary, validate_doctor_routing_policy,
+        validate_demo_package_output_dir, validate_doctor_capabilities,
+        validate_doctor_evidence_packages, validate_doctor_health, validate_doctor_model_inventory,
+        validate_doctor_model_readiness, validate_doctor_model_status_hints,
+        validate_doctor_models, validate_doctor_operations_summary, validate_doctor_routing_policy,
         validate_doctor_sustainability_metrics, validate_doctor_version_status,
         validate_evidence_bundle_archive_output_path, validate_evidence_bundle_output_dir,
         validate_no_placeholder_string_values, validate_operator_package_output_dir,
@@ -9127,6 +9383,7 @@ mod tests {
             "/v1/routing/policy-summary",
             DoctorCheckLevel::Informational
         )));
+        assert!(endpoints.contains(&("/v1/evidence/packages", DoctorCheckLevel::Informational)));
         assert!(endpoints.contains(&("/v1/capabilities", DoctorCheckLevel::Required)));
         assert!(endpoints.contains(&("/v1/status/models", DoctorCheckLevel::Required)));
         assert!(endpoints.contains(&("/v1/operations/summary", DoctorCheckLevel::Informational)));
@@ -9158,6 +9415,12 @@ mod tests {
     fn routing_policy_url_format() {
         let url = format!("{}/v1/routing/policy-summary", "http://127.0.0.1:8765");
         assert_eq!(url, "http://127.0.0.1:8765/v1/routing/policy-summary");
+    }
+
+    #[test]
+    fn evidence_packages_url_format() {
+        let url = format!("{}/v1/evidence/packages", "http://127.0.0.1:8765");
+        assert_eq!(url, "http://127.0.0.1:8765/v1/evidence/packages");
     }
 
     #[test]
@@ -9381,6 +9644,53 @@ mod tests {
             "1 route categories (1 configured models)"
         );
         assert_eq!(
+            validate_doctor_evidence_packages(&json!({
+                "schema_version": "ignisprompt-evidence-package-index-v0.1",
+                "generated_at": "2026-06-19T00:00:00Z",
+                "root_summary": {
+                    "evidence_root_label": "local-evidence",
+                    "root_exists": true,
+                    "package_count": 1,
+                    "scan_limit_reached": false,
+                    "ignored_paths_summary": []
+                },
+                "packages": [{
+                    "package_id": "readiness__demo",
+                    "package_type": "readiness_package",
+                    "display_name": "demo",
+                    "relative_path": "local-evidence/readiness/demo",
+                    "observed_at": "2026-06-19T00:00:00Z",
+                    "modified_at": "2026-06-19T00:00:00Z",
+                    "file_count": 3,
+                    "total_size_bytes": 2048,
+                    "has_manifest": true,
+                    "has_summary": true,
+                    "has_report": true,
+                    "has_validation_report": true,
+                    "has_attestation_like_files": false,
+                    "known_artifacts": ["manifest.json", "report.md"],
+                    "warnings": [],
+                    "boundary_notes": ["Read-only metadata only."]
+                }],
+                "aggregate_summary": {
+                    "total_packages": 1,
+                    "packages_by_type": { "readiness_package": 1 },
+                    "packages_with_manifests": 1,
+                    "packages_with_reports": 1,
+                    "packages_with_validation_like_files": 1,
+                    "packages_with_attestation_like_names": 0,
+                    "packages_with_warnings": 0,
+                    "latest_observed_package": "readiness__demo",
+                    "scan_was_partial": false
+                },
+                "warnings": ["Index metadata only."],
+                "boundary_notes": ["No package generation, upload, or certification claim."],
+                "next_steps": ["Keep generated evidence ignored."]
+            }))
+            .unwrap(),
+            "1 packages indexed"
+        );
+        assert_eq!(
             validate_doctor_operations_summary(&json!({
                 "schema_version": "ignisprompt-operations-summary-v0.1",
                 "generated_at": "2026-06-19T00:00:00Z",
@@ -9398,6 +9708,7 @@ mod tests {
                     "model_inventory_available": true,
                     "model_readiness_available": true,
                     "routing_policy_available": true,
+                    "evidence_packages_available": true,
                     "capabilities_available": true,
                     "status_models_available": true,
                     "status_version_available": true,
@@ -9585,6 +9896,7 @@ mod tests {
                 "model_inventory_available": true,
                 "model_readiness_available": true,
                 "routing_policy_available": true,
+                "evidence_packages_available": true,
                 "capabilities_available": true,
                 "status_models_available": true,
                 "status_version_available": true,
@@ -9625,6 +9937,7 @@ mod tests {
                 "model_inventory_available": true,
                 "model_readiness_available": true,
                 "routing_policy_available": true,
+                "evidence_packages_available": true,
                 "capabilities_available": true,
                 "status_models_available": true,
                 "status_version_available": true,
@@ -11202,6 +11515,92 @@ mod tests {
     }
 
     #[test]
+    fn evidence_packages_summary_is_metadata_only_and_safe() {
+        let response = json!({
+            "schema_version": "ignisprompt-evidence-package-index-v0.1",
+            "generated_at": "2026-06-19T00:00:00Z",
+            "root_summary": {
+                "evidence_root_label": "local-evidence",
+                "root_exists": true,
+                "package_count": 2,
+                "scan_limit_reached": false,
+                "ignored_paths_summary": []
+            },
+            "packages": [
+                {
+                    "package_id": "readiness__demo",
+                    "package_type": "readiness_package",
+                    "display_name": "demo",
+                    "relative_path": "local-evidence/readiness/demo",
+                    "observed_at": "2026-06-19T00:00:00Z",
+                    "modified_at": "2026-06-19T00:00:00Z",
+                    "file_count": 3,
+                    "total_size_bytes": 2048,
+                    "has_manifest": true,
+                    "has_summary": true,
+                    "has_report": true,
+                    "has_validation_report": true,
+                    "has_attestation_like_files": false,
+                    "known_artifacts": ["manifest.json", "report.md"],
+                    "warnings": [],
+                    "boundary_notes": ["Read-only metadata only."]
+                },
+                {
+                    "package_id": "attestation__preview",
+                    "package_type": "attestation_like_preview",
+                    "display_name": "preview",
+                    "relative_path": "local-evidence/attestation/preview",
+                    "file_count": 1,
+                    "total_size_bytes": 512,
+                    "has_manifest": true,
+                    "has_summary": false,
+                    "has_report": false,
+                    "has_validation_report": false,
+                    "has_attestation_like_files": true,
+                    "known_artifacts": ["manifest.json"],
+                    "warnings": ["Attestation-like names are not attestation claims."],
+                    "boundary_notes": ["Read-only metadata only."]
+                }
+            ],
+            "aggregate_summary": {
+                "total_packages": 2,
+                "packages_by_type": {
+                    "attestation_like_preview": 1,
+                    "readiness_package": 1
+                },
+                "packages_with_manifests": 2,
+                "packages_with_reports": 1,
+                "packages_with_validation_like_files": 1,
+                "packages_with_attestation_like_names": 1,
+                "packages_with_warnings": 1,
+                "latest_observed_package": "readiness__demo",
+                "scan_was_partial": false
+            },
+            "warnings": ["Index metadata only."],
+            "boundary_notes": ["No package contents returned."],
+            "next_steps": ["Keep generated evidence ignored."],
+            "raw_prompt": "PRIVATE_PROMPT_SENTINEL",
+            "api_key": "sk-local-sentinel"
+        });
+
+        let summary = format_evidence_packages_summary(&response);
+        assert!(summary.contains("IgnisPrompt Local Evidence Package Index"));
+        assert!(summary.contains("schema_version:        ignisprompt-evidence-package-index-v0.1"));
+        assert!(summary.contains("evidence_root:         local-evidence"));
+        assert!(summary.contains("packages:              2"));
+        assert!(summary.contains("- readiness_package: 1"));
+        assert!(summary.contains("local-evidence/readiness/demo"));
+        assert!(summary.contains("read-only evidence package metadata only"));
+        assert!(summary.contains("no package generation"));
+        assert!(summary.contains("no uploads"));
+        assert!(summary.contains("full evidence file contents returned"));
+        assert!(!summary.contains("PRIVATE_PROMPT_SENTINEL"));
+        assert!(!summary.contains("raw_prompt"));
+        assert!(!summary.contains("sk-local-sentinel"));
+        assert!(!summary.contains("api_key"));
+    }
+
+    #[test]
     fn operations_summary_is_aggregate_and_safe() {
         let response = json!({
             "schema_version": "ignisprompt-operations-summary-v0.1",
@@ -11220,6 +11619,7 @@ mod tests {
                 "model_inventory_available": true,
                 "model_readiness_available": true,
                 "routing_policy_available": true,
+                "evidence_packages_available": true,
                 "capabilities_available": true,
                 "status_models_available": true,
                 "status_version_available": true,
@@ -11257,7 +11657,7 @@ mod tests {
         assert!(summary.contains("schema_version:       ignisprompt-operations-summary-v0.1"));
         assert!(summary.contains("daemon_status:        ok"));
         assert!(summary.contains("daemon_version:       0.1.0"));
-        assert!(summary.contains("endpoints_available: 11 / 11"));
+        assert!(summary.contains("endpoints_available: 12 / 12"));
         assert!(summary.contains("audit_events:         3 total / 2 recent"));
         assert!(summary
             .contains("recent_activity:      2 requests / 1 routes / 0 warning-or-error records"));

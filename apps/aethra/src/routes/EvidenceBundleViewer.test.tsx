@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { EvidenceBundlePreview } from "../api/contracts";
+import { evidencePackageIndexFixture } from "../api/fixtures";
 import {
   EvidenceBundleViewer,
   sanitizeEvidenceBundleText,
@@ -13,6 +14,10 @@ describe("EvidenceBundleViewer", () => {
     expect(markup).toContain("Local evidence bundle workflow");
     expect(markup).toContain("CLI command snippets");
     expect(markup).toContain("Report export");
+    expect(markup).toContain("Local evidence packages");
+    expect(markup).toContain("Offline preview");
+    expect(markup).toContain("readiness_package");
+    expect(markup).toContain("golden_legal");
     expect(markup).toContain("Copy Markdown report");
     expect(markup).toContain("Copy JSON report");
     expect(markup).toContain("Clipboard only");
@@ -48,6 +53,77 @@ describe("EvidenceBundleViewer", () => {
     expect(markup).not.toContain("gpt-4.1-mini");
     expect(markup).not.toContain("127.0.0.1");
     expect(markup).not.toContain("/Users/");
+    expect(markup).not.toContain("Upload package");
+    expect(markup).not.toContain("Download package");
+    expect(markup).not.toContain("Delete package");
+    expect(markup).not.toContain("Generate package");
+    expect(markup).not.toContain("Validate package");
+  });
+
+  it("renders manually loaded live-local evidence package metadata", () => {
+    const markup = renderToStaticMarkup(
+      <EvidenceBundleViewer
+        dataMode="live-local"
+        liveEvidencePackagesState={{
+          status: "loaded",
+          loadedAt: "2026-05-20T00:01:00Z",
+          index: {
+            ...evidencePackageIndexFixture,
+            packages: [
+              {
+                ...evidencePackageIndexFixture.packages[0],
+                package_id: "readiness__live",
+                display_name: "live-readiness",
+                relative_path: "local-evidence/readiness/live-readiness",
+              },
+            ],
+            aggregate_summary: {
+              ...evidencePackageIndexFixture.aggregate_summary,
+              total_packages: 1,
+              packages_by_type: { readiness_package: 1 },
+            },
+          },
+        }}
+      />,
+    );
+
+    expect(markup).toContain("Local daemon data");
+    expect(markup).toContain("live-readiness");
+    expect(markup).toContain("local-evidence/readiness/live-readiness");
+    expect(markup).toContain("Read-only metadata only");
+  });
+
+  it("renders evidence package empty state when no packages are returned", () => {
+    const markup = renderToStaticMarkup(
+      <EvidenceBundleViewer
+        dataMode="live-local"
+        liveEvidencePackagesState={{
+          status: "loaded",
+          loadedAt: "2026-05-20T00:01:00Z",
+          index: {
+            ...evidencePackageIndexFixture,
+            root_summary: {
+              ...evidencePackageIndexFixture.root_summary,
+              package_count: 0,
+            },
+            packages: [],
+            aggregate_summary: {
+              total_packages: 0,
+              packages_by_type: {},
+              packages_with_manifests: 0,
+              packages_with_reports: 0,
+              packages_with_validation_like_files: 0,
+              packages_with_attestation_like_names: 0,
+              packages_with_warnings: 0,
+              scan_was_partial: false,
+            },
+          },
+        }}
+      />,
+    );
+
+    expect(markup).toContain("No evidence packages indexed");
+    expect(markup).toContain("does not create packages");
   });
 
   it("shows conservative empty states when metadata is missing", () => {

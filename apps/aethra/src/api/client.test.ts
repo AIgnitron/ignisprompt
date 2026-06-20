@@ -4,6 +4,7 @@ import { AethraApiError } from "./errors";
 import {
   auditEventFixtures,
   capabilitiesFixture,
+  evidencePackageIndexFixture,
   healthFixture,
   modelFixtures,
   modelInventoryFixture,
@@ -126,6 +127,19 @@ describe("IgnisPromptClient", () => {
     );
   });
 
+  it("reads local evidence package index metadata with the current response shape", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(evidencePackageIndexFixture));
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.evidencePackages()).resolves.toEqual(
+      evidencePackageIndexFixture,
+    );
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "http://127.0.0.1:8765/v1/evidence/packages",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
   it("reads daemon version status with the current response shape", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse(versionStatusFixture));
     const client = new IgnisPromptClient({ fetchImpl });
@@ -243,6 +257,25 @@ describe("IgnisPromptClient", () => {
     const client = new IgnisPromptClient({ fetchImpl });
 
     await expect(client.modelReadiness()).rejects.toMatchObject({
+      kind: "unexpected-shape",
+    });
+  });
+
+  it("rejects unsupported local evidence package index response shapes", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
+        ...evidencePackageIndexFixture,
+        packages: [
+          {
+            ...evidencePackageIndexFixture.packages[0],
+            relative_path: "/Users/alice/local-evidence/readiness/demo",
+          },
+        ],
+      }),
+    );
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.evidencePackages()).rejects.toMatchObject({
       kind: "unexpected-shape",
     });
   });
