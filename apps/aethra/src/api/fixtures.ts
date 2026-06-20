@@ -118,7 +118,7 @@ export const modelInventoryFixture: ModelInventoryResponse = {
     scanned_directory_count: 1,
     scan_limited: false,
     notes: [
-      "Fixture fallback for offline preview; manually refresh local daemon data for observed local files.",
+      "Offline preview fixture metadata only; manually refresh local daemon data for observed local files.",
     ],
   },
   boundary_notes: [
@@ -157,7 +157,7 @@ export const modelReadinessFixture: ModelReadinessResponse = {
       readiness_level: "ready_hint",
       notes: [
         "Offline preview readiness hint only; no executable inference is attempted.",
-        "Fixture fallback does not prove local model quality, legal accuracy, compliance, certification, or production readiness.",
+        "Offline preview fixture metadata does not prove local model quality, legal accuracy, compliance, certification, or production readiness.",
       ],
     },
   ],
@@ -199,7 +199,7 @@ export const routingPolicySummaryFixture: RoutingPolicySummaryResponse = {
         "Legal requests prefer an installed Tier 3 legal manifest when one is route-eligible; unavailable local legal capacity fails closed instead of falling back to cloud.",
       data_boundary: "local_process",
       notes: [
-        "Fixture fallback policy metadata only; no prompt text is submitted.",
+        "Offline preview fixture policy metadata only; no prompt text is submitted.",
       ],
     },
     {

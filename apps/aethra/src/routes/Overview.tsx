@@ -13,9 +13,11 @@ import type {
   AethraDataMode,
   LiveAuditEventsState,
   LiveCapabilitiesState,
+  LiveEndpointState,
   LiveEvidencePackageIndexState,
   LiveHealthState,
   LiveLocalDiagnostics,
+  LiveLocalSurfaceId,
   LiveModelInventoryState,
   LiveModelReadinessState,
   LiveModelStatusState,
@@ -98,6 +100,13 @@ const guidedDemoSteps = [
   },
 ] as const;
 
+type OverviewDetailRoute =
+  | "routing-explorer"
+  | "audit-events"
+  | "model-runner-status"
+  | "evidence-bundle-viewer"
+  | "sustainability-preview";
+
 type OverviewProps = {
   dataMode: AethraDataMode;
   baseUrl: string;
@@ -116,6 +125,7 @@ type OverviewProps = {
   liveOperationsSummaryState: LiveOperationsSummaryState;
   onLoadLiveHealth: () => void;
   onLoadLiveVersionStatus: () => void;
+  onNavigateToRoute: (route: OverviewDetailRoute) => void;
 };
 
 export function Overview({
@@ -136,6 +146,7 @@ export function Overview({
   liveOperationsSummaryState,
   onLoadLiveHealth,
   onLoadLiveVersionStatus,
+  onNavigateToRoute,
 }: OverviewProps) {
   const liveHealth =
     dataMode === "live-local" && liveHealthState.status === "loaded"
@@ -194,8 +205,8 @@ export function Overview({
   const auditSourceLabel = liveAuditEvents
     ? "Local daemon audit events"
     : dataMode === "live-local"
-      ? "Fixture fallback audit events"
-      : "Offline preview audit events";
+      ? "Live local audit events not loaded"
+      : "Offline preview fixture audit events";
   const inventorySourceLabel = formatLiveLocalDisplaySource(
     getLiveLocalDisplaySource(dataMode, liveModelInventoryState),
   );
@@ -233,6 +244,27 @@ export function Overview({
       liveOperationsSummaryState,
     ],
   });
+  const liveSurfaces = buildOverviewLiveSurfaces({
+    health: liveHealthState,
+    versionStatus: liveVersionStatusState,
+    models: liveModelsState,
+    modelInventory: liveModelInventoryState,
+    modelReadiness: liveModelReadinessState,
+    routingPolicy: liveRoutingPolicyState,
+    evidencePackages: liveEvidencePackagesState,
+    modelStatus: liveModelStatusState,
+    capabilities: liveCapabilitiesState,
+    auditEvents: liveAuditEventsState,
+    sustainabilityMetrics: liveSustainabilityMetricsState,
+    operationsSummary: liveOperationsSummaryState,
+  });
+  const loadedSurfaces = liveSurfaces.filter((surface) => surface.status === "live local");
+  const failedSurfaces = liveSurfaces.filter(
+    (surface) => surface.status === "failed" || surface.status === "unavailable",
+  );
+  const notLoadedSurfaces = liveSurfaces.filter(
+    (surface) => surface.status === "not loaded" || surface.status === "loading",
+  );
 
   return (
     <section id="overview" className="page-section">
@@ -241,18 +273,15 @@ export function Overview({
           <p className="eyebrow">Overview</p>
           <h2>IgnisPrompt overview</h2>
           <p className="page-subtitle">
-            Local preview status, diagnostics, commands, local daemon metadata,
-            and fixture fallback routing context.
+            Live Local Dashboard for IgnisPrompt daemon metadata, endpoint
+            state, local commands, and read-only operational boundaries.
           </p>
         </div>
         <div className="status-strip" aria-label="Overview health status">
-          <StatusBadge tone="ok">{healthForStatus.status.toUpperCase()}</StatusBadge>
-          <StatusBadge tone="neutral">
-            {healthForStatus.service} {healthForStatus.version}
+          <StatusBadge tone={liveHealth ? "ok" : "neutral"}>
+            {liveHealth ? liveHealth.status.toUpperCase() : "NOT LOADED"}
           </StatusBadge>
-          <StatusBadge tone={healthForStatus.local_only ? "ok" : "warning"}>
-            {healthForStatus.local_only ? "Local-only" : "Local-only off"}
-          </StatusBadge>
+          <StatusBadge tone="neutral">{baseUrl}</StatusBadge>
           <StatusBadge tone={liveHealth ? "ok" : "neutral"}>
             {healthSourceLabel}
           </StatusBadge>
@@ -263,19 +292,162 @@ export function Overview({
         defaultOpen
         collapsible
         items={[
-          "Review local preview status, local daemon metadata, fixture fallback data, diagnostics, and copyable local commands.",
+          "Review live local daemon metadata, endpoint state, diagnostics, and copyable local commands.",
           "Use Refresh local daemon data to load read-only health, version, model, local model inventory, model readiness, routing policy, evidence package index, capability, audit, and sustainability metadata from loopback endpoints.",
-          "Read displayed route, warning, and local-only summaries before moving to detailed pages.",
+          "If the daemon is unavailable, Aethra shows not loaded, unavailable, or failed states instead of substituting fixture data into product status.",
         ]}
       />
+
+      <section className="overview-section-group" aria-label="Live local dashboard">
+        <div className="section-heading">
+          <p className="eyebrow">Live Local Dashboard</p>
+          <h3>Manual daemon metadata refresh</h3>
+          <p className="muted">
+            Aethra is a read-only local-first dashboard. Start{" "}
+            <code>ignispromptd</code>, keep the daemon at{" "}
+            <code>http://127.0.0.1:8765</code> by default, then use the primary
+            refresh action above. Aethra itself usually runs at{" "}
+            <code>http://127.0.0.1:5173</code> during development.
+          </p>
+        </div>
+        {baseUrlError ? (
+          <div className="panel">
+            <div className="panel-heading">
+              <h3>Daemon URL blocked</h3>
+              <StatusBadge tone="warning">failed</StatusBadge>
+            </div>
+            <p className="explanation">{baseUrlError}</p>
+          </div>
+        ) : null}
+        <div className="metric-grid live-surface-grid" aria-label="Live local surface cards">
+          {liveSurfaces.map((surface) => (
+            <article className="metric-card live-surface-card" key={surface.id}>
+              <div className="panel-heading">
+                <div>
+                  <span className="metric-label">{surface.label}</span>
+                  <strong className="metric-value">{surface.value}</strong>
+                </div>
+                <StatusBadge tone={statusTone(surface.status)}>
+                  {surface.status}
+                </StatusBadge>
+              </div>
+              <p>{surface.summary}</p>
+              <p className="muted">Last loaded: {surface.lastLoaded}</p>
+              <p className="muted">{surface.boundary}</p>
+              {surface.detailRoute ? (
+                <button
+                  type="button"
+                  className="secondary-button compact-button"
+                  onClick={() => {
+                    if (surface.detailRoute) {
+                      onNavigateToRoute(surface.detailRoute);
+                    }
+                  }}
+                >
+                  Open {surface.detailLabel}
+                </button>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="overview-section-group" aria-label="What is live">
+        <div className="section-heading">
+          <p className="eyebrow">What is live?</p>
+          <h3>Current endpoint state</h3>
+          <p className="muted">
+            Successful surfaces stay visible independently. Failed surfaces keep
+            safe errors instead of silently switching to fixtures.
+          </p>
+        </div>
+        <div className="three-column">
+          <SurfaceListPanel title="Loaded from local daemon" surfaces={loadedSurfaces} />
+          <SurfaceListPanel title="Failed or unavailable" surfaces={failedSurfaces} />
+          <SurfaceListPanel title="Not loaded yet" surfaces={notLoadedSurfaces} />
+        </div>
+      </section>
+
+      <section className="overview-section-group" aria-label="Endpoint matrix">
+        <div className="section-heading">
+          <p className="eyebrow">Endpoint Matrix</p>
+          <h3>Read-only local daemon surfaces</h3>
+          <p className="muted">
+            Each row maps a dashboard surface to a local daemon endpoint and a
+            boundary. No route, model, package, or mutation action is exposed.
+          </p>
+        </div>
+        <div className="panel table-panel">
+          <table className="data-table endpoint-matrix">
+            <thead>
+              <tr>
+                <th>Surface</th>
+                <th>Endpoint</th>
+                <th>Status</th>
+                <th>Last loaded</th>
+                <th>Detail page</th>
+                <th>Boundary</th>
+              </tr>
+            </thead>
+            <tbody>
+              {liveSurfaces.map((surface) => (
+                <tr key={surface.id}>
+                  <td>{surface.label}</td>
+                  <td><code>{surface.endpoint}</code></td>
+                  <td>
+                    <StatusBadge tone={statusTone(surface.status)}>
+                      {surface.status}
+                    </StatusBadge>
+                  </td>
+                  <td>{surface.lastLoaded}</td>
+                  <td>{surface.detailLabel}</td>
+                  <td>{surface.boundary}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="overview-section-group" aria-label="Start local daemon">
+        <div className="section-heading">
+          <p className="eyebrow">Start Local Daemon</p>
+          <h3>Local commands</h3>
+          <p className="muted">
+            Aethra does not execute commands. Run these in your terminal when
+            you want live-local data.
+          </p>
+        </div>
+        <div className="overview-operations-grid">
+          <CommandListPanel
+            title="Start daemon"
+            commands={[
+              "cargo run -p ignispromptd -- --bind 127.0.0.1:8765 --model-dir ./config/models --audit-log ./data/audit/events.jsonl --local-only true",
+            ]}
+          />
+          <CommandListPanel
+            title="Next local commands"
+            commands={[
+              "cargo run -p ignispromptctl -- doctor",
+              "cargo run -p ignispromptctl -- model-inventory",
+              "cargo run -p ignispromptctl -- model-readiness",
+              "cargo run -p ignispromptctl -- routing-policy",
+              "cargo run -p ignispromptctl -- evidence-packages",
+              "cargo run -p ignispromptctl -- operations-summary",
+              "make demo-check",
+              "make preview-release-check",
+            ]}
+          />
+        </div>
+      </section>
 
       <section className="overview-section-group" aria-label="Guided demo path">
         <div className="section-heading">
           <p className="eyebrow">Guided Demo Path</p>
           <h3>Recommended safe walkthrough</h3>
           <p className="muted">
-            Fixture-backed by default, live-local loading is manual, and the
-            dashboard stays read-only.
+            Offline preview fixtures are separate from live product state, and
+            live-local loading is manual.
           </p>
         </div>
         <div className="panel" aria-label="Recommended demo steps">
@@ -297,13 +469,14 @@ export function Overview({
         </div>
       </section>
 
-      <section className="overview-section-group" aria-label="Local preview operations">
+      {dataMode === "fixture" ? (
+      <section className="overview-section-group" aria-label="Offline preview fixture operations">
         <div className="section-heading">
           <p className="eyebrow">Operations</p>
-          <h3>Status, diagnostics, and local commands</h3>
+          <h3>Offline preview fixture summaries</h3>
           <p className="muted">
-            Live-local actions are manual and read-only; fixture mode remains
-            available while you debug daemon setup.
+            These cards use bundled fixture data for local demo review. They
+            are not live product state.
           </p>
         </div>
         <div className="overview-operations-grid">
@@ -323,6 +496,7 @@ export function Overview({
           <LocalCommandsPanel />
         </div>
       </section>
+      ) : null}
 
       <section className="overview-section-group" aria-label="Manual live-local metadata">
         <div className="section-heading">
@@ -348,7 +522,17 @@ export function Overview({
         </div>
       </section>
 
-      <div className="metric-grid" aria-label="Aethra fixture metrics">
+      {dataMode === "fixture" ? (
+      <section className="overview-section-group" aria-label="Offline preview fixture dashboard">
+        <div className="section-heading">
+          <p className="eyebrow">Offline Preview Fixture</p>
+          <h3>Fixture-only demo data</h3>
+          <p className="muted">
+            This section is not live product state. It remains available for
+            tests and local demo review without a daemon.
+          </p>
+        </div>
+      <div className="metric-grid" aria-label="Aethra offline preview fixture metrics">
         <MetricCard
           label="Models loaded"
           value={summary.modelCount}
@@ -509,7 +693,7 @@ export function Overview({
             </div>
             <div>
               <dt>Unreachable daemon</dt>
-              <dd>Not triggered here because fixture mode is the UI default.</dd>
+              <dd>Live daemon failures are shown in the live dashboard, not replaced by this fixture section.</dd>
             </div>
             <div>
               <dt>Malformed data</dt>
@@ -518,6 +702,337 @@ export function Overview({
           </dl>
         </section>
       </div>
+      </section>
+      ) : null}
+    </section>
+  );
+}
+
+type LiveSurfaceStatus =
+  | "live local"
+  | "not loaded"
+  | "loading"
+  | "unavailable"
+  | "failed";
+
+type LiveSurfaceCard = {
+  id: LiveLocalSurfaceId;
+  label: string;
+  endpoint: string;
+  status: LiveSurfaceStatus;
+  value: string | number;
+  summary: string;
+  lastLoaded: string;
+  boundary: string;
+  detailRoute?: OverviewDetailRoute;
+  detailLabel: string;
+};
+
+function buildOverviewLiveSurfaces(input: {
+  health: LiveHealthState;
+  versionStatus: LiveVersionStatusState;
+  models: LiveModelsState;
+  modelInventory: LiveModelInventoryState;
+  modelReadiness: LiveModelReadinessState;
+  routingPolicy: LiveRoutingPolicySummaryState;
+  evidencePackages: LiveEvidencePackageIndexState;
+  modelStatus: LiveModelStatusState;
+  capabilities: LiveCapabilitiesState;
+  auditEvents: LiveAuditEventsState;
+  sustainabilityMetrics: LiveSustainabilityMetricsState;
+  operationsSummary: LiveOperationsSummaryState;
+}): LiveSurfaceCard[] {
+  return [
+    {
+      id: "health",
+      label: "Health",
+      endpoint: "/health",
+      ...surfaceState(input.health),
+      value: input.health.status === "loaded" ? input.health.health.status : "not loaded",
+      summary:
+        input.health.status === "loaded"
+          ? `${input.health.health.service} ${input.health.health.version}; ${input.health.health.model_count} models reported.`
+          : stateSummary(input.health),
+      boundary: "Daemon status only; no route, model, or mutation action.",
+      detailLabel: "Overview",
+    },
+    {
+      id: "version-status",
+      label: "Version status",
+      endpoint: "/v1/status/version",
+      ...surfaceState(input.versionStatus),
+      value:
+        input.versionStatus.status === "loaded"
+          ? input.versionStatus.versionStatus.release_channel
+          : "not loaded",
+      summary:
+        input.versionStatus.status === "loaded"
+          ? `${input.versionStatus.versionStatus.service} ${input.versionStatus.versionStatus.version}.`
+          : stateSummary(input.versionStatus),
+      boundary: "Release metadata only; no update check or external lookup.",
+      detailLabel: "Overview",
+    },
+    {
+      id: "models",
+      label: "Model manifests",
+      endpoint: "/v1/models",
+      ...surfaceState(input.models),
+      value: input.models.status === "loaded" ? input.models.models.length : "not loaded",
+      summary:
+        input.models.status === "loaded"
+          ? "Configured model manifest entries loaded from the daemon."
+          : stateSummary(input.models),
+      boundary: "Manifest metadata only; no model execution or downloads.",
+      detailRoute: "model-runner-status",
+      detailLabel: "Model / Runner Status",
+    },
+    {
+      id: "model-inventory",
+      label: "Local model inventory",
+      endpoint: "/v1/models/inventory",
+      ...surfaceState(input.modelInventory),
+      value:
+        input.modelInventory.status === "loaded"
+          ? input.modelInventory.inventory.summary.total_files
+          : "not loaded",
+      summary:
+        input.modelInventory.status === "loaded"
+          ? `${formatBytes(input.modelInventory.inventory.summary.total_size_bytes)} observed as safe local file metadata.`
+          : stateSummary(input.modelInventory),
+      boundary: "Read-only file metadata; no contents, hashing, downloads, or deletes.",
+      detailRoute: "model-runner-status",
+      detailLabel: "Model / Runner Status",
+    },
+    {
+      id: "model-readiness",
+      label: "Local model readiness",
+      endpoint: "/v1/models/readiness",
+      ...surfaceState(input.modelReadiness),
+      value:
+        input.modelReadiness.status === "loaded"
+          ? input.modelReadiness.readiness.summary.ready_hint_count
+          : "not loaded",
+      summary:
+        input.modelReadiness.status === "loaded"
+          ? `${input.modelReadiness.readiness.summary.missing_file_count} missing-file hints.`
+          : stateSummary(input.modelReadiness),
+      boundary: "Readiness hints only; no inference, quality, or legal claim.",
+      detailRoute: "model-runner-status",
+      detailLabel: "Model / Runner Status",
+    },
+    {
+      id: "model-status",
+      label: "Model/runner status hints",
+      endpoint: "/v1/status/models",
+      ...surfaceState(input.modelStatus),
+      value:
+        input.modelStatus.status === "loaded"
+          ? input.modelStatus.statusHints.length
+          : "not loaded",
+      summary:
+        input.modelStatus.status === "loaded"
+          ? "Runner and local path hints loaded from the daemon."
+          : stateSummary(input.modelStatus),
+      boundary: "Status hints only; no runner start/stop controls.",
+      detailRoute: "model-runner-status",
+      detailLabel: "Model / Runner Status",
+    },
+    {
+      id: "capabilities",
+      label: "Capabilities/connectors",
+      endpoint: "/v1/capabilities",
+      ...surfaceState(input.capabilities),
+      value:
+        input.capabilities.status === "loaded"
+          ? input.capabilities.capabilities.capabilities.length
+          : "not loaded",
+      summary:
+        input.capabilities.status === "loaded"
+          ? `Cloud enabled: ${String(input.capabilities.capabilities.cloud_enabled)}.`
+          : stateSummary(input.capabilities),
+      boundary: "Status metadata only; no connector enablement or cloud calls.",
+      detailRoute: "model-runner-status",
+      detailLabel: "Model / Runner Status",
+    },
+    {
+      id: "operations-summary",
+      label: "Operations summary",
+      endpoint: "/v1/operations/summary",
+      ...surfaceState(input.operationsSummary),
+      value:
+        input.operationsSummary.status === "loaded"
+          ? input.operationsSummary.summary.activity_summary.recent_requests_observed
+          : "not loaded",
+      summary:
+        input.operationsSummary.status === "loaded"
+          ? `${countAvailableOperationEndpoints(input.operationsSummary.summary.endpoints)} endpoints available.`
+          : stateSummary(input.operationsSummary),
+      boundary: "Aggregate metadata only; no raw prompts or request bodies.",
+      detailRoute: "audit-events",
+      detailLabel: "Audit Events",
+    },
+    {
+      id: "routing-policy",
+      label: "Routing policy summary",
+      endpoint: "/v1/routing/policy-summary",
+      ...surfaceState(input.routingPolicy),
+      value:
+        input.routingPolicy.status === "loaded"
+          ? input.routingPolicy.summary.route_categories.length
+          : "not loaded",
+      summary:
+        input.routingPolicy.status === "loaded"
+          ? "Read-only route categories and decision inputs loaded."
+          : stateSummary(input.routingPolicy),
+      boundary: "Policy metadata only; no route execution or prompt submission.",
+      detailRoute: "routing-explorer",
+      detailLabel: "Routing Explorer",
+    },
+    {
+      id: "evidence-packages",
+      label: "Evidence package index",
+      endpoint: "/v1/evidence/packages",
+      ...surfaceState(input.evidencePackages),
+      value:
+        input.evidencePackages.status === "loaded"
+          ? input.evidencePackages.index.aggregate_summary.total_packages
+          : "not loaded",
+      summary:
+        input.evidencePackages.status === "loaded"
+          ? `${input.evidencePackages.index.aggregate_summary.packages_with_reports} packages include report-like names.`
+          : stateSummary(input.evidencePackages),
+      boundary: "Metadata only; no generation, validation claim, upload, or delete.",
+      detailRoute: "evidence-bundle-viewer",
+      detailLabel: "Evidence Bundle Viewer",
+    },
+    {
+      id: "audit-events",
+      label: "Audit events",
+      endpoint: "/v1/audit/events",
+      ...surfaceState(input.auditEvents),
+      value:
+        input.auditEvents.status === "loaded" ? input.auditEvents.events.length : "not loaded",
+      summary:
+        input.auditEvents.status === "loaded"
+          ? "Local process audit event records loaded."
+          : stateSummary(input.auditEvents),
+      boundary: "Displayed records only; no raw prompt bodies or external redaction.",
+      detailRoute: "audit-events",
+      detailLabel: "Audit Events",
+    },
+    {
+      id: "sustainability-metrics",
+      label: "Sustainability metrics",
+      endpoint: "/v1/metrics/sustainability?period=30d",
+      ...surfaceState(input.sustainabilityMetrics),
+      value:
+        input.sustainabilityMetrics.status === "loaded"
+          ? input.sustainabilityMetrics.metrics.requests_total
+          : "not loaded",
+      summary:
+        input.sustainabilityMetrics.status === "loaded"
+          ? "Counterfactual proxy estimates loaded from daemon audit metadata."
+          : stateSummary(input.sustainabilityMetrics),
+      boundary: "Proxy estimates only; not measured energy or compliance evidence.",
+      detailRoute: "sustainability-preview",
+      detailLabel: "Sustainability Preview",
+    },
+  ];
+}
+
+function surfaceState(state: LiveEndpointState): Pick<LiveSurfaceCard, "status" | "lastLoaded"> {
+  if (state.status === "loaded") {
+    return {
+      status: "live local",
+      lastLoaded: formatTimestamp(state.loadedAt),
+    };
+  }
+  if (state.status === "loading") {
+    return { status: "loading", lastLoaded: "loading" };
+  }
+  if (state.status === "error") {
+    return {
+      status: state.diagnosticKind === "endpoint-unavailable" ? "unavailable" : "failed",
+      lastLoaded: state.checkedAt ? formatTimestamp(state.checkedAt) : "not loaded",
+    };
+  }
+  return { status: "not loaded", lastLoaded: "not loaded" };
+}
+
+function stateSummary(state: LiveEndpointState): string {
+  if (state.status === "error") {
+    return state.message;
+  }
+  if (state.status === "loading") {
+    return "Loading from the configured local daemon.";
+  }
+  return "Not loaded yet. Use Refresh local daemon data.";
+}
+
+function statusTone(status: LiveSurfaceStatus): "ok" | "neutral" | "warning" {
+  if (status === "live local") {
+    return "ok";
+  }
+  if (status === "failed" || status === "unavailable") {
+    return "warning";
+  }
+  return "neutral";
+}
+
+function SurfaceListPanel({
+  title,
+  surfaces,
+}: {
+  title: string;
+  surfaces: LiveSurfaceCard[];
+}) {
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <h3>{title}</h3>
+        <StatusBadge tone={surfaces.length > 0 ? "neutral" : "ok"}>
+          {surfaces.length}
+        </StatusBadge>
+      </div>
+      {surfaces.length > 0 ? (
+        <ul className="state-list compact-state-list">
+          {surfaces.map((surface) => (
+            <li key={surface.id}>
+              <strong>{surface.label}</strong>
+              <span>{surface.summary}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <EmptyState
+          title="No surfaces in this state"
+          message="Endpoint state will appear here after manual refresh."
+        />
+      )}
+    </section>
+  );
+}
+
+function CommandListPanel({
+  title,
+  commands,
+}: {
+  title: string;
+  commands: string[];
+}) {
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <h3>{title}</h3>
+        <StatusBadge tone="neutral">copy manually</StatusBadge>
+      </div>
+      <ul className="command-list">
+        {commands.map((command) => (
+          <li key={command}>
+            <code>{command}</code>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
@@ -888,8 +1403,9 @@ function LiveLocalDiagnosticsPanel({
 
       <p className="explanation">{diagnostics.detail}</p>
       <p className="muted diagnostics-note">
-        Fixture mode remains available without a daemon. Diagnostics are
-        local-only, manual, non-persistent, and not telemetry.
+        Offline preview fixture mode remains available without a daemon, but it
+        is separate from live product state. Diagnostics are local-only,
+        manual, non-persistent, and not telemetry.
       </p>
     </section>
   );
@@ -925,16 +1441,19 @@ function VersionStatusPanel({
   onLoadLiveVersionStatus,
 }: VersionStatusPanelProps) {
   const isLiveMode = dataMode === "live-local";
+  const isLiveLoaded = isLiveMode && liveVersionStatusState.status === "loaded";
   const versionStatus =
-    isLiveMode && liveVersionStatusState.status === "loaded"
+    isLiveLoaded
       ? liveVersionStatusState.versionStatus
-      : versionStatusFixture;
+      : dataMode === "fixture"
+        ? versionStatusFixture
+        : undefined;
   const sourceLabel =
-    isLiveMode && liveVersionStatusState.status === "loaded"
+    isLiveLoaded
       ? "Live local metadata"
       : isLiveMode
-        ? "Fixture fallback"
-        : "Fixture metadata";
+        ? "Live local not loaded"
+        : "Offline preview fixture metadata";
 
   return (
     <section className="panel" aria-label="Daemon version status">
@@ -975,11 +1494,12 @@ function VersionStatusPanel({
           {...buildLiveErrorEmptyState(
             liveVersionStatusState.label,
             liveVersionStatusState.message,
-            "Fixture daemon version status values remain clearly labeled below.",
+            "Daemon version status remains unavailable until a successful manual refresh.",
           )}
         />
       ) : null}
 
+      {versionStatus ? (
       <dl className="definition-grid version-status-grid">
         <div>
           <dt>Source</dt>
@@ -1022,7 +1542,9 @@ function VersionStatusPanel({
           </dd>
         </div>
       </dl>
+      ) : null}
 
+      {versionStatus ? (
       <div className="detail-section">
         <h4>Warnings</h4>
         {versionStatus.warnings.length > 0 ? (
@@ -1035,6 +1557,7 @@ function VersionStatusPanel({
           <p className="muted">No warning metadata reported.</p>
         )}
       </div>
+      ) : null}
 
       <p className="muted version-status-note">
         Daemon version status is local preview support/debugging metadata. Aethra
@@ -1066,7 +1589,7 @@ function getVersionStatusStateLabel(
   liveVersionStatusState: LiveVersionStatusState,
 ): string {
   if (dataMode === "fixture") {
-    return "Fixture release status";
+    return "Offline preview fixture release status";
   }
 
   switch (liveVersionStatusState.status) {
@@ -1093,16 +1616,19 @@ function HealthMetadataPanel({
   onLoadLiveHealth,
 }: HealthMetadataPanelProps) {
   const isLiveMode = dataMode === "live-local";
+  const isLiveLoaded = isLiveMode && liveHealthState.status === "loaded";
   const health =
-    isLiveMode && liveHealthState.status === "loaded"
+    isLiveLoaded
       ? liveHealthState.health
-      : healthFixture;
+      : dataMode === "fixture"
+        ? healthFixture
+        : undefined;
   const sourceLabel =
-    isLiveMode && liveHealthState.status === "loaded"
+    isLiveLoaded
       ? "Live local metadata"
       : isLiveMode
-        ? "Fixture fallback"
-        : "Fixture metadata";
+        ? "Live local not loaded"
+        : "Offline preview fixture metadata";
 
   return (
     <section className="panel" aria-label="Health metadata source">
@@ -1143,11 +1669,12 @@ function HealthMetadataPanel({
           {...buildLiveErrorEmptyState(
             liveHealthState.label,
             liveHealthState.message,
-            "Fixture health values remain clearly labeled below.",
+            "Health metadata remains unavailable until a successful manual refresh.",
           )}
         />
       ) : null}
 
+      {health ? (
       <dl className="definition-grid health-grid">
         <div>
           <dt>Source</dt>
@@ -1186,6 +1713,7 @@ function HealthMetadataPanel({
           </dd>
         </div>
       </dl>
+      ) : null}
 
       {isLiveMode ? (
         <div className="manual-refresh-card health-action-row">
@@ -1211,7 +1739,7 @@ function getHealthStateLabel(
   liveHealthState: LiveHealthState,
 ): string {
   if (dataMode === "fixture") {
-    return "Fixture health";
+    return "Offline preview fixture health";
   }
 
   switch (liveHealthState.status) {

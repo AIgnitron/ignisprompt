@@ -100,6 +100,29 @@ const evidenceBundleCommandSnippets: EvidenceBundleCommandSnippet[] = [
     note: "Print the manifest without upload, extraction, or persistence.",
   },
 ];
+const emptyEvidencePackageIndex: EvidencePackageIndexResponse = {
+  ...evidencePackageIndexFixture,
+  root_summary: {
+    ...evidencePackageIndexFixture.root_summary,
+    package_count: 0,
+  },
+  packages: [],
+  aggregate_summary: {
+    ...evidencePackageIndexFixture.aggregate_summary,
+    total_packages: 0,
+    packages_by_type: {},
+    packages_with_manifests: 0,
+    packages_with_reports: 0,
+    packages_with_validation_like_files: 0,
+    packages_with_attestation_like_names: 0,
+    packages_with_warnings: 0,
+    latest_observed_package: undefined,
+  },
+  warnings: ["Live local evidence package index has not been loaded."],
+  boundary_notes: [
+    "Live local evidence package metadata is unavailable until manual refresh succeeds.",
+  ],
+};
 
 export { sanitizeEvidenceBundleText } from "./evidenceBundleText";
 
@@ -635,8 +658,8 @@ function EvidencePackageIndexSection({
         <EmptyState
           title={liveState.label}
           message={liveState.message}
-          nextAction="Fixture fallback package metadata remains visible below."
-          detail="Aethra does not make the page unusable when the daemon package index is unavailable."
+          nextAction="Run Refresh local daemon data after the daemon is available."
+          detail="Aethra keeps this live surface unavailable instead of substituting offline preview fixtures."
         />
       ) : null}
 
@@ -645,7 +668,7 @@ function EvidencePackageIndexSection({
           title="Loading evidence package index"
           message="Aethra is loading read-only local evidence package metadata from the configured daemon."
           nextAction="No polling is used; the request runs only because manual refresh was selected."
-          detail="Fixture fallback package metadata remains available while loading."
+          detail="Offline preview fixtures are shown only in explicit fixture mode."
         />
       ) : null}
 
@@ -805,7 +828,10 @@ export function EvidenceBundleViewer({
       ? liveEvidencePackagesState.index
       : undefined;
   const evidencePackageIndex =
-    liveEvidencePackageIndex ?? evidencePackageIndexFixture;
+    liveEvidencePackageIndex ??
+    (dataMode === "fixture"
+      ? evidencePackageIndexFixture
+      : emptyEvidencePackageIndex);
   const evidencePackageSourceLabel = formatLiveLocalDisplaySource(
     getLiveLocalDisplaySource(dataMode, liveEvidencePackagesState),
   );

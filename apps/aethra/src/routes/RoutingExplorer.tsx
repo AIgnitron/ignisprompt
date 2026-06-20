@@ -1,5 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { createIgnisPromptClient } from "../api/client";
+import { useEffect, useMemo, useState } from "react";
 import {
   RouteExplainResponse,
   RoutingPolicySummaryResponse,
@@ -22,20 +21,17 @@ import {
 import {
   buildRouteLadder,
   buildRouteDecisionCopyText,
-  buildRouteExplainRequest,
   buildRouteFixtureScenarios,
   buildRouteStateLegend,
-  describeRouteExplainError,
   formatRouteLadderState,
   isWarningRouteDecision,
   sampleRoutePrompt,
-  validateRoutePrompt,
 } from "./routeExplainSummary";
 import { localPreviewEmptyStates } from "./emptyStates";
 
 type RouteResultState =
   {
-    source: "fixture" | "live";
+    source: "fixture";
     label: string;
     response?: RouteExplainResponse;
     errorMessage?: string;
@@ -69,35 +65,28 @@ export function RoutingExplorer({
     label: fixtureScenarios[0].label,
     response: fixtureScenarios[0].response,
   });
-  const [isLiveRequestConfirmed, setIsLiveRequestConfirmed] = useState(false);
-  const [isLiveRequestRunning, setIsLiveRequestRunning] = useState(false);
   const liveRoutingPolicy =
     dataMode === "live-local" && liveRoutingPolicyState.status === "loaded"
       ? liveRoutingPolicyState.summary
       : undefined;
-  const routingPolicy = liveRoutingPolicy ?? routingPolicySummaryFixture;
+  const routingPolicy =
+    liveRoutingPolicy ??
+    (dataMode === "fixture" ? routingPolicySummaryFixture : undefined);
   const routingPolicySourceLabel = formatLiveLocalDisplaySource(
     getLiveLocalDisplaySource(dataMode, liveRoutingPolicyState),
   );
 
   function updatePrompt(nextPrompt: string) {
     setPrompt(nextPrompt);
-    setIsLiveRequestConfirmed(false);
   }
 
   function updateModel(nextModel: string) {
     setModel(nextModel);
-    setIsLiveRequestConfirmed(false);
   }
 
   function updateDomain(nextDomain: string) {
     setDomain(nextDomain);
-    setIsLiveRequestConfirmed(false);
   }
-
-  useEffect(() => {
-    setIsLiveRequestConfirmed(false);
-  }, [localBaseUrl, localBaseUrlError]);
 
   function showFixtureResult() {
     const scenario =
@@ -112,61 +101,6 @@ export function RoutingExplorer({
     });
   }
 
-  async function runLiveRouteExplain(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (localBaseUrlError) {
-      setResult({
-        source: "live",
-        label: "Local URL blocked",
-        errorMessage: localBaseUrlError,
-      });
-      return;
-    }
-
-    if (!isLiveRequestConfirmed) {
-      setResult({
-        source: "live",
-        label: "Confirmation required",
-        errorMessage:
-          "Confirm that this local route-explain request may append a local audit event before running it.",
-      });
-      return;
-    }
-
-    const validationError = validateRoutePrompt(prompt);
-    if (validationError) {
-      setResult({
-        source: "live",
-        label: "Preflight rejection",
-        errorMessage: validationError,
-      });
-      return;
-    }
-
-    setIsLiveRequestRunning(true);
-    try {
-      const client = createIgnisPromptClient({ baseUrl: localBaseUrl });
-      const response = await client.routeExplain(
-        buildRouteExplainRequest(prompt, model, domain),
-      );
-      setResult({
-        source: "live",
-        label: "Live local route explanation",
-        response,
-      });
-    } catch (error) {
-      setResult({
-        source: "live",
-        label: "Live local route explanation failed",
-        errorMessage: describeRouteExplainError(error),
-      });
-    } finally {
-      setIsLiveRequestRunning(false);
-      setIsLiveRequestConfirmed(false);
-    }
-  }
-
   return (
     <section id="routing-explorer" className="page-section">
       <header className="page-header">
@@ -174,13 +108,13 @@ export function RoutingExplorer({
           <p className="eyebrow">Routing Explorer</p>
           <h2>Route inspection only</h2>
           <p className="page-subtitle">
-            Inspect route decisions, tiers, explanations, and local-only policy
-            outcomes with fixture data or an explicit local request.
+            Inspect route policy metadata and clearly labeled offline preview
+            route examples without submitting prompts from Aethra.
           </p>
         </div>
         <div className="status-strip" aria-label="Routing Explorer status">
-          <StatusBadge tone="neutral">Fixture default</StatusBadge>
-          <StatusBadge tone="warning">Explicit live action</StatusBadge>
+          <StatusBadge tone="neutral">Read-only policy metadata</StatusBadge>
+          <StatusBadge tone="warning">No route execution</StatusBadge>
           <StatusBadge tone="neutral">Read-only</StatusBadge>
         </div>
       </header>
@@ -188,10 +122,10 @@ export function RoutingExplorer({
       <PageHelp
         collapsible
         items={[
-          "Compare fixture-backed local preview examples with an optional live local route-explain request.",
+          "Compare clearly labeled offline preview examples with read-only live-local routing policy metadata.",
           "Route tiers, route codes, warnings, and explanations come from IgnisPrompt and explain why a tier was selected.",
           "No cloud route is used by default; route explanations are local-preview policy signals, not production policy certification.",
-          "Live route-explain stays on the configured local daemon and appends a local audit event.",
+          "Aethra does not submit prompts or execute route-explain requests in this dashboard.",
         ]}
       />
 
@@ -211,15 +145,11 @@ export function RoutingExplorer({
           selectedFixtureId={selectedFixtureId}
           localBaseUrl={localBaseUrl}
           localBaseUrlError={localBaseUrlError}
-          isLiveRequestConfirmed={isLiveRequestConfirmed}
-          isLiveRequestRunning={isLiveRequestRunning}
           onPromptChange={updatePrompt}
           onModelChange={updateModel}
           onDomainChange={updateDomain}
           onFixtureChange={setSelectedFixtureId}
-          onLiveRequestConfirmationChange={setIsLiveRequestConfirmed}
           onFixtureSubmit={showFixtureResult}
-          onLiveSubmit={runLiveRouteExplain}
         />
         <RouteExplainResult result={result} />
       </div>
@@ -230,7 +160,7 @@ export function RoutingExplorer({
 type RoutingPolicySummaryPanelProps = {
   dataMode: AethraDataMode;
   liveRoutingPolicyState: LiveRoutingPolicySummaryState;
-  summary: RoutingPolicySummaryResponse;
+  summary?: RoutingPolicySummaryResponse;
   sourceLabel: string;
 };
 
@@ -277,7 +207,7 @@ function RoutingPolicySummaryPanel({
       {isLiveMode && liveRoutingPolicyState.status === "not-loaded" ? (
         <EmptyState
           title="Routing policy summary has not been loaded"
-          message="Fixture fallback policy metadata remains visible until you manually refresh local daemon data."
+          message="No live local routing policy metadata is displayed until GET /v1/routing/policy-summary loads successfully."
           nextAction="Start the daemon if needed, then use Refresh local daemon data."
         />
       ) : null}
@@ -293,10 +223,12 @@ function RoutingPolicySummaryPanel({
         <EmptyState
           title={liveRoutingPolicyState.label}
           message={liveRoutingPolicyState.message}
-          nextAction="Fixture routing policy metadata remains clearly labeled below."
+          nextAction="Routing policy metadata remains unavailable until a successful manual refresh."
         />
       ) : null}
 
+      {summary ? (
+      <>
       <dl className="definition-grid route-result-grid">
         <div>
           <dt>Source</dt>
@@ -307,7 +239,7 @@ function RoutingPolicySummaryPanel({
           <dd>
             {isLiveMode
               ? "GET /v1/routing/policy-summary"
-              : "fixture routing policy"}
+              : "offline preview fixture routing policy"}
           </dd>
         </div>
         <div>
@@ -353,6 +285,8 @@ function RoutingPolicySummaryPanel({
           ))}
         </ul>
       </div>
+      </>
+      ) : null}
 
       <p className="muted">
         Policy metadata is not production policy certification, compliance
@@ -370,15 +304,11 @@ type RouteExplainFormProps = {
   selectedFixtureId: string;
   localBaseUrl: string;
   localBaseUrlError?: string;
-  isLiveRequestConfirmed: boolean;
-  isLiveRequestRunning: boolean;
   onPromptChange: (prompt: string) => void;
   onModelChange: (model: string) => void;
   onDomainChange: (domain: string) => void;
   onFixtureChange: (fixtureId: string) => void;
-  onLiveRequestConfirmationChange: (isConfirmed: boolean) => void;
   onFixtureSubmit: () => void;
-  onLiveSubmit: (event: FormEvent<HTMLFormElement>) => void;
 };
 
 function RouteExplainForm({
@@ -389,36 +319,35 @@ function RouteExplainForm({
   selectedFixtureId,
   localBaseUrl,
   localBaseUrlError,
-  isLiveRequestConfirmed,
-  isLiveRequestRunning,
   onPromptChange,
   onModelChange,
   onDomainChange,
   onFixtureChange,
-  onLiveRequestConfirmationChange,
   onFixtureSubmit,
-  onLiveSubmit,
 }: RouteExplainFormProps) {
   return (
-    <form className="panel route-form" onSubmit={onLiveSubmit}>
+    <section
+      className="panel route-form"
+      aria-label="Offline preview route examples"
+    >
       <div className="panel-heading">
         <div>
-          <h3>Route request</h3>
+          <h3>Offline preview route example</h3>
           <p className="muted">
-            Use synthetic or non-sensitive text. Fixture examples are the
-            default local-preview path; live route-explain is explicit.
+            These examples are bundled offline preview fixtures. Aethra does
+            not submit prompts, execute route-explain, or append audit events.
           </p>
         </div>
       </div>
 
       <div className="route-base-url">
-        <span>Local route-explain URL</span>
+        <span>Configured local daemon URL</span>
         <strong>{localBaseUrlError ? "blocked" : localBaseUrl}</strong>
         {localBaseUrlError ? <p className="muted">{localBaseUrlError}</p> : null}
       </div>
 
       <label className="form-field">
-        <span>Prompt or excerpt</span>
+        <span>Fixture excerpt</span>
         <textarea
           value={prompt}
           onChange={(event) => onPromptChange(event.target.value)}
@@ -446,7 +375,7 @@ function RouteExplainForm({
       </div>
 
       <label className="form-field">
-        <span>Fixture-backed route example</span>
+        <span>Offline preview fixture route example</span>
         <select
           value={selectedFixtureId}
           onChange={(event) => onFixtureChange(event.target.value)}
@@ -459,52 +388,22 @@ function RouteExplainForm({
         </select>
       </label>
 
-      <label className="route-confirmation">
-        <input
-          type="checkbox"
-          checked={isLiveRequestConfirmed}
-          onChange={(event) =>
-            onLiveRequestConfirmationChange(event.target.checked)
-          }
-          disabled={Boolean(localBaseUrlError) || isLiveRequestRunning}
-        />
-        <span>
-          I understand this request stays local to the configured daemon, appends
-          a local audit event, and should use only synthetic or non-sensitive
-          text. Aethra will display the result, but IgnisPrompt owns the routing
-          decision.
-        </span>
-      </label>
-
       <div className="button-row">
         <button
           type="button"
           className="secondary-button"
           onClick={onFixtureSubmit}
         >
-          Show fixture route explanation
-        </button>
-        <button
-          type="submit"
-          className="primary-button"
-          disabled={
-            isLiveRequestRunning ||
-            Boolean(localBaseUrlError) ||
-            !isLiveRequestConfirmed
-          }
-        >
-          {isLiveRequestRunning
-            ? "Running local route explanation"
-            : "Run local route explanation"}
+          Show fixture-backed route example
         </button>
       </div>
 
       <p className="muted">
         Route decisions explain why IgnisPrompt selected a tier and whether
-        cloud was considered or allowed. They are local-preview signals, not
-        production policy certification.
+        cloud was considered or allowed. This panel is fixture-only; live
+        routing policy metadata is loaded through GET /v1/routing/policy-summary.
       </p>
-    </form>
+    </section>
   );
 }
 
@@ -548,14 +447,16 @@ function RouteExplainResult({ result }: RouteExplainResultProps) {
   }
 
   return (
-    <aside className="panel detail-panel" aria-label="Route explanation result">
+    <aside
+      className="panel detail-panel"
+      aria-label="Offline preview routing example result"
+    >
       <div className="panel-heading">
         <div>
-          <h3>Route result</h3>
+          <h3>Offline preview routing example</h3>
           <p className="muted">
-            {result.source === "live"
-              ? "Live local response"
-              : "Synthetic fixture"}
+            Fixture-backed route example only. Aethra does not submit prompts
+            or execute route-explain.
           </p>
         </div>
         <StatusBadge tone={tone}>{result.label}</StatusBadge>
@@ -581,11 +482,7 @@ function RouteExplainResult({ result }: RouteExplainResultProps) {
             </div>
             <div>
               <dt>Result source</dt>
-              <dd>
-                {result.source === "live"
-                  ? "Live local route-explain"
-                  : "Fixture-backed local preview"}
-              </dd>
+              <dd>Fixture-backed route example</dd>
             </div>
           </dl>
 
@@ -594,7 +491,8 @@ function RouteExplainResult({ result }: RouteExplainResultProps) {
               <div>
                 <h4>Decision breakdown</h4>
                 <p className="muted">
-                  Local-preview route signals returned by IgnisPrompt.
+                  Offline preview fixture route signals. Live local policy
+                  metadata is read-only and loaded separately.
                 </p>
               </div>
               <button

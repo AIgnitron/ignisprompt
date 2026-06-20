@@ -473,16 +473,16 @@ export function resolveAethraBaseUrlInput(
 export function getLiveLocalDisplaySource(
   dataMode: AethraDataMode,
   state: LiveEndpointState,
-): "local-daemon" | "fixture-fallback" | "offline-preview" {
+): "local-daemon" | "live-local-pending" | "offline-preview-fixture" {
   if (dataMode === "live-local" && state.status === "loaded") {
     return "local-daemon";
   }
 
   if (dataMode === "live-local") {
-    return "fixture-fallback";
+    return "live-local-pending";
   }
 
-  return "offline-preview";
+  return "offline-preview-fixture";
 }
 
 export function formatLiveLocalDisplaySource(
@@ -491,10 +491,10 @@ export function formatLiveLocalDisplaySource(
   switch (source) {
     case "local-daemon":
       return "Local daemon data";
-    case "fixture-fallback":
-      return "Fixture fallback";
-    case "offline-preview":
-      return "Offline preview";
+    case "live-local-pending":
+      return "Live local pending";
+    case "offline-preview-fixture":
+      return "Offline preview fixture";
   }
 }
 
@@ -908,14 +908,14 @@ function describeEndpointLoadError(
         return {
           label: "Invalid JSON",
           message:
-            "The local daemon returned a response that was not valid JSON. Fixture fallback remains available; confirm the current local-preview daemon is running before retrying manual refresh.",
+            "The local daemon returned a response that was not valid JSON. This surface remains unavailable until a compatible local-preview daemon response is loaded.",
           diagnosticKind: "invalid-response-shape",
         };
       case "unexpected-shape":
         return {
           label: "Unsupported schema",
           message:
-            `The local daemon returned JSON that did not match the expected ${noun} schema. Fixture fallback remains available; confirm the daemon is from the current local-preview build before retrying manual refresh.`,
+            `The local daemon returned JSON that did not match the expected ${noun} schema. This surface remains unavailable until a compatible local-preview daemon response is loaded.`,
           diagnosticKind: "invalid-response-shape",
         };
       case "http-error":
@@ -1093,7 +1093,7 @@ function nextActionForError(
     case "invalid-local-url":
       return "Enter a local daemon URL before using live local mode.";
     case "unknown":
-      return "Fixture mode remains available without a daemon while you inspect the local setup.";
+      return "Use the offline preview fixture mode only when you need a clearly labeled local demo view without daemon data.";
   }
 }
 
