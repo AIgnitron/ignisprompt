@@ -108,8 +108,9 @@ export function RoutingExplorer({
           <p className="eyebrow">Routing Explorer</p>
           <h2>Route inspection only</h2>
           <p className="page-subtitle">
-            Inspect route policy metadata and clearly labeled offline preview
-            route examples without submitting prompts from Aethra.
+            Inspect read-only routing policy metadata and clearly labeled
+            offline preview route examples without submitting prompts from
+            Aethra.
           </p>
         </div>
         <div className="status-strip" aria-label="Routing Explorer status">
@@ -122,8 +123,8 @@ export function RoutingExplorer({
       <PageHelp
         collapsible
         items={[
-          "Compare clearly labeled offline preview examples with read-only live-local routing policy metadata.",
-          "Route tiers, route codes, warnings, and explanations come from IgnisPrompt and explain why a tier was selected.",
+          "Compare clearly labeled offline preview routing examples with read-only live-local routing policy metadata.",
+          "Route tiers, route codes, warnings, and explanations are policy metadata or fixture examples only in this dashboard.",
           "No cloud route is used by default; route explanations are local-preview policy signals, not production policy certification.",
           "Aethra does not submit prompts or execute route-explain requests in this dashboard.",
         ]}

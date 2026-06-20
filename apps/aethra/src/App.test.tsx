@@ -26,18 +26,40 @@ describe("Aethra app navigation and demo guidance", () => {
       previousIndex = currentIndex;
     }
 
-    expect(markup).toContain("Guided Demo Path");
-    expect(markup).toContain("Recommended safe walkthrough");
     expect(markup).toContain("Live Local Dashboard");
+    expect(markup).toContain("What is happening now?");
+    expect(markup).toContain("Suggested Review Flow");
+    expect(markup).toContain("Start daemon");
+    expect(markup).toContain("Refresh local daemon data");
+    expect(markup).toContain("Review daemon health/version");
+    expect(markup).toContain("Review models/readiness");
+    expect(markup).toContain("Review routing policy");
+    expect(markup).toContain("Review evidence packages");
+    expect(markup).toContain("Review audit/operations");
+    expect(markup).toContain("Review sustainability metrics");
+    expect(markup).toContain("What this dashboard proves");
+    expect(markup).toContain("local daemon connectivity");
+    expect(markup).toContain("local metadata visibility");
+    expect(markup).toContain("read-only governance surface");
+    expect(markup).toContain("What this dashboard does not do");
+    expect(markup).toContain("no route execution");
+    expect(markup).toContain("no prompt submission");
+    expect(markup).toContain("no model execution");
+    expect(markup).toContain("no mutation");
     expect(markup).toContain("Endpoint Matrix");
+    expect(markup).toContain("Core daemon status");
+    expect(markup).toContain("Models and readiness");
+    expect(markup).toContain("Routing and operations");
+    expect(markup).toContain("Evidence and audit");
+    expect(markup).toContain("Sustainability");
     expect(markup).toContain("Operations summary");
     expect(markup).toContain("Routing policy summary");
     expect(markup).toContain("Evidence package index");
     expect(markup).toContain("Not loaded yet");
     expect(markup).toContain("model readiness");
-    expect(markup).toContain("Local Demo Studio");
-    expect(markup).toContain("Evidence bundle");
-    expect(markup).toContain("Review what is generated locally, what stays ignored by git");
+    expect(markup).toContain("cargo run -p ignispromptd");
+    expect(markup).toContain("cd apps/aethra &amp;&amp; npm run dev");
+    expect(markup).toContain("cargo run -p ignispromptctl -- doctor --json");
   });
 
   it("keeps explicit boundary language while avoiding unsafe positive claims", () => {
@@ -108,6 +130,10 @@ describe("Aethra app navigation and demo guidance", () => {
     expect(markup).not.toContain("Delete package");
     expect(markup).not.toContain("Generate package");
     expect(markup).not.toContain("Validate package");
+    expect(markup).not.toContain("Export Markdown");
+    expect(markup).not.toContain("Export JSON");
+    expect(markup).not.toContain("Run live route");
+    expect(markup).not.toContain("Live local route-explain");
   });
 
   it("does not add polling or live-local storage persistence APIs", () => {

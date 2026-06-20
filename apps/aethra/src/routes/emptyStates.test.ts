@@ -13,7 +13,7 @@ describe("local preview empty state copy", () => {
       "does not require a daemon",
     );
     expect(localPreviewEmptyStates.fixtureModeActive.nextAction).toContain(
-      "guided demo path",
+      "suggested review flow",
     );
   });
 
@@ -25,19 +25,19 @@ describe("local preview empty state copy", () => {
       "refresh audit events",
     );
     expect(localPreviewEmptyStates.auditEventsNotLoaded.nextAction).toContain(
-      "guided demo path",
+      "suggested review flow",
     );
   });
 
   it("keeps model status guidance scoped to local daemon hints", () => {
     expect(localPreviewEmptyStates.modelStatusNotLoaded.message).toContain(
-      "Fixture hints remain available",
+      "not showing live model and runner status hints",
     );
     expect(localPreviewEmptyStates.modelStatusNotLoaded.detail).toContain(
       "not runner controls",
     );
     expect(localPreviewEmptyStates.modelStatusNotLoaded.nextAction).toContain(
-      "guided demo path",
+      "suggested review flow",
     );
   });
 
@@ -49,7 +49,7 @@ describe("local preview empty state copy", () => {
       "not telemetry",
     );
     expect(localPreviewEmptyStates.sustainabilityNotLoaded.nextAction).toContain(
-      "guided demo path",
+      "suggested review flow",
     );
   });
 
@@ -64,7 +64,7 @@ describe("local preview empty state copy", () => {
       title: "Daemon unreachable",
       message: "Aethra could not reach the daemon.",
       nextAction:
-        "Start the daemon with ./scripts/start-dev.sh, confirm the local endpoint, then refresh from the guided demo path.",
+        "Start the daemon with ./scripts/start-dev.sh, confirm the local endpoint, then refresh from the suggested review flow.",
       detail: "Fixture data remains visible.",
     });
   });

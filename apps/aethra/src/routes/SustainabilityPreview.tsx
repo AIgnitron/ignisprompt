@@ -122,7 +122,7 @@ export function SustainabilityPreview({
         collapsible
         items={[
           "Review estimated, methodology-dependent proxy indicators from manual live-local metrics or explicit offline preview fixture mode.",
-          "Aethra does not expose file download or report export actions from this live-local dashboard.",
+          "Aethra does not expose file save actions from this live-local dashboard.",
           "These values are not measured energy use, not actual carbon accounting, and not formal sustainability reporting.",
         ]}
       />
@@ -407,7 +407,7 @@ function SustainabilityLiveControl({
           </button>
         </div>
 
-        <div className="report-export-card">
+        <div className="sustainability-boundary-card">
           <span>Read-only dashboard boundary</span>
           <p>
             This dashboard displays aggregate sustainability metadata only. It

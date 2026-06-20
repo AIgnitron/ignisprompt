@@ -57,47 +57,55 @@ import {
   localPreviewEmptyStates,
 } from "./emptyStates";
 
-const guidedDemoSteps = [
+const suggestedReviewFlow = [
   {
-    title: "Overview",
-    detail:
-      "Start with the local-preview guardrails, then use live-local mode only for manual refreshes.",
+    title: "Start daemon",
+    detail: "Run the local daemon on the default loopback port.",
   },
   {
-    title: "Local Demo Studio",
-    detail:
-      "Open the product story view before drilling into detailed routing or evidence panels.",
+    title: "Refresh local daemon data",
+    detail: "Use the primary manual refresh action in Aethra.",
   },
   {
-    title: "Routing Explorer",
-    detail:
-      "Compare candidate routes by tier and confirm cloud-disabled-by-default behavior.",
+    title: "Review daemon health/version",
+    detail: "Confirm local connectivity and release metadata.",
   },
   {
-    title: "Audit Events",
-    detail:
-      "Inspect local audit history, warnings, and request IDs without leaving the browser.",
+    title: "Review models/readiness",
+    detail: "Check manifests, inventory, readiness hints, and runner hints.",
   },
   {
-    title: "Model and Runner Status",
-    detail:
-      "Review capability-style local status hints as read-only prerequisites, not controls.",
+    title: "Review routing policy",
+    detail: "Inspect read-only route categories and decision inputs.",
   },
   {
-    title: "Evidence Bundle",
-    detail:
-      "Review what is generated locally, what stays ignored by git, and what local validation does and does not mean.",
+    title: "Review evidence packages",
+    detail: "Inspect safe package index metadata and boundaries.",
   },
   {
-    title: "Sustainability Preview",
-    detail:
-      "Finish with methodology-dependent proxy metrics and local export helpers.",
+    title: "Review audit/operations",
+    detail: "Check aggregate operations and visible local audit records.",
   },
   {
-    title: "Boundaries and supporting workflows",
-    detail:
-      "Use Local Readiness, Local Operator Console, Local Policy Workbench, and Local Command Center as supporting pages after the main story.",
+    title: "Review sustainability metrics",
+    detail: "Treat estimates as proxy indicators, not measured reporting.",
   },
+] as const;
+
+const dashboardProves = [
+  "local daemon connectivity",
+  "local metadata visibility",
+  "read-only governance surface",
+  "fixture/demo data clearly separated from live-local state",
+] as const;
+
+const dashboardDoesNotDo = [
+  "no route execution",
+  "no prompt submission",
+  "no model execution",
+  "no mutation",
+  "no upload/download/delete",
+  "no compliance/certification claims",
 ] as const;
 
 type OverviewDetailRoute =
@@ -265,6 +273,21 @@ export function Overview({
   const notLoadedSurfaces = liveSurfaces.filter(
     (surface) => surface.status === "not loaded" || surface.status === "loading",
   );
+  const liveSurfaceGroups = buildLiveSurfaceGroups(liveSurfaces);
+  const overallStatus =
+    loadedSurfaces.length > 0
+      ? failedSurfaces.length > 0
+        ? "partial load"
+        : "live local"
+      : failedSurfaces.length > 0
+        ? "daemon unavailable"
+        : "not loaded";
+  const overallStatusTone =
+    overallStatus === "live local"
+      ? "ok"
+      : overallStatus === "partial load" || overallStatus === "daemon unavailable"
+        ? "warning"
+        : "neutral";
 
   return (
     <section id="overview" className="page-section">
@@ -289,19 +312,41 @@ export function Overview({
       </header>
 
       <PageHelp
-        defaultOpen
         collapsible
         items={[
-          "Review live local daemon metadata, endpoint state, diagnostics, and copyable local commands.",
-          "Use Refresh local daemon data to load read-only health, version, model, local model inventory, model readiness, routing policy, evidence package index, capability, audit, and sustainability metadata from loopback endpoints.",
+          "Use Refresh local daemon data to load read-only health, version, model, routing, evidence, audit, operations, and sustainability metadata from loopback endpoints.",
           "If the daemon is unavailable, Aethra shows not loaded, unavailable, or failed states instead of substituting fixture data into product status.",
+          "Offline preview fixtures remain explicit and separate from live-local product state.",
         ]}
       />
 
+      <section className="dashboard-front-door" aria-label="Live local dashboard summary">
+        <div className="dashboard-status-card">
+          <p className="eyebrow">Live Local Dashboard</p>
+          <h3>What is happening now?</h3>
+          <div className="dashboard-status-line">
+            <StatusBadge tone={overallStatusTone}>{overallStatus}</StatusBadge>
+            <span>
+              {loadedSurfaces.length} live local / {failedSurfaces.length} failed
+              or unavailable / {notLoadedSurfaces.length} not loaded
+            </span>
+          </div>
+          <p className="muted">
+            Primary state is local daemon metadata loaded by manual refresh.
+            Aethra does not auto-load, poll, persist daemon responses, or blend
+            fixture data into failed live surfaces.
+          </p>
+        </div>
+        <div className="dashboard-proof-grid">
+          <FactListPanel title="What this dashboard proves" items={dashboardProves} />
+          <FactListPanel title="What this dashboard does not do" items={dashboardDoesNotDo} />
+        </div>
+      </section>
+
       <section className="overview-section-group" aria-label="Live local dashboard">
         <div className="section-heading">
-          <p className="eyebrow">Live Local Dashboard</p>
-          <h3>Manual daemon metadata refresh</h3>
+          <p className="eyebrow">Status surfaces</p>
+          <h3>Read-only local daemon metadata</h3>
           <p className="muted">
             Aethra is a read-only local-first dashboard. Start{" "}
             <code>ignispromptd</code>, keep the daemon at{" "}
@@ -319,36 +364,47 @@ export function Overview({
             <p className="explanation">{baseUrlError}</p>
           </div>
         ) : null}
-        <div className="metric-grid live-surface-grid" aria-label="Live local surface cards">
-          {liveSurfaces.map((surface) => (
-            <article className="metric-card live-surface-card" key={surface.id}>
-              <div className="panel-heading">
-                <div>
-                  <span className="metric-label">{surface.label}</span>
-                  <strong className="metric-value">{surface.value}</strong>
-                </div>
-                <StatusBadge tone={statusTone(surface.status)}>
-                  {surface.status}
-                </StatusBadge>
+        <div className="surface-group-stack" aria-label="Grouped live local surface cards">
+          {liveSurfaceGroups.map((group) => (
+            <section className="surface-group" key={group.title}>
+              <div className="surface-group-heading">
+                <h4>{group.title}</h4>
+                <span>{group.description}</span>
               </div>
-              <p>{surface.summary}</p>
-              <p className="muted">Last loaded: {surface.lastLoaded}</p>
-              <p className="muted">{surface.boundary}</p>
-              {surface.detailRoute ? (
-                <button
-                  type="button"
-                  className="secondary-button compact-button"
-                  onClick={() => {
-                    if (surface.detailRoute) {
-                      onNavigateToRoute(surface.detailRoute);
-                    }
-                  }}
-                >
-                  Open {surface.detailLabel}
-                </button>
-              ) : null}
-            </article>
+              <div className="metric-grid live-surface-grid">
+                {group.surfaces.map((surface) => (
+                  <LiveSurfaceCardView
+                    key={surface.id}
+                    surface={surface}
+                    onNavigateToRoute={onNavigateToRoute}
+                  />
+                ))}
+              </div>
+            </section>
           ))}
+        </div>
+      </section>
+
+      <section className="overview-section-group" aria-label="Suggested review flow">
+        <div className="section-heading">
+          <p className="eyebrow">Suggested Review Flow</p>
+          <h3>Demo-ready path through live-local state</h3>
+          <p className="muted">
+            This sequence keeps reviewers focused on local connectivity,
+            metadata visibility, and read-only boundaries.
+          </p>
+        </div>
+        <div className="panel" aria-label="Suggested review flow steps">
+          <ol className="guided-demo-list review-flow-list">
+            {suggestedReviewFlow.map((step, index) => (
+              <li key={step.title}>
+                <strong>
+                  {index + 1}. {step.title}
+                </strong>
+                <span>{step.detail}</span>
+              </li>
+            ))}
+          </ol>
         </div>
       </section>
 
@@ -377,7 +433,7 @@ export function Overview({
             boundary. No route, model, package, or mutation action is exposed.
           </p>
         </div>
-        <div className="panel table-panel">
+        <div className="panel table-panel endpoint-matrix-panel">
           <table className="data-table endpoint-matrix">
             <thead>
               <tr>
@@ -422,50 +478,22 @@ export function Overview({
           <CommandListPanel
             title="Start daemon"
             commands={[
-              "cargo run -p ignispromptd -- --bind 127.0.0.1:8765 --model-dir ./config/models --audit-log ./data/audit/events.jsonl --local-only true",
+              "cargo run -p ignispromptd",
+              "cd apps/aethra && npm run dev",
             ]}
           />
           <CommandListPanel
             title="Next local commands"
             commands={[
-              "cargo run -p ignispromptctl -- doctor",
-              "cargo run -p ignispromptctl -- model-inventory",
-              "cargo run -p ignispromptctl -- model-readiness",
-              "cargo run -p ignispromptctl -- routing-policy",
-              "cargo run -p ignispromptctl -- evidence-packages",
-              "cargo run -p ignispromptctl -- operations-summary",
+              "cargo run -p ignispromptctl -- doctor --json",
+              "cargo run -p ignispromptctl -- model-inventory --json",
+              "cargo run -p ignispromptctl -- model-readiness --json",
+              "cargo run -p ignispromptctl -- routing-policy --json",
+              "cargo run -p ignispromptctl -- evidence-packages --json",
               "make demo-check",
               "make preview-release-check",
             ]}
           />
-        </div>
-      </section>
-
-      <section className="overview-section-group" aria-label="Guided demo path">
-        <div className="section-heading">
-          <p className="eyebrow">Guided Demo Path</p>
-          <h3>Recommended safe walkthrough</h3>
-          <p className="muted">
-            Offline preview fixtures are separate from live product state, and
-            live-local loading is manual.
-          </p>
-        </div>
-        <div className="panel" aria-label="Recommended demo steps">
-          <ol className="guided-demo-list">
-            {guidedDemoSteps.map((step, index) => (
-              <li key={step.title}>
-                <strong>
-                  {index + 1}. {step.title}
-                </strong>
-                <span>{step.detail}</span>
-              </li>
-            ))}
-          </ol>
-          <p className="muted">
-            This path keeps the front-door story focused on overview, routing,
-            audit, status hints, package review, sustainability, and explicit
-            non-claims before the supporting workflow pages.
-          </p>
         </div>
       </section>
 
@@ -727,6 +755,112 @@ type LiveSurfaceCard = {
   detailRoute?: OverviewDetailRoute;
   detailLabel: string;
 };
+
+type LiveSurfaceGroup = {
+  title: string;
+  description: string;
+  surfaces: LiveSurfaceCard[];
+};
+
+function buildLiveSurfaceGroups(
+  surfaces: LiveSurfaceCard[],
+): LiveSurfaceGroup[] {
+  const byId = new Map(surfaces.map((surface) => [surface.id, surface]));
+  const pick = (ids: LiveLocalSurfaceId[]) =>
+    ids
+      .map((id) => byId.get(id))
+      .filter((surface): surface is LiveSurfaceCard => surface !== undefined);
+
+  return [
+    {
+      title: "Core daemon status",
+      description: "Connectivity, release metadata, and configured manifests.",
+      surfaces: pick(["health", "version-status", "models"]),
+    },
+    {
+      title: "Models and readiness",
+      description: "Local file inventory, readiness hints, and runner status.",
+      surfaces: pick([
+        "model-inventory",
+        "model-readiness",
+        "model-status",
+        "capabilities",
+      ]),
+    },
+    {
+      title: "Routing and operations",
+      description: "Read-only routing policy and aggregate daemon activity.",
+      surfaces: pick(["routing-policy", "operations-summary"]),
+    },
+    {
+      title: "Evidence and audit",
+      description: "Safe evidence package index metadata and audit records.",
+      surfaces: pick(["evidence-packages", "audit-events"]),
+    },
+    {
+      title: "Sustainability",
+      description: "Methodology-dependent proxy indicators from local metadata.",
+      surfaces: pick(["sustainability-metrics"]),
+    },
+  ].filter((group) => group.surfaces.length > 0);
+}
+
+function LiveSurfaceCardView({
+  surface,
+  onNavigateToRoute,
+}: {
+  surface: LiveSurfaceCard;
+  onNavigateToRoute: (route: OverviewDetailRoute) => void;
+}) {
+  return (
+    <article className="metric-card live-surface-card">
+      <div className="live-surface-card-top">
+        <span className="metric-label">{surface.label}</span>
+        <StatusBadge tone={statusTone(surface.status)}>{surface.status}</StatusBadge>
+      </div>
+      <strong className="metric-value">{surface.value}</strong>
+      <p>{surface.summary}</p>
+      <dl className="compact-metadata-list">
+        <div>
+          <dt>Last loaded</dt>
+          <dd>{surface.lastLoaded}</dd>
+        </div>
+        <div>
+          <dt>Boundary</dt>
+          <dd>{surface.boundary}</dd>
+        </div>
+      </dl>
+      {surface.detailRoute ? (
+        <button
+          type="button"
+          className="secondary-button compact-button"
+          onClick={() => onNavigateToRoute(surface.detailRoute!)}
+        >
+          Open {surface.detailLabel}
+        </button>
+      ) : null}
+    </article>
+  );
+}
+
+function FactListPanel({
+  title,
+  items,
+}: {
+  title: string;
+  items: readonly string[];
+}) {
+  return (
+    <section className="panel compact-fact-panel">
+      <h3>{title}</h3>
+      <ul>
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 function buildOverviewLiveSurfaces(input: {
   health: LiveHealthState;

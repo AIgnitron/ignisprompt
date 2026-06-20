@@ -193,8 +193,8 @@ export function ModelRunnerStatus({
           <p className="eyebrow">Model / Runner Status</p>
           <h2>Model and runner status hints</h2>
           <p className="page-subtitle">
-            Review manifest metadata and local daemon status hints without
-            changing models or runners.
+            Review live-local manifest metadata, inventory, readiness, and
+            runner hints without changing models or runners.
           </p>
         </div>
         <div className="status-strip" aria-label="Model metadata status">
@@ -210,9 +210,9 @@ export function ModelRunnerStatus({
       <PageHelp
         collapsible
         items={[
-          "Review model manifests and capability-style model and runner status hints from fixture data or manual live-local refresh.",
+          "Review model manifests and capability-style model and runner status hints from manual live-local refresh or explicit offline preview fixture mode.",
           "Status values are configuration, path, runner, and availability hints only.",
-          "Aethra observes local status; it does not install, delete, start, stop, or change models or runners.",
+          "Aethra observes local status; it does not execute, install, download, delete, start, stop, or change models or runners.",
         ]}
       />
 
