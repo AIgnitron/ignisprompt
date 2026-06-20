@@ -257,6 +257,28 @@ enum RunnersCommands {
         #[arg(long)]
         json: bool,
     },
+    /// Request a guarded local runner start attempt
+    Start {
+        /// Runner identifier from runners status
+        runner_id: String,
+        /// Required explicit local operator confirmation
+        #[arg(long)]
+        confirm_local_runner_control: bool,
+        /// Print raw JSON response instead of a terminal summary
+        #[arg(long)]
+        json: bool,
+    },
+    /// Request a guarded local runner stop attempt
+    Stop {
+        /// Runner identifier from runners status
+        runner_id: String,
+        /// Required explicit local operator confirmation
+        #[arg(long)]
+        confirm_local_runner_control: bool,
+        /// Print raw JSON response instead of a terminal summary
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn parse_response(resp: ureq::Response) -> Value {
@@ -319,6 +341,28 @@ fn main() {
         Commands::Capabilities { json } => cmd_capabilities(&cli.daemon_url, *json),
         Commands::Runners { sub } => match sub {
             RunnersCommands::Status { json } => cmd_runners_status(&cli.daemon_url, *json),
+            RunnersCommands::Start {
+                runner_id,
+                confirm_local_runner_control,
+                json,
+            } => cmd_runner_lifecycle_action(
+                &cli.daemon_url,
+                "start",
+                runner_id,
+                *confirm_local_runner_control,
+                *json,
+            ),
+            RunnersCommands::Stop {
+                runner_id,
+                confirm_local_runner_control,
+                json,
+            } => cmd_runner_lifecycle_action(
+                &cli.daemon_url,
+                "stop",
+                runner_id,
+                *confirm_local_runner_control,
+                *json,
+            ),
         },
         Commands::ModelInventory { json } => cmd_model_inventory(&cli.daemon_url, *json),
         Commands::ModelReadiness { json } => cmd_model_readiness(&cli.daemon_url, *json),
@@ -5717,6 +5761,31 @@ fn runner_process_status_url(base_url: &str) -> String {
     format!("{}/v1/runners/status", base_url.trim_end_matches('/'))
 }
 
+fn runner_lifecycle_action_url(base_url: &str, runner_id: &str, action: &str) -> String {
+    format!(
+        "{}/v1/runners/{}/{}",
+        base_url.trim_end_matches('/'),
+        runner_id,
+        action
+    )
+}
+
+fn is_valid_runner_id(runner_id: &str) -> bool {
+    !runner_id.is_empty()
+        && runner_id.len() <= 128
+        && runner_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+}
+
+fn require_valid_runner_id(runner_id: &str) -> Result<(), String> {
+    if is_valid_runner_id(runner_id) {
+        Ok(())
+    } else {
+        Err("invalid runner id; use 1-128 ASCII letters, digits, '-', '_', or '.' only".to_string())
+    }
+}
+
 fn cmd_runners_status(base_url: &str, json_output: bool) {
     let url = runner_process_status_url(base_url);
     match ureq::get(&url).call() {
@@ -5735,6 +5804,68 @@ fn cmd_runners_status(base_url: &str, json_output: bool) {
             eprintln!("error: {}", e);
             process::exit(1);
         }
+    }
+}
+
+fn require_runner_lifecycle_confirmation(confirm: bool) -> Result<(), String> {
+    if confirm {
+        Ok(())
+    } else {
+        Err("missing --confirm-local-runner-control; guarded runner lifecycle requests require explicit local operator confirmation and are rejected before contacting the daemon".to_string())
+    }
+}
+
+fn cmd_runner_lifecycle_action(
+    base_url: &str,
+    action: &str,
+    runner_id: &str,
+    confirm: bool,
+    json_output: bool,
+) {
+    if let Err(message) = require_valid_runner_id(runner_id) {
+        eprintln!("error: {}", message);
+        process::exit(1);
+    }
+
+    if let Err(message) = require_runner_lifecycle_confirmation(confirm) {
+        eprintln!("error: {}", message);
+        process::exit(1);
+    }
+
+    let url = runner_lifecycle_action_url(base_url, runner_id, action);
+    let body = json!({
+        "confirm": true,
+    })
+    .to_string();
+
+    match ureq::post(&url)
+        .set("content-type", "application/json")
+        .send_string(&body)
+    {
+        Ok(resp) => {
+            let body = parse_response(resp);
+            print_runner_lifecycle_response(&body, json_output);
+            if body.get("accepted").and_then(|value| value.as_bool()) != Some(true) {
+                process::exit(1);
+            }
+        }
+        Err(ureq::Error::Status(_, resp)) => {
+            let body = parse_response(resp);
+            print_runner_lifecycle_response(&body, json_output);
+            process::exit(1);
+        }
+        Err(e) => {
+            eprintln!("error: {}", e);
+            process::exit(1);
+        }
+    }
+}
+
+fn print_runner_lifecycle_response(body: &Value, json_output: bool) {
+    if json_output {
+        println!("{}", serde_json::to_string_pretty(body).unwrap_or_default());
+    } else {
+        println!("{}", format_runner_lifecycle_action_summary(body));
     }
 }
 
@@ -5847,6 +5978,108 @@ fn format_runner_process_status_summary(body: &Value) -> String {
     }
 
     lines.push("- No start/stop/restart controls are available in this command.".to_string());
+    lines.join("\n")
+}
+
+fn format_runner_lifecycle_action_summary(body: &Value) -> String {
+    let mut lines = vec![
+        "Runner lifecycle action".to_string(),
+        format!(
+            "schema_version: {}",
+            body.get("schema_version")
+                .and_then(|v| v.as_str())
+                .unwrap_or("-")
+        ),
+        format!(
+            "request_id:     {}",
+            body.get("request_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("-")
+        ),
+        format!(
+            "action:         {}",
+            body.get("action").and_then(|v| v.as_str()).unwrap_or("-")
+        ),
+        format!(
+            "runner_id:      {}",
+            body.get("runner_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("-")
+        ),
+        format!(
+            "accepted:       {}",
+            body.get("accepted")
+                .and_then(|v| v.as_bool())
+                .map(|value| if value { "yes" } else { "no" })
+                .unwrap_or("-")
+        ),
+        format!(
+            "outcome:        {}",
+            body.get("outcome").and_then(|v| v.as_str()).unwrap_or("-")
+        ),
+        format!(
+            "reason_code:    {}",
+            body.get("reason_code")
+                .and_then(|v| v.as_str())
+                .unwrap_or("-")
+        ),
+        format!(
+            "audit_event_id: {}",
+            body.get("audit_event_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("-")
+        ),
+    ];
+
+    if let Some(message) = body.get("message").and_then(|v| v.as_str()) {
+        lines.push(format!("message:        {}", message));
+    }
+
+    if let Some(status) = body.get("status").and_then(|v| v.as_object()) {
+        lines.push("".to_string());
+        lines.push("Runner status:".to_string());
+        lines.push(format!(
+            "- process_state: {}",
+            status
+                .get("process_state")
+                .and_then(|v| v.as_str())
+                .unwrap_or("-")
+        ));
+        lines.push(format!(
+            "- managed_by_ignisprompt: {}",
+            status
+                .get("managed_by_ignisprompt")
+                .and_then(|v| v.as_bool())
+                .map(|value| if value { "yes" } else { "no" })
+                .unwrap_or("-")
+        ));
+        let actions_allowed = status
+            .get("actions_allowed")
+            .and_then(|v| v.as_array())
+            .map(|actions| {
+                actions
+                    .iter()
+                    .filter_map(|action| action.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            })
+            .filter(|actions| !actions.is_empty())
+            .unwrap_or_else(|| "none".to_string());
+        lines.push(format!("- actions_allowed: {}", actions_allowed));
+    }
+
+    lines.push("".to_string());
+    lines.push("Boundaries:".to_string());
+    if let Some(boundaries) = body.get("boundaries").and_then(|v| v.as_array()) {
+        for boundary in boundaries {
+            if let Some(message) = boundary.as_str() {
+                lines.push(format!("- {message}"));
+            }
+        }
+    } else {
+        lines.push("- Guarded local operator control only.".to_string());
+    }
+
     lines.join("\n")
 }
 
@@ -9449,13 +9682,15 @@ mod tests {
         format_readiness_package_summary_json, format_readiness_package_validation_json,
         format_readiness_package_validation_summary, format_readiness_summary,
         format_route_explain_summary, format_routing_policy_summary,
-        format_runner_process_status_summary, format_sustainability_summary,
-        format_unreachable_error, is_audit_event_list, is_route_explain_response,
-        is_sustainability_metrics_response, policy_scenario_groups_by_category,
-        policy_scenario_groups_by_expected_tier, policy_scenarios_expected_fail_closed,
-        policy_scenarios_expected_local_only, policy_scenarios_with_boundary_note,
-        readiness_report_next_steps, route_explain_url, runner_process_status_url, string_field,
-        sustainability_url, validate_demo_package_output_dir, validate_doctor_capabilities,
+        format_runner_lifecycle_action_summary, format_runner_process_status_summary,
+        format_sustainability_summary, format_unreachable_error, is_audit_event_list,
+        is_route_explain_response, is_sustainability_metrics_response, is_valid_runner_id,
+        policy_scenario_groups_by_category, policy_scenario_groups_by_expected_tier,
+        policy_scenarios_expected_fail_closed, policy_scenarios_expected_local_only,
+        policy_scenarios_with_boundary_note, readiness_report_next_steps,
+        require_runner_lifecycle_confirmation, require_valid_runner_id, route_explain_url,
+        runner_lifecycle_action_url, runner_process_status_url, string_field, sustainability_url,
+        validate_demo_package_output_dir, validate_doctor_capabilities,
         validate_doctor_evidence_packages, validate_doctor_health, validate_doctor_model_inventory,
         validate_doctor_model_readiness, validate_doctor_model_status_hints,
         validate_doctor_models, validate_doctor_operations_summary, validate_doctor_routing_policy,
@@ -9598,6 +9833,72 @@ mod tests {
     fn runner_process_status_url_format() {
         let url = runner_process_status_url("http://127.0.0.1:8765/");
         assert_eq!(url, "http://127.0.0.1:8765/v1/runners/status");
+    }
+
+    #[test]
+    fn runner_lifecycle_start_and_stop_url_format() {
+        let start =
+            runner_lifecycle_action_url("http://127.0.0.1:8765/", "stub-legal-runner", "start");
+        let stop =
+            runner_lifecycle_action_url("http://127.0.0.1:8765", "stub-legal-runner", "stop");
+
+        assert_eq!(
+            start,
+            "http://127.0.0.1:8765/v1/runners/stub-legal-runner/start"
+        );
+        assert_eq!(
+            stop,
+            "http://127.0.0.1:8765/v1/runners/stub-legal-runner/stop"
+        );
+    }
+
+    #[test]
+    fn runner_lifecycle_missing_confirmation_is_rejected_locally() {
+        let error = require_runner_lifecycle_confirmation(false).unwrap_err();
+        assert!(error.contains("--confirm-local-runner-control"));
+        assert!(error.contains("before contacting the daemon"));
+        assert!(require_runner_lifecycle_confirmation(true).is_ok());
+    }
+
+    #[test]
+    fn runner_lifecycle_runner_id_validation_is_path_safe() {
+        let valid_ids = vec![
+            "stub-legal-runner".to_string(),
+            "gguf_runner.spike".to_string(),
+            "Runner_123".to_string(),
+            "a".repeat(128),
+        ];
+        for valid in valid_ids {
+            assert!(
+                is_valid_runner_id(&valid),
+                "expected valid runner id {valid}"
+            );
+            assert!(require_valid_runner_id(&valid).is_ok());
+        }
+
+        let invalid_ids = vec![
+            "".to_string(),
+            "runner/id".to_string(),
+            "runner\\id".to_string(),
+            "runner id".to_string(),
+            "runner%2fid".to_string(),
+            "runner?id".to_string(),
+            "runner#id".to_string(),
+            "runner\u{1b}id".to_string(),
+            "../runner".to_string(),
+            "a".repeat(129),
+        ];
+        for invalid in invalid_ids {
+            assert!(
+                !is_valid_runner_id(&invalid),
+                "expected invalid runner id {invalid:?}"
+            );
+            let error = require_valid_runner_id(&invalid).unwrap_err();
+            assert_eq!(
+                error,
+                "invalid runner id; use 1-128 ASCII letters, digits, '-', '_', or '.' only"
+            );
+        }
     }
 
     #[test]
@@ -11499,6 +11800,60 @@ mod tests {
         assert!(summary.contains("actions_allowed: none"));
         assert!(summary.contains("This endpoint is read-only."));
         assert!(summary.contains("No start/stop/restart controls are available in this command."));
+    }
+
+    #[test]
+    fn runner_lifecycle_action_summary_reports_guarded_rejection() {
+        let response = json!({
+            "schema_version": "ignisprompt-runner-lifecycle-action-v0.1",
+            "request_id": "runner-lifecycle-1",
+            "action": "start",
+            "runner_id": "stub-legal-runner",
+            "accepted": false,
+            "outcome": "rejected",
+            "reason_code": "RUNNER_NOT_MANAGED",
+            "message": "Runner lifecycle action was rejected because this runner is not managed by IgnisPrompt.",
+            "audit_event_id": "runner-lifecycle-1",
+            "status": {
+                "runner_id": "stub-legal-runner",
+                "runner_kind": "stub-legal-runner",
+                "model_id": null,
+                "configured": true,
+                "executable_exists": true,
+                "process_state": "unknown",
+                "pid": null,
+                "local_endpoint": null,
+                "started_at": null,
+                "stopped_at": null,
+                "last_checked_at": "2026-06-20T00:00:00Z",
+                "last_error_summary": null,
+                "managed_by_ignisprompt": false,
+                "operator_mode_required": true,
+                "actions_allowed": ["none"],
+                "warnings": []
+            },
+            "boundaries": [
+                "This endpoint is guarded local operator control.",
+                "Unsupported or unmanaged runners fail closed.",
+                "No model execution, route execution, cloud call, telemetry, or model download is performed."
+            ]
+        });
+
+        let summary = format_runner_lifecycle_action_summary(&response);
+        assert!(summary.contains("Runner lifecycle action"));
+        assert!(summary.contains("schema_version: ignisprompt-runner-lifecycle-action-v0.1"));
+        assert!(summary.contains("request_id:     runner-lifecycle-1"));
+        assert!(summary.contains("action:         start"));
+        assert!(summary.contains("runner_id:      stub-legal-runner"));
+        assert!(summary.contains("accepted:       no"));
+        assert!(summary.contains("outcome:        rejected"));
+        assert!(summary.contains("reason_code:    RUNNER_NOT_MANAGED"));
+        assert!(summary.contains("audit_event_id: runner-lifecycle-1"));
+        assert!(summary.contains("process_state: unknown"));
+        assert!(summary.contains("managed_by_ignisprompt: no"));
+        assert!(summary.contains("actions_allowed: none"));
+        assert!(summary.contains("guarded local operator control"));
+        assert!(summary.contains("Unsupported or unmanaged runners fail closed"));
     }
 
     #[test]

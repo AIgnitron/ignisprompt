@@ -1,8 +1,9 @@
 # Local SLM Runner Control Design
 
-Status: design plus read-only status foundation. PR #217 added read-only
-runner process status metadata only; it did not implement runner lifecycle
-control.
+Status: design plus guarded control-plane foundation. PR #217 added read-only
+runner process status metadata. PR #218 added guarded lifecycle command
+surfaces that fail closed for current built-in runners; it did not add a
+process manager or real runner start/stop execution.
 
 ## Purpose
 
@@ -26,16 +27,27 @@ IgnisPrompt already has several runner-adjacent pieces:
 What does not exist today:
 
 - No runner process manager.
-- No runner start or stop endpoint.
-- No runner lifecycle CLI command.
+- No supported managed runner start or stop execution.
 - No Aethra runner start or stop button.
 - No automatic runner startup.
-- No runner mutation through observability endpoints.
+- No runner mutation through observability or unsupported lifecycle endpoints.
 
 PR #217 adds `GET /v1/runners/status` and
 `ignispromptctl runners status` as read-only status metadata surfaces. They
 report conservative runner process state and `actions_allowed: ["none"]`.
 They do not start, stop, restart, or manage runner processes.
+
+PR #218 adds guarded lifecycle request surfaces:
+
+- `POST /v1/runners/{runner_id}/start`
+- `POST /v1/runners/{runner_id}/stop`
+- `ignispromptctl runners start <runner_id> --confirm-local-runner-control`
+- `ignispromptctl runners stop <runner_id> --confirm-local-runner-control`
+
+These surfaces require explicit confirmation, are disabled by default, append
+local audit events for confirmed attempts that reach daemon handling, and reject
+current built-in runners as unmanaged or unsupported. They do not spawn, stop,
+kill, or manage local processes.
 
 ## Product Distinction
 
@@ -72,7 +84,7 @@ These surfaces answer: "Should IgnisPrompt start or stop a specifically configur
 Future work should land in this order:
 
 1. `#217`: Daemon/CLI: add read-only runner process status contract - implemented as read-only status metadata only.
-2. `#218`: Daemon/CLI: add guarded local runner start/stop commands
+2. `#218`: Daemon/CLI: add guarded local runner start/stop commands - implemented as fail-closed command surfaces only.
 3. `#219`: Aethra: add local runner control panel behind explicit operator mode
 
 Do not add Aethra mutation controls before daemon and CLI control behavior exists, is guarded, and is covered by tests.
@@ -114,12 +126,13 @@ Field requirements:
 ## Proposed Future Daemon Endpoints
 
 `GET /v1/runners/status` exists after #217 as a read-only status endpoint.
-The start and stop endpoints remain planned candidates and are not present.
+The guarded start and stop endpoints exist after #218, but current built-in
+runners remain unmanaged and fail closed.
 
 ```text
 GET /v1/runners/status
-POST /v1/runners/{runner_id}/start  # future, not implemented
-POST /v1/runners/{runner_id}/stop   # future, not implemented
+POST /v1/runners/{runner_id}/start  # guarded; fails closed for current runners
+POST /v1/runners/{runner_id}/stop   # guarded; fails closed for current runners
 ```
 
 Future endpoint requirements:
@@ -133,12 +146,13 @@ Future endpoint requirements:
 ## Proposed Future CLI Commands
 
 `ignispromptctl runners status` exists after #217 as a read-only CLI command.
-The start and stop commands remain planned candidates and are not present.
+The guarded start and stop commands exist after #218, but current built-in
+runners remain unmanaged and fail closed.
 
 ```text
 ignispromptctl runners status
-ignispromptctl runners start <runner_id>  # future, not implemented
-ignispromptctl runners stop <runner_id>   # future, not implemented
+ignispromptctl runners start <runner_id> --confirm-local-runner-control
+ignispromptctl runners stop <runner_id> --confirm-local-runner-control
 ```
 
 Future CLI requirements:
@@ -193,15 +207,15 @@ The default Aethra Model / Runner Status page should remain an observational sur
 
 ## Non-Goals For This PR
 
-PR #217 does not:
+PR #218 does not:
 
-- implement start or stop
+- implement real process start or stop
 - implement a process manager
-- implement lifecycle daemon endpoints
-- implement lifecycle CLI commands
 - add Aethra controls
 - execute models
 - download models
+- kill unmanaged processes
+- execute shell strings
 - add cloud support
 - change routing behavior
 - weaken read-only default Aethra behavior
@@ -225,15 +239,16 @@ PR #217 does not:
 
 ### `#218`: Guarded Local Runner Start/Stop
 
-- Adds guarded lifecycle commands only after #217 status semantics exist.
-- Requires explicit operator intent.
-- Requires configured/allowlisted explicit runner paths.
-- Rejects bare executable names.
-- Uses structured process APIs, not shell strings.
-- Emits local audit events for start and stop attempts.
+- Added guarded lifecycle command surfaces only after #217 status semantics.
+- Requires explicit operator confirmation.
+- Keeps daemon lifecycle controls disabled by default.
+- Rejects current built-in runners because they are unmanaged or unsupported.
+- Does not spawn, stop, kill, or inspect unmanaged local processes.
+- Does not execute shell strings or resolve bare executable names.
+- Emits local audit events for confirmed start and stop attempts that reach daemon handling.
 - Fails closed on ambiguous process ownership or unsafe endpoint state.
-- Includes daemon, CLI, and regression tests for success and rejection paths.
-- Does not add Aethra mutation controls yet.
+- Includes daemon and CLI regression tests for rejection paths and response formatting.
+- Does not add Aethra mutation controls.
 
 ### `#219`: Aethra Operator Control Panel
 

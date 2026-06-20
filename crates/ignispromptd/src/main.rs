@@ -11,7 +11,7 @@ mod sustainability;
 
 use anyhow::{Context, Result};
 use axum::{
-    extract::{Query, State},
+    extract::{Path as AxumPath, Query, State},
     http::{header, HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -64,6 +64,7 @@ const EVIDENCE_PACKAGE_MAX_FILES_PER_PACKAGE: usize = 80;
 const OPERATIONS_SUMMARY_SCHEMA_VERSION: &str = "ignisprompt-operations-summary-v0.1";
 const OPERATIONS_SUMMARY_RECENT_EVENT_LIMIT: usize = 20;
 const RUNNER_PROCESS_STATUS_SCHEMA_VERSION: &str = "ignisprompt-runner-process-status-v0.1";
+const RUNNER_LIFECYCLE_ACTION_SCHEMA_VERSION: &str = "ignisprompt-runner-lifecycle-action-v0.1";
 
 #[derive(Debug, Parser, Clone)]
 #[command(
@@ -122,6 +123,14 @@ struct Args {
         default_value_t = false
     )]
     allow_non_loopback_cors: bool,
+
+    /// Enable guarded local runner lifecycle control endpoints.
+    #[arg(
+        long,
+        env = "IGNISPROMPT_ENABLE_RUNNER_LIFECYCLE_CONTROLS",
+        default_value_t = false
+    )]
+    enable_runner_lifecycle_controls: bool,
 
     #[cfg(feature = "gguf-runner-spike")]
     /// Optional local GGUF runner binary for Tier 3 legal inference spikes.
@@ -632,6 +641,11 @@ async fn run_http_daemon(state: AppState, bind: SocketAddr) -> Result<()> {
         .route("/v1/evidence/packages", get(evidence_packages))
         .route("/v1/capabilities", get(capabilities))
         .route("/v1/runners/status", get(runner_process_status))
+        .route(
+            "/v1/runners/{runner_id}/start",
+            post(runner_lifecycle_start),
+        )
+        .route("/v1/runners/{runner_id}/stop", post(runner_lifecycle_stop))
         .route("/v1/status/models", get(model_status))
         .route("/v1/status/version", get(version_status))
         .route("/v1/operations/summary", get(operations_summary))
@@ -774,6 +788,22 @@ async fn capabilities(State(state): State<AppState>) -> Json<CapabilitiesRespons
 async fn runner_process_status(State(state): State<AppState>) -> Json<RunnerProcessStatusResponse> {
     let registry = state.model_registry.read().await.clone();
     Json(runner_process_status_response(&state.config, &registry).await)
+}
+
+async fn runner_lifecycle_start(
+    State(state): State<AppState>,
+    AxumPath(runner_id): AxumPath<String>,
+    Json(request): Json<RunnerLifecycleActionRequest>,
+) -> impl IntoResponse {
+    runner_lifecycle_action(state, runner_id, RunnerLifecycleAction::Start, request).await
+}
+
+async fn runner_lifecycle_stop(
+    State(state): State<AppState>,
+    AxumPath(runner_id): AxumPath<String>,
+    Json(request): Json<RunnerLifecycleActionRequest>,
+) -> impl IntoResponse {
+    runner_lifecycle_action(state, runner_id, RunnerLifecycleAction::Stop, request).await
 }
 
 async fn operations_summary(State(state): State<AppState>) -> Json<OperationsSummaryResponse> {
@@ -1207,6 +1237,77 @@ struct RunnerProcessStatusSummary {
     running: usize,
     failed: usize,
     actions_available: usize,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RunnerLifecycleActionRequest {
+    confirm: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RunnerLifecycleActionResponse {
+    schema_version: String,
+    request_id: String,
+    action: RunnerLifecycleAction,
+    runner_id: String,
+    accepted: bool,
+    outcome: RunnerLifecycleOutcome,
+    reason_code: RunnerLifecycleReasonCode,
+    message: String,
+    audit_event_id: Option<String>,
+    status: Option<RunnerProcessStatus>,
+    boundaries: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum RunnerLifecycleAction {
+    Start,
+    Stop,
+}
+
+impl RunnerLifecycleAction {
+    fn as_str(self) -> &'static str {
+        match self {
+            RunnerLifecycleAction::Start => "start",
+            RunnerLifecycleAction::Stop => "stop",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum RunnerLifecycleOutcome {
+    Rejected,
+    Accepted,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+enum RunnerLifecycleReasonCode {
+    ConfirmationRequired,
+    InvalidRunnerId,
+    LifecycleControlsDisabled,
+    RunnerNotFound,
+    RunnerNotManaged,
+    UnsupportedRunnerKind,
+    ActionNotAvailable,
+    AuditWriteFailed,
+}
+
+impl RunnerLifecycleReasonCode {
+    fn as_str(self) -> &'static str {
+        match self {
+            RunnerLifecycleReasonCode::ConfirmationRequired => "CONFIRMATION_REQUIRED",
+            RunnerLifecycleReasonCode::InvalidRunnerId => "INVALID_RUNNER_ID",
+            RunnerLifecycleReasonCode::LifecycleControlsDisabled => "LIFECYCLE_CONTROLS_DISABLED",
+            RunnerLifecycleReasonCode::RunnerNotFound => "RUNNER_NOT_FOUND",
+            RunnerLifecycleReasonCode::RunnerNotManaged => "RUNNER_NOT_MANAGED",
+            RunnerLifecycleReasonCode::UnsupportedRunnerKind => "UNSUPPORTED_RUNNER_KIND",
+            RunnerLifecycleReasonCode::ActionNotAvailable => "ACTION_NOT_AVAILABLE",
+            RunnerLifecycleReasonCode::AuditWriteFailed => "AUDIT_WRITE_FAILED",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -2738,6 +2839,266 @@ fn runner_process_status_from_hint(
         actions_allowed: vec!["none".to_string()],
         warnings,
     }
+}
+
+async fn runner_lifecycle_action(
+    state: AppState,
+    runner_id: String,
+    action: RunnerLifecycleAction,
+    request: RunnerLifecycleActionRequest,
+) -> (StatusCode, Json<RunnerLifecycleActionResponse>) {
+    let request_id = Uuid::new_v4().to_string();
+    let boundaries = runner_lifecycle_boundaries();
+    let runner_id_is_valid = is_valid_runner_id(&runner_id);
+    let response_runner_id = if runner_id_is_valid {
+        runner_id.clone()
+    } else {
+        "invalid-runner-id".to_string()
+    };
+
+    if !runner_id_is_valid {
+        let message =
+            "Runner lifecycle action was rejected because the runner identifier is invalid.";
+        if request.confirm == Some(true) {
+            if let Err(err) = append_runner_lifecycle_audit_event(
+                &state,
+                request_id.clone(),
+                action,
+                response_runner_id.clone(),
+                RunnerLifecycleReasonCode::InvalidRunnerId,
+                message.to_string(),
+                boundaries.clone(),
+            )
+            .await
+            {
+                warn!(error = %err, "failed to append runner lifecycle audit event");
+                let response = runner_lifecycle_response(
+                    request_id,
+                    action,
+                    response_runner_id,
+                    RunnerLifecycleReasonCode::AuditWriteFailed,
+                    "Runner lifecycle action was rejected because the local audit event could not be recorded.",
+                    None,
+                    None,
+                    boundaries,
+                );
+                return (StatusCode::INTERNAL_SERVER_ERROR, Json(response));
+            }
+
+            let response = runner_lifecycle_response(
+                request_id.clone(),
+                action,
+                response_runner_id,
+                RunnerLifecycleReasonCode::InvalidRunnerId,
+                message,
+                Some(request_id),
+                None,
+                boundaries,
+            );
+            return (StatusCode::BAD_REQUEST, Json(response));
+        }
+
+        let response = runner_lifecycle_response(
+            request_id,
+            action,
+            response_runner_id,
+            RunnerLifecycleReasonCode::InvalidRunnerId,
+            message,
+            None,
+            None,
+            boundaries,
+        );
+        return (StatusCode::BAD_REQUEST, Json(response));
+    }
+
+    if request.confirm != Some(true) {
+        let response = runner_lifecycle_response(
+            request_id,
+            action,
+            response_runner_id,
+            RunnerLifecycleReasonCode::ConfirmationRequired,
+            "Runner lifecycle action was rejected because explicit operator confirmation is required.",
+            None,
+            None,
+            boundaries,
+        );
+        return (StatusCode::BAD_REQUEST, Json(response));
+    }
+
+    let registry = state.model_registry.read().await.clone();
+    let status_response = runner_process_status_response(&state.config, &registry).await;
+    let current_status = status_response
+        .runners
+        .iter()
+        .find(|runner| runner.runner_id == runner_id)
+        .cloned();
+
+    let (http_status, reason_code, message, current_status) = if !state
+        .config
+        .enable_runner_lifecycle_controls
+    {
+        (
+            StatusCode::FORBIDDEN,
+            RunnerLifecycleReasonCode::LifecycleControlsDisabled,
+            "Runner lifecycle action was rejected because lifecycle controls are disabled.",
+            current_status,
+        )
+    } else if current_status.is_none() {
+        (
+            StatusCode::NOT_FOUND,
+            RunnerLifecycleReasonCode::RunnerNotFound,
+            "Runner lifecycle action was rejected because the runner is not known to IgnisPrompt.",
+            None,
+        )
+    } else {
+        let status = current_status.as_ref().expect("checked above");
+        if !status.managed_by_ignisprompt {
+            (
+                StatusCode::CONFLICT,
+                RunnerLifecycleReasonCode::RunnerNotManaged,
+                "Runner lifecycle action was rejected because this runner is not managed by IgnisPrompt.",
+                current_status,
+            )
+        } else if status.runner_kind == "stub-legal-runner"
+            || status.runner_kind == "gguf-runner-spike"
+        {
+            (
+                StatusCode::CONFLICT,
+                RunnerLifecycleReasonCode::UnsupportedRunnerKind,
+                "Runner lifecycle action was rejected because this runner kind is not supported for managed lifecycle control.",
+                current_status,
+            )
+        } else {
+            (
+                StatusCode::CONFLICT,
+                RunnerLifecycleReasonCode::ActionNotAvailable,
+                "Runner lifecycle action was rejected because no lifecycle action is available for this runner.",
+                current_status,
+            )
+        }
+    };
+
+    if let Err(err) = append_runner_lifecycle_audit_event(
+        &state,
+        request_id.clone(),
+        action,
+        response_runner_id.clone(),
+        reason_code,
+        message.to_string(),
+        boundaries.clone(),
+    )
+    .await
+    {
+        warn!(error = %err, "failed to append runner lifecycle audit event");
+        let response = runner_lifecycle_response(
+            request_id,
+            action,
+            response_runner_id,
+            RunnerLifecycleReasonCode::AuditWriteFailed,
+            "Runner lifecycle action was rejected because the local audit event could not be recorded.",
+            None,
+            current_status,
+            boundaries,
+        );
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(response));
+    }
+
+    let response = runner_lifecycle_response(
+        request_id.clone(),
+        action,
+        response_runner_id,
+        reason_code,
+        message,
+        Some(request_id.clone()),
+        current_status,
+        boundaries.clone(),
+    );
+
+    (http_status, Json(response))
+}
+
+fn runner_lifecycle_response(
+    request_id: String,
+    action: RunnerLifecycleAction,
+    runner_id: String,
+    reason_code: RunnerLifecycleReasonCode,
+    message: &str,
+    audit_event_id: Option<String>,
+    status: Option<RunnerProcessStatus>,
+    boundaries: Vec<String>,
+) -> RunnerLifecycleActionResponse {
+    RunnerLifecycleActionResponse {
+        schema_version: RUNNER_LIFECYCLE_ACTION_SCHEMA_VERSION.to_string(),
+        request_id,
+        action,
+        runner_id,
+        accepted: false,
+        outcome: RunnerLifecycleOutcome::Rejected,
+        reason_code,
+        message: message.to_string(),
+        audit_event_id,
+        status,
+        boundaries,
+    }
+}
+
+fn runner_lifecycle_boundaries() -> Vec<String> {
+    vec![
+        "This endpoint is guarded local operator control.".to_string(),
+        "No process was started or stopped unless the action is explicitly accepted.".to_string(),
+        "Unsupported or unmanaged runners fail closed.".to_string(),
+        "No model execution, route execution, cloud call, telemetry, or model download is performed.".to_string(),
+    ]
+}
+
+fn is_valid_runner_id(runner_id: &str) -> bool {
+    !runner_id.is_empty()
+        && runner_id.len() <= 128
+        && runner_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+}
+
+async fn append_runner_lifecycle_audit_event(
+    state: &AppState,
+    request_id: String,
+    action: RunnerLifecycleAction,
+    runner_id: String,
+    reason_code: RunnerLifecycleReasonCode,
+    message: String,
+    boundaries: Vec<String>,
+) -> Result<()> {
+    let mut warnings = boundaries;
+    warnings.push(format!("runner_lifecycle_action={}", action.as_str()));
+    warnings.push("Lifecycle attempt was confirmed by the local operator.".to_string());
+
+    let event = AuditEvent {
+        request_id,
+        timestamp: Utc::now(),
+        event_type: "runner_lifecycle".to_string(),
+        route_code: reason_code.as_str().to_string(),
+        tier: "LOCAL_OPERATOR".to_string(),
+        domain: "local_runner".to_string(),
+        model_id: Some(runner_id),
+        data_left_device: false,
+        explanation: message,
+        warnings,
+        cache: None,
+        completion_output: None,
+        input_tokens_est: None,
+        output_tokens_est: None,
+        baseline_provider: None,
+        baseline_model: None,
+        estimated_cloud_cost_usd: None,
+        estimated_cloud_cost_avoided_usd: None,
+        estimated_local_energy_wh: None,
+        estimated_cloud_baseline_wh: None,
+        estimated_carbon_avoided_gco2e: None,
+        methodology_version: None,
+        confidence: None,
+    };
+
+    state.audit.append(event).await
 }
 
 async fn model_status_hint_for_manifest(
@@ -4329,6 +4690,24 @@ mod tests {
         }
     }
 
+    fn state_with_runner_lifecycle_controls(
+        models: Vec<ModelManifest>,
+        enable_runner_lifecycle_controls: bool,
+    ) -> AppState {
+        let mut state = state_with_models(models);
+        state.config.enable_runner_lifecycle_controls = enable_runner_lifecycle_controls;
+        state
+    }
+
+    fn state_with_failing_audit_store(models: Vec<ModelManifest>) -> AppState {
+        let mut state = state_with_models(models);
+        state.audit = Arc::new(AuditStore {
+            path: std::env::temp_dir(),
+            events: RwLock::new(Vec::new()),
+        });
+        state
+    }
+
     fn test_args(audit_path: PathBuf) -> Args {
         Args {
             bind: "127.0.0.1:8765".parse().unwrap(),
@@ -4340,6 +4719,7 @@ mod tests {
             force_ram_pressure: false,
             experimental_mcp_stdio: false,
             allow_non_loopback_cors: false,
+            enable_runner_lifecycle_controls: false,
             #[cfg(feature = "gguf-runner-spike")]
             gguf_runner_bin: None,
             #[cfg(feature = "gguf-runner-spike")]
@@ -4654,6 +5034,42 @@ mod tests {
 
     async fn call_runner_process_status(state: &AppState) -> RunnerProcessStatusResponse {
         runner_process_status(State(state.clone())).await.0
+    }
+
+    async fn call_runner_lifecycle_start(
+        state: &AppState,
+        runner_id: &str,
+        request: RunnerLifecycleActionRequest,
+    ) -> (StatusCode, RunnerLifecycleActionResponse) {
+        let response = runner_lifecycle_start(
+            State(state.clone()),
+            AxumPath(runner_id.to_string()),
+            Json(request),
+        )
+        .await
+        .into_response();
+        let status = response.status();
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let parsed: RunnerLifecycleActionResponse = serde_json::from_slice(&body).unwrap();
+        (status, parsed)
+    }
+
+    async fn call_runner_lifecycle_stop(
+        state: &AppState,
+        runner_id: &str,
+        request: RunnerLifecycleActionRequest,
+    ) -> (StatusCode, RunnerLifecycleActionResponse) {
+        let response = runner_lifecycle_stop(
+            State(state.clone()),
+            AxumPath(runner_id.to_string()),
+            Json(request),
+        )
+        .await
+        .into_response();
+        let status = response.status();
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let parsed: RunnerLifecycleActionResponse = serde_json::from_slice(&body).unwrap();
+        (status, parsed)
     }
 
     async fn call_version_status(state: &AppState) -> VersionStatusResponse {
@@ -5775,6 +6191,363 @@ mod tests {
                 "runner process status response should not expose forbidden content '{forbidden}': {encoded}"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn runner_lifecycle_start_rejects_without_confirmation() {
+        let state = state_with_models(vec![legal_model()]);
+        let (status, response) = call_runner_lifecycle_start(
+            &state,
+            "stub-legal-runner",
+            RunnerLifecycleActionRequest { confirm: None },
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            response.schema_version,
+            RUNNER_LIFECYCLE_ACTION_SCHEMA_VERSION
+        );
+        assert_eq!(response.action, RunnerLifecycleAction::Start);
+        assert_eq!(
+            response.reason_code,
+            RunnerLifecycleReasonCode::ConfirmationRequired
+        );
+        assert!(!response.accepted);
+        assert_eq!(response.outcome, RunnerLifecycleOutcome::Rejected);
+        assert!(response.audit_event_id.is_none());
+        assert!(call_audit_events(&state).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn runner_lifecycle_stop_rejects_without_confirmation() {
+        let state = state_with_models(vec![legal_model()]);
+        let (status, response) = call_runner_lifecycle_stop(
+            &state,
+            "stub-legal-runner",
+            RunnerLifecycleActionRequest {
+                confirm: Some(false),
+            },
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(response.action, RunnerLifecycleAction::Stop);
+        assert_eq!(
+            response.reason_code,
+            RunnerLifecycleReasonCode::ConfirmationRequired
+        );
+        assert!(response.audit_event_id.is_none());
+        assert!(call_audit_events(&state).await.is_empty());
+    }
+
+    #[test]
+    fn runner_lifecycle_runner_id_validation_is_strict_and_path_safe() {
+        let valid_ids = vec![
+            "stub-legal-runner".to_string(),
+            "gguf_runner.spike".to_string(),
+            "Runner_123".to_string(),
+            "a".repeat(128),
+        ];
+        for valid in valid_ids {
+            assert!(
+                is_valid_runner_id(&valid),
+                "expected valid runner id {valid}"
+            );
+        }
+
+        let invalid_ids = vec![
+            "".to_string(),
+            "runner/id".to_string(),
+            "runner\\id".to_string(),
+            "runner id".to_string(),
+            "runner%2fid".to_string(),
+            "runner?id".to_string(),
+            "runner#id".to_string(),
+            "runner\u{1b}id".to_string(),
+            "../runner".to_string(),
+            "a".repeat(129),
+        ];
+        for invalid in invalid_ids {
+            assert!(
+                !is_valid_runner_id(&invalid),
+                "expected invalid runner id {invalid:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn confirmed_runner_lifecycle_rejects_invalid_runner_ids_safely() {
+        let state = state_with_models(vec![legal_model()]);
+        for invalid in ["runner/id", "../runner", "runner\u{1b}id", &"a".repeat(129)] {
+            let (status, response) = call_runner_lifecycle_start(
+                &state,
+                invalid,
+                RunnerLifecycleActionRequest {
+                    confirm: Some(true),
+                },
+            )
+            .await;
+
+            assert_eq!(status, StatusCode::BAD_REQUEST);
+            assert_eq!(response.runner_id, "invalid-runner-id");
+            assert_eq!(
+                response.reason_code,
+                RunnerLifecycleReasonCode::InvalidRunnerId
+            );
+            assert_eq!(
+                response.audit_event_id.as_deref(),
+                Some(response.request_id.as_str())
+            );
+            assert!(!response.message.contains(invalid));
+        }
+
+        let events = call_audit_events(&state).await;
+        assert_eq!(events.len(), 4);
+        assert!(events.iter().all(|event| {
+            event.event_type == "runner_lifecycle"
+                && event.route_code == "INVALID_RUNNER_ID"
+                && event.model_id.as_deref() == Some("invalid-runner-id")
+        }));
+    }
+
+    #[tokio::test]
+    async fn confirmed_runner_lifecycle_reports_audit_write_failure_truthfully() {
+        let state = state_with_failing_audit_store(vec![legal_model()]);
+        let (status, response) = call_runner_lifecycle_start(
+            &state,
+            "stub-legal-runner",
+            RunnerLifecycleActionRequest {
+                confirm: Some(true),
+            },
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(
+            response.reason_code,
+            RunnerLifecycleReasonCode::AuditWriteFailed
+        );
+        assert!(!response.accepted);
+        assert_eq!(response.outcome, RunnerLifecycleOutcome::Rejected);
+        assert!(response.audit_event_id.is_none());
+        assert!(!response.message.contains("/"));
+        assert!(!response.message.contains("ignispromptd-test"));
+        assert!(call_audit_events(&state).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn confirmed_runner_lifecycle_rejects_when_controls_are_disabled_and_audits() {
+        let state = state_with_models(vec![legal_model()]);
+        let (status, response) = call_runner_lifecycle_start(
+            &state,
+            "stub-legal-runner",
+            RunnerLifecycleActionRequest {
+                confirm: Some(true),
+            },
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(
+            response.reason_code,
+            RunnerLifecycleReasonCode::LifecycleControlsDisabled
+        );
+        assert!(response.message.contains("lifecycle controls are disabled"));
+        assert_eq!(
+            response.audit_event_id.as_deref(),
+            Some(response.request_id.as_str())
+        );
+        assert_eq!(
+            response
+                .status
+                .as_ref()
+                .map(|runner| runner.actions_allowed.clone()),
+            Some(vec!["none".to_string()])
+        );
+
+        let events = call_audit_events(&state).await;
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].event_type, "runner_lifecycle");
+        assert_eq!(events[0].request_id, response.request_id);
+        assert_eq!(events[0].route_code, "LIFECYCLE_CONTROLS_DISABLED");
+        assert_eq!(events[0].domain, "local_runner");
+        assert_eq!(events[0].model_id.as_deref(), Some("stub-legal-runner"));
+        assert!(!events[0].data_left_device);
+        assert!(events[0]
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("No model execution")));
+    }
+
+    #[tokio::test]
+    async fn confirmed_runner_lifecycle_stop_rejects_when_controls_are_disabled_and_audits() {
+        let state = state_with_models(vec![legal_model()]);
+        let (status, response) = call_runner_lifecycle_stop(
+            &state,
+            "stub-legal-runner",
+            RunnerLifecycleActionRequest {
+                confirm: Some(true),
+            },
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(
+            response.reason_code,
+            RunnerLifecycleReasonCode::LifecycleControlsDisabled
+        );
+        let events = call_audit_events(&state).await;
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].event_type, "runner_lifecycle");
+        assert_eq!(events[0].route_code, "LIFECYCLE_CONTROLS_DISABLED");
+        assert!(events[0]
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("runner_lifecycle_action=stop")));
+    }
+
+    #[tokio::test]
+    async fn confirmed_runner_lifecycle_rejects_unmanaged_stub_when_controls_enabled() {
+        let state = state_with_runner_lifecycle_controls(vec![legal_model()], true);
+        let (status, response) = call_runner_lifecycle_start(
+            &state,
+            "stub-legal-runner",
+            RunnerLifecycleActionRequest {
+                confirm: Some(true),
+            },
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(
+            response.reason_code,
+            RunnerLifecycleReasonCode::RunnerNotManaged
+        );
+        assert!(response.message.contains("not managed by IgnisPrompt"));
+        assert_eq!(
+            response
+                .status
+                .as_ref()
+                .map(|runner| runner.runner_kind.as_str()),
+            Some("stub-legal-runner")
+        );
+        assert_eq!(call_audit_events(&state).await.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn confirmed_runner_lifecycle_rejects_unknown_runner_when_controls_enabled() {
+        let state = state_with_runner_lifecycle_controls(vec![legal_model()], true);
+        let (status, response) = call_runner_lifecycle_stop(
+            &state,
+            "missing-runner",
+            RunnerLifecycleActionRequest {
+                confirm: Some(true),
+            },
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert_eq!(
+            response.reason_code,
+            RunnerLifecycleReasonCode::RunnerNotFound
+        );
+        assert!(response.status.is_none());
+        let events = call_audit_events(&state).await;
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].route_code, "RUNNER_NOT_FOUND");
+    }
+
+    #[tokio::test]
+    async fn runner_lifecycle_response_schema_is_locked_and_sanitized() {
+        let state = state_with_models(vec![legal_model()]);
+        let (_, response) = call_runner_lifecycle_start(
+            &state,
+            "stub-legal-runner",
+            RunnerLifecycleActionRequest {
+                confirm: Some(true),
+            },
+        )
+        .await;
+        let encoded = serde_json::to_value(&response).unwrap();
+        let encoded_string = serde_json::to_string(&response).unwrap();
+        let normalized = encoded_string.to_ascii_lowercase();
+
+        assert_json_keys(
+            &encoded,
+            &[
+                "schema_version",
+                "request_id",
+                "action",
+                "runner_id",
+                "accepted",
+                "outcome",
+                "reason_code",
+                "message",
+                "audit_event_id",
+                "status",
+                "boundaries",
+            ],
+        );
+        assert_eq!(
+            encoded["schema_version"],
+            "ignisprompt-runner-lifecycle-action-v0.1"
+        );
+        assert_eq!(encoded["accepted"], false);
+        assert_eq!(encoded["outcome"], "rejected");
+        assert_eq!(encoded["action"], "start");
+        assert_eq!(encoded["reason_code"], "LIFECYCLE_CONTROLS_DISABLED");
+        assert!(encoded["audit_event_id"].is_string());
+        assert!(encoded["boundaries"]
+            .as_array()
+            .expect("boundaries")
+            .iter()
+            .any(|boundary| boundary
+                .as_str()
+                .unwrap_or_default()
+                .contains("Unsupported or unmanaged runners fail closed")));
+
+        for forbidden in [
+            "api_key",
+            "api key",
+            "authorization",
+            "bearer",
+            "token",
+            "secret",
+            "sk-",
+            "ghp_",
+            "https://",
+            "http://",
+            "/users/",
+            "/home/",
+            "/private/",
+            "raw prompt",
+            "request body",
+            "production ready",
+            "production-ready",
+            "legal accuracy is solved",
+            "compliance certification",
+            "shell",
+            "command string",
+        ] {
+            assert!(
+                !normalized.contains(forbidden),
+                "runner lifecycle response should not expose forbidden content '{forbidden}': {encoded_string}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn runner_process_status_keeps_actions_unavailable_for_current_runners() {
+        let state = state_with_runner_lifecycle_controls(vec![legal_model()], true);
+        let response = call_runner_process_status(&state).await;
+
+        assert_eq!(response.summary.actions_available, 0);
+        assert!(response.runners.iter().all(|runner| {
+            runner.actions_allowed == vec!["none".to_string()]
+                && runner.process_state == RunnerProcessState::Unknown
+                && !runner.managed_by_ignisprompt
+        }));
     }
 
     #[tokio::test]
