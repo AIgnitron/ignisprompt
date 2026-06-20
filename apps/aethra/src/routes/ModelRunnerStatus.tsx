@@ -83,7 +83,10 @@ const emptyModelReadiness: ModelReadinessResponse = {
   ],
 };
 const emptyCapabilities: CapabilitiesResponse = {
-  ...capabilitiesFixture,
+  release_channel: "live-local",
+  local_only: true,
+  cloud_enabled: false,
+  routing_order: [],
   capabilities: [],
 };
 
@@ -829,6 +832,25 @@ type ModelStatusPanelProps = {
   onLoadLiveCapabilities: () => void;
 };
 
+function summarizeCapabilities(capabilities: CapabilitiesResponse) {
+  const unavailableOrDisabled = capabilities.capabilities.filter(
+    (capability) =>
+      !capability.available ||
+      capability.status === "disabled" ||
+      capability.status === "not_implemented" ||
+      capability.status === "unavailable",
+  ).length;
+
+  return {
+    total: capabilities.capabilities.length,
+    availableConfigured: capabilities.capabilities.filter(
+      (capability) => capability.available && capability.configured,
+    ).length,
+    unavailableOrDisabled,
+    routeLadder: capabilities.routing_order.length > 0 ? "Loaded" : "Not loaded",
+  };
+}
+
 function ModelStatusPanel({
   dataMode,
   liveModelStatusState,
@@ -842,16 +864,23 @@ function ModelStatusPanel({
   const isLoaded = isLiveMode && liveModelStatusState.status === "loaded";
   const isCapabilitiesLoaded =
     isLiveMode && liveCapabilitiesState.status === "loaded";
+  const hasCapabilityData = isCapabilitiesLoaded || !isLiveMode;
+  const capabilitySummary = summarizeCapabilities(capabilities);
+  const capabilityDataSource = isCapabilitiesLoaded
+    ? "Local daemon"
+    : isLiveMode
+      ? "Not loaded"
+      : "Offline preview fixture";
 
   return (
-    <section className="panel" aria-label="Model and runner status hints">
+    <section className="panel" aria-label="Capability and status matrix">
       <div className="panel-heading">
         <div>
-          <h3>Capability and status matrix</h3>
+          <h3>Capability matrix</h3>
           <p className="muted">
             {isLiveMode
-              ? "Manual read-only GET /v1/capabilities and GET /v1/status/models from the configured local daemon."
-              : "Fixture mode keeps a conservative local capability matrix visible by default."}
+              ? "Capabilities from local daemon for IgnisPrompt local routing availability."
+              : "Offline preview fixture capabilities for demo review."}
           </p>
         </div>
         <StatusBadge
@@ -891,7 +920,7 @@ function ModelStatusPanel({
       {isLiveMode && liveCapabilitiesState.status === "not-loaded" ? (
         <EmptyState
           title="Live capabilities have not been loaded"
-          message="No live local capability metadata is displayed until GET /v1/capabilities loads successfully."
+          message="Capabilities from local daemon appear after manual live-local refresh."
           nextAction="Start the daemon if needed, then use Refresh capabilities."
         />
       ) : null}
@@ -929,16 +958,48 @@ function ModelStatusPanel({
         <EmptyState {...localPreviewEmptyStates.modelStatusEmpty} />
       ) : null}
 
+      <div className="metric-grid" aria-label="Capability summary">
+        <MetricCard
+          label="Total capabilities"
+          value={capabilitySummary.total}
+          detail={`Data source: ${capabilityDataSource}`}
+        />
+        <MetricCard
+          label="Available/configured"
+          value={capabilitySummary.availableConfigured}
+          detail="Reported as available and configured"
+        />
+        <MetricCard
+          label="Unavailable/disabled"
+          value={capabilitySummary.unavailableOrDisabled}
+          detail="Unavailable, disabled, or not implemented"
+        />
+        <MetricCard
+          label="Cloud enabled"
+          value={
+            hasCapabilityData
+              ? capabilities.cloud_enabled
+                ? "Yes"
+                : "No"
+              : "Not loaded"
+          }
+          detail="Reported by capability metadata"
+        />
+        <MetricCard
+          label="Route ladder"
+          value={capabilitySummary.routeLadder}
+          detail={
+            capabilities.routing_order.length > 0
+              ? "Local routing order loaded"
+              : "Local routing order not loaded"
+          }
+        />
+      </div>
+
       <dl className="definition-grid model-metadata-grid">
         <div>
-          <dt>Source</dt>
-          <dd>
-            {isCapabilitiesLoaded
-              ? "Local daemon capabilities"
-              : isLiveMode
-                ? "Live local capabilities not loaded"
-                : "Offline preview fixture capabilities"}
-          </dd>
+          <dt>Data source</dt>
+          <dd>{`Data source: ${capabilityDataSource}`}</dd>
         </div>
         <div>
           <dt>Endpoint</dt>
@@ -962,7 +1023,11 @@ function ModelStatusPanel({
         </div>
         <div>
           <dt>Route ladder</dt>
-          <dd>{capabilities.routing_order.join(", ")}</dd>
+          <dd>
+            {capabilities.routing_order.length > 0
+              ? capabilities.routing_order.join(", ")
+              : "not loaded"}
+          </dd>
         </div>
       </dl>
 
@@ -970,7 +1035,7 @@ function ModelStatusPanel({
 
       {isLiveMode ? (
         <div className="manual-refresh-card model-action-row">
-          <span>Manual live-local refresh actions</span>
+          <span>Manual live-local refresh</span>
           <button
             type="button"
             className="secondary-button"
@@ -1012,11 +1077,11 @@ function CapabilityMatrixTable({ rows }: CapabilityMatrixTableProps) {
         <thead>
           <tr>
             <th>Tier</th>
-            <th>Provider / name</th>
+            <th>Capability</th>
             <th>Status</th>
             <th>Available</th>
             <th>Configured</th>
-            <th>Data source</th>
+            <th>Data boundary</th>
             <th>Reason</th>
             <th>Warnings</th>
           </tr>

@@ -24,12 +24,16 @@ describe("ModelRunnerStatus route", () => {
       />,
     );
 
-    expect(markup).toContain("Capability and status matrix");
+    expect(markup).toContain("Capability matrix");
     expect(markup).toContain("Local model inventory");
     expect(markup).toContain("Local model readiness");
     expect(markup).toContain("offline preview readiness metadata");
     expect(markup).toContain("offline preview inventory metadata");
-    expect(markup).toContain("Offline preview fixture capabilities");
+    expect(markup).toContain("Data source: Offline preview fixture");
+    expect(markup).toContain("Total capabilities");
+    expect(markup).toContain("Available/configured");
+    expect(markup).toContain("Unavailable/disabled");
+    expect(markup).toContain("Route ladder");
     expect(markup).toContain("Stub Legal Runner");
     expect(markup).toContain("cloud with consent");
     expect(markup).toContain("No model or runner controls");
@@ -73,11 +77,43 @@ describe("ModelRunnerStatus route", () => {
       />,
     );
 
-    expect(markup).toContain("Local daemon capabilities");
+    expect(markup).toContain("Data source: Local daemon");
+    expect(markup).toContain("<p>Total capabilities</p><strong>2</strong>");
+    expect(markup).toContain("<p>Available/configured</p><strong>1</strong>");
+    expect(markup).toContain("<p>Unavailable/disabled</p><strong>1</strong>");
+    expect(markup).toContain("<p>Cloud enabled</p><strong>No</strong>");
+    expect(markup).toContain("<p>Route ladder</p><strong>Loaded</strong>");
     expect(markup).toContain("GET /v1/capabilities");
     expect(markup).toContain("Live Stub Legal Runner");
     expect(markup).toContain("live_local_capability_metadata");
     expect(markup).toContain("Refresh capabilities");
+  });
+
+  it("shows live-local capabilities as not loaded without fixture rows", () => {
+    const markup = renderToStaticMarkup(
+      <ModelRunnerStatus
+        dataMode="live-local"
+        liveModelsState={{ status: "not-loaded" }}
+        liveModelInventoryState={{ status: "not-loaded" }}
+        liveModelReadinessState={{ status: "not-loaded" }}
+        liveModelStatusState={{ status: "not-loaded" }}
+        liveCapabilitiesState={{ status: "not-loaded" }}
+        onLoadLiveModels={() => undefined}
+        onLoadLiveModelInventory={() => undefined}
+        onLoadLiveModelStatus={() => undefined}
+        onLoadLiveCapabilities={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("Live capabilities have not been loaded");
+    expect(markup).toContain("Capabilities from local daemon");
+    expect(markup).toContain("Data source: Not loaded");
+    expect(markup).toContain("<p>Total capabilities</p><strong>0</strong>");
+    expect(markup).toContain("<p>Cloud enabled</p><strong>Not loaded</strong>");
+    expect(markup).toContain("not loaded");
+    expect(markup).not.toContain("Stub Legal Runner");
+    expect(markup).not.toContain("cloud with consent");
+    expect(markup).not.toContain("Data source: Offline preview fixture");
   });
 
   it("renders manually loaded live-local model inventory", () => {
@@ -194,8 +230,11 @@ describe("ModelRunnerStatus route", () => {
 
     expect(markup).toContain("Daemon unreachable");
     expect(markup).toContain("Capability metadata remains unavailable until a successful manual refresh");
-    expect(markup).toContain("Live local capabilities not loaded");
+    expect(markup).toContain("Data source: Not loaded");
+    expect(markup).toContain("<p>Total capabilities</p><strong>0</strong>");
     expect(markup).not.toContain("Stub Legal Runner");
+    expect(markup).not.toContain("cloud with consent");
+    expect(markup).not.toContain("Data source: Offline preview fixture");
     expect(markup).toContain("Refresh capabilities");
   });
 
