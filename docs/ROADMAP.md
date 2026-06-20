@@ -60,6 +60,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Keep Aethra product surfaces clean: Overview owns the full live-local dashboard, detail pages do not duplicate it, and long local-preview/status/safety explanations belong in Help rather than large repeated product-page boxes.
 - Keep Aethra demo-readiness polish UI-only: grouped cards, review flow, and copy cleanup must not add endpoints, route execution, prompt submission, model execution, mutation, upload/download/delete controls, telemetry, cloud calls, or production/compliance/certification claims.
 - Keep Aethra review-readiness checks lightweight: tests and manual checklist only unless browser automation is explicitly scoped; do not commit generated screenshots.
+- Use `docs/LOCAL_SLM_RUNNER_CONTROL_DESIGN.md` as the design source for future local SLM runner process status and guarded operator controls. Runner lifecycle work must remain phased: read-only status first, guarded daemon/CLI lifecycle commands second, and Aethra operator UI last.
 - Keep local evidence package indexing read-only and metadata-only: package names, validation-like filenames, reports, and attestation-like filenames do not imply package correctness, signed attestation, certification, compliance, legal accuracy, or production readiness.
 - Keep the Golden Legal adversarial fixture matrix small, synthetic, deterministic, and local-only.
 - Keep local evidence validation strict while avoiding signed attestation or tamper-evident storage claims until those features are explicitly implemented.
