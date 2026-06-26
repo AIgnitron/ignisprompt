@@ -252,11 +252,17 @@ PR #218 does not:
 
 ### `#219`: Aethra Operator Control Panel
 
-- Adds Aethra runner controls only after daemon and CLI lifecycle controls exist.
-- Places controls behind explicit operator mode.
-- Shows status before controls.
-- Requires manual refresh.
-- Requires confirmation before start or stop.
-- Never substitutes fixture rows for live operator state.
-- Keeps no polling, no browser storage persistence, no telemetry, and no cloud calls.
-- Adds tests that unsafe controls are absent outside operator mode and guarded inside operator mode.
+- Adds Aethra runner process status display and explicit session-only Operator Mode only after daemon and CLI lifecycle request surfaces exist.
+- Keeps Operator Mode off by default and unavailable in fixture mode.
+- Shows daemon-authoritative runner status before any action controls.
+- Requires manual refresh before controls can be enabled.
+- Requires final per-action confirmation before start or stop requests.
+- Revalidates the runner ID, source daemon URL, latest loaded runner row, and latest `actions_allowed` before submitting.
+- Invalidates old runner action authority when the daemon URL changes.
+- Treats daemon lifecycle v0.1 responses as rejected-only. The current Rust contract has no accepted success reason code, so Aethra rejects `accepted: true` lifecycle bodies as incompatible contract drift until a future daemon schema introduces a valid accepted result.
+- Never substitutes fixture rows for live operator state and never sends lifecycle POSTs in fixture mode.
+- Does not update displayed process status optimistically after a receipt; operators must manually refresh runner process status.
+- Turns Operator Mode off and requires manual runner process status plus audit-event refresh after every lifecycle POST attempt, including guarded rejection, audit write failure, timeout, network failure, malformed response, or incompatible response schema.
+- Current built-in runners remain unmanaged and normally expose no actions.
+- Keeps no polling, no browser storage persistence, no startup request, no telemetry, no cloud calls, no downloads, no route execution, no model execution, and no real process manager.
+- Adds interaction tests that unsafe controls are absent outside Operator Mode, guarded inside Operator Mode, source-URL scoped, and duplicate-request resistant.

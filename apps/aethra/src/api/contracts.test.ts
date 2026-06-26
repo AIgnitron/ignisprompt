@@ -9,6 +9,8 @@ import {
   isModelRegistry,
   isModelStatusResponse,
   isOperationsSummaryResponse,
+  isRunnerLifecycleActionResponse,
+  isRunnerProcessStatusResponse,
   isRoutingPolicySummaryResponse,
   isSustainabilityMetricsResponse,
   isVersionStatusResponse,
@@ -32,6 +34,54 @@ import {
 function keysOf(value: Record<string, unknown>): string[] {
   return Object.keys(value).sort();
 }
+
+const runnerProcessStatusResponse = {
+  schema_version: "ignisprompt-runner-process-status-v0.1",
+  generated_at: "2026-06-20T00:00:00Z",
+  runners: [
+    {
+      runner_id: "stub-legal-runner",
+      runner_kind: "stub-legal-runner",
+      model_id: null,
+      configured: true,
+      executable_exists: true,
+      process_state: "unknown",
+      pid: null,
+      local_endpoint: null,
+      started_at: null,
+      stopped_at: null,
+      last_checked_at: "2026-06-20T00:00:00Z",
+      last_error_summary: null,
+      managed_by_ignisprompt: false,
+      operator_mode_required: true,
+      actions_allowed: ["none"],
+      warnings: ["Read-only status only."],
+    },
+  ],
+  summary: {
+    total: 1,
+    configured: 1,
+    running: 0,
+    failed: 0,
+    actions_available: 0,
+  },
+  boundaries: ["This endpoint is read-only."],
+  next_steps: ["Use this endpoint to inspect runner process status metadata only."],
+};
+
+const runnerLifecycleResponse = {
+  schema_version: "ignisprompt-runner-lifecycle-action-v0.1",
+  request_id: "runner-lifecycle-1",
+  action: "start",
+  runner_id: "stub-legal-runner",
+  accepted: false,
+  outcome: "rejected",
+  reason_code: "LIFECYCLE_CONTROLS_DISABLED",
+  message: "Runner lifecycle action was rejected.",
+  audit_event_id: null,
+  status: runnerProcessStatusResponse.runners[0],
+  boundaries: ["Unsupported or unmanaged runners fail closed."],
+};
 
 describe("Aethra fixture contract shapes", () => {
   it("keeps fixture data compatible with current local-preview daemon responses", () => {
@@ -148,6 +198,193 @@ describe("Aethra fixture contract shapes", () => {
       "requests_total",
       "tier_breakdown",
     ]);
+  });
+
+  it("locks runner process status contract fields", () => {
+    expect(isRunnerProcessStatusResponse(runnerProcessStatusResponse)).toBe(true);
+    expect(keysOf(runnerProcessStatusResponse)).toEqual([
+      "boundaries",
+      "generated_at",
+      "next_steps",
+      "runners",
+      "schema_version",
+      "summary",
+    ]);
+    expect(keysOf(runnerProcessStatusResponse.runners[0])).toEqual([
+      "actions_allowed",
+      "configured",
+      "executable_exists",
+      "last_checked_at",
+      "last_error_summary",
+      "local_endpoint",
+      "managed_by_ignisprompt",
+      "model_id",
+      "operator_mode_required",
+      "pid",
+      "process_state",
+      "runner_id",
+      "runner_kind",
+      "started_at",
+      "stopped_at",
+      "warnings",
+    ]);
+    expect(keysOf(runnerProcessStatusResponse.summary)).toEqual([
+      "actions_available",
+      "configured",
+      "failed",
+      "running",
+      "total",
+    ]);
+  });
+
+  it("locks runner lifecycle action contract fields and nullable audit/status fields", () => {
+    expect(isRunnerLifecycleActionResponse(runnerLifecycleResponse)).toBe(true);
+    expect(
+      isRunnerLifecycleActionResponse({
+        ...runnerLifecycleResponse,
+        audit_event_id: "runner-lifecycle-1",
+        status: null,
+      }),
+    ).toBe(true);
+    expect(keysOf(runnerLifecycleResponse)).toEqual([
+      "accepted",
+      "action",
+      "audit_event_id",
+      "boundaries",
+      "message",
+      "outcome",
+      "reason_code",
+      "request_id",
+      "runner_id",
+      "schema_version",
+      "status",
+    ]);
+    expect(
+      isRunnerLifecycleActionResponse({
+        ...runnerLifecycleResponse,
+        reason_code: "UNKNOWN",
+      }),
+    ).toBe(false);
+    expect(
+      isRunnerLifecycleActionResponse({
+        ...runnerLifecycleResponse,
+        accepted: true,
+        outcome: "rejected",
+      }),
+    ).toBe(false);
+    expect(
+      isRunnerLifecycleActionResponse({
+        ...runnerLifecycleResponse,
+        accepted: true,
+        outcome: "accepted",
+        reason_code: "ACTION_NOT_AVAILABLE",
+      }),
+    ).toBe(false);
+    expect(
+      isRunnerLifecycleActionResponse(runnerLifecycleResponse, { httpOk: true }),
+    ).toBe(false);
+    expect(
+      isRunnerLifecycleActionResponse({
+        ...runnerLifecycleResponse,
+        status: {
+          ...runnerLifecycleResponse.status,
+          runner_id: "different-runner",
+        },
+      }),
+    ).toBe(false);
+    expect(
+      isRunnerLifecycleActionResponse({
+        ...runnerLifecycleResponse,
+        reason_code: "AUDIT_WRITE_FAILED",
+        audit_event_id: "audit-event-1",
+      }),
+    ).toBe(false);
+    expect(
+      isRunnerLifecycleActionResponse({
+        ...runnerLifecycleResponse,
+        reason_code: "AUDIT_WRITE_FAILED",
+        audit_event_id: null,
+      }),
+    ).toBe(true);
+    expect(
+      isRunnerLifecycleActionResponse({
+        ...runnerLifecycleResponse,
+        runner_id: "unsafe runner/id",
+      }),
+    ).toBe(false);
+    expect(
+      isRunnerProcessStatusResponse({
+        ...runnerProcessStatusResponse,
+        runners: [
+          {
+            ...runnerProcessStatusResponse.runners[0],
+            process_state: "active",
+          },
+        ],
+      }),
+    ).toBe(false);
+    expect(
+      isRunnerProcessStatusResponse({
+        ...runnerProcessStatusResponse,
+        runners: [
+          {
+            ...runnerProcessStatusResponse.runners[0],
+            runner_id: "unsafe%runner",
+          },
+        ],
+      }),
+    ).toBe(false);
+    expect(
+      isRunnerProcessStatusResponse({
+        ...runnerProcessStatusResponse,
+        runners: [
+          {
+            ...runnerProcessStatusResponse.runners[0],
+            actions_allowed: ["restart"],
+          },
+        ],
+      }),
+    ).toBe(false);
+    for (const actionsAllowed of [
+      [],
+      ["none", "start"],
+      ["none", "stop"],
+      ["none", "start", "stop"],
+      ["none", "none"],
+      ["start", "start"],
+      ["stop", "stop"],
+      ["start", "stop", "start"],
+    ]) {
+      expect(
+        isRunnerProcessStatusResponse({
+          ...runnerProcessStatusResponse,
+          runners: [
+            {
+              ...runnerProcessStatusResponse.runners[0],
+              actions_allowed: actionsAllowed,
+            },
+          ],
+        }),
+      ).toBe(false);
+    }
+    for (const actionsAllowed of [
+      ["none"],
+      ["start"],
+      ["stop"],
+      ["start", "stop"],
+    ]) {
+      expect(
+        isRunnerProcessStatusResponse({
+          ...runnerProcessStatusResponse,
+          runners: [
+            {
+              ...runnerProcessStatusResponse.runners[0],
+              actions_allowed: actionsAllowed,
+            },
+          ],
+        }),
+      ).toBe(true);
+    }
   });
 
   it("locks local evidence package index fields as read-only metadata", () => {

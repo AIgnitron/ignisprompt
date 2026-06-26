@@ -206,6 +206,75 @@ export type CapabilitiesResponse = {
   capabilities: CapabilityStatus[];
 };
 
+export type RunnerProcessState = "unknown" | "stopped" | "running" | "failed";
+export type RunnerActionAvailability = "none" | RunnerLifecycleAction;
+
+export type RunnerProcessStatus = {
+  runner_id: string;
+  runner_kind: string;
+  model_id: string | null;
+  configured: boolean;
+  executable_exists: boolean;
+  process_state: RunnerProcessState;
+  pid: number | null;
+  local_endpoint: string | null;
+  started_at: string | null;
+  stopped_at: string | null;
+  last_checked_at: string;
+  last_error_summary: string | null;
+  managed_by_ignisprompt: boolean;
+  operator_mode_required: boolean;
+  actions_allowed: RunnerActionAvailability[];
+  warnings: string[];
+};
+
+export type RunnerProcessStatusSummary = {
+  total: number;
+  configured: number;
+  running: number;
+  failed: number;
+  actions_available: number;
+};
+
+export type RunnerProcessStatusResponse = {
+  schema_version: "ignisprompt-runner-process-status-v0.1";
+  generated_at: string;
+  runners: RunnerProcessStatus[];
+  summary: RunnerProcessStatusSummary;
+  boundaries: string[];
+  next_steps: string[];
+};
+
+export type RunnerLifecycleAction = "start" | "stop";
+export type RunnerLifecycleOutcome = "rejected";
+export type RunnerLifecycleReasonCode =
+  | "CONFIRMATION_REQUIRED"
+  | "INVALID_RUNNER_ID"
+  | "LIFECYCLE_CONTROLS_DISABLED"
+  | "RUNNER_NOT_FOUND"
+  | "RUNNER_NOT_MANAGED"
+  | "UNSUPPORTED_RUNNER_KIND"
+  | "ACTION_NOT_AVAILABLE"
+  | "AUDIT_WRITE_FAILED";
+
+export type RunnerLifecycleActionResponse = {
+  schema_version: "ignisprompt-runner-lifecycle-action-v0.1";
+  request_id: string;
+  action: RunnerLifecycleAction;
+  runner_id: string;
+  accepted: false;
+  outcome: RunnerLifecycleOutcome;
+  reason_code: RunnerLifecycleReasonCode;
+  message: string;
+  audit_event_id: string | null;
+  status: RunnerProcessStatus | null;
+  boundaries: string[];
+};
+
+export type RunnerLifecycleHttpContext = {
+  httpOk?: boolean;
+};
+
 export type OperationsDaemonSummary = {
   status: string;
   version: string;
@@ -640,6 +709,95 @@ const isOptionalNullableNumber = (
 ): value is number | null | undefined =>
   value === undefined || value === null || isNumber(value);
 
+const runnerProcessStateValues = new Set<RunnerProcessState>([
+  "unknown",
+  "stopped",
+  "running",
+  "failed",
+]);
+
+const isRunnerProcessState = (value: unknown): value is RunnerProcessState =>
+  isString(value) && runnerProcessStateValues.has(value as RunnerProcessState);
+
+const runnerLifecycleActionValues = new Set<RunnerLifecycleAction>([
+  "start",
+  "stop",
+]);
+
+const isRunnerLifecycleAction = (
+  value: unknown,
+): value is RunnerLifecycleAction =>
+  isString(value) &&
+  runnerLifecycleActionValues.has(value as RunnerLifecycleAction);
+
+export const isSafeRunnerLifecycleAction = (
+  value: unknown,
+): value is RunnerLifecycleAction => isRunnerLifecycleAction(value);
+
+const runnerActionAvailabilityValues = new Set<RunnerActionAvailability>([
+  "none",
+  "start",
+  "stop",
+]);
+
+const isRunnerActionAvailability = (
+  value: unknown,
+): value is RunnerActionAvailability =>
+  isString(value) &&
+  runnerActionAvailabilityValues.has(value as RunnerActionAvailability);
+
+const isRunnerActionAvailabilityArray = (
+  value: unknown,
+): value is RunnerActionAvailability[] => {
+  if (!Array.isArray(value) || value.length === 0) {
+    return false;
+  }
+  if (!value.every(isRunnerActionAvailability)) {
+    return false;
+  }
+
+  const uniqueValues = new Set(value);
+  if (uniqueValues.size !== value.length) {
+    return false;
+  }
+
+  return value.includes("none") ? value.length === 1 : true;
+};
+
+export function isSafeRunnerId(value: unknown): value is string {
+  return (
+    isString(value) &&
+    value.length >= 1 &&
+    value.length <= 128 &&
+    /^[A-Za-z0-9._-]+$/.test(value)
+  );
+}
+
+const runnerLifecycleOutcomeValues = new Set<RunnerLifecycleOutcome>(["rejected"]);
+
+const isRunnerLifecycleOutcome = (
+  value: unknown,
+): value is RunnerLifecycleOutcome =>
+  isString(value) &&
+  runnerLifecycleOutcomeValues.has(value as RunnerLifecycleOutcome);
+
+const runnerLifecycleReasonCodeValues = new Set<RunnerLifecycleReasonCode>([
+  "CONFIRMATION_REQUIRED",
+  "INVALID_RUNNER_ID",
+  "LIFECYCLE_CONTROLS_DISABLED",
+  "RUNNER_NOT_FOUND",
+  "RUNNER_NOT_MANAGED",
+  "UNSUPPORTED_RUNNER_KIND",
+  "ACTION_NOT_AVAILABLE",
+  "AUDIT_WRITE_FAILED",
+]);
+
+const isRunnerLifecycleReasonCode = (
+  value: unknown,
+): value is RunnerLifecycleReasonCode =>
+  isString(value) &&
+  runnerLifecycleReasonCodeValues.has(value as RunnerLifecycleReasonCode);
+
 export function isHealthResponse(value: unknown): value is HealthResponse {
   return (
     isRecord(value) &&
@@ -872,6 +1030,83 @@ export function isCapabilitiesResponse(
     isStringArray(value.routing_order) &&
     Array.isArray(value.capabilities) &&
     value.capabilities.every(isCapabilityStatus)
+  );
+}
+
+export function isRunnerProcessStatus(
+  value: unknown,
+): value is RunnerProcessStatus {
+  return (
+    isRecord(value) &&
+    isSafeRunnerId(value.runner_id) &&
+    isString(value.runner_kind) &&
+    (value.model_id === null || isString(value.model_id)) &&
+    isBoolean(value.configured) &&
+    isBoolean(value.executable_exists) &&
+    isRunnerProcessState(value.process_state) &&
+    (value.pid === null || isNumber(value.pid)) &&
+    (value.local_endpoint === null || isString(value.local_endpoint)) &&
+    (value.started_at === null || isString(value.started_at)) &&
+    (value.stopped_at === null || isString(value.stopped_at)) &&
+    isString(value.last_checked_at) &&
+    (value.last_error_summary === null || isString(value.last_error_summary)) &&
+    isBoolean(value.managed_by_ignisprompt) &&
+    isBoolean(value.operator_mode_required) &&
+    isRunnerActionAvailabilityArray(value.actions_allowed) &&
+    isStringArray(value.warnings)
+  );
+}
+
+export function isRunnerProcessStatusSummary(
+  value: unknown,
+): value is RunnerProcessStatusSummary {
+  return (
+    isRecord(value) &&
+    isNumber(value.total) &&
+    isNumber(value.configured) &&
+    isNumber(value.running) &&
+    isNumber(value.failed) &&
+    isNumber(value.actions_available)
+  );
+}
+
+export function isRunnerProcessStatusResponse(
+  value: unknown,
+): value is RunnerProcessStatusResponse {
+  return (
+    isRecord(value) &&
+    value.schema_version === "ignisprompt-runner-process-status-v0.1" &&
+    isString(value.generated_at) &&
+    Array.isArray(value.runners) &&
+    value.runners.every(isRunnerProcessStatus) &&
+    isRunnerProcessStatusSummary(value.summary) &&
+    isStringArray(value.boundaries) &&
+    isStringArray(value.next_steps)
+  );
+}
+
+export function isRunnerLifecycleActionResponse(
+  value: unknown,
+  context: RunnerLifecycleHttpContext = {},
+): value is RunnerLifecycleActionResponse {
+  return (
+    isRecord(value) &&
+    value.schema_version === "ignisprompt-runner-lifecycle-action-v0.1" &&
+    isString(value.request_id) &&
+    isRunnerLifecycleAction(value.action) &&
+    isSafeRunnerId(value.runner_id) &&
+    value.accepted === false &&
+    value.outcome === "rejected" &&
+    context.httpOk !== true &&
+    isRunnerLifecycleReasonCode(value.reason_code) &&
+    (value.reason_code !== "AUDIT_WRITE_FAILED" ||
+      value.audit_event_id === null) &&
+    isString(value.message) &&
+    (value.audit_event_id === null || isString(value.audit_event_id)) &&
+    (value.status === null ||
+      (isRunnerProcessStatus(value.status) &&
+        value.status.runner_id === value.runner_id)) &&
+    isStringArray(value.boundaries)
   );
 }
 

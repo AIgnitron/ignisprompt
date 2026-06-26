@@ -44,6 +44,14 @@ const forbiddenClaimPhrases = [
   "Formal attestation",
 ] as const;
 
+const defaultRunnerProcessProps = {
+  liveRunnerProcessStatusState: { status: "not-loaded" } as const,
+  localBaseUrl: "http://127.0.0.1:8765",
+  runnerLifecycleRefreshRequired: false,
+  onLoadLiveRunnerProcessStatus: noop,
+  onRunnerLifecycleAttempt: noop,
+};
+
 function expectNoUnsafeActions(markup: string) {
   for (const label of forbiddenActionLabels) {
     expect(markup).not.toContain(label);
@@ -91,6 +99,7 @@ function renderMainRouteSet() {
         liveModelReadinessState={{ status: "not-loaded" }}
         liveModelStatusState={{ status: "not-loaded" }}
         liveCapabilitiesState={{ status: "not-loaded" }}
+        {...defaultRunnerProcessProps}
         onLoadLiveModels={noop}
         onLoadLiveModelInventory={noop}
         onLoadLiveModelStatus={noop}
@@ -197,6 +206,7 @@ describe("Aethra demo smoke and review readiness", () => {
         liveModelReadinessState={{ status: "not-loaded" }}
         liveModelStatusState={{ status: "not-loaded" }}
         liveCapabilitiesState={{ status: "not-loaded" }}
+        {...defaultRunnerProcessProps}
         onLoadLiveModels={noop}
         onLoadLiveModelInventory={noop}
         onLoadLiveModelStatus={noop}

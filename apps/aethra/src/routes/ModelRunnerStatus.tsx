@@ -13,6 +13,7 @@ import type {
   LiveModelReadinessState,
   LiveModelsState,
   LiveModelStatusState,
+  LiveRunnerProcessStatusState,
 } from "../dataSource";
 import {
   capabilitiesFixture,
@@ -44,6 +45,7 @@ import {
   buildLiveErrorEmptyState,
   localPreviewEmptyStates,
 } from "./emptyStates";
+import { RunnerProcessPanel } from "./RunnerProcessPanel";
 
 const initialSelectedModelId = toModelManifestRows(modelFixtures)[0]?.modelId;
 const emptyModelInventory: ModelInventoryResponse = {
@@ -97,10 +99,15 @@ type ModelRunnerStatusProps = {
   liveModelReadinessState: LiveModelReadinessState;
   liveModelStatusState: LiveModelStatusState;
   liveCapabilitiesState: LiveCapabilitiesState;
+  liveRunnerProcessStatusState: LiveRunnerProcessStatusState;
+  localBaseUrl: string;
+  runnerLifecycleRefreshRequired: boolean;
   onLoadLiveModels: () => void;
   onLoadLiveModelInventory: () => void;
   onLoadLiveModelStatus: () => void;
   onLoadLiveCapabilities: () => void;
+  onLoadLiveRunnerProcessStatus: () => void;
+  onRunnerLifecycleAttempt: () => void;
 };
 
 export function ModelRunnerStatus({
@@ -110,10 +117,15 @@ export function ModelRunnerStatus({
   liveModelReadinessState,
   liveModelStatusState,
   liveCapabilitiesState,
+  liveRunnerProcessStatusState,
+  localBaseUrl,
+  runnerLifecycleRefreshRequired,
   onLoadLiveModels,
   onLoadLiveModelInventory,
   onLoadLiveModelStatus,
   onLoadLiveCapabilities,
+  onLoadLiveRunnerProcessStatus,
+  onRunnerLifecycleAttempt,
 }: ModelRunnerStatusProps) {
   const [selectedModelId, setSelectedModelId] = useState<string | undefined>(
     initialSelectedModelId,
@@ -204,8 +216,8 @@ export function ModelRunnerStatus({
           <StatusBadge tone={isLiveModelsLoaded ? "ok" : "neutral"}>
             {sourceLabel}
           </StatusBadge>
-          <StatusBadge tone="neutral">Read-only</StatusBadge>
-          <StatusBadge tone="warning">No model or runner controls</StatusBadge>
+          <StatusBadge tone="neutral">Read-only by default</StatusBadge>
+          <StatusBadge tone="warning">Guarded operator controls</StatusBadge>
           <StatusBadge tone="warning">Status hints only</StatusBadge>
         </div>
       </header>
@@ -242,6 +254,15 @@ export function ModelRunnerStatus({
         capabilityRows={capabilityRows}
         onLoadLiveModelStatus={onLoadLiveModelStatus}
         onLoadLiveCapabilities={onLoadLiveCapabilities}
+      />
+
+      <RunnerProcessPanel
+        dataMode={dataMode}
+        localBaseUrl={localBaseUrl}
+        liveRunnerProcessStatusState={liveRunnerProcessStatusState}
+        runnerLifecycleRefreshRequired={runnerLifecycleRefreshRequired}
+        onLoadLiveRunnerProcessStatus={onLoadLiveRunnerProcessStatus}
+        onRunnerLifecycleAttempt={onRunnerLifecycleAttempt}
       />
 
       <div className="metric-grid" aria-label="Model manifest metrics">

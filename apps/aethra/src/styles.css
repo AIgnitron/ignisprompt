@@ -1075,6 +1075,13 @@ textarea:focus {
   font-size: 0.82rem;
 }
 
+.primary-button:focus-visible,
+.secondary-button:focus-visible,
+.operator-mode-toggle input:focus-visible {
+  outline: 2px solid #4f8f86;
+  outline-offset: 2px;
+}
+
 .health-action-row {
   margin-top: 18px;
 }
@@ -1127,6 +1134,111 @@ textarea:focus {
   font-size: 0.78rem;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.runner-process-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.runner-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.runner-process-card,
+.operator-mode-card,
+.runner-confirmation-panel,
+.runner-receipt-panel {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #d9e1e3;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.runner-process-card {
+  display: grid;
+  gap: 12px;
+}
+
+.runner-process-card-heading {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.runner-process-card-heading h4,
+.operator-mode-card h4,
+.runner-confirmation-panel h4,
+.runner-receipt-panel h4 {
+  margin: 0;
+  color: #172026;
+  font-size: 0.98rem;
+  line-height: 1.3;
+}
+
+.operator-mode-card {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  border-color: #d7e5e1;
+  background: #f7fbfa;
+}
+
+.operator-mode-toggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 40px;
+  color: #25353b;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.operator-mode-toggle input {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  cursor: pointer;
+  accent-color: #17643a;
+}
+
+.operator-mode-toggle input:disabled {
+  cursor: not-allowed;
+}
+
+.runner-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.runner-confirmation-panel {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  border-color: #e7cf9e;
+  background: #fffaf0;
+}
+
+.runner-receipt-panel {
+  display: grid;
+  gap: 10px;
+  border-color: #d7e5e1;
+  background: #fbfdfc;
+}
+
+.compact-state-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 0;
+  font-size: 0.86rem;
 }
 
 .refresh-card-note {
@@ -1359,6 +1471,7 @@ textarea:focus {
   .audit-layout,
   .command-row,
   .model-layout,
+  .runner-card-grid,
   .routing-layout,
   .sustainability-layout {
     grid-template-columns: 1fr;
@@ -1379,7 +1492,9 @@ textarea:focus {
   .preview-banner,
   .data-source-compact-row,
   .page-header,
-  .panel-heading {
+  .panel-heading,
+  .operator-mode-card,
+  .runner-confirmation-panel {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -1403,6 +1518,8 @@ textarea:focus {
   .audit-layout,
   .audit-filter-bar,
   .model-layout,
+  .runner-card-grid,
+  .compact-state-list,
   .routing-layout,
   .sustainability-layout,
   .sustainability-action-row,
