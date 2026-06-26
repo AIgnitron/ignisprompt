@@ -13,8 +13,8 @@ const helpSections = [
   {
     title: "Data Sources",
     items: [
-      "Overview is the main live-local daemon dashboard for health, version, models, inventory, readiness, routing policy, evidence packages, capabilities, model status, audit events, operations, and sustainability metadata.",
-      "Detail pages focus on their own read-only data tables, cards, filters, and concise status labels.",
+      "Overview is the main live-local daemon dashboard for health, version, models, inventory, readiness, routing policy, evidence packages, capabilities, model status, runner process status, audit events, operations, and sustainability metadata.",
+      "Detail pages focus on their own local-preview data tables, cards, filters, guarded actions, and concise status labels.",
       "Aethra does not expose raw prompts, request bodies, audit event bodies, secrets, full evidence contents, absolute local paths, telemetry, cloud activity, or external update checks.",
       "Sustainability values are counterfactual proxy estimates derived from local metadata, not measured energy use or formal sustainability reporting.",
     ],
@@ -24,7 +24,7 @@ const helpSections = [
     items: [
       "Aethra is not legal advice and does not claim legal accuracy is solved.",
       "Aethra does not claim compliance certification, security assurance, ESG reporting evidence, production readiness, signed attestation, or tamper-evident audit storage.",
-      "Aethra does not execute routes, submit prompts, execute models, start or stop runners, mutate connectors, mutate policy, mutate manifests, generate packages, upload files, download files, delete files, or export dashboard files.",
+      "Aethra does not execute routes, submit prompts, execute models, mutate connectors, mutate policy, mutate manifests, generate packages, upload files, download files, delete files, or export dashboard files. Runner lifecycle requests are live-local only, guarded by Operator Mode and confirmation, and the daemon may reject every request.",
       "No telemetry or cloud calls are made by default.",
     ],
   },

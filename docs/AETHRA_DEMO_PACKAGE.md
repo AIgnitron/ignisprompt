@@ -15,7 +15,7 @@ Aethra is a local-first observability dashboard for IgnisPrompt. It shows routin
 Longer description:
 
 ```text
-IgnisPrompt owns local AI routing, route explanations, audit events, and fail-closed behavior. Aethra observes those signals in a fixture-backed dashboard by default, with optional manual live-local loading from a loopback daemon. It is designed for transparent local-preview review: no telemetry, no cloud calls by default, no global aggregation, and no model or runner controls.
+IgnisPrompt owns local AI routing, route explanations, audit events, and fail-closed behavior. Aethra observes those signals in a fixture-backed dashboard by default, with optional manual live-local loading from a loopback daemon. It is designed for transparent local-preview review: no telemetry, no cloud calls by default, no global aggregation, and no model mutation controls. Guarded runner lifecycle requests exist only in explicit live-local Operator Mode, require daemon-authorized actions and per-action confirmation, and may be rejected by the daemon.
 ```
 
 Use this framing for public material:
@@ -23,12 +23,12 @@ Use this framing for public material:
 - local-first routing observability
 - fixture-backed by default
 - manual live-local loading
-- read-only dashboard and observatory
+- read-only-by-default dashboard and observatory
 - local readiness surface with status hints and copy-only daemon guidance
 - local operator console with readiness, evidence, operator package, and copy-only command guidance
 - local command center with safe CLI recipes and evidence workflow notes
 - route explanations and local audit visibility
-- model and runner status hints, not controls
+- model status hints plus guarded runner lifecycle requests only in explicit Operator Mode
 - sustainability proxy indicators with methodology and confidence labels
 - guided demo path in Overview, from route inspection through evidence workflow and sustainability preview
 - evidence bundle viewer, validation summary, and archive metadata preview as local-preview diagnostics only
@@ -73,11 +73,12 @@ Keep these boundaries visible in every public/demo use:
 
 - Aethra is fixture-backed by default.
 - Live-local loading is manual.
-- Aethra is a read-only dashboard and observatory.
+- Aethra is a read-only-by-default dashboard and observatory.
 - Aethra sends no telemetry.
 - Aethra makes no cloud calls by default.
 - Aethra performs no global aggregation.
-- Model and runner status values are hints, not controls.
+- Model status values are hints, not mutation controls.
+- Runner lifecycle requests exist only in explicit live-local Operator Mode after daemon-authorized status and per-action confirmation.
 - Sustainability values are estimated, proxy, counterfactual, methodology-dependent, and non-certified.
 - Aethra is not a production deployment.
 - Aethra does not provide legal advice.

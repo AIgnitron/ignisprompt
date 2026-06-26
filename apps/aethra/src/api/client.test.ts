@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { IgnisPromptClient } from "./client";
 import { AethraApiError } from "./errors";
+import type { RunnerLifecycleAction } from "./contracts";
 import {
   auditEventFixtures,
   capabilitiesFixture,
@@ -17,6 +18,71 @@ import {
   versionStatusFixture,
 } from "./fixtures";
 
+const runnerProcessStatusFixture = {
+  schema_version: "ignisprompt-runner-process-status-v0.1" as const,
+  generated_at: "2026-06-20T00:00:00Z",
+  runners: [
+    {
+      runner_id: "stub-legal-runner",
+      runner_kind: "stub-legal-runner",
+      model_id: null,
+      configured: true,
+      executable_exists: true,
+      process_state: "unknown" as const,
+      pid: null,
+      local_endpoint: null,
+      started_at: null,
+      stopped_at: null,
+      last_checked_at: "2026-06-20T00:00:00Z",
+      last_error_summary: null,
+      managed_by_ignisprompt: false,
+      operator_mode_required: true,
+      actions_allowed: ["none"],
+      warnings: ["Read-only status only."],
+    },
+  ],
+  summary: {
+    total: 1,
+    configured: 1,
+    running: 0,
+    failed: 0,
+    actions_available: 0,
+  },
+  boundaries: ["Runner process metadata is local-preview status only."],
+  next_steps: ["Review process status without assuming executable inference."],
+};
+
+const runnerLifecycleRejectedFixture = {
+  schema_version: "ignisprompt-runner-lifecycle-action-v0.1" as const,
+  request_id: "runner-lifecycle-1",
+  action: "start" as const,
+  runner_id: "stub-legal-runner",
+  accepted: false,
+  outcome: "rejected" as const,
+  reason_code: "LIFECYCLE_CONTROLS_DISABLED" as const,
+  message: "Runner lifecycle action was rejected.",
+  audit_event_id: null,
+  status: runnerProcessStatusFixture.runners[0],
+  boundaries: ["Unsupported or unmanaged runners fail closed."],
+};
+
+const impossibleAcceptedLifecycleFixture = {
+  ...runnerLifecycleRejectedFixture,
+  request_id: "runner-lifecycle-accepted-1",
+  accepted: true,
+  outcome: "accepted" as const,
+  reason_code: "CONFIRMATION_REQUIRED" as const,
+  message: "Runner lifecycle action was accepted.",
+  audit_event_id: "audit-runner-lifecycle-1",
+};
+
+const runnerLifecycleAuditWriteFailedFixture = {
+  ...runnerLifecycleRejectedFixture,
+  request_id: "runner-lifecycle-audit-failed-1",
+  reason_code: "AUDIT_WRITE_FAILED" as const,
+  message: "Runner lifecycle action was rejected because audit write failed.",
+};
+
 function jsonResponse(value: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(value), {
     status: 200,
@@ -26,6 +92,11 @@ function jsonResponse(value: unknown, init: ResponseInit = {}) {
 }
 
 describe("IgnisPromptClient", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
   it("reads health from the configured local base URL", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse(healthFixture));
     const client = new IgnisPromptClient({
@@ -60,6 +131,215 @@ describe("IgnisPromptClient", () => {
       "http://127.0.0.1:8765/v1/status/models",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
+  });
+
+  it("reads runner process status metadata with the current response shape", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(runnerProcessStatusFixture));
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(client.runnerProcessStatus()).resolves.toEqual(
+      runnerProcessStatusFixture,
+    );
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "http://127.0.0.1:8765/v1/runners/status",
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("sends guarded runner lifecycle start POSTs with exact confirmation body", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      jsonResponse(runnerLifecycleRejectedFixture, { status: 409 }),
+    );
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(
+      client.runnerLifecycleAction("stub-legal-runner", "start"),
+    ).resolves.toEqual(runnerLifecycleRejectedFixture);
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "http://127.0.0.1:8765/v1/runners/stub-legal-runner/start",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm: true }),
+        signal: expect.any(AbortSignal),
+      }),
+    );
+    const requestInit = fetchImpl.mock.calls[0][1] as RequestInit;
+    expect(requestInit.credentials).toBeUndefined();
+    expect(requestInit.headers).not.toHaveProperty("Authorization");
+    expect(JSON.parse(requestInit.body as string)).toEqual({ confirm: true });
+    expect(requestInit.body as string).not.toContain("reason");
+  });
+
+  it("sends guarded runner lifecycle stop POSTs", async () => {
+    const stopResponse = {
+      ...runnerLifecycleRejectedFixture,
+      action: "stop" as const,
+    };
+    const fetchImpl = vi.fn(async () => jsonResponse(stopResponse, { status: 409 }));
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(
+      client.runnerLifecycleAction("stub-legal-runner", "stop"),
+    ).resolves.toEqual(stopResponse);
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "http://127.0.0.1:8765/v1/runners/stub-legal-runner/stop",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ confirm: true }),
+      }),
+    );
+  });
+
+  it("returns valid guarded 4xx lifecycle responses as typed data", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(runnerLifecycleRejectedFixture, { status: 409 }),
+    );
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(
+      client.runnerLifecycleAction("stub-legal-runner", "start"),
+    ).resolves.toEqual(runnerLifecycleRejectedFixture);
+  });
+
+  it("returns valid AUDIT_WRITE_FAILED 500 lifecycle responses as typed data", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(runnerLifecycleAuditWriteFailedFixture, { status: 500 }),
+    );
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(
+      client.runnerLifecycleAction("stub-legal-runner", "start"),
+    ).resolves.toEqual(runnerLifecycleAuditWriteFailedFixture);
+  });
+
+  it("rejects rejected lifecycle bodies returned with HTTP 2xx as contract drift", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(runnerLifecycleRejectedFixture),
+    );
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(
+      client.runnerLifecycleAction("stub-legal-runner", "start"),
+    ).rejects.toMatchObject({ kind: "unexpected-shape" });
+  });
+
+  it("rejects impossible accepted lifecycle responses", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(impossibleAcceptedLifecycleFixture),
+    );
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(
+      client.runnerLifecycleAction("stub-legal-runner", "start"),
+    ).rejects.toMatchObject({ kind: "unexpected-shape" });
+  });
+
+  it("rejects malformed 4xx lifecycle responses", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(
+        {
+          ...runnerLifecycleRejectedFixture,
+          status: {
+            ...runnerLifecycleRejectedFixture.status,
+            actions_allowed: ["restart"],
+          },
+        },
+        { status: 409 },
+      ),
+    );
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(
+      client.runnerLifecycleAction("stub-legal-runner", "start"),
+    ).rejects.toMatchObject({ kind: "http-error", status: 409 });
+  });
+
+  it("rejects invalid JSON lifecycle responses safely", async () => {
+    const fetchImpl = vi.fn(async () => new Response("{nope", { status: 200 }));
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(
+      client.runnerLifecycleAction("stub-legal-runner", "start"),
+    ).rejects.toMatchObject({ kind: "invalid-json" });
+  });
+
+  it("reports unreachable daemons for lifecycle requests", async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError("failed to fetch");
+    });
+    const client = new IgnisPromptClient({ fetchImpl });
+
+    await expect(
+      client.runnerLifecycleAction("stub-legal-runner", "start"),
+    ).rejects.toMatchObject({ kind: "unreachable-daemon" });
+  });
+
+  it("reports lifecycle request timeouts", async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.fn(
+      (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("aborted", "AbortError"));
+          });
+        }),
+    );
+    const client = new IgnisPromptClient({ fetchImpl, timeoutMs: 10 });
+
+    const assertion = expect(
+      client.runnerLifecycleAction("stub-legal-runner", "start"),
+    ).rejects.toMatchObject({ kind: "timeout" });
+    await vi.advanceTimersByTimeAsync(10);
+    await assertion;
+    vi.useRealTimers();
+  });
+
+  it("rejects invalid runner IDs before fetch", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(runnerLifecycleRejectedFixture, { status: 409 }),
+    );
+    const client = new IgnisPromptClient({ fetchImpl });
+    const invalidIds = [
+      "",
+      "stub legal runner",
+      "stub/legal-runner",
+      "stub\\legal-runner",
+      "stub%legal-runner",
+      "stub?legal-runner",
+      "stub#legal-runner",
+      "stub\nlegal-runner",
+      "stub\u001blegal-runner",
+      "a".repeat(129),
+    ];
+
+    for (const runnerId of invalidIds) {
+      expect(() => client.runnerLifecycleAction(runnerId, "start")).toThrow(
+        AethraApiError,
+      );
+    }
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid lifecycle actions before fetch", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(runnerLifecycleRejectedFixture, { status: 409 }),
+    );
+    const client = new IgnisPromptClient({ fetchImpl });
+    const invalidActions = [
+      "restart",
+      "",
+      "../stop",
+    ] as unknown as RunnerLifecycleAction[];
+
+    for (const action of invalidActions) {
+      expect(() => client.runnerLifecycleAction("stub-legal-runner", action)).toThrow(
+        AethraApiError,
+      );
+    }
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it("reads local model inventory with the current response shape", async () => {

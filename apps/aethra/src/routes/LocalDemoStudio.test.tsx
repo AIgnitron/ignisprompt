@@ -52,7 +52,9 @@ describe("local demo studio route", () => {
     expect(lowerMarkup).not.toContain("production attestation");
     expect(lowerMarkup).not.toContain("tamper-evident");
     expect(lowerMarkup).not.toContain("cryptographic verification");
-    expect(lowerMarkup).toContain("no model or runner controls");
+    expect(lowerMarkup).toContain(
+      "no model mutation controls and no automatic runner lifecycle requests",
+    );
     expect(lowerMarkup).not.toContain("prompt:");
     expect(lowerMarkup).not.toContain("raw user text");
     expect(lowerMarkup).not.toContain("raw audit");

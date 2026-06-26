@@ -8,6 +8,7 @@ import type {
   ModelReadinessResponse,
   ModelStatusHint,
   OperationsSummaryResponse,
+  RunnerProcessStatusResponse,
   RoutingPolicySummaryResponse,
   SustainabilityMetricsResponse,
   VersionStatusResponse,
@@ -205,6 +206,27 @@ export type LiveCapabilitiesState =
       checkedAt?: string;
     };
 
+export type LiveRunnerProcessStatusState =
+  | {
+      status: "not-loaded";
+    }
+  | {
+      status: "loading";
+    }
+  | {
+      status: "loaded";
+      runnerProcessStatus: RunnerProcessStatusResponse;
+      loadedAt: string;
+      sourceBaseUrl: string;
+    }
+  | {
+      status: "error";
+      label: string;
+      message: string;
+      diagnosticKind: LiveEndpointErrorKind;
+      checkedAt?: string;
+    };
+
 export type LiveVersionStatusState =
   | {
       status: "not-loaded";
@@ -296,6 +318,7 @@ export type LiveEndpointState =
   | LiveEvidencePackageIndexState
   | LiveModelStatusState
   | LiveCapabilitiesState
+  | LiveRunnerProcessStatusState
   | LiveVersionStatusState
   | LiveAuditEventsState
   | LiveSustainabilityMetricsState
@@ -311,6 +334,7 @@ export type LiveLocalSurfaceId =
   | "evidence-packages"
   | "model-status"
   | "capabilities"
+  | "runner-process-status"
   | "audit-events"
   | "sustainability-metrics"
   | "operations-summary";
@@ -359,6 +383,7 @@ export type LiveLocalDaemonClient = {
     statusHints: ModelStatusHint[];
   }>;
   capabilities: () => Promise<CapabilitiesResponse>;
+  runnerProcessStatus: () => Promise<RunnerProcessStatusResponse>;
   auditEvents: () => Promise<AuditEvent[]>;
   sustainabilityMetrics: (period?: string) => Promise<SustainabilityMetricsResponse>;
   operationsSummary: () => Promise<OperationsSummaryResponse>;
@@ -374,6 +399,7 @@ export type LiveLocalDaemonSnapshot = {
   evidencePackages: LiveEvidencePackageIndexState;
   modelStatus: LiveModelStatusState;
   capabilities: LiveCapabilitiesState;
+  runnerProcessStatus: LiveRunnerProcessStatusState;
   auditEvents: LiveAuditEventsState;
   sustainabilityMetrics: LiveSustainabilityMetricsState;
   operationsSummary: LiveOperationsSummaryState;
@@ -501,6 +527,7 @@ export function formatLiveLocalDisplaySource(
 export async function loadLiveLocalDaemonSnapshot(input: {
   client: LiveLocalDaemonClient;
   loadedAt: string;
+  sourceBaseUrl: string;
   sustainabilityPeriod?: string;
 }): Promise<LiveLocalDaemonSnapshot> {
   const period = input.sustainabilityPeriod ?? "30d";
@@ -514,6 +541,7 @@ export async function loadLiveLocalDaemonSnapshot(input: {
     evidencePackages,
     modelStatus,
     capabilities,
+    runnerProcessStatus,
     auditEvents,
     sustainabilityMetrics,
     operationsSummary,
@@ -561,6 +589,12 @@ export async function loadLiveLocalDaemonSnapshot(input: {
       "Capabilities",
       () => input.client.capabilities(),
       describeCapabilitiesLoadError,
+    ),
+    loadSurface(
+      "runner-process-status",
+      "Runner process status",
+      () => input.client.runnerProcessStatus(),
+      describeRunnerProcessStatusLoadError,
     ),
     loadSurface(
       "audit-events",
@@ -654,6 +688,15 @@ export async function loadLiveLocalDaemonSnapshot(input: {
             loadedAt: input.loadedAt,
           }
         : endpointErrorState(capabilities.error, input.loadedAt),
+    runnerProcessStatus:
+      runnerProcessStatus.status === "loaded"
+        ? {
+            status: "loaded",
+            runnerProcessStatus: runnerProcessStatus.value,
+            loadedAt: input.loadedAt,
+            sourceBaseUrl: input.sourceBaseUrl,
+          }
+        : endpointErrorState(runnerProcessStatus.error, input.loadedAt),
     auditEvents:
       auditEvents.status === "loaded"
         ? {
@@ -693,6 +736,7 @@ export async function loadLiveLocalDaemonSnapshot(input: {
       evidencePackages.result,
       modelStatus.result,
       capabilities.result,
+      runnerProcessStatus.result,
       auditEvents.result,
       sustainabilityMetrics.result,
       operationsSummary.result,
@@ -824,6 +868,12 @@ export function describeCapabilitiesLoadError(
   return describeEndpointLoadError(error, "capabilities");
 }
 
+export function describeRunnerProcessStatusLoadError(
+  error: unknown,
+): LiveEndpointErrorDescription {
+  return describeEndpointLoadError(error, "runner-process-status");
+}
+
 export function describeVersionStatusLoadError(
   error: unknown,
 ): LiveEndpointErrorDescription {
@@ -859,6 +909,7 @@ function describeEndpointLoadError(
     | "evidence-packages"
     | "model-status"
     | "capabilities"
+    | "runner-process-status"
     | "version-status"
     | "audit-events"
     | "sustainability-metrics"
@@ -881,13 +932,15 @@ function describeEndpointLoadError(
                   ? "model and runner status hint"
                   : endpoint === "capabilities"
                     ? "connector and capability status"
-                    : endpoint === "version-status"
-                      ? "daemon version status"
-                      : endpoint === "audit-events"
-                        ? "audit event"
-                        : endpoint === "sustainability-metrics"
-                          ? "sustainability metrics"
-                          : "local operations summary";
+                    : endpoint === "runner-process-status"
+                      ? "runner process status"
+                      : endpoint === "version-status"
+                        ? "daemon version status"
+                        : endpoint === "audit-events"
+                          ? "audit event"
+                          : endpoint === "sustainability-metrics"
+                            ? "sustainability metrics"
+                            : "local operations summary";
 
   if (error instanceof AethraApiError) {
     switch (error.kind) {
@@ -944,15 +997,17 @@ function describeEndpointLoadError(
                   ? "Evidence packages load failed"
                   : endpoint === "model-status"
                     ? "Model status load failed"
-                    : endpoint === "capabilities"
-                      ? "Capabilities load failed"
-                      : endpoint === "version-status"
-                        ? "Version status load failed"
-                        : endpoint === "audit-events"
-                          ? "Audit events load failed"
-                          : endpoint === "sustainability-metrics"
-                            ? "Sustainability metrics load failed"
-                            : "Operations summary load failed",
+                      : endpoint === "capabilities"
+                        ? "Capabilities load failed"
+                        : endpoint === "runner-process-status"
+                          ? "Runner process status load failed"
+                          : endpoint === "version-status"
+                            ? "Version status load failed"
+                            : endpoint === "audit-events"
+                              ? "Audit events load failed"
+                              : endpoint === "sustainability-metrics"
+                                ? "Sustainability metrics load failed"
+                                : "Operations summary load failed",
     message: `Aethra could not load live local ${noun} metadata.`,
     diagnosticKind: "unknown",
   };

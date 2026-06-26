@@ -7,6 +7,15 @@ import {
 } from "../api/fixtures";
 import { ModelRunnerStatus } from "./ModelRunnerStatus";
 
+const noop = () => undefined;
+const defaultRunnerProcessProps = {
+  liveRunnerProcessStatusState: { status: "not-loaded" } as const,
+  localBaseUrl: "http://127.0.0.1:8765",
+  runnerLifecycleRefreshRequired: false,
+  onLoadLiveRunnerProcessStatus: noop,
+  onRunnerLifecycleAttempt: noop,
+};
+
 describe("ModelRunnerStatus route", () => {
   it("renders the fixture-backed capability matrix with concise product copy", () => {
     const markup = renderToStaticMarkup(
@@ -17,6 +26,7 @@ describe("ModelRunnerStatus route", () => {
         liveModelReadinessState={{ status: "not-loaded" }}
         liveModelStatusState={{ status: "not-loaded" }}
         liveCapabilitiesState={{ status: "not-loaded" }}
+        {...defaultRunnerProcessProps}
         onLoadLiveModels={() => undefined}
         onLoadLiveModelInventory={() => undefined}
         onLoadLiveModelStatus={() => undefined}
@@ -36,7 +46,8 @@ describe("ModelRunnerStatus route", () => {
     expect(markup).toContain("Route ladder");
     expect(markup).toContain("Stub Legal Runner");
     expect(markup).toContain("cloud with consent");
-    expect(markup).toContain("No model or runner controls");
+    expect(markup).toContain("Operator Mode off");
+    expect(markup).toContain("Runner controls require live-local daemon data");
     expect(markup).not.toContain("Readiness compares manifest declarations");
     expect(markup).not.toContain("Inventory observes local file metadata only");
     expect(markup).not.toContain("Cloud capability remains disabled by default");
@@ -70,6 +81,7 @@ describe("ModelRunnerStatus route", () => {
           capabilities: liveCapabilities,
           loadedAt: "2026-06-19T00:00:00Z",
         }}
+        {...defaultRunnerProcessProps}
         onLoadLiveModels={() => undefined}
         onLoadLiveModelInventory={() => undefined}
         onLoadLiveModelStatus={() => undefined}
@@ -98,6 +110,7 @@ describe("ModelRunnerStatus route", () => {
         liveModelReadinessState={{ status: "not-loaded" }}
         liveModelStatusState={{ status: "not-loaded" }}
         liveCapabilitiesState={{ status: "not-loaded" }}
+        {...defaultRunnerProcessProps}
         onLoadLiveModels={() => undefined}
         onLoadLiveModelInventory={() => undefined}
         onLoadLiveModelStatus={() => undefined}
@@ -146,6 +159,7 @@ describe("ModelRunnerStatus route", () => {
         liveModelReadinessState={{ status: "not-loaded" }}
         liveModelStatusState={{ status: "not-loaded" }}
         liveCapabilitiesState={{ status: "not-loaded" }}
+        {...defaultRunnerProcessProps}
         onLoadLiveModels={() => undefined}
         onLoadLiveModelInventory={() => undefined}
         onLoadLiveModelStatus={() => undefined}
@@ -190,6 +204,7 @@ describe("ModelRunnerStatus route", () => {
         }}
         liveModelStatusState={{ status: "not-loaded" }}
         liveCapabilitiesState={{ status: "not-loaded" }}
+        {...defaultRunnerProcessProps}
         onLoadLiveModels={() => undefined}
         onLoadLiveModelInventory={() => undefined}
         onLoadLiveModelStatus={() => undefined}
@@ -221,6 +236,7 @@ describe("ModelRunnerStatus route", () => {
           diagnosticKind: "daemon-unreachable",
           checkedAt: "2026-06-19T00:00:00Z",
         }}
+        {...defaultRunnerProcessProps}
         onLoadLiveModels={() => undefined}
         onLoadLiveModelInventory={() => undefined}
         onLoadLiveModelStatus={() => undefined}
@@ -251,6 +267,7 @@ describe("ModelRunnerStatus route", () => {
           capabilities: { ...capabilitiesFixture, capabilities: [] },
           loadedAt: "2026-06-19T00:00:00Z",
         }}
+        {...defaultRunnerProcessProps}
         onLoadLiveModels={() => undefined}
         onLoadLiveModelInventory={() => undefined}
         onLoadLiveModelStatus={() => undefined}

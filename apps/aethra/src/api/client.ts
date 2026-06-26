@@ -8,6 +8,9 @@ import {
   ModelRegistry,
   ModelStatusResponse,
   OperationsSummaryResponse,
+  RunnerLifecycleAction,
+  RunnerLifecycleActionResponse,
+  RunnerProcessStatusResponse,
   RoutingPolicySummaryResponse,
   RouteExplainRequest,
   RouteExplainResponse,
@@ -22,6 +25,10 @@ import {
   isModelRegistry,
   isModelStatusResponse,
   isOperationsSummaryResponse,
+  isRunnerLifecycleActionResponse,
+  isRunnerProcessStatusResponse,
+  isSafeRunnerLifecycleAction,
+  isSafeRunnerId,
   isRoutingPolicySummaryResponse,
   isRouteExplainResponse,
   isSustainabilityMetricsResponse,
@@ -75,6 +82,33 @@ export class IgnisPromptClient {
 
   capabilities(): Promise<CapabilitiesResponse> {
     return this.request("/v1/capabilities", isCapabilitiesResponse);
+  }
+
+  runnerProcessStatus(): Promise<RunnerProcessStatusResponse> {
+    return this.request("/v1/runners/status", isRunnerProcessStatusResponse);
+  }
+
+  runnerLifecycleAction(
+    runnerId: string,
+    action: RunnerLifecycleAction,
+  ): Promise<RunnerLifecycleActionResponse> {
+    if (!isSafeRunnerLifecycleAction(action)) {
+      throw new AethraApiError(
+        "unexpected-shape",
+        "Runner lifecycle action must be start or stop.",
+      );
+    }
+
+    if (!isSafeRunnerId(runnerId)) {
+      throw new AethraApiError(
+        "unexpected-shape",
+        "Runner ID does not match the local daemon runner identifier rules.",
+      );
+    }
+
+    return this.requestLifecycleAction(
+      `/v1/runners/${encodeURIComponent(runnerId)}/${action}`,
+    );
   }
 
   operationsSummary(): Promise<OperationsSummaryResponse> {
@@ -181,6 +215,93 @@ export class IgnisPromptClient {
     }
 
     return value;
+  }
+
+  private async requestLifecycleAction(
+    path: string,
+  ): Promise<RunnerLifecycleActionResponse> {
+    const value = await this.requestAllowingContractRejection(
+      path,
+      (value, context) => isRunnerLifecycleActionResponse(value, context),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ confirm: true }),
+      },
+    );
+    return value;
+  }
+
+  private async requestAllowingContractRejection<T>(
+    path: string,
+    guard: JsonGuard<T> | ((value: unknown, context: { httpOk: boolean }) => value is T),
+    init: RequestInit,
+  ): Promise<T> {
+    const controller = new AbortController();
+    const timeoutId = globalThis.setTimeout(() => {
+      controller.abort();
+    }, this.timeoutMs);
+
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.baseUrl}${path}`, {
+        ...init,
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw new AethraApiError(
+          "timeout",
+          `IgnisPrompt request timed out after ${this.timeoutMs}ms.`,
+          { cause: error },
+        );
+      }
+
+      throw new AethraApiError(
+        "unreachable-daemon",
+        "Unable to reach the local IgnisPrompt daemon.",
+        { cause: error },
+      );
+    } finally {
+      globalThis.clearTimeout(timeoutId);
+    }
+
+    let value: unknown;
+    try {
+      value = await response.json();
+    } catch (error) {
+      if (!response.ok) {
+        throw new AethraApiError(
+          "http-error",
+          `IgnisPrompt returned HTTP ${response.status}.`,
+          { status: response.status, cause: error },
+        );
+      }
+      throw new AethraApiError(
+        "invalid-json",
+        "IgnisPrompt returned a response that was not valid JSON.",
+        { cause: error },
+      );
+    }
+
+    if (guard(value, { httpOk: response.ok })) {
+      return value;
+    }
+
+    if (!response.ok) {
+      throw new AethraApiError(
+        "http-error",
+        `IgnisPrompt returned HTTP ${response.status}.`,
+        { status: response.status },
+      );
+    }
+
+    throw new AethraApiError(
+      "unexpected-shape",
+      "IgnisPrompt returned JSON that did not match the expected response shape.",
+    );
   }
 }
 

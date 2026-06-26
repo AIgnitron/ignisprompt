@@ -28,7 +28,7 @@ Default URLs:
 2. Confirm Overview shows a clean data source strip and compact status badges rather than a large disclaimer banner.
 3. Run **Refresh local daemon data** only after the daemon is running.
 4. Review **Overview** for the current status, suggested review flow, grouped cards, endpoint matrix, and no unsafe controls.
-5. Review **Model / Runner Status** for manifests, inventory, readiness, capabilities, and status hints.
+5. Review **Model / Runner Status** for manifests, inventory, readiness, capabilities, model status hints, runner process status, and the guarded Operator Mode panel.
 6. Review **Routing Explorer** for read-only routing policy metadata and clearly labeled offline preview route examples.
 7. Review **Evidence Bundle Viewer** for local evidence package metadata, fixture labels, and clipboard-only report copy.
 8. Review **Audit Events** for local audit summary and absence of raw prompts/request bodies.
@@ -42,7 +42,7 @@ Capture screenshots manually when needed. Do not commit screenshots.
 - Overview before refresh: live-local, not-loaded state.
 - Overview after refresh with daemon running: live local cards, endpoint matrix, and receipt.
 - Overview with daemon unavailable: calm failed/unavailable state.
-- Model / Runner Status: local model inventory/readiness sections and capability matrix.
+- Model / Runner Status: local model inventory/readiness sections, capability matrix, runner process status, Operator Mode off by default, daemon-authoritative Start/Stop availability, per-action confirmation, no fixture lifecycle requests, and manual refresh guidance after any lifecycle result.
 - Routing Explorer: routing policy metadata and offline preview fixture route example.
 - Evidence Bundle Viewer: local evidence package index and read-only package metadata.
 - Audit Events: audit summary and empty or loaded state.
@@ -58,14 +58,14 @@ Capture screenshots manually when needed. Do not commit screenshots.
 - Status badges: `live local`, `not loaded`, `unavailable`, `failed`, and `offline preview fixture` should be clear.
 - Empty states: missing daemon data should explain what to do next without implying failure is dangerous.
 - Fixture labels: offline preview fixtures must be visually separate from live-local product state.
-- Unsafe controls: no route execution, prompt submission, model execution, upload, download, delete, export, package generation, validation claim, or mutation controls should appear.
+- Unsafe controls: no route execution, prompt submission, model execution, policy mutation, connector mutation, file mutation, package generation, validation claim, upload, download, delete, export, shell, restart, kill, or force-stop controls should appear. Guarded Start/Stop runner lifecycle requests may appear only in explicit live-local Operator Mode after daemon-authoritative runner process status and per-action confirmation.
 
 ## Copy Checks
 
-- Use `live-local`, `manual refresh`, `offline preview fixture`, `read-only dashboard`, `review checklist`, and `demo smoke coverage` consistently.
+- Use `live-local`, `manual refresh`, `offline preview fixture`, `read-only by default`, `explicit Operator Mode`, `review checklist`, and `demo smoke coverage` consistently.
 - Product pages should use calm labels such as `Help`, `Details`, `About this data`, `Status details`, and `Data source`; avoid boundary/reminder headings on normal product pages.
 - Do not claim production readiness, compliance certification, formal attestation, legal correctness, legal advice, model quality, or sustainability certification.
-- Do not imply hidden route execution, prompt submission, model execution, file mutation, cloud calls, telemetry, or background polling.
+- Do not imply hidden route execution, prompt submission, model execution, file mutation, cloud calls, telemetry, or background polling. Fixture mode must never send lifecycle requests, and live-local lifecycle results require manual runner process status and audit-event refresh before another action.
 - Do not expose raw prompts, request bodies, audit event bodies, secrets, full evidence contents, absolute local paths, usernames, hostnames, or private credentials.
 
 ## Terminal Validation

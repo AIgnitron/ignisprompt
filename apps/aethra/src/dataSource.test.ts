@@ -14,6 +14,7 @@ import {
   versionStatusFixture,
 } from "./api/fixtures";
 import { AethraApiError } from "./api/errors";
+import type { RunnerProcessStatusResponse } from "./api/contracts";
 import {
   DEFAULT_AETHRA_BASE_URL,
   buildLiveLocalDiagnostics,
@@ -36,6 +37,40 @@ import {
   normalizeLocalBaseUrl,
   validateLocalBaseUrl,
 } from "./dataSource";
+
+const runnerProcessStatusFixture: RunnerProcessStatusResponse = {
+  schema_version: "ignisprompt-runner-process-status-v0.1" as const,
+  generated_at: "2026-06-20T00:00:00Z",
+  runners: [
+    {
+      runner_id: "stub-legal-runner",
+      runner_kind: "stub-legal-runner",
+      model_id: null,
+      configured: true,
+      executable_exists: true,
+      process_state: "unknown" as const,
+      pid: null,
+      local_endpoint: null,
+      started_at: null,
+      stopped_at: null,
+      last_checked_at: "2026-06-20T00:00:00Z",
+      last_error_summary: null,
+      managed_by_ignisprompt: false,
+      operator_mode_required: true,
+      actions_allowed: ["none"],
+      warnings: ["Read-only status only."],
+    },
+  ],
+  summary: {
+    total: 1,
+    configured: 1,
+    running: 0,
+    failed: 0,
+    actions_available: 0,
+  },
+  boundaries: ["Runner process metadata is local-preview status only."],
+  next_steps: ["Review process status without assuming executable inference."],
+};
 
 describe("Aethra data source helpers", () => {
   it("defaults to the local IgnisPrompt daemon URL", () => {
@@ -629,6 +664,7 @@ describe("Aethra data source helpers", () => {
     const calls: string[] = [];
     const snapshot = await loadLiveLocalDaemonSnapshot({
       loadedAt: "2026-05-20T00:01:00Z",
+      sourceBaseUrl: "http://127.0.0.1:8765",
       client: {
         health: async () => {
           calls.push("health");
@@ -666,6 +702,10 @@ describe("Aethra data source helpers", () => {
           calls.push("capabilities");
           return capabilitiesFixture;
         },
+        runnerProcessStatus: async () => {
+          calls.push("runner-process-status");
+          return runnerProcessStatusFixture;
+        },
         auditEvents: async () => {
           calls.push("audit-events");
           return auditEventFixtures;
@@ -692,6 +732,7 @@ describe("Aethra data source helpers", () => {
       "models",
       "operations-summary",
       "routing-policy",
+      "runner-process-status",
       "sustainability:30d",
       "version",
     ]);
@@ -704,6 +745,10 @@ describe("Aethra data source helpers", () => {
     expect(snapshot.evidencePackages.status).toBe("loaded");
     expect(snapshot.modelStatus.status).toBe("loaded");
     expect(snapshot.capabilities.status).toBe("loaded");
+    expect(snapshot.runnerProcessStatus.status).toBe("loaded");
+    expect(snapshot.runnerProcessStatus).toMatchObject({
+      sourceBaseUrl: "http://127.0.0.1:8765",
+    });
     expect(snapshot.auditEvents.status).toBe("loaded");
     expect(snapshot.sustainabilityMetrics.status).toBe("loaded");
     expect(snapshot.operationsSummary.status).toBe("loaded");
@@ -715,6 +760,7 @@ describe("Aethra data source helpers", () => {
   it("keeps partial refresh failures isolated without replacing failed live state with fixtures", async () => {
     const snapshot = await loadLiveLocalDaemonSnapshot({
       loadedAt: "2026-05-20T00:01:00Z",
+      sourceBaseUrl: "http://127.0.0.1:8765",
       client: {
         health: async () => healthFixture,
         versionStatus: async () => versionStatusFixture,
@@ -733,6 +779,9 @@ describe("Aethra data source helpers", () => {
         },
         modelStatus: async () => modelStatusFixture,
         capabilities: async () => capabilitiesFixture,
+        runnerProcessStatus: async () => {
+          throw new AethraApiError("http-error", "missing", { status: 404 });
+        },
         auditEvents: async () => auditEventFixtures,
         sustainabilityMetrics: async () => sustainabilityMetricsFixture,
         operationsSummary: async () => {
@@ -743,6 +792,11 @@ describe("Aethra data source helpers", () => {
 
     expect(snapshot.health.status).toBe("loaded");
     expect(snapshot.modelInventory).toMatchObject({
+      status: "error",
+      label: "Endpoint unavailable",
+      diagnosticKind: "endpoint-unavailable",
+    });
+    expect(snapshot.runnerProcessStatus).toMatchObject({
       status: "error",
       label: "Endpoint unavailable",
       diagnosticKind: "endpoint-unavailable",

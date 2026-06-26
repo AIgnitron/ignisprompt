@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AuditEvents } from "./routes/AuditEvents";
 import { EvidenceBundleViewer } from "./routes/EvidenceBundleViewer";
 import { Help } from "./routes/Help";
@@ -22,6 +22,7 @@ import type {
   LiveModelStatusState,
   LiveModelsState,
   LiveOperationsSummaryState,
+  LiveRunnerProcessStatusState,
   LiveRoutingPolicySummaryState,
   LiveSustainabilityMetricsState,
   LiveVersionStatusState,
@@ -34,6 +35,7 @@ import {
   describeModelInventoryLoadError,
   describeModelStatusLoadError,
   describeModelsLoadError,
+  describeRunnerProcessStatusLoadError,
   describeSustainabilityMetricsLoadError,
   describeVersionStatusLoadError,
   loadLiveLocalDaemonSnapshot,
@@ -94,6 +96,10 @@ export default function App() {
     useState<LiveCapabilitiesState>({
       status: "not-loaded",
     });
+  const [liveRunnerProcessStatusState, setLiveRunnerProcessStatusState] =
+    useState<LiveRunnerProcessStatusState>({
+      status: "not-loaded",
+    });
   const [liveVersionStatusState, setLiveVersionStatusState] =
     useState<LiveVersionStatusState>({
       status: "not-loaded",
@@ -114,6 +120,10 @@ export default function App() {
     useState<LiveLocalRefreshState>({
       status: "idle",
     });
+  const [
+    runnerLifecycleRefreshRequired,
+    setRunnerLifecycleRefreshRequired,
+  ] = useState(false);
   const baseUrlValidation = resolveAethraBaseUrlInput(baseUrlInput);
   const localBaseUrl = baseUrlValidation.ok
     ? baseUrlValidation.baseUrl
@@ -121,6 +131,34 @@ export default function App() {
   const baseUrlError = baseUrlValidation.ok
     ? undefined
     : baseUrlValidation.error;
+  const currentLocalBaseUrlRef = useRef(localBaseUrl);
+  const liveLocalRefreshGenerationRef = useRef(0);
+  const runnerProcessStatusGenerationRef = useRef(0);
+  currentLocalBaseUrlRef.current = localBaseUrl;
+
+  useEffect(() => {
+    liveLocalRefreshGenerationRef.current += 1;
+    runnerProcessStatusGenerationRef.current += 1;
+    resetLiveLocalEndpointStates();
+  }, [localBaseUrl]);
+
+  function resetLiveLocalEndpointStates() {
+    setRunnerLifecycleRefreshRequired(false);
+    setLiveLocalRefreshState({ status: "idle" });
+    setLiveHealthState({ status: "not-loaded" });
+    setLiveVersionStatusState({ status: "not-loaded" });
+    setLiveModelsState({ status: "not-loaded" });
+    setLiveModelInventoryState({ status: "not-loaded" });
+    setLiveModelReadinessState({ status: "not-loaded" });
+    setLiveRoutingPolicyState({ status: "not-loaded" });
+    setLiveEvidencePackagesState({ status: "not-loaded" });
+    setLiveModelStatusState({ status: "not-loaded" });
+    setLiveCapabilitiesState({ status: "not-loaded" });
+    setLiveRunnerProcessStatusState({ status: "not-loaded" });
+    setLiveAuditEventsState({ status: "not-loaded" });
+    setLiveSustainabilityMetricsState({ status: "not-loaded" });
+    setLiveOperationsSummaryState({ status: "not-loaded" });
+  }
 
   async function loadLiveHealth() {
     if (baseUrlError) {
@@ -265,6 +303,50 @@ export default function App() {
     }
   }
 
+  async function loadLiveRunnerProcessStatus() {
+    if (baseUrlError) {
+      setLiveRunnerProcessStatusState({
+        status: "error",
+        ...localUrlBlockedDescription(baseUrlError),
+        checkedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    const requestGeneration = ++runnerProcessStatusGenerationRef.current;
+    const sourceBaseUrl = localBaseUrl;
+    setLiveRunnerProcessStatusState({ status: "loading" });
+    try {
+      const client = createIgnisPromptClient({ baseUrl: sourceBaseUrl });
+      const runnerProcessStatus = await client.runnerProcessStatus();
+      if (
+        runnerProcessStatusGenerationRef.current !== requestGeneration ||
+        currentLocalBaseUrlRef.current !== sourceBaseUrl
+      ) {
+        return;
+      }
+      setLiveRunnerProcessStatusState({
+        status: "loaded",
+        runnerProcessStatus,
+        loadedAt: new Date().toISOString(),
+        sourceBaseUrl,
+      });
+      setRunnerLifecycleRefreshRequired(false);
+    } catch (error) {
+      if (
+        runnerProcessStatusGenerationRef.current !== requestGeneration ||
+        currentLocalBaseUrlRef.current !== sourceBaseUrl
+      ) {
+        return;
+      }
+      setLiveRunnerProcessStatusState({
+        status: "error",
+        ...describeRunnerProcessStatusLoadError(error),
+        checkedAt: new Date().toISOString(),
+      });
+    }
+  }
+
   async function loadLiveVersionStatus() {
     if (baseUrlError) {
       setLiveVersionStatusState({
@@ -370,6 +452,7 @@ export default function App() {
       setLiveEvidencePackagesState(blocked);
       setLiveModelStatusState(blocked);
       setLiveCapabilitiesState(blocked);
+      setLiveRunnerProcessStatusState(blocked);
       setLiveAuditEventsState(blocked);
       setLiveSustainabilityMetricsState({
         ...blocked,
@@ -390,6 +473,7 @@ export default function App() {
           "evidence-packages",
           "model-status",
           "capabilities",
+          "runner-process-status",
           "audit-events",
           "sustainability-metrics",
           "operations-summary",
@@ -404,6 +488,9 @@ export default function App() {
       return;
     }
 
+    const requestGeneration = ++liveLocalRefreshGenerationRef.current;
+    const runnerProcessStatusGeneration = ++runnerProcessStatusGenerationRef.current;
+    const sourceBaseUrl = localBaseUrl;
     setLiveLocalRefreshState({ status: "loading", requestedAt });
     setLiveHealthState({ status: "loading" });
     setLiveVersionStatusState({ status: "loading" });
@@ -414,17 +501,26 @@ export default function App() {
     setLiveEvidencePackagesState({ status: "loading" });
     setLiveModelStatusState({ status: "loading" });
     setLiveCapabilitiesState({ status: "loading" });
+    setLiveRunnerProcessStatusState({ status: "loading" });
     setLiveAuditEventsState({ status: "loading" });
     setLiveSustainabilityMetricsState({ status: "loading", period: "30d" });
     setLiveOperationsSummaryState({ status: "loading" });
 
     const loadedAt = new Date().toISOString();
-    const client = createIgnisPromptClient({ baseUrl: localBaseUrl });
+    const client = createIgnisPromptClient({ baseUrl: sourceBaseUrl });
     const snapshot = await loadLiveLocalDaemonSnapshot({
       client,
       loadedAt,
+      sourceBaseUrl,
       sustainabilityPeriod: "30d",
     });
+
+    if (
+      liveLocalRefreshGenerationRef.current !== requestGeneration ||
+      currentLocalBaseUrlRef.current !== sourceBaseUrl
+    ) {
+      return;
+    }
 
     setLiveHealthState(snapshot.health);
     setLiveVersionStatusState(snapshot.versionStatus);
@@ -435,6 +531,14 @@ export default function App() {
     setLiveEvidencePackagesState(snapshot.evidencePackages);
     setLiveModelStatusState(snapshot.modelStatus);
     setLiveCapabilitiesState(snapshot.capabilities);
+    if (
+      runnerProcessStatusGenerationRef.current === runnerProcessStatusGeneration
+    ) {
+      setLiveRunnerProcessStatusState(snapshot.runnerProcessStatus);
+      if (snapshot.runnerProcessStatus.status === "loaded") {
+        setRunnerLifecycleRefreshRequired(false);
+      }
+    }
     setLiveAuditEventsState(snapshot.auditEvents);
     setLiveSustainabilityMetricsState(snapshot.sustainabilityMetrics);
     setLiveOperationsSummaryState(snapshot.operationsSummary);
@@ -578,7 +682,7 @@ export default function App() {
               <p>
                 {dataMode === "fixture"
                   ? "Offline preview fixtures are labeled separately from live-local product state."
-                  : "Refresh local daemon data to load the read-only dashboard surfaces."}
+                  : "Refresh local daemon data to load the local dashboard surfaces."}
               </p>
             </div>
             <div className="mode-badges" aria-label="Aethra mode guarantees">
@@ -687,10 +791,17 @@ export default function App() {
             liveModelReadinessState={liveModelReadinessState}
             liveModelStatusState={liveModelStatusState}
             liveCapabilitiesState={liveCapabilitiesState}
+            liveRunnerProcessStatusState={liveRunnerProcessStatusState}
+            localBaseUrl={localBaseUrl}
+            runnerLifecycleRefreshRequired={runnerLifecycleRefreshRequired}
             onLoadLiveModels={loadLiveModels}
             onLoadLiveModelInventory={loadLiveModelInventory}
             onLoadLiveModelStatus={loadLiveModelStatus}
             onLoadLiveCapabilities={loadLiveCapabilities}
+            onLoadLiveRunnerProcessStatus={loadLiveRunnerProcessStatus}
+            onRunnerLifecycleAttempt={() =>
+              setRunnerLifecycleRefreshRequired(true)
+            }
           />
         ) : null}
         {activeRoute === "sustainability-preview" ? (
@@ -974,7 +1085,7 @@ function summarizeLiveLocalRefresh(refreshState: Extract<
   LiveLocalRefreshState,
   { status: "complete" }
 >) {
-  const totalSurfaces = 12;
+  const totalSurfaces = 13;
   const loaded = refreshState.results.filter(
     (result) => result.status === "loaded",
   );
