@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 #[cfg(feature = "gguf-runner-spike")]
 use std::{
     fs,
-    fs::File,
+    fs::{File, OpenOptions},
     path::{Path, PathBuf},
     process::{Command, Output, Stdio},
     thread,
@@ -93,6 +93,62 @@ impl ModelRunnerAdapter {
 pub(crate) struct GgufRunner;
 
 #[cfg(feature = "gguf-runner-spike")]
+struct GgufRunTempDir {
+    path: PathBuf,
+}
+
+#[cfg(feature = "gguf-runner-spike")]
+impl GgufRunTempDir {
+    fn new() -> Result<Self> {
+        let path = std::env::temp_dir().join(format!("ignisprompt-gguf-run-{}", Uuid::new_v4()));
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            let mut builder = fs::DirBuilder::new();
+            builder.mode(0o700);
+            builder
+                .create(&path)
+                .with_context(|| "failed to create private GGUF temporary directory")?;
+        }
+
+        #[cfg(not(unix))]
+        fs::create_dir(&path)
+            .with_context(|| "failed to create private GGUF temporary directory")?;
+
+        Ok(Self { path })
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+
+    fn create_file(&self, name: &str) -> Result<(PathBuf, File)> {
+        let path = self.path.join(name);
+        let mut options = OpenOptions::new();
+        options.write(true).create_new(true);
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+
+        let file = options
+            .open(&path)
+            .with_context(|| "failed to create private GGUF temporary file")?;
+        Ok((path, file))
+    }
+}
+
+#[cfg(feature = "gguf-runner-spike")]
+impl Drop for GgufRunTempDir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.path);
+    }
+}
+
+#[cfg(feature = "gguf-runner-spike")]
 impl GgufRunner {
     const LEGAL_PROMPT_PACK_FILE: &'static str = "legal-contract-review-v0.1.md";
 
@@ -172,18 +228,12 @@ impl GgufRunner {
         Ok(sections.join("\n\n"))
     }
 
-    fn prompt_file_path() -> PathBuf {
-        std::env::temp_dir().join(format!("ignisprompt-gguf-prompt-{}.txt", Uuid::new_v4()))
-    }
+    fn write_prompt_file(temp_dir: &GgufRunTempDir, prompt: &str) -> Result<PathBuf> {
+        use std::io::Write;
 
-    fn subprocess_output_path(kind: &str) -> PathBuf {
-        std::env::temp_dir().join(format!("ignisprompt-gguf-{kind}-{}.txt", Uuid::new_v4()))
-    }
-
-    fn write_prompt_file(prompt: &str) -> Result<PathBuf> {
-        let path = Self::prompt_file_path();
-        fs::write(&path, prompt)
-            .with_context(|| format!("failed to write GGUF prompt file {}", path.display()))?;
+        let (path, mut file) = temp_dir.create_file("prompt.txt")?;
+        file.write_all(prompt.as_bytes())
+            .with_context(|| "failed to write private GGUF prompt file")?;
         Ok(path)
     }
 
@@ -197,29 +247,25 @@ impl GgufRunner {
 
     fn run_subprocess_with_timeout(
         mut command: Command,
-        runner_bin: &Path,
         timeout: Duration,
+        temp_dir: &GgufRunTempDir,
     ) -> Result<Output> {
-        let stdout_path = Self::subprocess_output_path("stdout");
-        let stderr_path = Self::subprocess_output_path("stderr");
-        let stdout = File::create(&stdout_path)
-            .with_context(|| format!("failed to create {}", stdout_path.display()))?;
-        let stderr = File::create(&stderr_path)
-            .with_context(|| format!("failed to create {}", stderr_path.display()))?;
+        let (stdout_path, stdout) = temp_dir.create_file("stdout.txt")?;
+        let (stderr_path, stderr) = temp_dir.create_file("stderr.txt")?;
 
         let mut child = command
             .stdin(Stdio::null())
             .stdout(Stdio::from(stdout))
             .stderr(Stdio::from(stderr))
             .spawn()
-            .with_context(|| format!("failed to execute GGUF runner {}", runner_bin.display()))?;
+            .with_context(|| format!("failed to execute configured GGUF runner"))?;
 
         let started_at = Instant::now();
         let poll_interval = Duration::from_millis(10);
         let status = loop {
             if let Some(status) = child
                 .try_wait()
-                .with_context(|| format!("failed to poll GGUF runner {}", runner_bin.display()))?
+                .with_context(|| "failed to poll configured GGUF runner")?
             {
                 break status;
             }
@@ -227,8 +273,6 @@ impl GgufRunner {
             if started_at.elapsed() >= timeout {
                 let _ = child.kill();
                 let _ = child.wait();
-                let _ = fs::remove_file(&stdout_path);
-                let _ = fs::remove_file(&stderr_path);
                 bail!("GGUF runner timed out after {} ms", timeout.as_millis());
             }
 
@@ -238,12 +282,10 @@ impl GgufRunner {
             thread::sleep(std::cmp::min(poll_interval, remaining));
         };
 
-        let stdout = fs::read(&stdout_path)
-            .with_context(|| format!("failed to read {}", stdout_path.display()))?;
-        let stderr = fs::read(&stderr_path)
-            .with_context(|| format!("failed to read {}", stderr_path.display()))?;
-        let _ = fs::remove_file(&stdout_path);
-        let _ = fs::remove_file(&stderr_path);
+        let stdout =
+            fs::read(&stdout_path).with_context(|| "failed to read private GGUF stdout file")?;
+        let stderr =
+            fs::read(&stderr_path).with_context(|| "failed to read private GGUF stderr file")?;
 
         Ok(Output {
             status,
@@ -312,7 +354,8 @@ impl ModelRunner for GgufRunner {
             .ok_or_else(|| anyhow!("selected GGUF model manifest does not declare localPath"))?;
 
         let prompt = Self::render_prompt(context)?;
-        let prompt_file = Self::write_prompt_file(&prompt)?;
+        let temp_dir = GgufRunTempDir::new()?;
+        let prompt_file = Self::write_prompt_file(&temp_dir, &prompt)?;
         let mut command = Command::new(runner_bin);
         command
             .arg("--model")
@@ -338,27 +381,20 @@ impl ModelRunner for GgufRunner {
 
         let output = Self::run_subprocess_with_timeout(
             command,
-            runner_bin,
             Duration::from_millis(context.config.gguf_runner_timeout_ms),
+            &temp_dir,
         );
 
-        let _ = fs::remove_file(&prompt_file);
         let output = output?;
 
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
             bail!(
-                "GGUF runner exited with status {}{}",
+                "GGUF runner exited with status {}",
                 output
                     .status
                     .code()
                     .map(|code| code.to_string())
-                    .unwrap_or_else(|| "unknown".to_string()),
-                if stderr.is_empty() {
-                    "".to_string()
-                } else {
-                    format!(": {stderr}")
-                }
+                    .unwrap_or_else(|| "unknown".to_string())
             );
         }
 
@@ -434,6 +470,29 @@ impl ModelRunner for StubLegalRunner {
 mod tests {
     use super::*;
 
+    #[cfg(unix)]
+    #[test]
+    fn gguf_run_temporary_directory_and_files_are_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp_dir = GgufRunTempDir::new().unwrap();
+        let temp_dir_path = temp_dir.path().to_path_buf();
+        let directory_mode = fs::metadata(temp_dir.path()).unwrap().permissions().mode() & 0o777;
+        assert_eq!(directory_mode, 0o700);
+
+        let prompt_path = GgufRunner::write_prompt_file(&temp_dir, "private prompt").unwrap();
+        let (stdout_path, _stdout) = temp_dir.create_file("stdout-test.txt").unwrap();
+        let (stderr_path, _stderr) = temp_dir.create_file("stderr-test.txt").unwrap();
+
+        for path in [&prompt_path, &stdout_path, &stderr_path] {
+            let mode = fs::metadata(path).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600, "expected owner-only permissions for {path:?}");
+        }
+
+        drop(temp_dir);
+        assert!(!temp_dir_path.exists());
+    }
+
     #[test]
     fn gguf_runner_rejects_bare_executable_names() {
         let config = Args {
@@ -446,6 +505,7 @@ mod tests {
             force_ram_pressure: false,
             experimental_mcp_stdio: false,
             allow_non_loopback_cors: false,
+            enable_runner_lifecycle_controls: false,
             gguf_runner_bin: Some(PathBuf::from("ollama-gguf-runner.sh")),
             prompt_dir: PathBuf::from("./config/prompts"),
             gguf_max_tokens: 256,
@@ -470,6 +530,7 @@ mod tests {
             force_ram_pressure: false,
             experimental_mcp_stdio: false,
             allow_non_loopback_cors: false,
+            enable_runner_lifecycle_controls: false,
             gguf_runner_bin: Some(PathBuf::from("./scripts/ollama-gguf-runner.sh")),
             prompt_dir: PathBuf::from("./config/prompts"),
             gguf_max_tokens: 256,

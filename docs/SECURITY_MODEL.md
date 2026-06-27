@@ -25,6 +25,8 @@ The default HTTP daemon bind remains `127.0.0.1:8765`. Loopback binds use a CORS
 
 Binding the HTTP daemon to a non-loopback address is rejected unless the local operator explicitly sets `--allow-non-loopback-cors` or `IGNISPROMPT_ALLOW_NON_LOOPBACK_CORS=true`. That override enables permissive CORS for a trusted local-preview network only. It does not add authentication, TLS, production readiness, or security certification.
 
+Loopback-only binding remains the safe default for this local-preview daemon. Authentication, authorization, and TLS are intentionally not added by the audit/temp-file hardening work. Any future production deployment would require those controls plus a stricter origin policy; the explicit non-loopback override remains an operator decision for a trusted local-preview network, not a production security boundary.
+
 ## Prompt and document handling
 
 The daemon scans combined message text for known adversarial document instructions, including attempts to ignore routing rules, disable audit logging, or route to cloud. When detected, it returns a warning and keeps routing and audit behavior unchanged.
@@ -35,7 +37,9 @@ This is a lightweight scaffold control, not a complete prompt-injection defense.
 
 Route explanations and chat completions append local audit events. Events include route code, tier, domain, model id, explanation, warnings, and `data_left_device`.
 
-Audit appends write the local JSONL record before the event is made visible through the process-memory audit list. If the JSONL write fails, the event is not reported through `GET /v1/audit/events` as a memory-only durable event.
+Audit appends serialize in-process writes and write each JSON object plus its newline as one complete record while holding the audit write lock. The local JSONL record is written before the event is made visible through the process-memory audit list. Required route-explain and chat-completion operations fail closed with a sanitized `AUDIT_WRITE_FAILED` response if persistence fails, and failed records are not reported through `GET /v1/audit/events` as memory-only durable events.
+
+The feature-gated GGUF runner uses a private per-run temporary directory. On Unix, the directory is owner-only (`0700`) and prompt/stdout/stderr files are owner-only (`0600`); cleanup is attempted automatically after each run. This reduces accidental local disclosure but does not sandbox an operator-configured runner process.
 
 Current limitations:
 

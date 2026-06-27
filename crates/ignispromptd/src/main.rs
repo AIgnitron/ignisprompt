@@ -32,9 +32,9 @@ use serde_json::{json, Value};
 use sustainability::{SustainabilityAuditEvent, SustainabilityEstimate};
 use tokio::{
     fs,
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt, BufReader},
     net::TcpListener,
-    sync::RwLock,
+    sync::{Mutex, RwLock},
 };
 use tower_http::{
     cors::{AllowOrigin, Any, CorsLayer},
@@ -50,6 +50,7 @@ const MCP_STATUS_VERSION_TOOL_NAME: &str = "status_version";
 const MCP_SUSTAINABILITY_SUMMARY_TOOL_NAME: &str = "sustainability_summary";
 const MCP_AUDIT_EVENTS_DEFAULT_LIMIT: usize = 20;
 const MCP_AUDIT_EVENTS_MAX_LIMIT: usize = 100;
+const MCP_STDIO_MAX_LINE_BYTES: usize = 1024 * 1024;
 const SUSTAINABILITY_METRICS_MAX_PERIOD_DAYS: i64 = 3650;
 const MODEL_INVENTORY_SCHEMA_VERSION: &str = "ignisprompt-model-inventory-v0.1";
 const MODEL_READINESS_SCHEMA_VERSION: &str = "ignisprompt-model-readiness-v0.1";
@@ -485,6 +486,7 @@ impl SustainabilityAuditEvent for AuditEvent {
 struct AuditStore {
     path: PathBuf,
     events: RwLock<Vec<AuditEvent>>,
+    write_lock: Mutex<()>,
 }
 
 impl AuditStore {
@@ -495,19 +497,20 @@ impl AuditStore {
         Ok(Self {
             path,
             events: RwLock::new(Vec::new()),
+            write_lock: Mutex::new(()),
         })
     }
 
     async fn append(&self, event: AuditEvent) -> Result<()> {
-        let line = serde_json::to_string(&event)?;
-        use tokio::io::AsyncWriteExt;
+        let mut record = serde_json::to_string(&event)?;
+        record.push('\n');
+        let _write_guard = self.write_lock.lock().await;
         let mut file = fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(&self.path)
             .await?;
-        file.write_all(line.as_bytes()).await?;
-        file.write_all(b"\n").await?;
+        file.write_all(record.as_bytes()).await?;
 
         let mut events = self.events.write().await;
         events.push(event);
@@ -712,23 +715,106 @@ fn is_loopback_cors_origin(origin: &HeaderValue) -> bool {
 
 async fn run_mcp_stdio(state: AppState) -> Result<()> {
     let mut session = McpSessionState::default();
-    let mut lines = BufReader::new(tokio::io::stdin()).lines();
+    let mut stdin = BufReader::new(tokio::io::stdin());
     let mut stdout = tokio::io::stdout();
 
-    while let Some(line) = lines.next_line().await? {
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
+    loop {
+        match read_bounded_mcp_line(&mut stdin, MCP_STDIO_MAX_LINE_BYTES).await? {
+            BoundedMcpLine::Line(line) => {
+                let trimmed = line.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
 
-        if let Some(response) = handle_mcp_line(&state, &mut session, trimmed).await {
-            let encoded = serde_json::to_string(&response)?;
-            stdout.write_all(encoded.as_bytes()).await?;
-            stdout.write_all(b"\n").await?;
-            stdout.flush().await?;
+                if let Some(response) = handle_mcp_line(&state, &mut session, trimmed).await {
+                    write_mcp_response(&mut stdout, &response).await?;
+                }
+            }
+            BoundedMcpLine::TooLong => {
+                let response = mcp_line_too_long_error(MCP_STDIO_MAX_LINE_BYTES);
+                write_mcp_response(&mut stdout, &response).await?;
+            }
+            BoundedMcpLine::Eof => break,
         }
     }
 
+    Ok(())
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum BoundedMcpLine {
+    Line(String),
+    TooLong,
+    Eof,
+}
+
+async fn read_bounded_mcp_line<R>(
+    reader: &mut R,
+    max_line_bytes: usize,
+) -> std::io::Result<BoundedMcpLine>
+where
+    R: AsyncBufRead + Unpin,
+{
+    let mut line = Vec::new();
+    let mut too_long = false;
+
+    loop {
+        let buffer = reader.fill_buf().await?;
+        if buffer.is_empty() {
+            if line.is_empty() && !too_long {
+                return Ok(BoundedMcpLine::Eof);
+            }
+            break;
+        }
+
+        let newline_index = buffer.iter().position(|byte| *byte == b'\n');
+        let consumed = newline_index.map_or(buffer.len(), |index| index + 1);
+        let content_length = newline_index.unwrap_or(buffer.len());
+
+        if !too_long {
+            if line.len().saturating_add(content_length) > max_line_bytes {
+                too_long = true;
+                line.clear();
+            } else {
+                line.extend_from_slice(&buffer[..content_length]);
+            }
+        }
+
+        reader.consume(consumed);
+        if newline_index.is_some() {
+            break;
+        }
+    }
+
+    if too_long {
+        return Ok(BoundedMcpLine::TooLong);
+    }
+
+    if line.last() == Some(&b'\r') {
+        line.pop();
+    }
+    match String::from_utf8(line) {
+        Ok(line) => Ok(BoundedMcpLine::Line(line)),
+        Err(_) => Ok(BoundedMcpLine::Line(String::from("{invalid utf-8}"))),
+    }
+}
+
+fn mcp_line_too_long_error(max_line_bytes: usize) -> Value {
+    mcp_error_response(
+        None,
+        -32600,
+        format!("Invalid request: message exceeds the {max_line_bytes}-byte local stdio limit."),
+    )
+}
+
+async fn write_mcp_response<W>(writer: &mut W, response: &Value) -> Result<()>
+where
+    W: AsyncWrite + Unpin,
+{
+    let encoded = serde_json::to_string(response)?;
+    writer.write_all(encoded.as_bytes()).await?;
+    writer.write_all(b"\n").await?;
+    writer.flush().await?;
     Ok(())
 }
 
@@ -3301,7 +3387,8 @@ async fn chat_completions(
                         },
                     );
                     if let Err(err) = state.audit.append(event).await {
-                        warn!(error = %err, "failed to append audit event");
+                        warn!(error = %err, "required chat completion audit write failed");
+                        return audit_write_failed_chat_completion_response(&req);
                     }
 
                     return chat_completion_http_response(
@@ -3336,20 +3423,6 @@ async fn chat_completions(
                 selected_model.as_ref(),
             )
             .await;
-            if let Some(key) =
-                cache_key.filter(|_| completion_output_is_cacheable(&completion_output))
-            {
-                state
-                    .completion_cache
-                    .insert(
-                        key,
-                        ExactMatchCacheEntry {
-                            content: completion_output.content.clone(),
-                            local_output: completion_output.metadata.clone(),
-                        },
-                    )
-                    .await;
-            }
             let event = audit_event_for_route(
                 request_id.clone(),
                 "chat_completion",
@@ -3366,7 +3439,22 @@ async fn chat_completions(
                 },
             );
             if let Err(err) = state.audit.append(event).await {
-                warn!(error = %err, "failed to append audit event");
+                warn!(error = %err, "required chat completion audit write failed");
+                return audit_write_failed_chat_completion_response(&req);
+            }
+            if let Some(key) =
+                cache_key.filter(|_| completion_output_is_cacheable(&completion_output))
+            {
+                state
+                    .completion_cache
+                    .insert(
+                        key,
+                        ExactMatchCacheEntry {
+                            content: completion_output.content.clone(),
+                            local_output: completion_output.metadata.clone(),
+                        },
+                    )
+                    .await;
             }
 
             chat_completion_http_response(
@@ -3421,6 +3509,40 @@ async fn chat_completions(
             },
         ),
     }
+}
+
+fn audit_write_failed_chat_completion_response(req: &ChatCompletionRequest) -> Response {
+    chat_completion_http_response(
+        req,
+        StatusCode::INTERNAL_SERVER_ERROR,
+        ChatCompletionResponse {
+            id: Uuid::new_v4().to_string(),
+            object: "chat.completion".to_string(),
+            created: Utc::now().timestamp(),
+            model: request_model_name(req),
+            route: RouteDecision {
+                tier: "ERR".to_string(),
+                route_code: "AUDIT_WRITE_FAILED".to_string(),
+                domain: "unknown".to_string(),
+                model_id: None,
+                cloud_considered: false,
+                cloud_allowed: false,
+                data_left_device: false,
+            },
+            choices: vec![ChatChoice {
+                index: 0,
+                message: ChatMessage {
+                    role: "assistant".to_string(),
+                    content:
+                        "The local operation failed because its required audit record could not be persisted."
+                            .to_string(),
+                },
+                finish_reason: "error".to_string(),
+            }],
+            cache: None,
+            local_output: None,
+        },
+    )
 }
 
 fn chat_completion_http_response(
@@ -3831,8 +3953,16 @@ async fn route_explain_response_for_request(
                 explanation,
                 warnings,
             };
-            append_route_explain_audit_event(state, req, &response).await;
-            (StatusCode::OK, response)
+            match append_route_explain_audit_event(state, req, &response).await {
+                Ok(()) => (StatusCode::OK, response),
+                Err(err) => {
+                    warn!(error = %err, "required route explanation audit write failed");
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        audit_write_failed_route_explain_response(),
+                    )
+                }
+            }
         }
         Err(err) => (
             StatusCode::BAD_REQUEST,
@@ -3845,7 +3975,7 @@ async fn append_route_explain_audit_event(
     state: &AppState,
     req: &ChatCompletionRequest,
     response: &RouteExplainResponse,
-) {
+) -> Result<()> {
     let event = audit_event_for_route(
         response.request_id.clone(),
         "route_explain",
@@ -3862,8 +3992,28 @@ async fn append_route_explain_audit_event(
         },
     );
 
-    if let Err(err) = state.audit.append(event).await {
-        warn!(error = %err, "failed to append audit event");
+    state.audit.append(event).await
+}
+
+fn audit_write_failed_route_explain_response() -> RouteExplainResponse {
+    RouteExplainResponse {
+        request_id: Uuid::new_v4().to_string(),
+        decision: RouteDecision {
+            tier: "ERR".to_string(),
+            route_code: "AUDIT_WRITE_FAILED".to_string(),
+            domain: "unknown".to_string(),
+            model_id: None,
+            cloud_considered: false,
+            cloud_allowed: false,
+            data_left_device: false,
+        },
+        explanation:
+            "The local operation failed because its required audit record could not be persisted."
+                .to_string(),
+        warnings: vec![
+            "No successful route explanation was returned and no memory-only audit event was created."
+                .to_string(),
+        ],
     }
 }
 
@@ -4686,6 +4836,7 @@ mod tests {
             audit: Arc::new(AuditStore {
                 path: audit_path,
                 events: RwLock::new(Vec::new()),
+                write_lock: Mutex::new(()),
             }),
         }
     }
@@ -4704,6 +4855,7 @@ mod tests {
         state.audit = Arc::new(AuditStore {
             path: std::env::temp_dir(),
             events: RwLock::new(Vec::new()),
+            write_lock: Mutex::new(()),
         });
         state
     }
@@ -4822,6 +4974,46 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn concurrent_audit_appends_write_one_complete_json_object_per_line() {
+        let audit_path = std::env::temp_dir().join(format!(
+            "ignispromptd-audit-concurrent-{}.jsonl",
+            Uuid::new_v4()
+        ));
+        let audit = Arc::new(AuditStore::new(audit_path.clone()).await.unwrap());
+        let append_count = 64usize;
+        let mut tasks = Vec::with_capacity(append_count);
+
+        for index in 0..append_count {
+            let audit = Arc::clone(&audit);
+            tasks.push(tokio::spawn(async move {
+                audit
+                    .append(sample_audit_event(&format!("concurrent-{index}")))
+                    .await
+                    .unwrap();
+            }));
+        }
+        for task in tasks {
+            task.await.unwrap();
+        }
+
+        let jsonl = fs::read_to_string(&audit_path).await.unwrap();
+        assert!(jsonl.ends_with('\n'));
+        let lines = jsonl.lines().collect::<Vec<_>>();
+        assert_eq!(lines.len(), append_count);
+        assert!(lines.iter().all(|line| !line.trim().is_empty()));
+
+        let mut request_ids = HashSet::new();
+        for line in lines {
+            let event: AuditEvent = serde_json::from_str(line).unwrap();
+            request_ids.insert(event.request_id);
+        }
+        assert_eq!(request_ids.len(), append_count);
+        assert_eq!(audit.list().await.len(), append_count);
+
+        let _ = fs::remove_file(audit_path).await;
+    }
+
+    #[tokio::test]
     async fn failed_audit_append_does_not_create_memory_only_event() {
         let audit_path =
             std::env::temp_dir().join(format!("ignispromptd-audit-fail-dir-{}", Uuid::new_v4()));
@@ -4835,6 +5027,52 @@ mod tests {
         assert!(audit.list().await.is_empty());
 
         let _ = fs::remove_dir_all(audit_path).await;
+    }
+
+    #[tokio::test]
+    async fn bounded_mcp_line_reader_accepts_normal_requests() {
+        let input = b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}\n";
+        let mut reader = BufReader::new(input.as_slice());
+
+        let line = read_bounded_mcp_line(&mut reader, MCP_STDIO_MAX_LINE_BYTES)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            line,
+            BoundedMcpLine::Line("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}".to_string())
+        );
+        assert_eq!(
+            read_bounded_mcp_line(&mut reader, MCP_STDIO_MAX_LINE_BYTES)
+                .await
+                .unwrap(),
+            BoundedMcpLine::Eof
+        );
+    }
+
+    #[tokio::test]
+    async fn bounded_mcp_line_reader_rejects_and_discards_oversized_input() {
+        let oversized_secret = "raw-oversized-secret".repeat(128);
+        let input =
+            format!("{oversized_secret}\n{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ping\"}}\n");
+        let mut reader = BufReader::with_capacity(32, input.as_bytes());
+
+        assert_eq!(
+            read_bounded_mcp_line(&mut reader, 128).await.unwrap(),
+            BoundedMcpLine::TooLong
+        );
+        assert_eq!(
+            read_bounded_mcp_line(&mut reader, 128).await.unwrap(),
+            BoundedMcpLine::Line("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ping\"}".to_string())
+        );
+
+        let response = mcp_line_too_long_error(128);
+        let encoded = serde_json::to_string(&response).unwrap();
+        assert_eq!(response["error"]["code"], -32600);
+        assert!(response["error"]["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("128-byte local stdio limit")));
+        assert!(!encoded.contains("raw-oversized-secret"));
     }
 
     fn golden_legal_fixture(name: &str) -> ChatCompletionRequest {
@@ -7460,6 +7698,83 @@ mod tests {
             .as_str()
             .is_some_and(|content| content.contains("messages is empty")));
         assert_eq!(encoded["choices"][0]["finish_reason"], "error");
+    }
+
+    #[tokio::test]
+    async fn route_explain_fails_closed_when_required_audit_write_fails() {
+        let state = state_with_failing_audit_store(vec![legal_model()]);
+        let sensitive_prompt =
+            "PRIVATE_PROMPT_TEXT Review this indemnification clause at /private/customer.txt";
+
+        let (status, response) =
+            call_route_explain(&state, req(sensitive_prompt, Some("ignisprompt/legal"))).await;
+
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(response.decision.route_code, "AUDIT_WRITE_FAILED");
+        assert!(state.audit.list().await.is_empty());
+        let encoded = serde_json::to_string(&response).unwrap();
+        for forbidden in [
+            sensitive_prompt,
+            "PRIVATE_PROMPT_TEXT",
+            "/private/customer.txt",
+            "stack trace",
+            "StubLegalRunner",
+        ] {
+            assert!(!encoded.contains(forbidden));
+        }
+    }
+
+    #[tokio::test]
+    async fn chat_completion_fails_closed_without_caching_when_required_audit_write_fails() {
+        let state = state_with_failing_audit_store(vec![legal_model()]);
+        let sensitive_prompt =
+            "PRIVATE_PROMPT_TEXT Review this indemnification clause at /private/customer.txt";
+
+        let (status, response) =
+            call_chat_completions(&state, req(sensitive_prompt, Some("ignisprompt/legal"))).await;
+
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(response.route.route_code, "AUDIT_WRITE_FAILED");
+        assert_eq!(response.choices[0].finish_reason, "error");
+        assert!(response.cache.is_none());
+        assert!(response.local_output.is_none());
+        assert_eq!(state.completion_cache.len().await, 0);
+        assert!(state.audit.list().await.is_empty());
+        let encoded = serde_json::to_string(&response).unwrap();
+        for forbidden in [
+            sensitive_prompt,
+            "PRIVATE_PROMPT_TEXT",
+            "/private/customer.txt",
+            "stack trace",
+            "StubLegalRunner",
+        ] {
+            assert!(!encoded.contains(forbidden));
+        }
+    }
+
+    #[tokio::test]
+    async fn cached_chat_completion_still_fails_closed_when_audit_write_fails() {
+        let mut state = state_with_models_and_cache(vec![legal_model()], true);
+        let request = req(
+            "Review this indemnification clause in a vendor agreement.",
+            Some("ignisprompt/legal"),
+        );
+        let (first_status, first_response) = call_chat_completions(&state, request.clone()).await;
+        assert_eq!(first_status, StatusCode::OK);
+        assert!(first_response.cache.is_none());
+        assert_eq!(state.completion_cache.len().await, 1);
+
+        state.audit = Arc::new(AuditStore {
+            path: std::env::temp_dir(),
+            events: RwLock::new(Vec::new()),
+            write_lock: Mutex::new(()),
+        });
+        let (second_status, second_response) = call_chat_completions(&state, request).await;
+
+        assert_eq!(second_status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(second_response.route.route_code, "AUDIT_WRITE_FAILED");
+        assert!(second_response.cache.is_none());
+        assert!(state.audit.list().await.is_empty());
     }
 
     #[tokio::test]

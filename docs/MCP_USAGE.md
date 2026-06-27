@@ -4,7 +4,7 @@ IgnisPrompt includes an experimental stdio MCP stub for local contributor testin
 
 ## Current Scope
 
-- Transport: newline-delimited JSON-RPC 2.0 over stdio.
+- Transport: newline-delimited JSON-RPC 2.0 over stdio, with a 1 MiB maximum accepted line length. Oversized lines are discarded and receive a structured invalid-request error without echoing their contents.
 - Startup: `ignispromptd --experimental-mcp-stdio`.
 - Lifecycle methods: `initialize`, `notifications/initialized`, and `ping`.
 - Tool methods: `tools/list` and `tools/call`.
