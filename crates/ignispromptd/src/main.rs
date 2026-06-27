@@ -11,8 +11,10 @@ mod sustainability;
 
 use anyhow::{Context, Result};
 use axum::{
+    extract::Request,
     extract::{Path as AxumPath, Query, State},
-    http::{header, HeaderValue, Method, StatusCode},
+    http::{header, HeaderMap, HeaderValue, Method, StatusCode},
+    middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -132,6 +134,10 @@ struct Args {
         default_value_t = false
     )]
     enable_runner_lifecycle_controls: bool,
+
+    /// Optional local API key. When set, every HTTP request must use Authorization: Bearer <key>.
+    #[arg(long, env = "IGNIS_API_KEY")]
+    api_key: Option<String>,
 
     #[cfg(feature = "gguf-runner-spike")]
     /// Optional local GGUF runner binary for Tier 3 legal inference spikes.
@@ -635,6 +641,7 @@ async fn main() -> Result<()> {
 
 async fn run_http_daemon(state: AppState, bind: SocketAddr) -> Result<()> {
     let cors = cors_layer_for_http_bind(&state.config);
+    let auth_state = state.clone();
     let app = Router::new()
         .route("/health", get(health))
         .route("/v1/models", get(list_models))
@@ -658,6 +665,10 @@ async fn run_http_daemon(state: AppState, bind: SocketAddr) -> Result<()> {
         .route("/v1/metrics/sustainability", get(sustainability_metrics))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
+        .layer(middleware::from_fn_with_state(
+            auth_state,
+            api_key_auth_middleware,
+        ))
         .with_state(state);
 
     let listener = TcpListener::bind(bind).await?;
@@ -684,7 +695,7 @@ fn cors_layer_for_http_bind(config: &Args) -> CorsLayer {
                 is_loopback_cors_origin(origin)
             }))
             .allow_methods([Method::GET, Method::POST])
-            .allow_headers([header::CONTENT_TYPE])
+            .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
     } else {
         CorsLayer::new()
             .allow_origin(Any)
@@ -711,6 +722,120 @@ fn is_loopback_cors_origin(origin: &HeaderValue) -> bool {
 
     let host = authority.split(':').next().unwrap_or_default();
     matches!(host, "localhost" | "127.0.0.1")
+}
+
+async fn api_key_auth_middleware(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> Response {
+    match authenticate_http_request(&state, req.headers()).await {
+        HttpAuthOutcome::Disabled | HttpAuthOutcome::Success => next.run(req).await,
+        HttpAuthOutcome::Failure => unauthorized_response(),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HttpAuthOutcome {
+    Disabled,
+    Success,
+    Failure,
+}
+
+async fn authenticate_http_request(state: &AppState, headers: &HeaderMap) -> HttpAuthOutcome {
+    let Some(expected_key) = state.config.api_key.as_deref() else {
+        return HttpAuthOutcome::Disabled;
+    };
+
+    let candidate = bearer_token_from_authorization(headers);
+    let success = candidate
+        .map(|token| constant_time_eq(token.as_bytes(), expected_key.as_bytes()))
+        .unwrap_or(false);
+    let outcome = if success {
+        HttpAuthOutcome::Success
+    } else {
+        HttpAuthOutcome::Failure
+    };
+
+    if let Err(err) = append_http_auth_audit_event(state, outcome).await {
+        warn!(error = %err, "failed to append HTTP auth audit event");
+    }
+
+    outcome
+}
+
+fn bearer_token_from_authorization(headers: &HeaderMap) -> Option<&str> {
+    let value = headers.get(header::AUTHORIZATION)?.to_str().ok()?;
+    value.strip_prefix("Bearer ")
+}
+
+fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
+    let max_len = left.len().max(right.len());
+    let mut diff = left.len() ^ right.len();
+
+    for index in 0..max_len {
+        let left_byte = left.get(index).copied().unwrap_or(0);
+        let right_byte = right.get(index).copied().unwrap_or(0);
+        diff |= (left_byte ^ right_byte) as usize;
+    }
+
+    diff == 0
+}
+
+async fn append_http_auth_audit_event(state: &AppState, outcome: HttpAuthOutcome) -> Result<()> {
+    let (route_code, explanation, warnings) = match outcome {
+        HttpAuthOutcome::Success => (
+            "AUTH_SUCCESS",
+            "HTTP API key authentication succeeded.",
+            Vec::new(),
+        ),
+        HttpAuthOutcome::Failure => (
+            "AUTH_FAILURE",
+            "HTTP API key authentication failed.",
+            vec![
+                "Request was rejected before route handling; API key material was not logged."
+                    .to_string(),
+            ],
+        ),
+        HttpAuthOutcome::Disabled => return Ok(()),
+    };
+
+    state
+        .audit
+        .append(AuditEvent {
+            request_id: Uuid::new_v4().to_string(),
+            timestamp: Utc::now(),
+            event_type: "http_auth".to_string(),
+            route_code: route_code.to_string(),
+            tier: "AUTH".to_string(),
+            domain: "http".to_string(),
+            model_id: None,
+            data_left_device: false,
+            explanation: explanation.to_string(),
+            warnings,
+            cache: None,
+            completion_output: None,
+            input_tokens_est: None,
+            output_tokens_est: None,
+            baseline_provider: None,
+            baseline_model: None,
+            estimated_cloud_cost_usd: None,
+            estimated_cloud_cost_avoided_usd: None,
+            estimated_local_energy_wh: None,
+            estimated_cloud_baseline_wh: None,
+            estimated_carbon_avoided_gco2e: None,
+            methodology_version: None,
+            confidence: None,
+        })
+        .await
+}
+
+fn unauthorized_response() -> Response {
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(json!({ "error": "unauthorized" })),
+    )
+        .into_response()
 }
 
 async fn run_mcp_stdio(state: AppState) -> Result<()> {
@@ -4872,6 +4997,7 @@ mod tests {
             experimental_mcp_stdio: false,
             allow_non_loopback_cors: false,
             enable_runner_lifecycle_controls: false,
+            api_key: None,
             #[cfg(feature = "gguf-runner-spike")]
             gguf_runner_bin: None,
             #[cfg(feature = "gguf-runner-spike")]
@@ -5073,6 +5199,92 @@ mod tests {
             .as_str()
             .is_some_and(|message| message.contains("128-byte local stdio limit")));
         assert!(!encoded.contains("raw-oversized-secret"));
+    }
+
+    #[tokio::test]
+    async fn api_key_auth_is_disabled_when_not_configured() {
+        let state = state_with_models(vec![legal_model()]);
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::AUTHORIZATION,
+            HeaderValue::from_static("Bearer wrong"),
+        );
+
+        let outcome = authenticate_http_request(&state, &headers).await;
+
+        assert_eq!(outcome, HttpAuthOutcome::Disabled);
+        assert!(state.audit.list().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn api_key_auth_rejects_missing_or_wrong_key_and_audits_without_secret() {
+        let mut state = state_with_models(vec![legal_model()]);
+        state.config.api_key = Some("correct-local-secret".to_string());
+
+        assert_eq!(
+            authenticate_http_request(&state, &HeaderMap::new()).await,
+            HttpAuthOutcome::Failure
+        );
+
+        let mut wrong_headers = HeaderMap::new();
+        wrong_headers.insert(
+            header::AUTHORIZATION,
+            HeaderValue::from_static("Bearer wrong-local-secret"),
+        );
+        assert_eq!(
+            authenticate_http_request(&state, &wrong_headers).await,
+            HttpAuthOutcome::Failure
+        );
+
+        let events = state.audit.list().await;
+        assert_eq!(events.len(), 2);
+        for event in events {
+            assert_eq!(event.event_type, "http_auth");
+            assert_eq!(event.route_code, "AUTH_FAILURE");
+            let encoded = serde_json::to_string(&event).unwrap();
+            assert!(!encoded.contains("correct-local-secret"));
+            assert!(!encoded.contains("wrong-local-secret"));
+            assert!(!encoded.contains("Bearer"));
+        }
+    }
+
+    #[tokio::test]
+    async fn api_key_auth_accepts_correct_bearer_key_and_audits_success() {
+        let mut state = state_with_models(vec![legal_model()]);
+        state.config.api_key = Some("correct-local-secret".to_string());
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::AUTHORIZATION,
+            HeaderValue::from_static("Bearer correct-local-secret"),
+        );
+
+        let outcome = authenticate_http_request(&state, &headers).await;
+
+        assert_eq!(outcome, HttpAuthOutcome::Success);
+        let events = state.audit.list().await;
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].event_type, "http_auth");
+        assert_eq!(events[0].route_code, "AUTH_SUCCESS");
+        let encoded = serde_json::to_string(&events[0]).unwrap();
+        assert!(!encoded.contains("correct-local-secret"));
+        assert!(!encoded.contains("Bearer"));
+    }
+
+    #[tokio::test]
+    async fn unauthorized_response_uses_stable_sanitized_json_shape() {
+        let response = unauthorized_response();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let parsed: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(parsed, json!({ "error": "unauthorized" }));
+    }
+
+    #[test]
+    fn constant_time_eq_matches_exact_bytes_only() {
+        assert!(constant_time_eq(b"same-secret", b"same-secret"));
+        assert!(!constant_time_eq(b"same-secret", b"same-secreu"));
+        assert!(!constant_time_eq(b"same-secret", b"same-secret-longer"));
+        assert!(!constant_time_eq(b"", b"same-secret"));
     }
 
     fn golden_legal_fixture(name: &str) -> ChatCompletionRequest {

@@ -23,9 +23,11 @@ Cloud BYOK routing is not implemented. Tier 5 cloud routing is not implemented.
 
 The default HTTP daemon bind remains `127.0.0.1:8765`. Loopback binds use a CORS policy limited to loopback browser origins such as `http://127.0.0.1:<port>`, `http://localhost:<port>`, and `http://[::1]:<port>`.
 
-Binding the HTTP daemon to a non-loopback address is rejected unless the local operator explicitly sets `--allow-non-loopback-cors` or `IGNISPROMPT_ALLOW_NON_LOOPBACK_CORS=true`. That override enables permissive CORS for a trusted local-preview network only. It does not add authentication, TLS, production readiness, or security certification.
+Binding the HTTP daemon to a non-loopback address is rejected unless the local operator explicitly sets `--allow-non-loopback-cors` or `IGNISPROMPT_ALLOW_NON_LOOPBACK_CORS=true`. That override enables permissive CORS for a trusted local-preview network only. It does not add TLS, production readiness, or security certification.
 
-Loopback-only binding remains the safe default for this local-preview daemon. Authentication, authorization, and TLS are intentionally not added by the audit/temp-file hardening work. Any future production deployment would require those controls plus a stricter origin policy; the explicit non-loopback override remains an operator decision for a trusted local-preview network, not a production security boundary.
+Loopback-only binding remains the safe default for this local-preview daemon. Operators can set `IGNIS_API_KEY=<secret>` to require every HTTP request to include `Authorization: Bearer <secret>`. If `IGNIS_API_KEY` is unset, HTTP authentication is disabled and the daemon preserves the existing local developer workflow. If it is set, missing or incorrect bearer tokens return `401` with `{ "error": "unauthorized" }`; the comparison avoids early-exit byte comparison and the daemon logs only authentication success/failure metadata, never the key value.
+
+This optional API key is a local deployment hardening control, not full production identity, authorization, session management, or TLS. Any future production deployment would require authentication, authorization, TLS, secret rotation, operational controls, and a stricter origin policy; the explicit non-loopback override remains an operator decision for a trusted local-preview network, not a production security boundary.
 
 ## Prompt and document handling
 
@@ -36,6 +38,8 @@ This is a lightweight scaffold control, not a complete prompt-injection defense.
 ## Audit behavior
 
 Route explanations and chat completions append local audit events. Events include route code, tier, domain, model id, explanation, warnings, and `data_left_device`.
+
+When `IGNIS_API_KEY` is enabled, HTTP authentication success and failure outcomes are also appended as local audit events before route handlers run. These events record only outcome metadata such as `AUTH_SUCCESS` or `AUTH_FAILURE`; they do not include the API key, bearer header, prompt text, or model output.
 
 Audit appends serialize in-process writes and write each JSON object plus its newline as one complete record while holding the audit write lock. The local JSONL record is written before the event is made visible through the process-memory audit list. Required route-explain and chat-completion operations fail closed with a sanitized `AUDIT_WRITE_FAILED` response if persistence fails, and failed records are not reported through `GET /v1/audit/events` as memory-only durable events.
 

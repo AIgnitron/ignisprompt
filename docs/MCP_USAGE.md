@@ -13,6 +13,22 @@ IgnisPrompt includes an experimental stdio MCP stub for local contributor testin
 
 The MCP path is local-only. It does not add cloud calls, telemetry, uploads, global aggregation, model controls, runner controls, config mutation, command execution, remote transports, or prompt/resource/sampling support.
 
+## HTTP Daemon API Key Example
+
+The HTTP daemon can require a local bearer key by starting it with `IGNIS_API_KEY=<secret>`. When this variable is unset, authentication is disabled and existing local developer commands continue to work unchanged.
+
+Example authenticated HTTP request:
+
+```bash
+IGNIS_API_KEY='replace-with-local-secret' cargo run -p ignispromptd
+
+curl -fsS \
+  -H 'Authorization: Bearer replace-with-local-secret' \
+  http://127.0.0.1:8765/health
+```
+
+Do not put real local secrets in shell history, shared logs, docs, or issue comments.
+
 ## Manual Stdio Example
 
 Run from the repository root:
