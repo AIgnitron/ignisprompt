@@ -69,7 +69,8 @@ Untrusted local runner binary risks:
 Unauthenticated local API access:
 
 - Current mitigation: default bind is `127.0.0.1:8765`.
-- Gap: no daemon-level auth, authorization, rate limiting, or TLS.
+- Current boundary: the explicit non-loopback override is a local-preview operator decision for a trusted network and remains unauthenticated.
+- Gap: no daemon-level auth, authorization, rate limiting, or TLS. This hardening work does not redesign that boundary; future production deployment would require authentication, authorization, TLS, and stricter CORS.
 
 False product claims:
 

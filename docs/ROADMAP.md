@@ -46,7 +46,7 @@ This roadmap describes intended direction, not completed functionality. Any item
 - Optional `gguf-runner-spike` feature that can call a local subprocess runner when configured and when the local `.gguf` file exists, with a deterministic subprocess timeout.
 - Local JSON extraction and validation shim for the GGUF legal spike.
 - Default CI path that does not need Ollama, GGUF files, or model weights, plus separate Aethra fixture-backed test/build coverage.
-- Local daemon HTTP bind/CORS guardrails, GGUF blocking-task isolation, and audit append durability ordering for local-preview runtime hardening.
+- Local daemon HTTP bind/CORS guardrails, serialized audit JSONL writes, fail-closed required audit persistence, bounded MCP stdio messages, private GGUF temporary files, GGUF blocking-task isolation, and audit append durability ordering for local-preview runtime hardening.
 - Local security review helper checks for hidden Unicode markers and conservative accidental secret patterns.
 
 ## Near-term work
@@ -79,6 +79,7 @@ Future model selection should compare larger general models and legal-domain can
 
 ## Planned but not implemented
 
+- Production authentication, authorization, TLS termination, and production origin policy. Loopback-only binding remains the safe local-preview default; the explicit non-loopback override is not a production security boundary.
 - Production-grade MCP server surface beyond the experimental stdio stub.
 - Production dashboard beyond the current Aethra live-local-first, local-preview scaffold.
 - Production-grade incremental token streaming.
